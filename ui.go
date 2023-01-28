@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -11,86 +10,102 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
-	"time"
 )
 
 const (
 	settingKeySteamId = "steamId"
+
+	AppId = "com.github.leighmacdonald.bd"
 )
 
-type BotDetector struct {
-	application    fyne.App
-	rootWindow     fyne.Window
-	settingsDialog dialog.Dialog
-	logChan        chan string
+type UserInterface interface {
+	onNewMessage(value evtUserMessageData)
+}
+
+type Ui struct {
+	Application    fyne.App
+	RootWindow     fyne.Window
+	ChatWindow     fyne.Window
+	SettingsDialog dialog.Dialog
+	AboutDialog    dialog.Dialog
 	messages       binding.StringList
-	chatWindow     fyne.Window
-	serverState    serverState
-	ctx            context.Context
-	playerLists    []TF2BDSchema
+	GameLauncher   func()
 }
 
-func New() BotDetector {
-	application := app.NewWithID(AppId)
-	rootApp := BotDetector{
-		application: application,
-		logChan:     make(chan string),
-		messages:    binding.NewStringList(),
-		serverState: serverState{
-			players: map[steamid.SID64]*player{},
-		},
-		ctx: context.Background(),
+func (ui *Ui) onNewMessage(value evtUserMessageData) {
+	teamMsg := "blu"
+	if value.team == red {
+		teamMsg = "red"
 	}
-	rootApp.createRootWindow()
-	go func() {
-		for {
-			msg := <-rootApp.logChan
-			if errAppend := rootApp.messages.Append(msg); errAppend != nil {
-				log.Printf("Failed to add message: %v\n", errAppend)
-			}
-			rootApp.chatWindow.Content().(*widget.List).ScrollToBottom()
-		}
-	}()
-	go func() {
-		tick := time.NewTicker(time.Second * 10)
-		for {
-			<-tick.C
-			updatePlayerState(rootApp.ctx, &rootApp.serverState)
-			for _, v := range rootApp.serverState.players {
-				log.Printf("%d, %d, %s, %v, %s\n", v.userId, v.steamId, v.name, v.team, v.connectedTime)
-			}
-		}
-	}()
-	go func() {
-		rootApp.playerLists = downloadPlayerLists(rootApp.ctx)
-		tick := time.NewTicker(1 * time.Hour)
-		for {
-			<-tick.C
-			rootApp.playerLists = downloadPlayerLists(rootApp.ctx)
-		}
-	}()
-	go func() {
-		count := 0
-		t := time.NewTicker(time.Second)
-		for {
-			<-t.C
-			rootApp.logChan <- formatMsg(fmt.Sprintf("Test message #%d", count))
-			count++
-		}
-	}()
-	return rootApp
+	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.player, value.message)
+	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
+		log.Printf("Failed to add message: %v\n", errAppend)
+	}
+	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
 }
 
-func (bd *BotDetector) start() {
-	bd.rootWindow.Show()
-	bd.application.Run()
+func newUi(state *serverState) *Ui {
+	application := app.NewWithID(AppId)
+	rootWindow := application.NewWindow("")
+	settingsDialog := newSettingsDialog(application, rootWindow, func() {
+		rootWindow.Close()
+	})
+	aboutDialog := createAboutDialog(rootWindow)
+	messages := binding.NewStringList()
+	chatWindow := newChatWidget(application, messages)
+	var bindings []binding.DataMap
+	//for _, p := range serverState.players {
+	//	bindings = append(bindings, binding.BindStruct(&p))
+	//}
+	playerTable := container.NewVScroll(newPlayerTable(state, bindings))
+
+	//ui.RootWindow.SetCloseIntercept(func() {
+	//	ui.RootWindow.Hide()
+	//})
+	rootWindow.Resize(fyne.NewSize(750, 1000))
+
+	ui := Ui{
+		Application:    application,
+		RootWindow:     rootWindow,
+		SettingsDialog: settingsDialog,
+		AboutDialog:    aboutDialog,
+		ChatWindow:     chatWindow,
+	}
+
+	configureTray(application, ui.GameLauncher, func() {
+		rootWindow.Show()
+	})
+
+	toolbar := newToolbar(ui.GameLauncher, func() {
+		chatWindow.Show()
+	}, func() {
+		settingsDialog.Show()
+	}, func() {
+		aboutDialog.Show()
+	})
+
+	rootWindow.SetContent(container.NewBorder(
+		toolbar,
+		nil,
+		nil,
+		nil,
+		playerTable,
+	))
+	return &ui
 }
 
-func (bd *BotDetector) newSettingsDialog() dialog.Dialog {
-	defaultSteamId := bd.application.Preferences().StringWithFallback(settingKeySteamId, "")
+func (ui *Ui) Run() {
+	ui.RootWindow.Show()
+	ui.Application.Run()
+}
+
+func newSettingsDialog(application fyne.App, parent fyne.Window, onClose func()) dialog.Dialog {
+	defaultSteamId := application.Preferences().StringWithFallback(settingKeySteamId, "")
 	settingSteamId := binding.BindString(&defaultSteamId)
 	entry := widget.NewEntryWithData(settingSteamId)
 
@@ -112,56 +127,55 @@ func (bd *BotDetector) newSettingsDialog() dialog.Dialog {
 				return
 			}
 
-			bd.application.Preferences().SetString(settingKeySteamId, sid.String())
-			bd.rootWindow.Close()
+			application.Preferences().SetString(settingKeySteamId, sid.String())
+			onClose()
 		},
 	}
-	settingsWindow := dialog.NewCustom("Settings", "Dismiss", form, bd.rootWindow)
+	settingsWindow := dialog.NewCustom("Settings", "Dismiss", form, parent)
 	settingsWindow.Resize(fyne.NewSize(500, 500))
 	return settingsWindow
 }
 
-func (bd *BotDetector) configureTray() {
-	if desk, ok := bd.application.(desktop.App); ok {
-		m := fyne.NewMenu(AppName,
-			fyne.NewMenuItem("Show", func() {
-				bd.rootWindow.Show()
-			}),
-			fyne.NewMenuItem("Launch TF2", func() {
-				launchTF2()
-			}))
+func configureTray(application fyne.App, launchTf2Fn func(), showFunc func()) {
+	launchLabel := translations.Tr(&i18n.Message{
+		ID:  "LaunchButton",
+		One: "Launch TF2",
+	}, 1, nil)
+
+	if desk, ok := application.(desktop.App); ok {
+		m := fyne.NewMenu(application.Preferences().StringWithFallback("appName", "Bot Detector"),
+			fyne.NewMenuItem("Show", showFunc),
+			fyne.NewMenuItem(launchLabel, launchTf2Fn))
 		desk.SetSystemTrayMenu(m)
+		application.SetIcon(theme.InfoIcon())
 	}
 }
 
-func (bd *BotDetector) newToolbar() *widget.Toolbar {
+func newToolbar(tf2LaunchFn func(), chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
 	toolBar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.MediaPlayIcon(), launchTF2),
-		widget.NewToolbarAction(theme.FileTextIcon(), func() {
-			bd.chatWindow.Show()
-		}),
+		widget.NewToolbarAction(theme.MediaPlayIcon(), tf2LaunchFn),
+		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.SettingsIcon(), func() {
-			bd.settingsDialog.Show()
-		}),
+		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {
 			log.Println("Display help")
 		}),
+		widget.NewToolbarAction(theme.InfoIcon(), aboutFunc),
 	)
 	return toolBar
 }
 
-func formatMsg(msg string) string {
-	return fmt.Sprintf("%s: %s", time.Now().Format("15:04:05"), msg)
-}
+//func formatMsgDate(msg string) string {
+//	return fmt.Sprintf("%s: %s", time.Now().Format("15:04:05"), msg)
+//}
 
-func (bd *BotDetector) newChatWidget() fyne.Window {
-	chatWidget := widget.NewListWithData(bd.messages, func() fyne.CanvasObject {
+func newChatWidget(application fyne.App, messages binding.StringList) fyne.Window {
+	chatWidget := widget.NewListWithData(messages, func() fyne.CanvasObject {
 		return widget.NewLabel("template")
 	}, func(item binding.DataItem, object fyne.CanvasObject) {
 		object.(*widget.Label).Bind(item.(binding.String))
 	})
-	chatWindow := bd.application.NewWindow("Chat")
+	chatWindow := application.NewWindow("Chat")
 	chatWindow.SetContent(chatWidget)
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {
@@ -171,18 +185,19 @@ func (bd *BotDetector) newChatWidget() fyne.Window {
 	return chatWindow
 }
 
-func (bd *BotDetector) newPlayerTable() *widget.Table {
+func newPlayerTable(serverState *serverState, bindings []binding.DataMap) *widget.Table {
 	keys := []string{"userId", "steamId", "name", ""}
-	var bindings []binding.DataMap
-	for _, p := range bd.serverState.players {
-		bindings = append(bindings, binding.BindStruct(&p))
-	}
+
 	table := widget.NewTable(func() (int, int) {
 		return 24, 6
 	}, func() fyne.CanvasObject {
 		return widget.NewLabel("wide content")
 	}, func(id widget.TableCellID, object fyne.CanvasObject) {
-		if id.Row > len(bd.serverState.players)-1 {
+		if id.Row > len(serverState.players)-1 {
+			object.(*widget.Label).SetText("")
+			return
+		}
+		if bindings == nil {
 			object.(*widget.Label).SetText("")
 			return
 		}
@@ -204,25 +219,7 @@ func (bd *BotDetector) newPlayerTable() *widget.Table {
 	return table
 }
 
-func (bd *BotDetector) createRootWindow() {
-	bd.rootWindow = bd.application.NewWindow(AppName)
-	bd.settingsDialog = bd.newSettingsDialog()
-	bd.configureTray()
-	bd.chatWindow = bd.newChatWidget()
-	playerTable := container.NewVScroll(bd.newPlayerTable())
-
-	centerContainer := container.NewBorder(
-		bd.newToolbar(),
-		nil,
-		nil,
-		nil,
-		playerTable,
-	)
-
-	bd.rootWindow.SetContent(centerContainer)
-
-	//bd.rootWindow.SetCloseIntercept(func() {
-	//	bd.rootWindow.Hide()
-	//})
-	bd.rootWindow.Resize(fyne.NewSize(750, 1000))
+func createAboutDialog(parent fyne.Window) dialog.Dialog {
+	aboutMsg := fmt.Sprintf("%s\n\nVersion: %s\nCommit: %s\nDate: %s\n", AppId, version, commit, date)
+	return dialog.NewInformation("About", aboutMsg, parent)
 }

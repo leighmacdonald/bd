@@ -1,9 +1,18 @@
 package main
 
-const AppId = "com.github.leighmacdonald.bd"
-const AppName = "Bot Detector"
+import (
+	_ "github.com/leighmacdonald/bd/translations"
+)
 
-const RconPass = "pazer_sux"
+// Embedded via goreleaser
+var (
+	// Current Git tag or snapshot name
+	version = "dev"
+	// Current git commit SHA
+	commit = "none"
+	// Date in the RFC3339 format
+	date = "unknown"
+)
 
 func main() {
 	botDetector := New()

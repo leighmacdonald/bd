@@ -14,37 +14,42 @@ const (
 	blu
 )
 
-type player struct {
-	name          string
-	steamId       steamid.SID64
-	connectedAt   int
-	team          team
-	userId        int
-	connectedTime time.Duration
+type playerState struct {
+	name             string
+	steamId          steamid.SID64
+	connectedAt      int
+	team             team
+	userId           int
+	connectedTime    time.Duration
+	kickAttemptCount int
 }
 
 var (
 	rx *regexp.Regexp
 )
 
-func parseLobbyPlayers(body string) []player {
-	var players []player
+type rconConnection interface {
+	Exec(command string) (string, error)
+}
+
+func parseLobbyPlayers(body string) []playerState {
+	var players []playerState
 	for _, line := range strings.Split(body, "\n") {
 		match := rx.FindStringSubmatch(line)
 		if match == nil {
 			continue
 		}
-		p := player{
+		ps := playerState{
 			name:        "",
 			steamId:     steamid.SID3ToSID64(steamid.SID3(match[3])),
 			connectedAt: 0,
 		}
 		if match[4] == "TF_GC_TEAM_INVADERS" {
-			p.team = blu
+			ps.team = blu
 		} else {
-			p.team = red
+			ps.team = red
 		}
-		players = append(players, p)
+		players = append(players, ps)
 	}
 	return players
 }

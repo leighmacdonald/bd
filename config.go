@@ -1,50 +1,18 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"golang.org/x/sys/windows/registry"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 )
-
-func openSteamRegistry() (registry.Key, error) {
-	var access uint32 = registry.QUERY_VALUE
-	regKey, errRegKey := registry.OpenKey(registry.CURRENT_USER, "Software\\\\Valve\\\\Steam\\\\ActiveProcess", access)
-	if errRegKey != nil {
-		return regKey, errors.Wrap(errRegKey, "failed to get steam install path")
-	}
-	return regKey, nil
-}
-
-func getSteamId() (steamid.SID64, error) {
-	regKey, errRegKey := openSteamRegistry()
-	if errRegKey != nil {
-		return 0, errRegKey
-	}
-	activeUser, _, err := regKey.GetIntegerValue("ActiveUser")
-	if err != nil {
-		return 0, errors.Wrap(err, "Failed to read ActiveUser value")
-	}
-	return steamid.SID32ToSID64(steamid.SID32(activeUser)), nil
-}
-
-func getSteamRoot() (string, error) {
-	regKey, errRegKey := openSteamRegistry()
-	if errRegKey != nil {
-		return "", errRegKey
-	}
-	installPath, _, err := regKey.GetStringValue("SteamClientDll")
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to read SteamClientDll value")
-	}
-	return filepath.Dir(installPath), nil
-}
 
 func exists(filePath string) bool {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -151,7 +119,8 @@ func getHL2Path() (string, error) {
 	}
 	return hl2Path, nil
 }
-func getLaunchArgs(rconPass string, rconPort int) ([]string, error) {
+
+func getLaunchArgs(rconPass string, rconPort uint16) ([]string, error) {
 	currentArgs, errUserArgs := getUserLaunchArgs()
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
@@ -182,25 +151,32 @@ func getLaunchArgs(rconPass string, rconPort int) ([]string, error) {
 	return out, nil
 }
 
-func launchTF2() {
+func launchTF2(rconPass string, rconPort uint16) {
 	log.Println("Launching tf2...")
 	hl2, errHl2 := getHL2Path()
 	if errHl2 != nil {
 		log.Println(errHl2)
 		return
 	}
-	args, errArgs := getLaunchArgs(RconPass, 20000)
+	args, errArgs := getLaunchArgs(rconPass, rconPort)
 	if errArgs != nil {
 		log.Println(errArgs)
 		return
 	}
-	log.Printf("Calling: %s %s\n", hl2, strings.Join(args, " "))
-
 	var procAttr os.ProcAttr
-	procAttr.Files = []*os.File{os.Stdin,
-		os.Stdout, os.Stderr}
-	_, err := os.StartProcess(hl2, append([]string{hl2}, args...), &procAttr)
-	if err == nil {
-		log.Println(err)
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	_, errStart := os.StartProcess(hl2, append([]string{hl2}, args...), &procAttr)
+	if errStart != nil {
+		log.Printf("Failed to launch TF2: %v", errStart)
 	}
+}
+
+func randPort() uint16 {
+	const defaultPort = 21212
+	var b [8]byte
+	if _, errRead := rand.Read(b[:]); errRead != nil {
+		log.Printf("Failed to generate port number, using default %d: %v\n", defaultPort, errRead)
+		return defaultPort
+	}
+	return uint16(binary.LittleEndian.Uint64(b[:]))
 }

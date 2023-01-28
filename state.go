@@ -12,11 +12,11 @@ import (
 type serverState struct {
 	server     string
 	currentMap string
-	players    map[steamid.SID64]*player
+	players    map[steamid.SID64]*playerState
 }
 
-func updatePlayerState(ctx context.Context, state *serverState) {
-	conn, errConn := rcon.Dial(ctx, "127.0.0.1:20000", RconPass, time.Second*5)
+func updatePlayerState(ctx context.Context, address string, password string, state *serverState) {
+	conn, errConn := rcon.Dial(ctx, address, password, time.Second*5)
 	if errConn != nil {
 		log.Printf("Failed to connect to client: %v\n", errConn)
 		return

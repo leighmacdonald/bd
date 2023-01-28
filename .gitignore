@@ -1,2 +1,4 @@
 *.exe
 .idea
+
+dist/

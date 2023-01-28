@@ -1,0 +1,34 @@
+name: build
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.15
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          only-new-issues: false
+
+      - name: lint
+        run: make lint
+
+      - name: Build
+        run: go build -o bd_test
