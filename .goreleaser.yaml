@@ -1,7 +1,3 @@
-before:
-  hooks:
-    - make fmt
-    - make lint
 builds:
   - env:
       - CGO_ENABLED=1
@@ -10,7 +6,8 @@ builds:
       - windows
     goarch:
       - amd64
-
+    ldflags:
+      - -s -w -X model.BuildVersion={{.Version}} -X model.BuildCommit={{.Commit}} -X model.BuildDate={{.Date}}
 archives:
   - format: tar.gz
     name_template: >-

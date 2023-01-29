@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -169,14 +167,4 @@ func launchTF2(rconPass string, rconPort uint16) {
 	if errStart != nil {
 		log.Printf("Failed to launch TF2: %v", errStart)
 	}
-}
-
-func randPort() uint16 {
-	const defaultPort = 21212
-	var b [8]byte
-	if _, errRead := rand.Read(b[:]); errRead != nil {
-		log.Printf("Failed to generate port number, using default %d: %v\n", defaultPort, errRead)
-		return defaultPort
-	}
-	return uint16(binary.LittleEndian.Uint64(b[:]))
 }

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"fyne.io/fyne/v2/data/binding"
-	"github.com/leighmacdonald/golib"
+	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"log"
@@ -14,23 +14,13 @@ import (
 	"time"
 )
 
-type rconConfig struct {
-	address  string
-	password string
-	port     uint16
-}
-
-func (cfg rconConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", cfg.address, cfg.port)
-}
-
 type BD struct {
 	// TODO
 	// - decouple remaining ui bindings
 	// - generalized matchers
-	messages       binding.StringList
+
 	logChan        chan string
-	serverState    *serverState
+	serverState    *model.ServerState
 	serverStateMu  *sync.RWMutex
 	ctx            context.Context
 	logReader      *logReader
@@ -40,70 +30,72 @@ type BD struct {
 	playerListsMu  *sync.RWMutex
 	ruleLists      ruleListCollection
 	ruleListsMu    *sync.RWMutex
-	rconConfig     rconConfig
+	rconConfig     rconConfigProvider
 	rconConnection rconConnection
-	ui             *Ui
-	eventChan      chan event
+	gui            ui.UserInterface
+	eventChan      chan model.Event
 	dryRun         bool
 }
 
-func New() BD {
+func New(ctx context.Context, rconConfig rconConfigProvider) BD {
 	rootApp := BD{
 		logChan:       make(chan string),
-		messages:      binding.NewStringList(),
 		playerListsMu: &sync.RWMutex{},
 		serverStateMu: &sync.RWMutex{},
 		ruleListsMu:   &sync.RWMutex{},
-		rconConfig:    rconConfig{address: "127.0.0.1", password: golib.RandomString(10), port: randPort()},
-		serverState: &serverState{
-			players: map[steamid.SID64]*playerState{},
+		rconConfig:    rconConfig,
+		serverState: &model.ServerState{
+			Players: map[steamid.SID64]*model.PlayerState{},
 		},
-		ctx:    context.Background(),
+		ctx:    ctx,
 		dryRun: true,
 	}
-	tf2Path, tf2PathErr := getTF2Folder()
-	if tf2PathErr != nil {
-		panic(tf2PathErr)
-	}
+	tf2Path, _ := getTF2Folder()
+	//if tf2PathErr != nil {
+	//	panic(tf2PathErr)
+	//}
 	consoleLogPath := filepath.Join(tf2Path, "console.log")
 	reader, errLogReader := newLogReader(consoleLogPath, rootApp.logChan, true)
 	if errLogReader != nil {
 		panic(errLogReader)
 	}
 	rootApp.logReader = reader
-	incomingLogEvents := make(chan LogEvent)
+	incomingLogEvents := make(chan model.LogEvent)
 
 	rootApp.logParser = NewLogParser(rootApp.logChan, incomingLogEvents)
 	go func() {
 		for {
 			evt := <-incomingLogEvents
 			switch evt.Type {
-			case EvtDisconnect:
-				delete(rootApp.serverState.players, evt.PlayerSID)
+			case model.EvtDisconnect:
+				delete(rootApp.serverState.Players, evt.PlayerSID)
 				log.Printf("Removed disconnected player state: %d", evt.PlayerSID.Int64())
-			case EvtMsg:
-				rootApp.eventChan <- event{EvtMsg, evtUserMessageData{
-					team:      evt.Team,
-					player:    evt.Player,
-					playerSID: evt.PlayerSID,
-					userId:    evt.UserId,
-					message:   evt.Message,
+			case model.EvtMsg:
+				rootApp.eventChan <- model.Event{Name: model.EvtMsg, Value: model.EvtUserMessage{
+					Team:      evt.Team,
+					Player:    evt.Player,
+					PlayerSID: evt.PlayerSID,
+					UserId:    evt.UserId,
+					Message:   evt.Message,
 				}}
-			case EvtStatusId:
+			case model.EvtStatusId:
 				log.Printf("[%d] [%d] %s\n", evt.UserId, evt.PlayerSID.Int64(), evt.Player)
 			}
 		}
 	}()
 
-	rootApp.ui = newUi(rootApp.serverState)
-
 	return rootApp
 }
+
+func (bd *BD) AttachGui(gui ui.UserInterface) {
+	bd.gui = gui
+}
+
 func (bd *BD) playerStateUpdater() {
 	for range time.NewTicker(time.Second * 10).C {
-		updatePlayerState(bd.ctx, bd.rconConfig.Addr(), bd.rconConfig.password, bd.serverState)
-		for _, v := range bd.serverState.players {
-			log.Printf("%d, %d, %s, %v, %s\n", v.userId, v.steamId, v.name, v.team, v.connectedTime)
+		updatePlayerState(bd.ctx, bd.rconConfig.String(), bd.rconConfig.Password(), bd.serverState)
+		for _, v := range bd.serverState.Players {
+			log.Printf("%d, %d, %s, %v, %s\n", v.UserId, v.SteamId, v.Name, v.Team, v.ConnectedTime)
 		}
 		bd.checkPlayerStates()
 	}
@@ -126,7 +118,7 @@ func (bd *BD) listUpdater() {
 
 func (bd *BD) checkPlayerStates() {
 	var matched MatchedPlayerList
-	for steamId, ps := range bd.serverState.players {
+	for steamId, ps := range bd.serverState.Players {
 		for _, matcher := range bd.matchers {
 			if !matcher.FindMatch(steamId, &matched) {
 				continue
@@ -141,16 +133,30 @@ func (bd *BD) checkPlayerStates() {
 					continue
 				}
 			} else {
-				if errVote := bd.callVote(ps.userId); errVote != nil {
+				if errVote := bd.callVote(ps.UserId); errVote != nil {
 					log.Printf("Error calling vote: %v", errVote)
 				}
-				ps.kickAttemptCount++
+				ps.KickAttemptCount++
 			}
 			// Only try to vote once per iteration
 			break
 
 		}
+	}
+}
 
+func eventSender(ctx context.Context, bd *BD, ui ui.UserInterface) {
+	for {
+		select {
+		case evt := <-bd.eventChan:
+			switch evt.Name {
+			case model.EvtMsg:
+				value := evt.Value.(model.EvtUserMessage)
+				ui.OnUserMessage(value)
+			}
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -182,9 +188,6 @@ func (bd *BD) start() {
 	go bd.logParser.start(bd.ctx)
 	go bd.playerStateUpdater()
 	go bd.listUpdater()
-	bd.ui.RootWindow.Show()
-
-	go eventSender(bd.ctx, bd, bd.ui)
-
-	bd.ui.Application.Run()
+	//go ui2.eventSender(bd.ctx, bd, bd.ui)
+	<-bd.ctx.Done()
 }

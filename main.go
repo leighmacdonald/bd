@@ -1,20 +1,17 @@
 package main
 
 import (
+	"context"
 	_ "github.com/leighmacdonald/bd/translations"
-)
-
-// Embedded via goreleaser
-var (
-	// Current Git tag or snapshot name
-	version = "dev"
-	// Current git commit SHA
-	commit = "none"
-	// Date in the RFC3339 format
-	date = "unknown"
+	"github.com/leighmacdonald/bd/ui"
 )
 
 func main() {
-	botDetector := New()
-	botDetector.start()
+	ctx := context.Background()
+	rc := newRconConfig(true)
+	gui := ui.New(ctx)
+	botDetector := New(ctx, rc)
+	botDetector.AttachGui(gui)
+	go botDetector.start()
+	gui.Start()
 }

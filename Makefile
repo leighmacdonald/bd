@@ -6,6 +6,7 @@ build_windows:
 deps:
 	go install fyne.io/fyne/v2/cmd/fyne@latest
 	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
+	go install github.com/goreleaser/goreleaser@latest
 
 lint:
 	golangci-lint run

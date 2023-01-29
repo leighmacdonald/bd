@@ -1,6 +1,7 @@
-package main
+package ui
 
 import (
+	"context"
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -10,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -24,32 +26,42 @@ const (
 )
 
 type UserInterface interface {
-	onNewMessage(value evtUserMessageData)
+	OnUserMessage(value model.EvtUserMessage)
+	Start()
 }
 
 type Ui struct {
+	ctx            context.Context
 	Application    fyne.App
 	RootWindow     fyne.Window
 	ChatWindow     fyne.Window
 	SettingsDialog dialog.Dialog
 	AboutDialog    dialog.Dialog
 	messages       binding.StringList
+	BuildVersion   string
+	BuildCommit    string
+	BuildDate      string
 	GameLauncher   func()
 }
 
-func (ui *Ui) onNewMessage(value evtUserMessageData) {
+func (ui Ui) Start() {
+	ui.RootWindow.Show()
+	ui.Application.Run()
+}
+
+func (ui Ui) OnUserMessage(value model.EvtUserMessage) {
 	teamMsg := "blu"
-	if value.team == red {
+	if value.Team == model.Red {
 		teamMsg = "red"
 	}
-	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.player, value.message)
+	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.Player, value.Message)
 	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
 		log.Printf("Failed to add message: %v\n", errAppend)
 	}
 	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
 }
 
-func newUi(state *serverState) *Ui {
+func New(ctx context.Context) UserInterface {
 	application := app.NewWithID(AppId)
 	rootWindow := application.NewWindow("")
 	settingsDialog := newSettingsDialog(application, rootWindow, func() {
@@ -62,7 +74,7 @@ func newUi(state *serverState) *Ui {
 	//for _, p := range serverState.players {
 	//	bindings = append(bindings, binding.BindStruct(&p))
 	//}
-	playerTable := container.NewVScroll(newPlayerTable(state, bindings))
+	playerTable := container.NewVScroll(newPlayerTable(nil, bindings))
 
 	//ui.RootWindow.SetCloseIntercept(func() {
 	//	ui.RootWindow.Hide()
@@ -70,11 +82,13 @@ func newUi(state *serverState) *Ui {
 	rootWindow.Resize(fyne.NewSize(750, 1000))
 
 	ui := Ui{
+		ctx:            ctx,
 		Application:    application,
 		RootWindow:     rootWindow,
 		SettingsDialog: settingsDialog,
 		AboutDialog:    aboutDialog,
 		ChatWindow:     chatWindow,
+		messages:       binding.NewStringList(),
 	}
 
 	configureTray(application, ui.GameLauncher, func() {
@@ -96,10 +110,10 @@ func newUi(state *serverState) *Ui {
 		nil,
 		playerTable,
 	))
-	return &ui
+	return ui
 }
 
-func (ui *Ui) Run() {
+func (ui Ui) Run() {
 	ui.RootWindow.Show()
 	ui.Application.Run()
 }
@@ -185,7 +199,7 @@ func newChatWidget(application fyne.App, messages binding.StringList) fyne.Windo
 	return chatWindow
 }
 
-func newPlayerTable(serverState *serverState, bindings []binding.DataMap) *widget.Table {
+func newPlayerTable(serverState *model.ServerState, bindings []binding.DataMap) *widget.Table {
 	keys := []string{"userId", "steamId", "name", ""}
 
 	table := widget.NewTable(func() (int, int) {
@@ -193,7 +207,11 @@ func newPlayerTable(serverState *serverState, bindings []binding.DataMap) *widge
 	}, func() fyne.CanvasObject {
 		return widget.NewLabel("wide content")
 	}, func(id widget.TableCellID, object fyne.CanvasObject) {
-		if id.Row > len(serverState.players)-1 {
+		if serverState == nil || serverState.Players == nil {
+			object.(*widget.Label).SetText("")
+			return
+		}
+		if id.Row > len(serverState.Players)-1 {
 			object.(*widget.Label).SetText("")
 			return
 		}
@@ -220,6 +238,6 @@ func newPlayerTable(serverState *serverState, bindings []binding.DataMap) *widge
 }
 
 func createAboutDialog(parent fyne.Window) dialog.Dialog {
-	aboutMsg := fmt.Sprintf("%s\n\nVersion: %s\nCommit: %s\nDate: %s\n", AppId, version, commit, date)
+	aboutMsg := fmt.Sprintf("%s\n\nVersion: %s\nCommit: %s\nDate: %s\n", AppId, model.BuildVersion, model.BuildCommit, model.BuildDate)
 	return dialog.NewInformation("About", aboutMsg, parent)
 }

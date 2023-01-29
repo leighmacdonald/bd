@@ -2,20 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/extra"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
 	"time"
 )
 
-type serverState struct {
-	server     string
-	currentMap string
-	players    map[steamid.SID64]*playerState
-}
-
-func updatePlayerState(ctx context.Context, address string, password string, state *serverState) {
+func updatePlayerState(ctx context.Context, address string, password string, state *model.ServerState) {
 	conn, errConn := rcon.Dial(ctx, address, password, time.Second*5)
 	if errConn != nil {
 		log.Printf("Failed to connect to client: %v\n", errConn)
@@ -43,13 +37,13 @@ func updatePlayerState(ctx context.Context, address string, password string, sta
 		return
 	}
 	for _, lobbyPlayer := range lobby {
-		state.players[lobbyPlayer.steamId] = &lobbyPlayer
+		state.Players[lobbyPlayer.SteamId] = &lobbyPlayer
 	}
-	state.server = status.ServerName
-	state.currentMap = status.Map
+	state.Server = status.ServerName
+	state.CurrentMap = status.Map
 	for _, statusPlayer := range status.Players {
-		state.players[statusPlayer.SID].name = statusPlayer.Name
-		state.players[statusPlayer.SID].connectedTime = statusPlayer.ConnectedTime
-		state.players[statusPlayer.SID].userId = statusPlayer.UserID
+		state.Players[statusPlayer.SID].Name = statusPlayer.Name
+		state.Players[statusPlayer.SID].ConnectedTime = statusPlayer.ConnectedTime
+		state.Players[statusPlayer.SID].UserId = statusPlayer.UserID
 	}
 }

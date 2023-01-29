@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
@@ -61,57 +62,35 @@ var (
 	errRconDisconnected = errors.New("rcon not connected")
 )
 
-type EventType int
-
-const (
-	EvtKill EventType = iota
-	EvtMsg
-	EvtConnect
-	EvtDisconnect
-	EvtStatusId
-	EvtLobbyPlayerTeam
-)
-
-type LogEvent struct {
-	Type      EventType
-	Player    string
-	UserId    int64
-	PlayerSID steamid.SID64
-	Victim    string
-	VictimSID steamid.SID64
-	Message   string
-	Team      team
-}
-
 type LogParser struct {
-	evtChan       chan LogEvent
+	evtChan       chan model.LogEvent
 	ReadChannel   chan string
 	rxLobbyPlayer *regexp.Regexp
 	rx            []*regexp.Regexp
 }
 
-func (l *LogParser) ParseEvent(msg string, outEvent *LogEvent) error {
+func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range l.rx {
 		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
-			t := EventType(i)
+			t := model.EventType(i)
 			outEvent.Type = t
 			switch t {
-			case EvtLobbyPlayerTeam:
+			case model.EvtLobbyPlayerTeam:
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[1]))
 				if m[2] == "DEFENDER" {
-					outEvent.Team = red
+					outEvent.Team = model.Red
 				} else {
-					outEvent.Team = blu
+					outEvent.Team = model.Blu
 				}
-			case EvtConnect:
+			case model.EvtConnect:
 				outEvent.Player = m[1]
-			case EvtDisconnect:
+			case model.EvtDisconnect:
 				outEvent.Player = m[1]
-			case EvtMsg:
+			case model.EvtMsg:
 				outEvent.Player = m[1]
 				outEvent.Message = m[2]
-			case EvtStatusId:
+			case model.EvtStatusId:
 				userId, errUserId := strconv.ParseInt(m[2], 10, 32)
 				if errUserId != nil {
 					log.Printf("Failed to parse userid: %v", errUserId)
@@ -120,7 +99,7 @@ func (l *LogParser) ParseEvent(msg string, outEvent *LogEvent) error {
 				outEvent.UserId = userId
 				outEvent.Player = m[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
-			case EvtKill:
+			case model.EvtKill:
 				outEvent.Player = m[1]
 				outEvent.Victim = m[2]
 			}
@@ -134,7 +113,7 @@ func (l *LogParser) start(ctx context.Context) {
 	for {
 		select {
 		case msg := <-l.ReadChannel:
-			var logEvent LogEvent
+			var logEvent model.LogEvent
 			if err := l.ParseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
@@ -145,7 +124,7 @@ func (l *LogParser) start(ctx context.Context) {
 	}
 }
 
-func NewLogParser(readChannel chan string, evtChan chan LogEvent) *LogParser {
+func NewLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogParser {
 	lp := LogParser{
 		evtChan:       evtChan,
 		ReadChannel:   readChannel,

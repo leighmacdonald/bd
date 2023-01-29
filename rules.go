@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/leighmacdonald/bd/model"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ func matchStrings(pattern string, subject string, caseSensitive bool) bool {
 	}
 }
 
-func (rules ruleListCollection) FindMatch(player playerState, match *MatchedPlayerList) bool {
+func (rules ruleListCollection) FindMatch(player model.PlayerState, match *MatchedPlayerList) bool {
 	for _, ruleInfo := range rules {
 		for _, ruleSet := range ruleInfo.Rules {
 			if ruleSet.Triggers.UsernameTextMatch != nil {
@@ -22,18 +23,18 @@ func (rules ruleListCollection) FindMatch(player playerState, match *MatchedPlay
 					switch ruleSet.Triggers.UsernameTextMatch.Mode {
 					case modeEqual:
 						{
-							if matchStrings(nameTrigger, player.name, ruleSet.Triggers.UsernameTextMatch.CaseSensitive) {
+							if matchStrings(nameTrigger, player.Name, ruleSet.Triggers.UsernameTextMatch.CaseSensitive) {
 								return true
 							}
 						}
 					case modeContains:
 						{
 							if ruleSet.Triggers.UsernameTextMatch.CaseSensitive {
-								if strings.Contains(player.name, nameTrigger) {
+								if strings.Contains(player.Name, nameTrigger) {
 									return true
 								}
 							} else {
-								if strings.Contains(strings.ToLower(player.name), strings.ToLower(nameTrigger)) {
+								if strings.Contains(strings.ToLower(player.Name), strings.ToLower(nameTrigger)) {
 									return true
 								}
 							}

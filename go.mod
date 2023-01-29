@@ -15,6 +15,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/sys v0.3.0
 	golang.org/x/text v0.5.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -60,7 +61,6 @@ require (
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )
