@@ -21,12 +21,12 @@ const (
 type textMatchMode string
 
 const (
-	modeContains   textMatchMode = "contains"
-	modeRegex                    = "regex"
-	modeEqual                    = "equal"
-	modeStartsWith               = "starts_with"
-	modeEndsWith                 = "ends_with"
-	modeWord                     = "word" // not really needed?
+	textMatchModeContains   textMatchMode = "contains"
+	textMatchModeRegex                    = "regex"
+	textMatchModeEqual                    = "equal"
+	textMatchModeStartsWith               = "starts_with"
+	textMatchModeEndsWith                 = "ends_with"
+	textMatchModeWord                     = "word" // not really needed?
 )
 
 type usernameTextMatch struct {
@@ -54,9 +54,9 @@ type Actions struct {
 }
 
 type ChatMsgTextMatch struct {
-	CaseSensitive bool     `json:"case_sensitive"`
-	Mode          string   `json:"mode"`
-	Patterns      []string `json:"patterns"`
+	CaseSensitive bool          `json:"case_sensitive"`
+	Mode          textMatchMode `json:"mode"`
+	Patterns      []string      `json:"patterns"`
 }
 
 type Rules struct {

@@ -88,6 +88,10 @@ func New(ctx context.Context, rconConfig rconConfigProvider) BD {
 }
 
 func (bd *BD) AttachGui(gui ui.UserInterface) {
+	fn := func() {
+		launchTF2(bd.rconConfig.Password(), bd.rconConfig.Port())
+	}
+	gui.OnLaunchTF2(fn)
 	bd.gui = gui
 }
 

@@ -5,7 +5,6 @@ import (
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -106,25 +105,13 @@ func getTF2Folder() (string, error) {
 	return "", errors.New("TF2 install path could not be found")
 }
 
-func getHL2Path() (string, error) {
-	tf2Dir, errTF2Dir := getTF2Folder()
-	if errTF2Dir != nil {
-		return "", errTF2Dir
-	}
-	hl2Path := filepath.Join(tf2Dir, "..", "hl2.exe")
-	if !exists(hl2Path) {
-		return "", errors.New("Failed to find hl2.exe")
-	}
-	return hl2Path, nil
-}
-
 func getLaunchArgs(rconPass string, rconPort uint16) ([]string, error) {
 	currentArgs, errUserArgs := getUserLaunchArgs()
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}
 	newArgs := []string{
-		"dumber",
+		"xx",
 		"-game", "tf",
 		"-steam",
 		"-secure",
@@ -132,8 +119,9 @@ func getLaunchArgs(rconPass string, rconPort uint16) ([]string, error) {
 		"+developer", "1", "+alias", "developer",
 		"+contimes", "0", "+alias", "contimes",
 		"+ip", "0.0.0.0", "+alias", "ip",
-		"+sv_rcon_whitelist_address", "127.0.0.1", "+alias", "sv_rcon_whitelist_address",
-		"+sv_quota_stringcmdspersecond", "1000000", "+alias", "sv_quota_stringcmdspersecond",
+		"+sv_rcon_whitelist_address", "127.0.0.1",
+		// "+alias", "sv_rcon_whitelist_address",
+		// "+sv_quota_stringcmdspersecond", "1000000", "+alias", "sv_quota_stringcmdspersecond",
 		"+rcon_password", rconPass, "+alias", "rcon_password",
 		"+hostport", fmt.Sprintf("%d", rconPort), "+alias", "hostport",
 		"+alias", "cl_reload_localization_files",
@@ -147,24 +135,4 @@ func getLaunchArgs(rconPass string, rconPort uint16) ([]string, error) {
 		out = append(out, strings.Trim(arg, " "))
 	}
 	return out, nil
-}
-
-func launchTF2(rconPass string, rconPort uint16) {
-	log.Println("Launching tf2...")
-	hl2, errHl2 := getHL2Path()
-	if errHl2 != nil {
-		log.Println(errHl2)
-		return
-	}
-	args, errArgs := getLaunchArgs(rconPass, rconPort)
-	if errArgs != nil {
-		log.Println(errArgs)
-		return
-	}
-	var procAttr os.ProcAttr
-	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	_, errStart := os.StartProcess(hl2, append([]string{hl2}, args...), &procAttr)
-	if errStart != nil {
-		log.Printf("Failed to launch TF2: %v", errStart)
-	}
 }

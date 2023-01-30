@@ -17,7 +17,7 @@ var (
 )
 
 const (
-	rconDefaultHost     = "127.0.0.1"
+	rconDefaultHost     = "0.0.0.0"
 	rconDefaultPort     = 21212
 	rconDefaultPassword = "pazer_sux_lol"
 )

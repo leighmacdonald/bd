@@ -28,6 +28,7 @@ const (
 type UserInterface interface {
 	OnUserMessage(value model.EvtUserMessage)
 	Start()
+	OnLaunchTF2(func())
 }
 
 type Ui struct {
@@ -38,32 +39,12 @@ type Ui struct {
 	SettingsDialog dialog.Dialog
 	AboutDialog    dialog.Dialog
 	messages       binding.StringList
-	BuildVersion   string
-	BuildCommit    string
-	BuildDate      string
-	GameLauncher   func()
-}
-
-func (ui Ui) Start() {
-	ui.RootWindow.Show()
-	ui.Application.Run()
-}
-
-func (ui Ui) OnUserMessage(value model.EvtUserMessage) {
-	teamMsg := "blu"
-	if value.Team == model.Red {
-		teamMsg = "red"
-	}
-	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.Player, value.Message)
-	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
-		log.Printf("Failed to add message: %v\n", errAppend)
-	}
-	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
+	launcher       func()
 }
 
 func New(ctx context.Context) UserInterface {
 	application := app.NewWithID(AppId)
-	rootWindow := application.NewWindow("")
+	rootWindow := application.NewWindow("Bot Detector")
 	settingsDialog := newSettingsDialog(application, rootWindow, func() {
 		rootWindow.Close()
 	})
@@ -91,11 +72,11 @@ func New(ctx context.Context) UserInterface {
 		messages:       binding.NewStringList(),
 	}
 
-	configureTray(application, ui.GameLauncher, func() {
+	ui.configureTray(func() {
 		rootWindow.Show()
 	})
 
-	toolbar := newToolbar(ui.GameLauncher, func() {
+	toolbar := ui.newToolbar(func() {
 		chatWindow.Show()
 	}, func() {
 		settingsDialog.Show()
@@ -110,10 +91,31 @@ func New(ctx context.Context) UserInterface {
 		nil,
 		playerTable,
 	))
-	return ui
+	return &ui
 }
 
-func (ui Ui) Run() {
+func (ui *Ui) OnLaunchTF2(fn func()) {
+	ui.launcher = fn
+}
+
+func (ui *Ui) Start() {
+	ui.RootWindow.Show()
+	ui.Application.Run()
+}
+
+func (ui *Ui) OnUserMessage(value model.EvtUserMessage) {
+	teamMsg := "blu"
+	if value.Team == model.Red {
+		teamMsg = "red"
+	}
+	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.Player, value.Message)
+	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
+		log.Printf("Failed to add message: %v\n", errAppend)
+	}
+	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
+}
+
+func (ui *Ui) Run() {
 	ui.RootWindow.Show()
 	ui.Application.Run()
 }
@@ -150,24 +152,27 @@ func newSettingsDialog(application fyne.App, parent fyne.Window, onClose func())
 	return settingsWindow
 }
 
-func configureTray(application fyne.App, launchTf2Fn func(), showFunc func()) {
+func (ui *Ui) configureTray(showFunc func()) {
 	launchLabel := translations.Tr(&i18n.Message{
 		ID:  "LaunchButton",
 		One: "Launch TF2",
 	}, 1, nil)
 
-	if desk, ok := application.(desktop.App); ok {
-		m := fyne.NewMenu(application.Preferences().StringWithFallback("appName", "Bot Detector"),
+	if desk, ok := ui.Application.(desktop.App); ok {
+		m := fyne.NewMenu(ui.Application.Preferences().StringWithFallback("appName", "Bot Detector"),
 			fyne.NewMenuItem("Show", showFunc),
-			fyne.NewMenuItem(launchLabel, launchTf2Fn))
+			fyne.NewMenuItem(launchLabel, ui.launcher))
 		desk.SetSystemTrayMenu(m)
-		application.SetIcon(theme.InfoIcon())
+		ui.Application.SetIcon(theme.InfoIcon())
 	}
 }
 
-func newToolbar(tf2LaunchFn func(), chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
+func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
 	toolBar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.MediaPlayIcon(), tf2LaunchFn),
+		widget.NewToolbarAction(theme.MediaPlayIcon(), func() {
+			log.Println("Launching game")
+			ui.launcher()
+		}),
 		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),

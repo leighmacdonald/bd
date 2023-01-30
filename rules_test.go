@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/leighmacdonald/bd/model"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestRules(t *testing.T) {
 					Mode: modeTrigMatchAny,
 					UsernameTextMatch: &usernameTextMatch{
 						CaseSensitive: false,
-						Mode:          modeEqual,
+						Mode:          textMatchModeEqual,
 						Patterns: []string{
 							"test player",
 						},
@@ -33,17 +34,17 @@ func TestRules(t *testing.T) {
 			},
 		},
 	}}
-	p1 := playerState{
-		name:             "test player",
-		steamId:          76561197961279983,
-		team:             red,
-		userId:           100,
-		connectedTime:    0,
-		kickAttemptCount: 0,
+	p1 := model.PlayerState{
+		Name:             "test player",
+		SteamId:          76561197961279983,
+		Team:             model.Red,
+		UserId:           100,
+		ConnectedTime:    0,
+		KickAttemptCount: 0,
 	}
 
 	testCases := []struct {
-		ps      playerState
+		ps      model.PlayerState
 		matched bool
 	}{
 		{ps: p1, matched: true},

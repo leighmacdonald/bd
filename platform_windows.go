@@ -45,3 +45,34 @@ func getSteamId() (steamid.SID64, error) {
 	}
 	return foundId, nil
 }
+
+func getHL2Path() (string, error) {
+	tf2Dir, errTF2Dir := getTF2Folder()
+	if errTF2Dir != nil {
+		return "", errTF2Dir
+	}
+	hl2Path := filepath.Join(tf2Dir, "..", "hl2.exe")
+	if !exists(hl2Path) {
+		return "", errors.New("Failed to find hl2.exe")
+	}
+	return hl2Path, nil
+}
+func launchTF2(rconPass string, rconPort uint16) {
+	log.Println("Launching tf2...")
+	hl2, errHl2 := getHL2Path()
+	if errHl2 != nil {
+		log.Println(errHl2)
+		return
+	}
+	args, errArgs := getLaunchArgs(rconPass, rconPort)
+	if errArgs != nil {
+		log.Println(errArgs)
+		return
+	}
+	var procAttr os.ProcAttr
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	_, errStart := os.StartProcess(hl2, append([]string{hl2}, args...), &procAttr)
+	if errStart != nil {
+		log.Printf("Failed to launch TF2: %v", errStart)
+	}
+}
