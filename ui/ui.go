@@ -17,6 +17,7 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
+	"time"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 
 type UserInterface interface {
 	OnUserMessage(value model.EvtUserMessage)
+	OnServerState(value model.ServerState)
 	Start()
 	OnLaunchTF2(func())
 }
@@ -37,30 +39,38 @@ type Ui struct {
 	RootWindow     fyne.Window
 	ChatWindow     fyne.Window
 	SettingsDialog dialog.Dialog
+	PlayerTable    *widget.Table
 	AboutDialog    dialog.Dialog
+	serverName     binding.String
+	currentMap     binding.String
 	messages       binding.StringList
+	playerData     binding.UntypedList
 	launcher       func()
+}
+
+func readIcon(path string) fyne.Resource {
+	r, re := fyne.LoadResourceFromPath(path)
+	if re != nil {
+		log.Println(re.Error())
+		// Fallback
+		return theme.InfoIcon()
+	}
+	return r
 }
 
 func New(ctx context.Context) UserInterface {
 	application := app.NewWithID(AppId)
+	application.SetIcon(readIcon("./Icon.png"))
 	rootWindow := application.NewWindow("Bot Detector")
 	settingsDialog := newSettingsDialog(application, rootWindow, func() {
 		rootWindow.Close()
 	})
 	aboutDialog := createAboutDialog(rootWindow)
-	messages := binding.NewStringList()
-	chatWindow := newChatWidget(application, messages)
-	var bindings []binding.DataMap
+
+	//var bindings []binding.DataMap
 	//for _, p := range serverState.players {
 	//	bindings = append(bindings, binding.BindStruct(&p))
 	//}
-	playerTable := container.NewVScroll(newPlayerTable(nil, bindings))
-
-	//ui.RootWindow.SetCloseIntercept(func() {
-	//	ui.RootWindow.Hide()
-	//})
-	rootWindow.Resize(fyne.NewSize(750, 1000))
 
 	ui := Ui{
 		ctx:            ctx,
@@ -68,16 +78,28 @@ func New(ctx context.Context) UserInterface {
 		RootWindow:     rootWindow,
 		SettingsDialog: settingsDialog,
 		AboutDialog:    aboutDialog,
-		ChatWindow:     chatWindow,
 		messages:       binding.NewStringList(),
+		currentMap:     binding.NewString(),
+		serverName:     binding.NewString(),
+		playerData:     binding.NewUntypedList(),
 	}
+
+	ui.ChatWindow = ui.newChatWidget()
+
+	table := ui.newPlayerTable()
+	playerTable := container.NewVScroll(table)
+	ui.PlayerTable = table
+	//ui.RootWindow.SetCloseIntercept(func() {
+	//	ui.RootWindow.Hide()
+	//})
+	rootWindow.Resize(fyne.NewSize(750, 1000))
 
 	ui.configureTray(func() {
 		rootWindow.Show()
 	})
 
 	toolbar := ui.newToolbar(func() {
-		chatWindow.Show()
+		ui.ChatWindow.Show()
 	}, func() {
 		settingsDialog.Show()
 	}, func() {
@@ -100,6 +122,11 @@ func (ui *Ui) OnLaunchTF2(fn func()) {
 
 func (ui *Ui) Start() {
 	ui.RootWindow.Show()
+	go func() {
+		time.Sleep(time.Second * 2)
+		ui.Application.SendNotification(fyne.NewNotification("New Notification", "This is the content of a "+
+			"test message"))
+	}()
 	ui.Application.Run()
 }
 
@@ -113,6 +140,23 @@ func (ui *Ui) OnUserMessage(value model.EvtUserMessage) {
 		log.Printf("Failed to add message: %v\n", errAppend)
 	}
 	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
+}
+
+func (ui *Ui) OnServerState(value model.ServerState) {
+	if errSetServer := ui.serverName.Set(value.Server); errSetServer != nil {
+		log.Printf("Failed to update server name: %v", errSetServer)
+	}
+	if errSetCurrentMap := ui.currentMap.Set(value.CurrentMap); errSetCurrentMap != nil {
+		log.Printf("Failed to update current map: %v", errSetCurrentMap)
+	}
+	var players []any
+	for _, x := range value.Players {
+		players = append(players, x)
+	}
+	if errPlayerState := ui.playerData.Set(players); errPlayerState != nil {
+		log.Printf("Failed to update player state: %v", errPlayerState)
+	}
+	ui.PlayerTable.Refresh()
 }
 
 func (ui *Ui) Run() {
@@ -188,13 +232,13 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 //	return fmt.Sprintf("%s: %s", time.Now().Format("15:04:05"), msg)
 //}
 
-func newChatWidget(application fyne.App, messages binding.StringList) fyne.Window {
-	chatWidget := widget.NewListWithData(messages, func() fyne.CanvasObject {
+func (ui *Ui) newChatWidget() fyne.Window {
+	chatWidget := widget.NewListWithData(ui.messages, func() fyne.CanvasObject {
 		return widget.NewLabel("template")
 	}, func(item binding.DataItem, object fyne.CanvasObject) {
 		object.(*widget.Label).Bind(item.(binding.String))
 	})
-	chatWindow := application.NewWindow("Chat")
+	chatWindow := ui.Application.NewWindow("Chat")
 	chatWindow.SetContent(chatWidget)
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {
@@ -204,39 +248,50 @@ func newChatWidget(application fyne.App, messages binding.StringList) fyne.Windo
 	return chatWindow
 }
 
-func newPlayerTable(serverState *model.ServerState, bindings []binding.DataMap) *widget.Table {
-	keys := []string{"userId", "steamId", "name", ""}
+func (ui *Ui) newPlayerTable() *widget.Table {
+	//keys := []string{"userId", "steamId", "name", ""}
 
 	table := widget.NewTable(func() (int, int) {
-		return 24, 6
+		return ui.playerData.Length(), 6
 	}, func() fyne.CanvasObject {
 		return widget.NewLabel("wide content")
 	}, func(id widget.TableCellID, object fyne.CanvasObject) {
-		if serverState == nil || serverState.Players == nil {
+		if ui.playerData == nil || id.Row+1 > ui.playerData.Length() {
 			object.(*widget.Label).SetText("")
 			return
 		}
-		if id.Row > len(serverState.Players)-1 {
-			object.(*widget.Label).SetText("")
+		if id.Row > ui.playerData.Length()-1 {
+			object.(*widget.Label).SetText("no value")
 			return
 		}
-		if bindings == nil {
-			object.(*widget.Label).SetText("")
-			return
-		}
-		value := bindings[id.Row]
 
-		//found := playerState[id.Row]
-		label := object.(*widget.Label)
-		newValue, err := value.GetItem(keys[id.Col])
-		if err != nil {
-			log.Println(err)
-			label.SetText(err.Error())
+		value, valueErr := ui.playerData.GetValue(id.Row)
+		if valueErr != nil {
+			object.(*widget.Label).SetText("err")
 			return
 		}
-		label.Bind(newValue.(binding.String))
+		rv, ok := value.(model.PlayerState)
+		if !ok {
+			object.(*widget.Label).SetText("cast err")
+			return
+		}
+		switch id.Col {
+		case 0:
+			object.(*widget.Label).SetText(fmt.Sprintf("%d", rv.UserId))
+		case 1:
+			object.(*widget.Label).SetText(rv.Name)
+		case 2:
+			object.(*widget.Label).SetText(rv.SteamId.String())
+		case 3:
+			object.(*widget.Label).SetText("0")
+		case 4:
+			object.(*widget.Label).SetText("0")
+		case 5:
+			object.(*widget.Label).SetText("0")
+
+		}
 	})
-	for i, v := range []float32{50, 250, 75, 75, 200} {
+	for i, v := range []float32{50, 250, 200, 50, 50, 50} {
 		table.SetColumnWidth(i, v)
 	}
 	return table

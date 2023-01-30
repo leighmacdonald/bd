@@ -5,7 +5,6 @@ go 1.19
 require (
 	fyne.io/fyne/v2 v2.3.0
 	github.com/andygrunwald/vdf v1.1.0
-	github.com/gorcon/rcon v1.3.4
 	github.com/jeandeaual/go-locale v0.0.0-20220711133428-7de61946b173
 	github.com/leighmacdonald/golib v1.1.0
 	github.com/leighmacdonald/rcon v1.0.8

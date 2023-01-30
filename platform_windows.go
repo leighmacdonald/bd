@@ -6,6 +6,8 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
+	"log"
+	"os"
 	"path/filepath"
 )
 
@@ -57,6 +59,7 @@ func getHL2Path() (string, error) {
 	}
 	return hl2Path, nil
 }
+
 func launchTF2(rconPass string, rconPort uint16) {
 	log.Println("Launching tf2...")
 	hl2, errHl2 := getHL2Path()

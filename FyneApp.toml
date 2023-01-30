@@ -1,7 +1,7 @@
 Website = "https://github.com/leighmacdonald/bd"
 
 [Details]
-  Icon = "Icon.png"
+  Icon = "./Icon.png"
   Name = "Bot Detector"
   ID = "com.github.leighmacdonald.bd"
   Version = "0.0.0"

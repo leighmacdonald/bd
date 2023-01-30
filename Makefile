@@ -1,7 +1,7 @@
-all: deps fmt lint build_windows
+all: fmt lint binary_local
 
 build_windows:
-	fyne package -os windows -icon Icon.png
+	fyne package -os windows -icon ./Icon.png
 
 deps:
 	go install fyne.io/fyne/v2/cmd/fyne@latest
@@ -22,4 +22,4 @@ release_local:
 	goreleaser release --snapshot --rm-dist
 
 binary_local:
-	goreleaser build --single-target
+	goreleaser build --single-target --snapshot --rm-dist

@@ -8,15 +8,15 @@ import (
 type ServerState struct {
 	Server     string
 	CurrentMap string
-	Players    map[steamid.SID64]*PlayerState
+	Players    []PlayerState
 }
 
 type PlayerState struct {
 	Name             string
 	SteamId          steamid.SID64
-	ConnectedAt      int
+	ConnectedAt      time.Time
 	Team             Team
-	UserId           int
+	UserId           int64
 	ConnectedTime    time.Duration
 	KickAttemptCount int
 }

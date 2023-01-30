@@ -10,6 +10,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -89,7 +90,7 @@ func parseLobbyPlayers(body string) []model.PlayerState {
 		ps := model.PlayerState{
 			Name:        "",
 			SteamId:     steamid.SID3ToSID64(steamid.SID3(match[3])),
-			ConnectedAt: 0,
+			ConnectedAt: time.Now(),
 		}
 		if match[4] == "TF_GC_TEAM_INVADERS" {
 			ps.Team = model.Blu
