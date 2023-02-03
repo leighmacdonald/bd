@@ -1,4 +1,5 @@
 *.exe
 .idea
-
+bd.yaml
 dist/
+/ui/resources/JetBrainsMono/

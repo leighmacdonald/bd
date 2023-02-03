@@ -1,8 +1,9 @@
 //go:build !windows
 
-package main
+package platform
 
 import (
+	"github.com/leighmacdonald/bd"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
@@ -19,7 +20,7 @@ var cachedSteamId steamid.SID64
 // getSteamId will scan the user data directory and try to find a directory with a localconfig.vdf
 // This has the potential to fail on linux since it will return the first match and not necessarily the user
 // actively running steam.
-// TODO Find reliable method for linux(/macos?)
+// TODO Find reliable method for linux/(mac?)
 func getSteamId() (steamid.SID64, error) {
 	if cachedSteamId.Int64() != 0 {
 		return cachedSteamId, nil
@@ -37,7 +38,7 @@ func getSteamId() (steamid.SID64, error) {
 			continue
 		}
 		fp := path.Join(sr, "userdata", dirPath.Name(), "config", "localconfig.vdf")
-		if !exists(fp) {
+		if !main.exists(fp) {
 			continue
 		}
 		foundId, foundIdParse := strconv.ParseUint(dirPath.Name(), 10, 32)
@@ -61,19 +62,19 @@ func getSteamRoot() (string, error) {
 	if errSp != nil {
 		return "", errors.Wrap(errSp, "Failed to get user home steam dir")
 	}
-	if !exists(sp) {
+	if !main.exists(sp) {
 		return "", errors.Errorf("User home steam dir does not exist: %s", sp)
 	}
 	return sp, nil
 }
 
 func getHL2Path() (string, error) {
-	tf2Dir, errTF2Dir := getTF2Folder()
+	tf2Dir, errTF2Dir := main.getTF2Folder()
 	if errTF2Dir != nil {
 		return "", errTF2Dir
 	}
 	hl2Path := filepath.Join(tf2Dir, "..", "hl2.sh")
-	if !exists(hl2Path) {
+	if !main.exists(hl2Path) {
 		return "", errors.New("Failed to find hl2")
 	}
 	return hl2Path, nil
@@ -87,7 +88,7 @@ func launchTF2(rconPass string, rconPort uint16) {
 		log.Println(errHl2)
 		return
 	}
-	args, errArgs := getLaunchArgs(rconPass, rconPort)
+	args, errArgs := main.getLaunchArgs(rconPass, rconPort)
 	if errArgs != nil {
 		log.Println(errArgs)
 		return
@@ -99,6 +100,8 @@ func launchTF2(rconPass string, rconPort uint16) {
 
 	var procAttr os.ProcAttr
 	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	procAttr.Env = "TODO add steam ld paths"
+	procAttr.Dir = filepath.Dir(hl2)
 	_, errStart := os.StartProcess(binary, append([]string{binary, hl2}, args...), &procAttr)
 	if errStart != nil {
 		log.Printf("Failed to launch TF2: %v", errStart)

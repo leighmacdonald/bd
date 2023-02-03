@@ -1,0 +1,3 @@
+[submodule "ui/resources/JetBrainsMono"]
+	path = ui/resources/JetBrainsMono
+	url = https://github.com/JetBrains/JetBrainsMono

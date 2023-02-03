@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TestMatcher(t *testing.T) {
+	re := RulesEngine{}
+	re.registerTextMatcher(newTextMatcher(textMatchTypeName))
+
+}
+
 func TestRules(t *testing.T) {
 	rulesA := ruleListCollection{TF2BDRules{
 		Schema: "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json",
@@ -34,14 +40,10 @@ func TestRules(t *testing.T) {
 			},
 		},
 	}}
-	p1 := model.PlayerState{
-		Name:             "test player",
-		SteamId:          76561197961279983,
-		Team:             model.Red,
-		UserId:           100,
-		ConnectedTime:    0,
-		KickAttemptCount: 0,
-	}
+	p1 := model.NewPlayerState(76561197961279983, "test player")
+	p1.Team = model.Red
+	p1.UserId = 100
+	p1.KickAttemptCount = 0
 
 	testCases := []struct {
 		ps      model.PlayerState

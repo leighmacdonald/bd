@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/ui"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"log"
 	"path/filepath"
@@ -18,11 +17,10 @@ type BD struct {
 	// TODO
 	// - decouple remaining ui bindings
 	// - generalized matchers
-
+	// - estimate private steam account ages (find nearby non-private account)
 	logChan           chan string
 	incomingLogEvents chan model.LogEvent
-	serverState       model.ServerState
-	serverStateMu     *sync.RWMutex
+	serverState       *model.ServerState
 	ctx               context.Context
 	logReader         *logReader
 	logParser         *LogParser
@@ -31,40 +29,43 @@ type BD struct {
 	playerListsMu     *sync.RWMutex
 	ruleLists         ruleListCollection
 	ruleListsMu       *sync.RWMutex
-	rconConfig        rconConfigProvider
 	rconConnection    rconConnection
+	settings          *model.Settings
+	store             dataStore
 	gui               ui.UserInterface
 	dryRun            bool
+	gameActive        bool
 }
 
-func New(ctx context.Context, rconConfig rconConfigProvider) BD {
+func New(ctx context.Context, settings *model.Settings, store dataStore) BD {
 	rootApp := BD{
+		settings:          settings,
 		logChan:           make(chan string),
 		incomingLogEvents: make(chan model.LogEvent),
 		playerListsMu:     &sync.RWMutex{},
-		serverStateMu:     &sync.RWMutex{},
+		serverState:       model.NewServerState(),
 		ruleListsMu:       &sync.RWMutex{},
-		rconConfig:        rconConfig,
-		serverState: model.ServerState{
-			Players: []model.PlayerState{},
-		},
-		ctx:    ctx,
-		dryRun: true,
+		store:             store,
+		ctx:               ctx,
 	}
-	tf2Path, _ := getTF2Folder()
-	//if tf2PathErr != nil {
-	//	panic(tf2PathErr)
-	//}
-	consoleLogPath := filepath.Join(tf2Path, "console.log")
-	reader, errLogReader := newLogReader(consoleLogPath, rootApp.logChan, true)
+
+	rootApp.createLogReader()
+	rootApp.createLogParser()
+
+	return rootApp
+}
+
+func (bd *BD) createLogReader() {
+	consoleLogPath := filepath.Join(bd.settings.TF2Root, "console.log")
+	reader, errLogReader := newLogReader(consoleLogPath, bd.logChan, true)
 	if errLogReader != nil {
 		panic(errLogReader)
 	}
-	rootApp.logReader = reader
+	bd.logReader = reader
+}
 
-	rootApp.logParser = NewLogParser(rootApp.logChan, rootApp.incomingLogEvents)
-
-	return rootApp
+func (bd *BD) createLogParser() {
+	bd.logParser = NewLogParser(bd.logChan, bd.incomingLogEvents)
 }
 
 func (bd *BD) eventHandler() {
@@ -72,21 +73,27 @@ func (bd *BD) eventHandler() {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
 		case model.EvtDisconnect:
-			go func(lc context.Context, sid steamid.SID64) {
-				// wait for timeout until player removed from list
-				to, cancel := context.WithTimeout(lc, time.Second*120)
-				defer cancel()
-				<-to.Done()
-				var newPlayers []model.PlayerState
-				bd.serverStateMu.Lock()
-				for _, pl := range bd.serverState.Players {
-					if pl.SteamId != sid {
-						newPlayers = append(newPlayers, pl)
+			bd.serverState.Lock()
+			for _, ps := range bd.serverState.Players {
+				if ps.SteamId == evt.PlayerSID {
+					dt := time.Now()
+					ps.DisconnectedAt = &dt
+				}
+			}
+			bd.serverState.Unlock()
+			go func() {
+				time.Sleep(60 * time.Second)
+				bd.serverState.Lock()
+				var newState []*model.PlayerState
+				for _, ps := range bd.serverState.Players {
+					if ps.SteamId != evt.PlayerSID {
+						newState = append(newState, ps)
 					}
 				}
-				bd.serverState.Players = newPlayers
-				bd.serverStateMu.Unlock()
-			}(bd.ctx, evt.PlayerSID)
+				bd.serverState.Players = newState
+				bd.serverState.Unlock()
+			}()
+			bd.gui.OnDisconnect(evt.PlayerSID)
 			log.Printf("Player disconnected: %d", evt.PlayerSID.Int64())
 		case model.EvtMsg:
 			bd.gui.OnUserMessage(model.EvtUserMessage{
@@ -97,7 +104,7 @@ func (bd *BD) eventHandler() {
 				Message:   evt.Message,
 			})
 		case model.EvtStatusId:
-			bd.serverStateMu.Lock()
+			bd.serverState.Lock()
 			newPlayer := true
 			ep := bd.serverState.Players
 			for _, existingPlayer := range ep {
@@ -107,24 +114,22 @@ func (bd *BD) eventHandler() {
 				}
 			}
 			if newPlayer {
-				ep = append(ep, model.PlayerState{
-					Name:        evt.Player,
-					SteamId:     evt.PlayerSID,
-					ConnectedAt: time.Now(),
-					Team:        0,
-					UserId:      evt.UserId,
-				})
+				np := model.NewPlayerState(evt.PlayerSID, evt.Player)
+				np.UserId = evt.UserId
+				go np.Update()
+				ep = append(ep, &np)
 			}
 			bd.serverState.Players = ep
 			log.Printf("[%d] [%d] %s\n", evt.UserId, evt.PlayerSID.Int64(), evt.Player)
-			bd.serverStateMu.Unlock()
+			bd.serverState.Unlock()
 		}
 	}
 }
 
 func (bd *BD) AttachGui(gui ui.UserInterface) {
 	fn := func() {
-		launchTF2(bd.rconConfig.Password(), bd.rconConfig.Port())
+		launchTF2(bd.settings.Rcon.Password(), bd.settings.Rcon.Port(), bd.settings.TF2Root, bd.settings.SteamRoot, bd.settings.GetSteamId())
+		bd.gameActive = true
 	}
 	gui.OnLaunchTF2(fn)
 	bd.gui = gui
@@ -140,9 +145,9 @@ func (bd *BD) uiStateUpdater() {
 			if bd.gui == nil {
 				return
 			}
-			bd.serverStateMu.RLock()
+			bd.serverState.RLock()
 			sc := bd.serverState
-			bd.serverStateMu.RUnlock()
+			bd.serverState.RUnlock()
 			bd.gui.OnServerState(sc)
 		}
 	}
@@ -151,7 +156,10 @@ func (bd *BD) uiStateUpdater() {
 
 func (bd *BD) playerStateUpdater() {
 	for range time.NewTicker(time.Second * 10).C {
-		updatePlayerState(bd.ctx, bd.rconConfig.String(), bd.rconConfig.Password())
+		if !bd.gameActive {
+			continue
+		}
+		updatePlayerState(bd.ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
 		bd.checkPlayerStates()
 	}
 }

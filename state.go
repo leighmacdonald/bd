@@ -15,7 +15,7 @@ func updatePlayerState(ctx context.Context, address string, password string) {
 	}
 	defer func() {
 		if errClose := conn.Close(); errClose != nil {
-			log.Printf("Failed to close rcon connection: %v\n", errClose)
+			log.Printf("Failed to Close rcon connection: %v\n", errClose)
 		}
 	}()
 	_, errStatus := conn.Exec("status")

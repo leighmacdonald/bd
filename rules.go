@@ -1,81 +1,111 @@
 package main
 
 import (
-	"github.com/leighmacdonald/bd/model"
-	"log"
-	"regexp"
-	"strings"
+	"crypto/sha1"
+	"encoding/hex"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 )
 
-type ruleListCollection []TF2BDRules
+type steamIdMatchType string
 
-func matchStrings(pattern string, subject string, caseSensitive bool) bool {
-	if caseSensitive {
-		return pattern == subject
-	} else {
-		return strings.ToLower(pattern) == strings.ToLower(subject)
+const (
+	steamIdMatchSID64 steamIdMatchType = "steam64"
+)
+
+type textMatchType string
+
+const (
+	textMatchTypeAny     textMatchType = "any"
+	textMatchTypeName    textMatchType = "name"
+	textMatchTypeMessage textMatchType = "message"
+)
+
+type avatarMatchType string
+
+const (
+	// 1:1 match of avatar
+	avatarMatchExact avatarMatchType = "hash_full"
+	// Reduced matcher
+	avatarMatchReduced avatarMatchType = "hash_reduced"
+)
+
+type AvatarMatcher interface {
+	Match(avatar []byte) bool
+	Type() avatarMatchType
+}
+
+type TextMatcher interface {
+	Match(text string) bool
+	Type() textMatchType
+}
+
+type SteamIdMatcher interface {
+	Match(sid64 steamid.SID64) bool
+	Type() steamIdMatchType
+}
+type generalTextMatcher struct {
+	matcherType textMatchType
+}
+
+func (m generalTextMatcher) Match(text string) bool {
+	return false
+}
+func (m generalTextMatcher) Type() textMatchType {
+	return m.matcherType
+}
+
+func newTextMatcher(matcherType textMatchType) TextMatcher {
+	return generalTextMatcher{
+		matcherType: matcherType,
 	}
 }
 
-func checkText(mode textMatchMode, pattern string, value string, caseSensitive bool) bool {
-	switch mode {
-	case textMatchModeStartsWith:
-		return strings.HasPrefix(value, pattern)
-	case textMatchModeEndsWith:
-		return strings.HasSuffix(value, pattern)
-	case textMatchModeEqual:
-		return matchStrings(pattern, value, caseSensitive)
-	case textMatchModeContains:
-		if caseSensitive {
-			return strings.Contains(value, pattern)
-		} else {
-			return strings.Contains(strings.ToLower(value), strings.ToLower(pattern))
+type RulesEngine struct {
+	matchersSteam  []SteamIdMatcher
+	matchersText   []TextMatcher
+	matchersAvatar []AvatarMatcher
+}
+
+func (e *RulesEngine) registerSteamIdMatcher(matcher SteamIdMatcher) {
+	e.matchersSteam = append(e.matchersSteam, matcher)
+}
+
+func (e *RulesEngine) registerAvatarMatcher(matcher AvatarMatcher) {
+	e.matchersAvatar = append(e.matchersAvatar, matcher)
+}
+
+func (e *RulesEngine) registerTextMatcher(matcher TextMatcher) {
+	e.matchersText = append(e.matchersText, matcher)
+}
+
+func (e *RulesEngine) matchTextType(text string, matchType textMatchType) bool {
+	for _, matcher := range e.matchersText {
+		if !(matcher.Type() != textMatchTypeAny || matcher.Type() != matchType) || !matcher.Match(text) {
+			continue
 		}
-	case textMatchModeWord:
-		inputWords := strings.Split(value, "")
-		word := value
-		if !caseSensitive {
-			inputWords = strings.Split(strings.ToLower(value), " ")
-			word = strings.ToLower(word)
-		}
-		for _, iw := range inputWords {
-			if iw == word {
-				return true
-			}
-		}
-		return false
-	case textMatchModeRegex:
-		matched, errMatch := regexp.MatchString(pattern, value)
-		if errMatch != nil {
-			log.Printf("Failed to run regex text match: %v", errMatch)
-			return false
-		}
-		return matched
+		// TODO do something with match
+		return true
 	}
 	return false
 }
 
-func (rules ruleListCollection) FindMatch(player model.PlayerState, match *MatchedPlayerList) bool {
-	for _, ruleInfo := range rules {
-		for _, ruleSet := range ruleInfo.Rules {
-			if ruleSet.Triggers.AvatarMatch != nil {
-				// TODO
-			}
-			//if ruleSet.Triggers.ChatMsgTextMatch != nil {
-			//	for _, chatTrigger := range ruleSet.Triggers.ChatMsgTextMatch.Patterns {
-			//		if checkText(ruleSet.Triggers.ChatMsgTextMatch.Mode, chatTrigger, player) {
-			//			return true
-			//		}
-			//	}
-			//}
-			if ruleSet.Triggers.UsernameTextMatch != nil {
-				for _, nameTrigger := range ruleSet.Triggers.UsernameTextMatch.Patterns {
-					if checkText(ruleSet.Triggers.UsernameTextMatch.Mode, nameTrigger, player.Name, ruleSet.Triggers.UsernameTextMatch.CaseSensitive) {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return false
+func (e *RulesEngine) matchName(name string) bool {
+	return e.matchTextType(name, textMatchTypeName)
+}
+
+func (e *RulesEngine) matchText(text string) bool {
+	return e.matchTextType(text, textMatchTypeMessage)
+}
+
+func (e *RulesEngine) matchAny(text string) bool {
+	return e.matchTextType(text, textMatchTypeAny)
+}
+func hashBytes(b []byte) string {
+	hash := sha1.New()
+	hash.Write(b)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+func (e *RulesEngine) matchAvatar(avatar []byte) bool {
+	sha := hashBytes(avatar)
+	return sha == "acd123"
 }

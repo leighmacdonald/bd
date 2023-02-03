@@ -25,7 +25,7 @@ func (reader *logReader) start(ctx context.Context) {
 			reader.outChan <- strings.TrimSuffix(msg.Text, "\r")
 		case <-ctx.Done():
 			if errStop := reader.tail.Stop(); errStop != nil {
-				log.Printf("Failed to close tail: %v\n", errStop)
+				log.Printf("Failed to Close tail: %v\n", errStop)
 			}
 			return
 		}
@@ -78,7 +78,7 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 			switch t {
 			case model.EvtLobbyPlayerTeam:
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[1]))
-				if m[2] == "DEFENDER" {
+				if m[2] == "DEFENDERS" {
 					outEvent.Team = model.Red
 				} else {
 					outEvent.Team = model.Blu
@@ -109,6 +109,7 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 	return errNoMatch
 }
 
+// TODO why keep this?
 func (l *LogParser) start(ctx context.Context) {
 	for {
 		select {

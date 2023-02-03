@@ -5,6 +5,7 @@ import (
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,24 +19,32 @@ func exists(filePath string) bool {
 	return true
 }
 
-func getLocalConfigPath() (string, error) {
-	steamDir, errSteamDir := getSteamRoot()
-	if errSteamDir != nil {
-		return "", errors.Wrap(errSteamDir, "Could not locate steam root")
-	}
-	steamId, errSteamId := getSteamId()
-	if errSteamId != nil {
-		return "", errors.Wrap(errSteamDir, "Could not locate active steam user")
-	}
-	fp := path.Join(steamDir, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)), "config", "localconfig.vdf")
+func getLocalConfigPath(steamRoot string, steamId steamid.SID64) (string, error) {
+	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)), "config", "localconfig.vdf")
 	if !exists(fp) {
 		return "", errors.New("Path does not exist")
 	}
 	return fp, nil
 }
 
-func getUserLaunchArgs() ([]string, error) {
-	localConfigPath, errConfigPath := getLocalConfigPath()
+func launchTF2(rconPass string, rconPort uint16, tf2Path string, steamRoot string, sid64 steamid.SID64) {
+	log.Println("Launching tf2...")
+	hl2Path := filepath.Dir(tf2Path)
+	args, errArgs := getLaunchArgs(rconPass, rconPort, steamRoot, sid64)
+	if errArgs != nil {
+		log.Println(errArgs)
+		return
+	}
+	var procAttr os.ProcAttr
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	_, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
+	if errStart != nil {
+		log.Printf("Failed to launch TF2: %v", errStart)
+	}
+}
+
+func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error) {
+	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamId)
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
@@ -74,39 +83,8 @@ func getUserLaunchArgs() ([]string, error) {
 	return normOpts, nil
 }
 
-func getTF2Folder() (string, error) {
-	steamRoot, errRoot := getSteamRoot()
-	if errRoot != nil {
-		return "", errRoot
-	}
-	libPath := filepath.Join(steamRoot, "steamapps", "libraryfolders.vdf")
-	if !exists(libPath) {
-		return "", errors.New("Could not find libraryfolders.vdf")
-	}
-	openVDF, errOpen := os.Open(libPath)
-	if errOpen != nil {
-		return "", errors.Wrap(errOpen, "failed to open vdf")
-	}
-	parser := vdf.NewParser(openVDF)
-	result, errParse := parser.Parse()
-	if errParse != nil {
-		return "", errors.Wrap(errOpen, "failed to parse vdf")
-	}
-	for _, library := range result["libraryfolders"].(map[string]any) {
-		currentLibraryPath := library.(map[string]any)["path"]
-		apps := library.(map[string]any)["apps"]
-		for key := range apps.(map[string]any) {
-			if key == "440" {
-				return filepath.Join(currentLibraryPath.(string), "steamapps", "common", "Team Fortress 2", "tf"), nil
-			}
-		}
-	}
-
-	return "", errors.New("TF2 install path could not be found")
-}
-
-func getLaunchArgs(rconPass string, rconPort uint16) ([]string, error) {
-	currentArgs, errUserArgs := getUserLaunchArgs()
+func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamId steamid.SID64) ([]string, error) {
+	currentArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamId)
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}

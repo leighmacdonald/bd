@@ -15,18 +15,18 @@ type triggerMode string
 
 const (
 	modeTrigMatchAny triggerMode = "match_any"
-	modeTrigMatchAll             = "match_all"
+	modeTrigMatchAll triggerMode = "match_all"
 )
 
 type textMatchMode string
 
 const (
 	textMatchModeContains   textMatchMode = "contains"
-	textMatchModeRegex                    = "regex"
-	textMatchModeEqual                    = "equal"
-	textMatchModeStartsWith               = "starts_with"
-	textMatchModeEndsWith                 = "ends_with"
-	textMatchModeWord                     = "word" // not really needed?
+	textMatchModeRegex      textMatchMode = "regex"
+	textMatchModeEqual      textMatchMode = "equal"
+	textMatchModeStartsWith textMatchMode = "starts_with"
+	textMatchModeEndsWith   textMatchMode = "ends_with"
+	textMatchModeWord       textMatchMode = "word" // not really needed?
 )
 
 type usernameTextMatch struct {
@@ -112,7 +112,7 @@ func (c playerListCollection) FindMatch(steamId steamid.SID64, match *MatchedPla
 	for _, list := range c {
 		for _, p := range list.Players {
 			if p.SteamId == steamId {
-				match = &MatchedPlayerList{
+				*match = MatchedPlayerList{
 					list:   list,
 					player: p,
 				}
