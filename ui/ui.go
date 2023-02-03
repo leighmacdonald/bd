@@ -1,3 +1,8 @@
+// Package ui provides a simple, cross-platform interface to the bot detector tool
+//
+// TODO
+// - Use external data map/struct(?) for table data updates
+// - Remove old players from state on configurable delay
 package ui
 
 import (
@@ -12,11 +17,16 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/translations"
+	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamweb"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
+	"net/url"
+	"path/filepath"
 	"time"
 )
 
@@ -24,28 +34,55 @@ const (
 	settingKeySteamId = "steamId"
 
 	AppId = "com.github.leighmacdonald.bd"
+
+	urlHelp = "https://github.com/leighmacdonald/bd/wiki"
 )
 
 type UserInterface interface {
 	OnUserMessage(value model.EvtUserMessage)
-	OnServerState(value model.ServerState)
+	OnServerState(value *model.ServerState)
+	OnDisconnect(sid64 steamid.SID64)
 	Start()
 	OnLaunchTF2(func())
 }
 
 type Ui struct {
 	ctx            context.Context
-	Application    fyne.App
-	RootWindow     fyne.Window
-	ChatWindow     fyne.Window
-	SettingsDialog dialog.Dialog
+	application    fyne.App
+	rootWindow     fyne.Window
+	chatWindow     fyne.Window
+	settingsDialog dialog.Dialog
 	PlayerTable    *widget.Table
-	AboutDialog    dialog.Dialog
+	aboutDialog    dialog.Dialog
 	serverName     binding.String
 	currentMap     binding.String
 	messages       binding.StringList
 	playerData     binding.UntypedList
+	settings       boundSettings
+	baseSettings   *model.Settings
 	launcher       func()
+}
+
+type boundSettings struct {
+	binding.Struct
+}
+
+func (s *boundSettings) getBoundStringDefault(key string, def string) binding.String {
+	value, apiKeyErr := s.GetValue(key)
+	if apiKeyErr != nil {
+		value = def
+	}
+	v := value.(string)
+	return binding.BindString(&v)
+}
+
+func (s *boundSettings) getBoundBoolDefault(key string, def bool) binding.Bool {
+	value, apiKeyErr := s.GetValue(key)
+	if apiKeyErr != nil {
+		value = def
+	}
+	v := value.(bool)
+	return binding.BindBool(&v)
 }
 
 func readIcon(path string) fyne.Resource {
@@ -58,39 +95,37 @@ func readIcon(path string) fyne.Resource {
 	return r
 }
 
-func New(ctx context.Context) UserInterface {
+func New(ctx context.Context, settings *model.Settings) UserInterface {
 	application := app.NewWithID(AppId)
-	application.SetIcon(readIcon("./Icon.png"))
+	application.Settings().SetTheme(&bdTheme{})
+	application.SetIcon(readIcon("ui/resources/Icon.png"))
 	rootWindow := application.NewWindow("Bot Detector")
-	settingsDialog := newSettingsDialog(application, rootWindow, func() {
-		rootWindow.Close()
-	})
-	aboutDialog := createAboutDialog(rootWindow)
-
-	//var bindings []binding.DataMap
-	//for _, p := range serverState.players {
-	//	bindings = append(bindings, binding.BindStruct(&p))
-	//}
 
 	ui := Ui{
-		ctx:            ctx,
-		Application:    application,
-		RootWindow:     rootWindow,
-		SettingsDialog: settingsDialog,
-		AboutDialog:    aboutDialog,
-		messages:       binding.NewStringList(),
-		currentMap:     binding.NewString(),
-		serverName:     binding.NewString(),
-		playerData:     binding.NewUntypedList(),
+		ctx:          ctx,
+		application:  application,
+		rootWindow:   rootWindow,
+		messages:     binding.NewStringList(),
+		currentMap:   binding.NewString(),
+		serverName:   binding.NewString(),
+		playerData:   binding.NewUntypedList(),
+		settings:     boundSettings{binding.BindStruct(settings)},
+		baseSettings: settings,
 	}
-
-	ui.ChatWindow = ui.newChatWidget()
-
-	table := ui.newPlayerTable()
+	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
+		if errSave := settings.Save(); errSave != nil {
+			log.Printf("Failed to save config file: %v\n", errSave)
+			return
+		}
+		log.Println("Settings saved successfully")
+	})
+	ui.aboutDialog = createAboutDialog(rootWindow)
+	ui.chatWindow = ui.newChatWidget()
+	table := ui.newPlayerTableWidget()
 	playerTable := container.NewVScroll(table)
 	ui.PlayerTable = table
-	//ui.RootWindow.SetCloseIntercept(func() {
-	//	ui.RootWindow.Hide()
+	//ui.rootWindow.SetCloseIntercept(func() {
+	//	ui.rootWindow.Hide()
 	//})
 	rootWindow.Resize(fyne.NewSize(750, 1000))
 
@@ -99,11 +134,11 @@ func New(ctx context.Context) UserInterface {
 	})
 
 	toolbar := ui.newToolbar(func() {
-		ui.ChatWindow.Show()
+		ui.chatWindow.Show()
 	}, func() {
-		settingsDialog.Show()
+		ui.settingsDialog.Show()
 	}, func() {
-		aboutDialog.Show()
+		ui.aboutDialog.Show()
 	})
 
 	rootWindow.SetContent(container.NewBorder(
@@ -113,7 +148,40 @@ func New(ctx context.Context) UserInterface {
 		nil,
 		playerTable,
 	))
+	rootWindow.SetMainMenu(ui.newMainMenu())
 	return &ui
+}
+func (ui *Ui) newMainMenu() *fyne.MainMenu {
+	wikiUrl, _ := url.Parse(urlHelp)
+	fm := fyne.NewMenu("Bot Detector",
+		fyne.NewMenuItem("Settings", func() {
+			ui.settingsDialog.Show()
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Quit", func() {
+			ui.application.Quit()
+		}),
+	)
+	am := fyne.NewMenu("Actions",
+		fyne.NewMenuItem("Clear", func() {
+			if errSet := ui.messages.Set([]string{}); errSet != nil {
+				log.Println("Failed to clear chat messages")
+			}
+		}),
+	)
+	hm := fyne.NewMenu("Help",
+		fyne.NewMenuItem("Help", func() {
+			if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
+				log.Printf("Failed to open help url: %v\n", errOpenHelp)
+			}
+
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("About", func() {
+			ui.aboutDialog.Show()
+		}),
+	)
+	return fyne.NewMainMenu(fm, am, hm)
 }
 
 func (ui *Ui) OnLaunchTF2(fn func()) {
@@ -121,13 +189,16 @@ func (ui *Ui) OnLaunchTF2(fn func()) {
 }
 
 func (ui *Ui) Start() {
-	ui.RootWindow.Show()
-	go func() {
-		time.Sleep(time.Second * 2)
-		ui.Application.SendNotification(fyne.NewNotification("New Notification", "This is the content of a "+
-			"test message"))
-	}()
-	ui.Application.Run()
+	ui.rootWindow.Show()
+	ui.application.Run()
+}
+
+func (ui *Ui) OnDisconnect(sid64 steamid.SID64) {
+	go func(sid steamid.SID64) {
+		time.Sleep(time.Second * 60)
+		//
+	}(sid64)
+	log.Printf("Player disconnected: %d", sid64.Int64())
 }
 
 func (ui *Ui) OnUserMessage(value model.EvtUserMessage) {
@@ -139,10 +210,10 @@ func (ui *Ui) OnUserMessage(value model.EvtUserMessage) {
 	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
 		log.Printf("Failed to add message: %v\n", errAppend)
 	}
-	ui.ChatWindow.Content().(*widget.List).ScrollToBottom()
+	ui.chatWindow.Content().(*widget.List).ScrollToBottom()
 }
 
-func (ui *Ui) OnServerState(value model.ServerState) {
+func (ui *Ui) OnServerState(value *model.ServerState) {
 	if errSetServer := ui.serverName.Set(value.Server); errSetServer != nil {
 		log.Printf("Failed to update server name: %v", errSetServer)
 	}
@@ -160,39 +231,155 @@ func (ui *Ui) OnServerState(value model.ServerState) {
 }
 
 func (ui *Ui) Run() {
-	ui.RootWindow.Show()
-	ui.Application.Run()
+	ui.rootWindow.Show()
+	ui.application.Run()
 }
 
-func newSettingsDialog(application fyne.App, parent fyne.Window, onClose func()) dialog.Dialog {
-	defaultSteamId := application.Preferences().StringWithFallback(settingKeySteamId, "")
-	settingSteamId := binding.BindString(&defaultSteamId)
-	entry := widget.NewEntryWithData(settingSteamId)
+func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialog {
+	const testSteamId = 76561197961279983
 
-	entry.Validator = func(s string) error {
-		_, sidErr := steamid.SID64FromString(entry.Text)
-		if sidErr != nil {
-			return errors.New("Invalid steam64")
+	var createSelectorRow = func(label string, icon fyne.Resource, entry *widget.Entry, defaultPath string) *container.Split {
+		fileInputContainer := container.NewHSplit(widget.NewButtonWithIcon("Edit", icon, func() {
+			d := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
+				if err != nil || uri == nil {
+					return
+				}
+				entry.SetText(uri.Path())
+			}, ui.rootWindow)
+			d.Show()
+		}), entry)
+		fileInputContainer.SetOffset(0.0)
+		return fileInputContainer
+	}
+
+	apiKey := ui.settings.getBoundStringDefault("ApiKey", "")
+	apiKeyOriginal, _ := apiKey.Get()
+	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry.Bind(apiKey)
+	apiKeyEntry.Validator = func(s string) error {
+		if len(apiKeyEntry.Text) > 0 && len(apiKeyEntry.Text) != 32 {
+			return errors.New("Invalid api key")
+		}
+		// Wait until all validation is complete to keep the setting
+		defer func() {
+			_ = steamweb.SetKey(apiKeyOriginal)
+		}()
+		if apiKeyEntry.Text == "" {
+			return nil
+		}
+		if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
+			return errSetKey
+		}
+		res, errRes := steamweb.PlayerSummaries(steamid.Collection{testSteamId})
+		if errRes != nil {
+			log.Printf("Failed to fetch player summary for validation: %v", errRes)
+			return errors.New("Could not validate api call")
+		}
+		if len(res) != 1 {
+			return errors.New("Failed to fetch summary")
 		}
 		return nil
 	}
 
-	form := &widget.Form{
-		Items: []*widget.FormItem{ // we can specify items in the constructor
-			{Text: "Steam ID (steam64)", Widget: entry}},
-		OnSubmit: func() {
-			sid, sidErr := steamid.SID64FromString(entry.Text)
-			if sidErr != nil {
-				log.Println(sidErr)
-				return
+	steamId := ui.settings.getBoundStringDefault("SteamId", "")
+	steamIdEntry := widget.NewEntry()
+	steamIdEntry.Bind(steamId)
+	steamIdEntry.Validator = func(s string) error {
+		if len(steamIdEntry.Text) > 0 {
+			_, err := steamid.StringToSID64(steamIdEntry.Text)
+			if err != nil {
+				return errors.New("Invalid Steam ID")
 			}
+		}
 
-			application.Preferences().SetString(settingKeySteamId, sid.String())
-			onClose()
+		return nil
+	}
+
+	tf2Root := ui.settings.getBoundStringDefault("TF2Root", platform.DefaultTF2Root)
+	tf2RootEntry := widget.NewEntryWithData(tf2Root)
+	tf2RootEntry.Validator = func(s string) error {
+		if len(tf2RootEntry.Text) > 0 {
+			if !golib.Exists(tf2RootEntry.Text) {
+				return errors.New("Path does not exist")
+			}
+			fp := filepath.Join(tf2RootEntry.Text, platform.TF2RootValidationFile)
+			if !golib.Exists(fp) {
+				return errors.Errorf("Could not find %s inside, invalid steam root", platform.TF2RootValidationFile)
+			}
+		}
+		return nil
+	}
+
+	steamRoot := ui.settings.getBoundStringDefault("SteamRoot", platform.DefaultSteamRoot)
+	steamRootEntry := widget.NewEntryWithData(steamRoot)
+	steamRootEntry.Validator = func(s string) error {
+		if len(steamRootEntry.Text) > 0 {
+			if !golib.Exists(steamRootEntry.Text) {
+				return errors.New("Path does not exist")
+			}
+			fp := filepath.Join(steamRootEntry.Text, platform.SteamRootValidationFile)
+			if !golib.Exists(fp) {
+				return errors.Errorf("Could not find %s inside, invalid steam root", platform.SteamRootValidationFile)
+			}
+			if tf2RootEntry.Text == "" {
+				dp := filepath.Join(steamRootEntry.Text, "steamapps\\common\\Team Fortress 2\\tf")
+				if golib.Exists(dp) {
+					tf2RootEntry.SetText(dp)
+				}
+			}
+		}
+		return nil
+	}
+
+	kickerEnabled := ui.settings.getBoundBoolDefault("KickerEnabled", true)
+	kickerEnabledEntry := widget.NewCheckWithData("", kickerEnabled)
+
+	chatWarningsEnabled := ui.settings.getBoundBoolDefault("ChatWarningsEnabled", false)
+	chatWarningsEnabledEntry := widget.NewCheckWithData("", chatWarningsEnabled)
+
+	partyWarningsEnabled := ui.settings.getBoundBoolDefault("PartyWarningsEnabled", true)
+	partyWarningsEnabledEntry := widget.NewCheckWithData("", partyWarningsEnabled)
+
+	settingsForm := &widget.Form{
+		Items: []*widget.FormItem{
+			{Text: "Kicker Enabled", Widget: kickerEnabledEntry},
+			{Text: "Chat Warning Enabled", Widget: chatWarningsEnabledEntry},
+			{Text: "Party Warning Enabled", Widget: partyWarningsEnabledEntry},
+			{Text: "Steam API Key", Widget: apiKeyEntry},
+			{Text: "Steam ID", Widget: steamIdEntry},
+			{Text: "Steam Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), steamRootEntry, "")},
+			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, "")},
+		},
+		OnSubmit: func() {
+			defer onClose()
+			// Update it to our preferred format
+			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
+			if errSid != nil {
+				// Should never happen? was validated previously.
+				log.Panicf("Steamid state invalid?: %v\n", errSid)
+			}
+			steamIdEntry.SetText(newSid.String())
+
+			ui.baseSettings.Lock()
+			ui.baseSettings.ApiKey = apiKeyEntry.Text
+			ui.baseSettings.SteamRoot = steamRootEntry.Text
+			ui.baseSettings.TF2Root = tf2RootEntry.Text
+			ui.baseSettings.SteamId = newSid.String()
+			ui.baseSettings.KickerEnabled = kickerEnabledEntry.Checked
+			ui.baseSettings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
+			ui.baseSettings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
+			ui.baseSettings.Unlock()
+			if apiKeyOriginal != apiKeyEntry.Text {
+				if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
+					log.Printf("Failed to set new steam key: %v\n", errSetKey)
+				}
+			}
+			ui.settingsDialog.Hide()
 		},
 	}
-	settingsWindow := dialog.NewCustom("Settings", "Dismiss", form, parent)
-	settingsWindow.Resize(fyne.NewSize(500, 500))
+
+	settingsWindow := dialog.NewCustom("Settings", "Cancel", container.NewVScroll(settingsForm), parent)
+	settingsWindow.Resize(fyne.NewSize(900, 500))
 	return settingsWindow
 }
 
@@ -202,26 +389,32 @@ func (ui *Ui) configureTray(showFunc func()) {
 		One: "Launch TF2",
 	}, 1, nil)
 
-	if desk, ok := ui.Application.(desktop.App); ok {
-		m := fyne.NewMenu(ui.Application.Preferences().StringWithFallback("appName", "Bot Detector"),
+	if desk, ok := ui.application.(desktop.App); ok {
+		m := fyne.NewMenu(ui.application.Preferences().StringWithFallback("appName", "Bot Detector"),
 			fyne.NewMenuItem("Show", showFunc),
 			fyne.NewMenuItem(launchLabel, ui.launcher))
 		desk.SetSystemTrayMenu(m)
-		ui.Application.SetIcon(theme.InfoIcon())
+		ui.application.SetIcon(theme.InfoIcon())
 	}
 }
 
 func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
+	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.MediaPlayIcon(), func() {
 			log.Println("Launching game")
 			ui.launcher()
 		}),
 		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
+		//widget.NewToolbarSeparator(),
+		//widget.NewToolbarAction(theme.MediaPlayIcon(), chatFunc),
+		//widget.NewToolbarAction(theme.FileTextIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {
-			log.Println("Display help")
+			if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
+				log.Printf("Failed to open help url: %v\n", errOpenHelp)
+			}
 		}),
 		widget.NewToolbarAction(theme.InfoIcon(), aboutFunc),
 	)
@@ -234,11 +427,11 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 
 func (ui *Ui) newChatWidget() fyne.Window {
 	chatWidget := widget.NewListWithData(ui.messages, func() fyne.CanvasObject {
-		return widget.NewLabel("template")
+		return newContextMenuLabel("template")
 	}, func(item binding.DataItem, object fyne.CanvasObject) {
-		object.(*widget.Label).Bind(item.(binding.String))
+		object.(*contextMenuLabel).Bind(item.(binding.String))
 	})
-	chatWindow := ui.Application.NewWindow("Chat")
+	chatWindow := ui.application.NewWindow("Chat")
 	chatWindow.SetContent(chatWidget)
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {
@@ -248,14 +441,19 @@ func (ui *Ui) newChatWidget() fyne.Window {
 	return chatWindow
 }
 
-func (ui *Ui) newPlayerTable() *widget.Table {
-	//keys := []string{"userId", "steamId", "name", ""}
-
+// newPlayerTableWidget will configure and return a new player table widget.
+// TODO: Investigate if its worth it to bother with binding this, external binding
+// may be better?
+func (ui *Ui) newPlayerTableWidget() *widget.Table {
 	table := widget.NewTable(func() (int, int) {
 		return ui.playerData.Length(), 6
 	}, func() fyne.CanvasObject {
-		return widget.NewLabel("wide content")
+		return container.NewMax(widget.NewLabel(""), newTableButtonLabel(""))
 	}, func(id widget.TableCellID, object fyne.CanvasObject) {
+		label := object.(*fyne.Container).Objects[0].(*widget.Label)
+		icon := object.(*fyne.Container).Objects[1].(*tableButtonLabel)
+		label.Show()
+		icon.Hide()
 		if ui.playerData == nil || id.Row+1 > ui.playerData.Length() {
 			object.(*widget.Label).SetText("")
 			return
@@ -264,7 +462,6 @@ func (ui *Ui) newPlayerTable() *widget.Table {
 			object.(*widget.Label).SetText("no value")
 			return
 		}
-
 		value, valueErr := ui.playerData.GetValue(id.Row)
 		if valueErr != nil {
 			object.(*widget.Label).SetText("err")
@@ -277,27 +474,39 @@ func (ui *Ui) newPlayerTable() *widget.Table {
 		}
 		switch id.Col {
 		case 0:
-			object.(*widget.Label).SetText(fmt.Sprintf("%d", rv.UserId))
+			label.TextStyle.Symbol = true
+			label.TextStyle.Monospace = true
+			label.SetText(fmt.Sprintf("%04d", rv.UserId))
 		case 1:
-			object.(*widget.Label).SetText(rv.Name)
+			label.TextStyle.Monospace = true
+			label.SetText(rv.SteamId.String())
 		case 2:
-			object.(*widget.Label).SetText(rv.SteamId.String())
+			label.TextStyle.Bold = true
+			label.SetText(rv.Name)
 		case 3:
-			object.(*widget.Label).SetText("0")
+			label.Hide()
+			icon.Show()
+			icon.SetResource(theme.AccountIcon())
 		case 4:
-			object.(*widget.Label).SetText("0")
-		case 5:
-			object.(*widget.Label).SetText("0")
-
+			label.SetText("0")
 		}
 	})
-	for i, v := range []float32{50, 250, 200, 50, 50, 50} {
+	for i, v := range []float32{50, 200, 300, 24, 50} {
 		table.SetColumnWidth(i, v)
+		//table.SetRowHeight(i, 24)
 	}
 	return table
 }
 
+const urlHome = "https://github.com/leighmacdonald/bd"
+
 func createAboutDialog(parent fyne.Window) dialog.Dialog {
+	u, _ := url.Parse(urlHome)
 	aboutMsg := fmt.Sprintf("%s\n\nVersion: %s\nCommit: %s\nDate: %s\n", AppId, model.BuildVersion, model.BuildCommit, model.BuildDate)
-	return dialog.NewInformation("About", aboutMsg, parent)
+	c := container.NewVBox(
+		widget.NewLabel(aboutMsg),
+		widget.NewHyperlink(urlHome, u),
+	)
+
+	return dialog.NewCustom("About", "Close", c, parent)
 }
