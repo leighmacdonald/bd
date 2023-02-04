@@ -157,19 +157,17 @@ func (bd *BD) playerStateUpdater() {
 	}
 }
 
-func (bd *BD) listUpdater() {
-	var update = func() {
-		initList := downloadPlayerLists(bd.ctx)
-		//bd.playerListsMu.Lock()
-		//defer bd.playerListsMu.Unlock()
-		//bd.playerLists = initList
-		log.Println(initList)
+func (bd *BD) refreshLists() {
+	playerLists, ruleLists := downloadLists(bd.ctx, bd.settings.Lists)
+	for _, list := range playerLists {
+		if errImport := bd.rules.ImportPlayers(list); errImport != nil {
+			log.Printf("Failed to import player list (%s): %v\n", list.FileInfo.Title, errImport)
+		}
 	}
-	// Ensure ran once at launch
-	update()
-	tick := time.NewTicker(1 * time.Hour)
-	for range tick.C {
-		update()
+	for _, list := range ruleLists {
+		if errImport := bd.rules.ImportRules(list); errImport != nil {
+			log.Printf("Failed to import rules list (%s): %v\n", list.FileInfo.Title, errImport)
+		}
 	}
 }
 
@@ -232,7 +230,7 @@ func (bd *BD) start() {
 	defer bd.logReader.tail.Cleanup()
 	go bd.logParser.start(bd.ctx)
 	go bd.playerStateUpdater()
-	go bd.listUpdater()
+	go bd.refreshLists()
 	go bd.uiStateUpdater()
 	go bd.eventHandler()
 	//go ui2.eventSender(bd.ctx, bd, bd.ui)

@@ -4,17 +4,11 @@ import (
 	"encoding/json"
 )
 
-type ruleSchema struct {
-	Schema   string         `json:"$schema" yaml:"schema"`
-	FileInfo schemaFileInfo `json:"file_info" yaml:"file_info"`
-	Rules    []schemaRules  `json:"rules" yaml:"rules"`
-}
-
-type triggerMode string
+type ruleTriggerMode string
 
 const (
-	modeTrigMatchAny triggerMode = "match_any"
-	modeTrigMatchAll triggerMode = "match_all"
+	modeTrigMatchAny ruleTriggerMode = "match_any"
+	modeTrigMatchAll ruleTriggerMode = "match_all"
 )
 
 type textMatchMode string
@@ -28,80 +22,81 @@ const (
 	textMatchModeWord       textMatchMode = "word" // not really needed?
 )
 
-type triggerNameMatch struct {
-	CaseSensitive bool          `json:"case_sensitive" yaml:"case_sensitive"`
-	Mode          textMatchMode `json:"mode" yaml:"mode"`
-	// TODO precompile regex patterns
-	Patterns []string `json:"patterns" yaml:"patterns"`
+type baseSchema struct {
+	Schema   string   `json:"$schema" yaml:"schema"`
+	FileInfo fileInfo `json:"file_info" yaml:"file_info"`
 }
 
-type TF2BDAvatarMatch struct {
-	AvatarHash string `json:"avatar_hash"`
-}
-
-type TF2BDTriggers struct {
-	AvatarMatch       []TF2BDAvatarMatch `json:"avatar_match" yaml:"avatar_match"`
-	Mode              triggerMode        `json:"mode" yaml:"mode"`
-	UsernameTextMatch *triggerNameMatch  `json:"username_text_match" yaml:"username_text_match"`
-	ChatMsgTextMatch  *TriggerTextMatch  `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`
-}
-
-type TF2BDActions struct {
-	TransientMark []string           `json:"transient_mark"`
-	AvatarMatch   []TF2BDAvatarMatch `json:"avatar_match"` // ?
-	Mark          []string           `json:"mark"`
-}
-
-type TriggerTextMatch struct {
-	CaseSensitive bool          `json:"case_sensitive"`
-	Mode          textMatchMode `json:"mode"`
-	Patterns      []string      `json:"patterns"`
-}
-
-type schemaRules struct {
-	Actions     TF2BDActions  `json:"actions,omitempty"`
-	Description string        `json:"description"`
-	Triggers    TF2BDTriggers `json:"triggers,omitempty"`
-}
-
-func parseRulesList(data []byte, schema *ruleSchema) error {
-	if errUnmarshal := json.Unmarshal(data, schema); errUnmarshal != nil {
-		return errUnmarshal
-	}
-	return nil
-}
-
-type schemaFileInfo struct {
+type fileInfo struct {
 	Authors     []string `json:"authors"`
 	Description string   `json:"description"`
 	Title       string   `json:"title"`
 	UpdateURL   string   `json:"update_url"`
 }
 
-type schemaLastSeen struct {
+type ruleSchema struct {
+	baseSchema
+	Rules []ruleDefinition `json:"rules" yaml:"rules"`
+}
+
+type ruleTriggerNameMatch struct {
+	CaseSensitive bool          `json:"case_sensitive" yaml:"case_sensitive"`
+	Mode          textMatchMode `json:"mode" yaml:"mode"`
+	Patterns      []string      `json:"patterns" yaml:"patterns"`
+}
+
+type ruleTriggerAvatarMatch struct {
+	AvatarHash string `json:"avatar_hash"`
+}
+
+type ruleTriggerTextMatch struct {
+	CaseSensitive bool          `json:"case_sensitive"`
+	Mode          textMatchMode `json:"mode"`
+	Patterns      []string      `json:"patterns"`
+}
+
+type ruleTriggers struct {
+	AvatarMatch       []ruleTriggerAvatarMatch `json:"avatar_match" yaml:"avatar_match"`
+	Mode              ruleTriggerMode          `json:"mode" yaml:"mode"`
+	UsernameTextMatch *ruleTriggerNameMatch    `json:"username_text_match" yaml:"username_text_match"`
+	ChatMsgTextMatch  *ruleTriggerTextMatch    `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`
+}
+
+type ruleActions struct {
+	TransientMark []string                 `json:"transient_mark"`
+	AvatarMatch   []ruleTriggerAvatarMatch `json:"avatar_match"` // ?
+	Mark          []string                 `json:"mark"`
+}
+
+type ruleDefinition struct {
+	Actions     ruleActions  `json:"actions,omitempty"`
+	Description string       `json:"description"`
+	Triggers    ruleTriggers `json:"triggers,omitempty"`
+}
+
+type playerListSchema struct {
+	baseSchema
+	Players []playerDefinition `json:"players"`
+}
+
+type playerLastSeen struct {
 	PlayerName string `json:"player_name,omitempty"`
 	Time       int    `json:"time,omitempty"`
 }
 
-type schemaPlayer struct {
+type playerDefinition struct {
 	Attributes []string       `json:"attributes"`
-	LastSeen   schemaLastSeen `json:"last_seen,omitempty"`
-	SteamId    string         `json:"steamid"`
+	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
+	SteamId    interface{}    `json:"steamid,string"`
 	Proof      []string       `json:"proof,omitempty"`
 }
 
-type schemaPlayerList struct {
-	Schema   string         `json:"$schema"`
-	FileInfo schemaFileInfo `json:"file_info"`
-	Players  []schemaPlayer `json:"players"`
-}
-
-func parsePlayerSchema(data []byte, schema *schemaPlayerList) error {
+func parsePlayerSchema(data []byte, schema *playerListSchema) error {
 	if errUnmarshal := json.Unmarshal(data, schema); errUnmarshal != nil {
 		return errUnmarshal
 	}
 	// Filter out people w/o cheater tags
-	var cheatersOnly []schemaPlayer
+	var cheatersOnly []playerDefinition
 	for _, p := range schema.Players {
 		isCheater := false
 		for _, attr := range p.Attributes {
@@ -119,10 +114,9 @@ func parsePlayerSchema(data []byte, schema *schemaPlayerList) error {
 	return nil
 }
 
-func parseTF2BDRules(data []byte, schema *ruleSchema) error {
+func parseRulesList(data []byte, schema *ruleSchema) error {
 	if errUnmarshal := json.Unmarshal(data, schema); errUnmarshal != nil {
 		return errUnmarshal
 	}
-	// TODO Filter out / adjust anything?
 	return nil
 }

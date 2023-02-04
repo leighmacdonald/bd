@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"io"
 	"log"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 type textMatchType string
@@ -25,7 +25,7 @@ const (
 	// 1:1 match of avatar
 	avatarMatchExact avatarMatchType = "hash_full"
 	// Reduced matcher
-	avatarMatchReduced avatarMatchType = "hash_reduced"
+	//avatarMatchReduced avatarMatchType = "hash_reduced"
 )
 
 type AvatarMatcher interface {
@@ -125,29 +125,53 @@ func (m generalTextMatcher) Match(value string) bool {
 	switch m.mode {
 	case textMatchModeStartsWith:
 		for _, prefix := range m.patterns {
-			if m.caseSensitive && strings.HasPrefix(value, prefix) || strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix)) {
-				return true
+			if m.caseSensitive {
+				if strings.HasPrefix(value, prefix) {
+					return true
+				}
+			} else {
+				if strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix)) {
+					return true
+				}
 			}
 		}
 		return false
 	case textMatchModeEndsWith:
 		for _, prefix := range m.patterns {
-			if m.caseSensitive && strings.HasSuffix(value, prefix) || strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
-				return true
+			if m.caseSensitive {
+				if strings.HasSuffix(value, prefix) {
+					return true
+				}
+			} else {
+				if strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
+					return true
+				}
 			}
 		}
 		return false
 	case textMatchModeEqual:
 		for _, prefix := range m.patterns {
-			if m.caseSensitive && value == prefix || strings.EqualFold(value, prefix) {
-				return true
+			if m.caseSensitive {
+				if value == prefix {
+					return true
+				}
+			} else {
+				if strings.EqualFold(value, prefix) {
+					return true
+				}
 			}
 		}
 		return false
 	case textMatchModeContains:
 		for _, prefix := range m.patterns {
-			if m.caseSensitive && strings.Contains(value, prefix) || strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
-				return true
+			if m.caseSensitive {
+				if strings.Contains(value, prefix) {
+					return true
+				}
+			} else {
+				if strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
+					return true
+				}
 			}
 		}
 		return false
@@ -157,8 +181,14 @@ func (m generalTextMatcher) Match(value string) bool {
 		}
 		for _, iw := range strings.Split(value, " ") {
 			for _, p := range m.patterns {
-				if m.caseSensitive && p == iw || strings.EqualFold(strings.ToLower(p), iw) {
-					return true
+				if m.caseSensitive {
+					if p == iw {
+						return true
+					}
+				} else {
+					if strings.EqualFold(strings.ToLower(p), iw) {
+						return true
+					}
 				}
 			}
 		}
@@ -182,6 +212,7 @@ func newGeneralTextMatcher(matcherType textMatchType, matchMode textMatchMode, c
 
 func newRulesEngine() *RulesEngine {
 	return &RulesEngine{
+		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,
 		matchersText:   nil,
 		matchersAvatar: nil,
@@ -189,21 +220,13 @@ func newRulesEngine() *RulesEngine {
 }
 
 type RulesEngine struct {
+	*sync.RWMutex
 	matchersSteam  []SteamIdMatcher
 	matchersText   []TextMatcher
 	matchersAvatar []AvatarMatcher
 }
 
-func (e *RulesEngine) ImportRules(reader io.Reader) error {
-	body, errRead := io.ReadAll(reader)
-	if errRead != nil {
-		return errRead
-	}
-	var list ruleSchema
-	if errParse := parseTF2BDRules(body, &list); errParse != nil {
-		return errParse
-	}
-	// TODO Import rules
+func (e *RulesEngine) ImportRules(list ruleSchema) error {
 	for _, rule := range list.Rules {
 		// rule.Actions.Mark
 		if rule.Triggers.UsernameTextMatch != nil {
@@ -223,43 +246,58 @@ func (e *RulesEngine) ImportRules(reader io.Reader) error {
 		}
 
 		if len(rule.Triggers.AvatarMatch) > 0 {
-
+			var hashes []string
+			for _, h := range rule.Triggers.AvatarMatch {
+				if len(h.AvatarHash) != 40 {
+					continue
+				}
+				hashes = append(hashes, h.AvatarHash)
+			}
+			e.registerAvatarMatcher(newAvatarMatcher(avatarMatchExact, hashes...))
 		}
-
 	}
 	return nil
 }
 
-func (e *RulesEngine) ImportPLayers(reader io.Reader) error {
-	body, errRead := io.ReadAll(reader)
-	if errRead != nil {
-		return errRead
-	}
-	var list schemaPlayerList
-	if errParse := parsePlayerSchema(body, &list); errParse != nil {
-		return errParse
-	}
+func (e *RulesEngine) ImportPlayers(list playerListSchema) error {
 	for _, player := range list.Players {
-		sid64, errSid := steamid.StringToSID64(player.SteamId)
-		if errSid != nil {
-			log.Printf("Failed to import steamid: %v\n", errSid)
+		var steamId steamid.SID64
+		// Some entries can be raw number types in addition to strings...
+		switch v := player.SteamId.(type) {
+		case float64:
+			steamId = steamid.SID64(int64(v))
+		case string:
+			sid64, errSid := steamid.StringToSID64(player.SteamId.(string))
+			if errSid != nil {
+				log.Printf("Failed to import steamid: %v\n", errSid)
+				continue
+			}
+			steamId = sid64
+		}
+		if !steamId.Valid() {
 			continue
 		}
-		e.registerSteamIdMatcher(newSteamIdMatcher(sid64))
+		e.registerSteamIdMatcher(newSteamIdMatcher(steamId))
 	}
 	return nil
 }
 
 func (e *RulesEngine) registerSteamIdMatcher(matcher SteamIdMatcher) {
+	e.Lock()
 	e.matchersSteam = append(e.matchersSteam, matcher)
+	e.Unlock()
 }
 
 func (e *RulesEngine) registerAvatarMatcher(matcher AvatarMatcher) {
+	e.Lock()
 	e.matchersAvatar = append(e.matchersAvatar, matcher)
+	e.Unlock()
 }
 
 func (e *RulesEngine) registerTextMatcher(matcher TextMatcher) {
+	e.Lock()
 	e.matchersText = append(e.matchersText, matcher)
+	e.Unlock()
 }
 
 func (e *RulesEngine) matchTextType(text string, matchType textMatchType) bool {

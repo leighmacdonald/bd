@@ -25,17 +25,17 @@ var (
 	errDuplicateList = errors.New("duplicate list")
 )
 
-type listType string
+type ListType string
 
 const (
-	listTypeBD      listType = "bd"
-	listTypeTF2BD   listType = "tf2bd"
-	listTypeUnknown listType = "unknown"
+	ListTypeBD              ListType = "bd"
+	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
+	ListTypeTF2BDRules      ListType = "tf2bd_rules"
+	ListTypeUnknown         ListType = "unknown"
 )
 
-type listConfig struct {
-	ListType listType `yaml:"type"`
-	Name     string   `yaml:"name"`
+type ListConfig struct {
+	ListType ListType `yaml:"type"`
 	Enabled  bool     `yaml:"enabled"`
 	URL      string   `yaml:"url"`
 }
@@ -53,7 +53,7 @@ type Settings struct {
 	KickerEnabled        bool               `yaml:"kicker_enabled"`
 	ChatWarningsEnabled  bool               `yaml:"chat_warnings_enabled"`
 	PartyWarningsEnabled bool               `yaml:"party_warnings_enabled"`
-	Lists                []listConfig       `yaml:"lists"`
+	Lists                []ListConfig       `yaml:"lists"`
 	SteamId              string             `yaml:"steam_id"`
 	RconMode             rconMode           `yaml:"rcon_mode"`
 	Rcon                 rconConfigProvider `yaml:"-"`
@@ -68,12 +68,12 @@ func (s *Settings) GetSteamId() steamid.SID64 {
 	return v
 }
 
-func (s *Settings) AddList(config listConfig) error {
+func (s *Settings) AddList(config ListConfig) error {
 	s.Lock()
 	defer s.Unlock()
 	for _, known := range s.Lists {
 		if config.ListType == known.ListType &&
-			strings.EqualFold(config.Name, known.Name) {
+			strings.EqualFold(config.URL, known.URL) {
 			return errDuplicateList
 		}
 	}
@@ -92,7 +92,7 @@ func NewSettings() Settings {
 		KickerEnabled:        false,
 		ChatWarningsEnabled:  false,
 		PartyWarningsEnabled: true,
-		Lists:                []listConfig{},
+		Lists:                []ListConfig{},
 		SteamId:              "",
 		RconMode:             rconModeRandom,
 		Rcon:                 newRconConfig(false),
@@ -117,7 +117,7 @@ func (s *Settings) ConfigRoot() string {
 }
 
 func (s *Settings) DBPath() string {
-	return filepath.Join(s.ConfigRoot(), "db.sqlite")
+	return filepath.Join(s.ConfigRoot(), "bd.sqlite")
 }
 
 func (s *Settings) ReadFilePath(filePath string) error {

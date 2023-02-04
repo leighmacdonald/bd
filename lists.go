@@ -2,46 +2,65 @@ package main
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/model"
+	"github.com/pkg/errors"
 	"io"
 	"log"
 	"net/http"
 	"time"
 )
 
-func downloadPlayerLists(ctx context.Context, listUrl ...string) []schemaPlayerList {
-	urls := []string{
-		"https://trusted.roto.lol/v1/steamids",
-		"https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json",
-		"https://uncletopia.com/export/bans/tf2bd",
+func fetchUrl(ctx context.Context, client http.Client, url string) ([]byte, error) {
+	req, reqErr := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if reqErr != nil {
+		return nil, errors.Wrap(reqErr, "Failed to create request\n")
 	}
-	urls = append(urls, listUrl...)
-	var results []schemaPlayerList
+	resp, errResp := client.Do(req)
+	if errResp != nil {
+		return nil, errors.Wrapf(errResp, "Failed to download url: %s\n", url)
+	}
+	body, errBody := io.ReadAll(resp.Body)
+	if errBody != nil {
+		return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
+	}
+	defer resp.Body.Close()
+	return body, nil
+}
+
+func downloadLists(ctx context.Context, lists []model.ListConfig) ([]playerListSchema, []ruleSchema) {
+	var playerLists []playerListSchema
+	var rulesLists []ruleSchema
 	client := http.Client{
 		Timeout: 10 * time.Second,
 	}
-	for _, u := range urls {
-		req, reqErr := http.NewRequestWithContext(ctx, "GET", u, nil)
-		if reqErr != nil {
-			log.Printf("Failed to create request: %v\n", reqErr)
+	for _, u := range lists {
+		if !u.Enabled {
 			continue
 		}
-		resp, errResp := client.Do(req)
-		if errResp != nil {
-			log.Printf("Failed to download url: %s %v\n", u, errResp)
+		body, errFetch := fetchUrl(ctx, client, u.URL)
+		if errFetch != nil {
+			log.Printf("Failed to fetch player list: %v", u.URL)
 			continue
 		}
-		body, errBody := io.ReadAll(resp.Body)
-		if errBody != nil {
-			log.Printf("Failed to read body: %s %v\n", u, errResp)
-			continue
+		switch u.ListType {
+		case model.ListTypeTF2BDPlayerList:
+			var result playerListSchema
+			if errParse := parsePlayerSchema(body, &result); errParse != nil {
+				log.Printf("Failed to parse request: %v\n", errParse)
+				continue
+			}
+			playerLists = append(playerLists, result)
+			log.Printf("Downloaded playerlist successfully: %s\n", result.FileInfo.Title)
+		case model.ListTypeTF2BDRules:
+			var result ruleSchema
+			if errParse := parseRulesList(body, &result); errParse != nil {
+				log.Printf("Failed to parse request: %v\n", errParse)
+				continue
+			}
+			rulesLists = append(rulesLists, result)
+			log.Printf("Downloaded rules successfully: %s\n", result.FileInfo.Title)
 		}
-		var result schemaPlayerList
-		if errParse := parsePlayerSchema(body, &result); errParse != nil {
-			log.Printf("Failed to parse request: %v\n", reqErr)
-			continue
-		}
-		results = append(results, result)
-		log.Printf("Downloaded playerlist successfully: %s\n", result.FileInfo.Title)
+
 	}
-	return results
+	return playerLists, rulesLists
 }
