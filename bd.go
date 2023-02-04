@@ -8,8 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"log"
 	"path/filepath"
-	"strings"
-	"sync"
 	"time"
 )
 
@@ -24,11 +22,7 @@ type BD struct {
 	ctx               context.Context
 	logReader         *logReader
 	logParser         *LogParser
-	matchers          []Matcher
-	playerLists       playerListCollection
-	playerListsMu     *sync.RWMutex
-	ruleLists         ruleListCollection
-	ruleListsMu       *sync.RWMutex
+	rules             *RulesEngine
 	rconConnection    rconConnection
 	settings          *model.Settings
 	store             dataStore
@@ -42,9 +36,8 @@ func New(ctx context.Context, settings *model.Settings, store dataStore) BD {
 		settings:          settings,
 		logChan:           make(chan string),
 		incomingLogEvents: make(chan model.LogEvent),
-		playerListsMu:     &sync.RWMutex{},
+		rules:             newRulesEngine(),
 		serverState:       model.NewServerState(),
-		ruleListsMu:       &sync.RWMutex{},
 		store:             store,
 		ctx:               ctx,
 	}
@@ -167,9 +160,10 @@ func (bd *BD) playerStateUpdater() {
 func (bd *BD) listUpdater() {
 	var update = func() {
 		initList := downloadPlayerLists(bd.ctx)
-		bd.playerListsMu.Lock()
-		defer bd.playerListsMu.Unlock()
-		bd.playerLists = initList
+		//bd.playerListsMu.Lock()
+		//defer bd.playerListsMu.Unlock()
+		//bd.playerLists = initList
+		log.Println(initList)
 	}
 	// Ensure ran once at launch
 	update()
@@ -180,31 +174,34 @@ func (bd *BD) listUpdater() {
 }
 
 func (bd *BD) checkPlayerStates() {
-	var matched MatchedPlayerList
+	//var matched MatchedPlayerList
 	for _, ps := range bd.serverState.Players {
-		for _, matcher := range bd.matchers {
-			if !matcher.FindMatch(ps.SteamId, &matched) {
-				continue
-			}
-			if bd.dryRun {
-				if errPL := bd.partyLog("(DRY) Matched player: %s %s %s",
-					matched.player.SteamId,
-					strings.Join(matched.player.Attributes, ","),
-					matched.list.FileInfo.Description,
-				); errPL != nil {
-					log.Println(errPL)
-					continue
-				}
-			} else {
-				if errVote := bd.callVote(ps.UserId); errVote != nil {
-					log.Printf("Error calling vote: %v", errVote)
-				}
-				ps.KickAttemptCount++
-			}
-			// Only try to vote once per iteration
-			break
-
+		if bd.rules.matchSteam(ps.SteamId) {
+			log.Println("Matched player...")
 		}
+		//for _, matcher := range bd.rules {
+		//	if !matcher.FindMatch(ps.SteamId, &matched) {
+		//		continue
+		//	}
+		//	if bd.dryRun {
+		//		if errPL := bd.partyLog("(DRY) Matched player: %s %s %s",
+		//			matched.player.SteamId,
+		//			strings.Join(matched.player.Attributes, ","),
+		//			matched.list.FileInfo.Description,
+		//		); errPL != nil {
+		//			log.Println(errPL)
+		//			continue
+		//		}
+		//	} else {
+		//		if errVote := bd.callVote(ps.UserId); errVote != nil {
+		//			log.Printf("Error calling vote: %v", errVote)
+		//		}
+		//		ps.KickAttemptCount++
+		//	}
+		//	// Only try to vote once per iteration
+		//	break
+		//
+		//}
 	}
 }
 

@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-func downloadPlayerLists(ctx context.Context, listUrl ...string) playerListCollection {
+func downloadPlayerLists(ctx context.Context, listUrl ...string) []schemaPlayerList {
 	urls := []string{
 		"https://trusted.roto.lol/v1/steamids",
 		"https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json",
 		"https://uncletopia.com/export/bans/tf2bd",
 	}
 	urls = append(urls, listUrl...)
-	var results playerListCollection
+	var results []schemaPlayerList
 	client := http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -35,8 +35,8 @@ func downloadPlayerLists(ctx context.Context, listUrl ...string) playerListColle
 			log.Printf("Failed to read body: %s %v\n", u, errResp)
 			continue
 		}
-		var result TF2BDPlayerList
-		if errParse := parseTF2BD(body, &result); errParse != nil {
+		var result schemaPlayerList
+		if errParse := parsePlayerSchema(body, &result); errParse != nil {
 			log.Printf("Failed to parse request: %v\n", reqErr)
 			continue
 		}

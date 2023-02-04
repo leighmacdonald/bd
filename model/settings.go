@@ -82,7 +82,7 @@ func (s *Settings) AddList(config listConfig) error {
 }
 
 func NewSettings() Settings {
-	return Settings{
+	settings := Settings{
 		RWMutex:              &sync.RWMutex{},
 		configPath:           "",
 		SteamRoot:            platform.DefaultSteamRoot,
@@ -95,8 +95,9 @@ func NewSettings() Settings {
 		Lists:                []listConfig{},
 		SteamId:              "",
 		RconMode:             rconModeRandom,
-		Rcon:                 rconConfig{},
+		Rcon:                 newRconConfig(false),
 	}
+	return settings
 }
 
 func (s *Settings) ReadDefault() error {

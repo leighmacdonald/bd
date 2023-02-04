@@ -31,10 +31,8 @@ import (
 )
 
 const (
-	settingKeySteamId = "steamId"
-
-	AppId = "com.github.leighmacdonald.bd"
-
+	AppId   = "com.github.leighmacdonald.bd"
+	urlHome = "https://github.com/leighmacdonald/bd"
 	urlHelp = "https://github.com/leighmacdonald/bd/wiki"
 )
 
@@ -151,6 +149,7 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 	rootWindow.SetMainMenu(ui.newMainMenu())
 	return &ui
 }
+
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	wikiUrl, _ := url.Parse(urlHelp)
 	fm := fyne.NewMenu("Bot Detector",
@@ -497,8 +496,6 @@ func (ui *Ui) newPlayerTableWidget() *widget.Table {
 	}
 	return table
 }
-
-const urlHome = "https://github.com/leighmacdonald/bd"
 
 func createAboutDialog(parent fyne.Window) dialog.Dialog {
 	u, _ := url.Parse(urlHome)
