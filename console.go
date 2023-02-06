@@ -91,14 +91,21 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 				outEvent.Player = m[1]
 				outEvent.Message = m[2]
 			case model.EvtStatusId:
-				userId, errUserId := strconv.ParseInt(m[2], 10, 32)
+				userId, errUserId := strconv.ParseInt(m[1], 10, 32)
 				if errUserId != nil {
 					log.Printf("Failed to parse userid: %v", errUserId)
 					continue
 				}
+				ping, errPing := strconv.ParseInt(m[5], 10, 32)
+				if errPing != nil {
+					log.Printf("Failed to parse ping: %v", errUserId)
+					continue
+				}
 				outEvent.UserId = userId
-				outEvent.Player = m[3]
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
+				outEvent.Player = m[2]
+				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[3]))
+				outEvent.PlayerConnected = m[4]
+				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
 				outEvent.Player = m[1]
 				outEvent.Victim = m[2]
@@ -132,10 +139,10 @@ func NewLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogPars
 		rxLobbyPlayer: regexp.MustCompile(`\s+(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))`),
 		rx: []*regexp.Regexp{
 			regexp.MustCompile(`^(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
-			regexp.MustCompile(`^(.+?)\s:\s\s(.+?)$`),
+			regexp.MustCompile(`^\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}:\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
 			regexp.MustCompile(`(^Disconnecting from abandoned match server$|\(Server shutting down\)$)`),
-			regexp.MustCompile(`^(.+?)#\s+(?P<id>\d+)\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d+])\s+(?P<time>\d+:\d+)\s+(?P<ping>\d+)\s+(?P<loss>\d+)`)},
+			regexp.MustCompile(`^\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}:\s#\s{1,6}(?P<id>\d+)\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d+])\s+(?P<time>\d+:\d+)\s+(?P<ping>\d+)\s+(?P<loss>\d+)\s(spawning|active)$`)},
 	}
 	return &lp
 }

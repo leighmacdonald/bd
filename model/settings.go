@@ -95,7 +95,7 @@ func NewSettings() Settings {
 		Lists:                []ListConfig{},
 		SteamId:              "",
 		RconMode:             rconModeRandom,
-		Rcon:                 newRconConfig(false),
+		Rcon:                 newRconConfig(true),
 	}
 	return settings
 }

@@ -3,26 +3,34 @@ package model
 import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
-	"log"
 	"sync"
 	"time"
 )
 
-type ServerState struct {
+type GameState struct {
 	*sync.RWMutex
-	Server     string
-	CurrentMap string
-	Players    []*PlayerState
+	Server   *ServerState
+	Players  PlayersStateCollection
+	Messages []UserMessage
 }
 
-func NewServerState() *ServerState {
-	return &ServerState{
-		RWMutex:    &sync.RWMutex{},
-		Server:     "n/a",
-		CurrentMap: "n/a",
-		Players:    []*PlayerState{},
+type ServerState struct {
+	ServerName string
+	CurrentMap string
+}
+
+func NewGameState() *GameState {
+	return &GameState{
+		RWMutex: &sync.RWMutex{},
+		Server: &ServerState{
+			ServerName: "n/a",
+			CurrentMap: "n/a",
+		},
+		Players: nil,
 	}
 }
+
+type PlayersStateCollection []*PlayerState
 
 type PlayerState struct {
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
@@ -34,6 +42,7 @@ type PlayerState struct {
 
 	// First time we see the player
 	ConnectedAt time.Time
+	Connected   string
 
 	// We got their disconnect message. This is used to calculate when to remove
 	// the player from the slice as there is a grace period on disconnect before dropping
@@ -48,7 +57,7 @@ type PlayerState struct {
 
 	// The users death count vs this player
 	DeathsBy int
-
+	Ping     int
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int
 
@@ -82,41 +91,4 @@ func NewPlayerState(sid64 steamid.SID64, name string) PlayerState {
 		UpdatedOn:        t0,
 		Dangling:         true,
 	}
-}
-
-func (ps *PlayerState) Update() {
-	wg := &sync.WaitGroup{}
-	var (
-		banState steamweb.PlayerBanState
-		summary  steamweb.PlayerSummary
-	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		bans, errBans := steamweb.GetPlayerBans(steamid.Collection{ps.SteamId})
-		if errBans != nil {
-			log.Printf("Failed to fetch bans: %v", errBans)
-			return
-		}
-		if len(bans) != 1 {
-			return
-		}
-		banState = bans[0]
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		summaries, errBans := steamweb.PlayerSummaries(steamid.Collection{ps.SteamId})
-		if errBans != nil {
-			log.Printf("Failed to fetch summaries: %v", errBans)
-			return
-		}
-		if len(summaries) != 1 {
-			return
-		}
-		summary = summaries[0]
-	}()
-	wg.Wait()
-	ps.BanState = &banState
-	ps.Summary = &summary
 }

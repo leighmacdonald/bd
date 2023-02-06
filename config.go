@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/andygrunwald/vdf"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"log"
@@ -27,20 +28,33 @@ func getLocalConfigPath(steamRoot string, steamId steamid.SID64) (string, error)
 	return fp, nil
 }
 
-func launchTF2(rconPass string, rconPort uint16, tf2Path string, steamRoot string, sid64 steamid.SID64) {
+func (bd *BD) launchGameAndWait() {
 	log.Println("Launching tf2...")
-	hl2Path := filepath.Dir(tf2Path)
-	args, errArgs := getLaunchArgs(rconPass, rconPort, steamRoot, sid64)
+	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Root), platform.BinaryName)
+	args, errArgs := getLaunchArgs(
+		bd.settings.Rcon.Password(),
+		bd.settings.Rcon.Port(),
+		bd.settings.SteamRoot,
+		bd.settings.GetSteamId())
 	if errArgs != nil {
 		log.Println(errArgs)
 		return
 	}
 	var procAttr os.ProcAttr
 	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	_, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
+	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
 		log.Printf("Failed to launch TF2: %v", errStart)
+		return
 	}
+	bd.gameProcess = process
+	state, errWait := process.Wait()
+	if errWait != nil {
+		log.Printf("Error waiting for game process: %v\n", errWait)
+	} else {
+		log.Printf("Game exited: %s\n", state.String())
+	}
+	bd.gameProcess = nil
 }
 
 func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error) {

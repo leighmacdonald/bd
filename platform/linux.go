@@ -15,7 +15,14 @@ import (
 	"strings"
 )
 
-var cachedSteamId steamid.SID64
+var (
+	cachedSteamId           steamid.SID64
+	DefaultSteamRoot        = "~/.steam/steam"
+	DefaultTF2Root          = "~/.steam/steam/steamapps/common/Team Fortress 2/tf"
+	BinaryName              = "hl2"
+	SteamRootValidationFile = "Steam.so"
+	TF2RootValidationFile   = "bin/client.so"
+)
 
 // getSteamId will scan the user data directory and try to find a directory with a localconfig.vdf
 // This has the potential to fail on linux since it will return the first match and not necessarily the user
@@ -106,4 +113,9 @@ func launchTF2(rconPass string, rconPort uint16) {
 	if errStart != nil {
 		log.Printf("Failed to launch TF2: %v", errStart)
 	}
+}
+
+func init() {
+	DefaultSteamRoot = "~/.steam/steam"
+
 }

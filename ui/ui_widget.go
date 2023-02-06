@@ -2,9 +2,13 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
+	"net/url"
 )
 
 type contextMenuLabel struct {
@@ -15,6 +19,11 @@ type contextMenuLabel struct {
 func (b *contextMenuLabel) Tapped(e *fyne.PointEvent) {
 	log.Println("Got click")
 	widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), e.AbsolutePosition)
+}
+
+type chatRow struct {
+	*container.Split
+	message model.UserMessage
 }
 
 func newContextMenuLabel(text string) *contextMenuLabel {
@@ -36,6 +45,7 @@ func newContextMenuLabel(text string) *contextMenuLabel {
 	}
 
 	l.ExtendBaseWidget(nil)
+
 	return &contextMenuLabel{
 		Label: l,
 		menu:  menu,
@@ -52,7 +62,33 @@ func (b *tableButtonLabel) Tapped(e *fyne.PointEvent) {
 	widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), e.AbsolutePosition)
 }
 
-func newTableButtonLabel(text string) *tableButtonLabel {
+type externalUrl struct {
+	title  string
+	url    string
+	format string
+}
+
+func (ui *Ui) generateExternalLinksMenu(steamId steamid.SID64) []*fyne.MenuItem {
+	links := []externalUrl{
+		{title: "RGL", url: "https://rgl.gg/Public/PlayerProfile.aspx?p=%d", format: "steam64"},
+	}
+	var items []*fyne.MenuItem
+	for _, link := range links {
+		items = append(items, fyne.NewMenuItem(link.title, func() {
+			ul, urlErr := url.Parse(link.url)
+			if urlErr != nil {
+				log.Printf("Failed to create link: %v", urlErr)
+				return
+			}
+			if errOpen := ui.application.OpenURL(ul); errOpen != nil {
+				log.Printf("Failed to open external link: %v", errOpen)
+			}
+		}))
+	}
+	return items
+}
+
+func (ui *Ui) newTableButtonLabel(steamId steamid.SID64) *tableButtonLabel {
 	menuItem1 := fyne.NewMenuItem("Copy SteamID", nil)
 
 	subMenu := fyne.NewMenu("Sub Menu",
@@ -61,11 +97,7 @@ func newTableButtonLabel(text string) *tableButtonLabel {
 		fyne.NewMenuItem("Ultra Racist", nil),
 	)
 
-	externalSubMenu := fyne.NewMenu("Sub Menu",
-		fyne.NewMenuItem("RGL", nil),
-		fyne.NewMenuItem("Steamid.io", nil),
-		fyne.NewMenuItem("ESEA", nil),
-	)
+	externalSubMenu := fyne.NewMenu("Sub Menu", ui.generateExternalLinksMenu(steamId)...)
 
 	menu := fyne.NewMenu("Actions",
 		&fyne.MenuItem{ChildMenu: subMenu, Label: "Mark As..."},

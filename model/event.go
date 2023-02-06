@@ -1,16 +1,21 @@
 package model
 
-import "github.com/leighmacdonald/steamid/v2/steamid"
+import (
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"time"
+)
 
 type LogEvent struct {
-	Type      EventType
-	Player    string
-	UserId    int64
-	PlayerSID steamid.SID64
-	Victim    string
-	VictimSID steamid.SID64
-	Message   string
-	Team      Team
+	Type            EventType
+	Player          string
+	PlayerPing      int
+	PlayerConnected string
+	UserId          int64
+	PlayerSID       steamid.SID64
+	Victim          string
+	VictimSID       steamid.SID64
+	Message         string
+	Team            Team
 }
 
 type Event struct {
@@ -18,10 +23,11 @@ type Event struct {
 	Value any
 }
 
-type EvtUserMessage struct {
+type UserMessage struct {
 	Team      Team
 	Player    string
 	PlayerSID steamid.SID64
 	UserId    int64
 	Message   string
+	Created   time.Time
 }

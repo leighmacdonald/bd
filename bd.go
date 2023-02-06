@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/ui"
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -16,36 +19,100 @@ type BD struct {
 	// - decouple remaining ui bindings
 	// - generalized matchers
 	// - estimate private steam account ages (find nearby non-private account)
-	logChan           chan string
-	incomingLogEvents chan model.LogEvent
-	serverState       *model.ServerState
-	ctx               context.Context
-	logReader         *logReader
-	logParser         *LogParser
-	rules             *RulesEngine
-	rconConnection    rconConnection
-	settings          *model.Settings
-	store             dataStore
-	gui               ui.UserInterface
-	dryRun            bool
-	gameActive        bool
+	logChan            chan string
+	incomingLogEvents  chan model.LogEvent
+	gameState          *model.GameState
+	ctx                context.Context
+	logReader          *logReader
+	logParser          *LogParser
+	rules              *RulesEngine
+	rconConnection     rconConnection
+	settings           *model.Settings
+	store              dataStore
+	gui                ui.UserInterface
+	dryRun             bool
+	gameProcess        *os.Process
+	profileUpdateQueue chan steamid.SID64
 }
 
 func New(ctx context.Context, settings *model.Settings, store dataStore) BD {
 	rootApp := BD{
-		settings:          settings,
-		logChan:           make(chan string),
-		incomingLogEvents: make(chan model.LogEvent),
-		rules:             newRulesEngine(),
-		serverState:       model.NewServerState(),
-		store:             store,
-		ctx:               ctx,
+		settings:           settings,
+		logChan:            make(chan string),
+		incomingLogEvents:  make(chan model.LogEvent),
+		gameState:          model.NewGameState(),
+		rules:              newRulesEngine(),
+		profileUpdateQueue: make(chan steamid.SID64),
+		store:              store,
+		ctx:                ctx,
 	}
 
 	rootApp.createLogReader()
 	rootApp.createLogParser()
 
 	return rootApp
+}
+
+// profileUpdater handles fetching 3rd party data of players
+// MAYBE priority queue for new players in a already established game?
+func (bd *BD) profileUpdater(interval time.Duration) {
+	var queuedUpdates steamid.Collection
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case queuedSid := <-bd.profileUpdateQueue:
+			existsAlready := false
+			for _, sid := range queuedUpdates {
+				if sid == queuedSid {
+					existsAlready = true
+					break
+				}
+			}
+			if !existsAlready {
+				queuedUpdates = append(queuedUpdates, queuedSid)
+			}
+		case <-ticker.C:
+			if len(queuedUpdates) == 0 {
+				continue
+			}
+			if len(queuedUpdates) > 100 {
+				var trimmed steamid.Collection
+				for i := len(queuedUpdates) - 1; len(trimmed) < 100; i-- {
+					trimmed = append(trimmed, queuedUpdates[i])
+				}
+				queuedUpdates = trimmed
+			}
+			log.Printf("Updating %d profiles\n", len(queuedUpdates))
+			summaries, errSummaries := steamweb.PlayerSummaries(queuedUpdates)
+			if errSummaries != nil {
+				log.Printf("Failed to fetch summaries: %v\n", errSummaries)
+				continue
+			}
+			bans, errBans := steamweb.GetPlayerBans(queuedUpdates)
+			if errBans != nil {
+				log.Printf("Failed to fetch bans: %v\n", errBans)
+				continue
+			}
+			bd.gameState.Lock()
+			for _, player := range bd.gameState.Players {
+				for _, summary := range summaries {
+					if summary.Steamid == player.SteamId.String() {
+						player.Summary = &summary
+						break
+					}
+				}
+				for _, ban := range bans {
+					if ban.SteamID == player.SteamId.String() {
+						player.BanState = &ban
+						break
+					}
+				}
+			}
+			bd.gameState.Unlock()
+			log.Printf("Updated %d profiles\n", len(queuedUpdates))
+			queuedUpdates = nil
+		}
+	}
 }
 
 func (bd *BD) createLogReader() {
@@ -66,92 +133,64 @@ func (bd *BD) eventHandler() {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
 		case model.EvtDisconnect:
-			bd.serverState.Lock()
-			for _, ps := range bd.serverState.Players {
-				if ps.SteamId == evt.PlayerSID {
-					dt := time.Now()
-					ps.DisconnectedAt = &dt
-				}
-			}
-			bd.serverState.Unlock()
-			go func() {
-				time.Sleep(60 * time.Second)
-				bd.serverState.Lock()
-				var newState []*model.PlayerState
-				for _, ps := range bd.serverState.Players {
-					if ps.SteamId != evt.PlayerSID {
-						newState = append(newState, ps)
-					}
-				}
-				bd.serverState.Players = newState
-				bd.serverState.Unlock()
-			}()
-			bd.gui.OnDisconnect(evt.PlayerSID)
+			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
+			// lag between actually removing the player from the player table.
 			log.Printf("Player disconnected: %d", evt.PlayerSID.Int64())
 		case model.EvtMsg:
-			bd.gui.OnUserMessage(model.EvtUserMessage{
+			bd.gameState.Lock()
+			bd.gameState.Messages = append(bd.gameState.Messages, model.UserMessage{
 				Team:      evt.Team,
 				Player:    evt.Player,
 				PlayerSID: evt.PlayerSID,
 				UserId:    evt.UserId,
 				Message:   evt.Message,
+				Created:   time.Now(),
 			})
+			bd.gameState.Unlock()
+			bd.gui.Refresh()
 		case model.EvtStatusId:
-			bd.serverState.Lock()
-			newPlayer := true
-			ep := bd.serverState.Players
+			var ps *model.PlayerState
+			bd.gameState.Lock()
+			ep := bd.gameState.Players
 			for _, existingPlayer := range ep {
 				if existingPlayer.SteamId == evt.PlayerSID {
-					newPlayer = false
+					ps = existingPlayer
 					break
 				}
 			}
-			if newPlayer {
-				np := model.NewPlayerState(evt.PlayerSID, evt.Player)
-				np.UserId = evt.UserId
-				go np.Update()
-				ep = append(ep, &np)
+			isNew := ps == nil
+			if isNew {
+				newPlayer := model.NewPlayerState(evt.PlayerSID, evt.Player)
+				newPlayer.UserId = evt.UserId
+				ep = append(ep, &newPlayer)
+				ps = &newPlayer
 			}
-			bd.serverState.Players = ep
+			ps.UpdatedOn = time.Now()
+			ps.Ping = evt.PlayerPing
+			ps.Connected = evt.PlayerConnected
 			log.Printf("[%d] [%d] %s\n", evt.UserId, evt.PlayerSID.Int64(), evt.Player)
-			bd.serverState.Unlock()
+			if isNew {
+				bd.gameState.Players = append(bd.gameState.Players, ps)
+				bd.profileUpdateQueue <- evt.PlayerSID
+
+			}
+			bd.gameState.Unlock()
 		}
 	}
 }
 
 func (bd *BD) AttachGui(gui ui.UserInterface) {
-	fn := func() {
-		launchTF2(bd.settings.Rcon.Password(), bd.settings.Rcon.Port(), bd.settings.TF2Root, bd.settings.SteamRoot, bd.settings.GetSteamId())
-		bd.gameActive = true
-	}
-	gui.OnLaunchTF2(fn)
+	gui.OnLaunchTF2(func() {
+		go bd.launchGameAndWait()
+	})
 	bd.gui = gui
-}
-
-func (bd *BD) uiStateUpdater() {
-	updateTicker := time.NewTicker(time.Second * 10)
-	for {
-		select {
-		case <-bd.ctx.Done():
-			return
-		case <-updateTicker.C:
-			if bd.gui == nil {
-				return
-			}
-			bd.serverState.RLock()
-			sc := bd.serverState
-			bd.serverState.RUnlock()
-			bd.gui.OnServerState(sc)
-		}
-	}
-
 }
 
 func (bd *BD) playerStateUpdater() {
 	for range time.NewTicker(time.Second * 10).C {
-		if !bd.gameActive {
-			continue
-		}
+		//if bd.gameProcess == nil {
+		//	continue
+		//}
 		updatePlayerState(bd.ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
 		bd.checkPlayerStates()
 	}
@@ -172,8 +211,22 @@ func (bd *BD) refreshLists() {
 }
 
 func (bd *BD) checkPlayerStates() {
-	//var matched MatchedPlayerList
-	for _, ps := range bd.serverState.Players {
+	t0 := time.Now()
+	bd.gameState.Lock()
+	defer bd.gameState.Unlock()
+	var valid []*model.PlayerState
+	for _, ps := range bd.gameState.Players {
+		if t0.Sub(ps.UpdatedOn) > time.Second*60 {
+			log.Printf("Player expired: %s %s", ps.SteamId.String(), ps.Name)
+			continue
+		}
+		valid = append(valid, ps)
+	}
+
+	for _, ps := range valid {
+		if t0.Sub(ps.UpdatedOn) > time.Second*60 {
+
+		}
 		if bd.rules.matchSteam(ps.SteamId) {
 			log.Println("Matched player...")
 		}
@@ -201,6 +254,8 @@ func (bd *BD) checkPlayerStates() {
 		//
 		//}
 	}
+	bd.gameState.Players = valid
+
 }
 
 func (bd *BD) partyLog(fmtStr string, args ...any) error {
@@ -231,8 +286,8 @@ func (bd *BD) start() {
 	go bd.logParser.start(bd.ctx)
 	go bd.playerStateUpdater()
 	go bd.refreshLists()
-	go bd.uiStateUpdater()
 	go bd.eventHandler()
+	go bd.profileUpdater(time.Second * 10)
 	//go ui2.eventSender(bd.ctx, bd, bd.ui)
 	<-bd.ctx.Done()
 }

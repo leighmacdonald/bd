@@ -37,9 +37,7 @@ const (
 )
 
 type UserInterface interface {
-	OnUserMessage(value model.EvtUserMessage)
-	OnServerState(value *model.ServerState)
-	OnDisconnect(sid64 steamid.SID64)
+	Refresh()
 	Start()
 	OnLaunchTF2(func())
 }
@@ -52,10 +50,7 @@ type Ui struct {
 	settingsDialog dialog.Dialog
 	PlayerTable    *widget.Table
 	aboutDialog    dialog.Dialog
-	serverName     binding.String
-	currentMap     binding.String
-	messages       binding.StringList
-	playerData     binding.UntypedList
+	gameState      *model.GameState
 	settings       boundSettings
 	baseSettings   *model.Settings
 	launcher       func()
@@ -93,23 +88,20 @@ func readIcon(path string) fyne.Resource {
 	return r
 }
 
-func New(ctx context.Context, settings *model.Settings) UserInterface {
+func New(ctx context.Context, settings *model.Settings, gameState *model.GameState) UserInterface {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})
 	application.SetIcon(readIcon("ui/resources/Icon.png"))
 	rootWindow := application.NewWindow("Bot Detector")
-
 	ui := Ui{
 		ctx:          ctx,
 		application:  application,
 		rootWindow:   rootWindow,
-		messages:     binding.NewStringList(),
-		currentMap:   binding.NewString(),
-		serverName:   binding.NewString(),
-		playerData:   binding.NewUntypedList(),
+		gameState:    gameState,
 		settings:     boundSettings{binding.BindStruct(settings)},
 		baseSettings: settings,
 	}
+
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
 		if errSave := settings.Save(); errSave != nil {
 			log.Printf("Failed to save config file: %v\n", errSave)
@@ -150,6 +142,11 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 	return &ui
 }
 
+func (ui *Ui) Refresh() {
+	ui.chatWindow.Content().Refresh()
+	ui.PlayerTable.Refresh()
+}
+
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	wikiUrl, _ := url.Parse(urlHelp)
 	fm := fyne.NewMenu("Bot Detector",
@@ -163,9 +160,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	)
 	am := fyne.NewMenu("Actions",
 		fyne.NewMenuItem("Clear", func() {
-			if errSet := ui.messages.Set([]string{}); errSet != nil {
-				log.Println("Failed to clear chat messages")
-			}
+			(*ui.gameState).Messages = nil
 		}),
 	)
 	hm := fyne.NewMenu("Help",
@@ -200,33 +195,18 @@ func (ui *Ui) OnDisconnect(sid64 steamid.SID64) {
 	log.Printf("Player disconnected: %d", sid64.Int64())
 }
 
-func (ui *Ui) OnUserMessage(value model.EvtUserMessage) {
-	teamMsg := "blu"
-	if value.Team == model.Red {
-		teamMsg = "red"
-	}
-	outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.Player, value.Message)
-	if errAppend := ui.messages.Append(outMsg); errAppend != nil {
-		log.Printf("Failed to add message: %v\n", errAppend)
-	}
-	ui.chatWindow.Content().(*widget.List).ScrollToBottom()
-}
-
-func (ui *Ui) OnServerState(value *model.ServerState) {
-	if errSetServer := ui.serverName.Set(value.Server); errSetServer != nil {
-		log.Printf("Failed to update server name: %v", errSetServer)
-	}
-	if errSetCurrentMap := ui.currentMap.Set(value.CurrentMap); errSetCurrentMap != nil {
-		log.Printf("Failed to update current map: %v", errSetCurrentMap)
-	}
-	var players []any
-	for _, x := range value.Players {
-		players = append(players, x)
-	}
-	if errPlayerState := ui.playerData.Set(players); errPlayerState != nil {
-		log.Printf("Failed to update player state: %v", errPlayerState)
-	}
-	ui.PlayerTable.Refresh()
+func (ui *Ui) OnUserMessage() {
+	//teamMsg := "blu"
+	//if value.Team == model.Red {
+	//	teamMsg = "red"
+	//}
+	//outMsg := fmt.Sprintf("[%s] %s: %s", teamMsg, value.Player, value.Message)
+	//if errAppend := ui.messages.Append(outMsg); errAppend != nil {
+	//	log.Printf("Failed to add message: %v\n", errAppend)
+	//}
+	cw := ui.chatWindow.Content().(*chatListWidget)
+	cw.Refresh()
+	cw.ScrollToBottom()
 }
 
 func (ui *Ui) Run() {
@@ -406,7 +386,9 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 		}),
 		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
 		//widget.NewToolbarSeparator(),
-		//widget.NewToolbarAction(theme.MediaPlayIcon(), chatFunc),
+		widget.NewToolbarAction(theme.MediaPlayIcon(), func() {
+			ui.Refresh()
+		}),
 		//widget.NewToolbarAction(theme.FileTextIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
@@ -424,12 +406,51 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 //	return fmt.Sprintf("%s: %s", time.Now().Format("15:04:05"), msg)
 //}
 
+type chatListWidget struct {
+	widget.List
+	messages *[]model.UserMessage
+}
+
+func (ui *Ui) newChatListWidget() *chatListWidget {
+	cl := &chatListWidget{
+		List: widget.List{
+			Length: func() int {
+				ui.gameState.RLock()
+				defer ui.gameState.RUnlock()
+				return len(ui.gameState.Messages)
+			},
+			CreateItem: func() fyne.CanvasObject {
+				return container.NewHSplit(widget.NewLabel(""), widget.NewLabel(""))
+			},
+			UpdateItem: func(id widget.ListItemID, item fyne.CanvasObject) {
+				ui.gameState.RLock()
+				defer ui.gameState.RUnlock()
+				if id+1 > len(ui.gameState.Messages) {
+					return
+				}
+				itm := ui.gameState.Messages[id]
+				cnt := item.(*container.Split)
+				a := cnt.Leading.(*widget.Label)
+				a.SetText(itm.Created.Format("3:04PM"))
+				a.Refresh()
+				b := cnt.Trailing.(*widget.Label)
+				b.SetText(itm.Message)
+				b.Refresh()
+			},
+			OnSelected: func(id widget.ListItemID) {
+				log.Printf("Selected row: %v\n", id)
+			},
+			OnUnselected: func(id widget.ListItemID) {
+				log.Printf("Unselected row: %v\n", id)
+			},
+		},
+	}
+	cl.ExtendBaseWidget(cl)
+	return cl
+}
+
 func (ui *Ui) newChatWidget() fyne.Window {
-	chatWidget := widget.NewListWithData(ui.messages, func() fyne.CanvasObject {
-		return newContextMenuLabel("template")
-	}, func(item binding.DataItem, object fyne.CanvasObject) {
-		object.(*contextMenuLabel).Bind(item.(binding.String))
-	})
+	chatWidget := ui.newChatListWidget()
 	chatWindow := ui.application.NewWindow("Chat")
 	chatWindow.SetContent(chatWidget)
 	chatWindow.Resize(fyne.NewSize(1000, 500))
@@ -445,49 +466,40 @@ func (ui *Ui) newChatWidget() fyne.Window {
 // may be better?
 func (ui *Ui) newPlayerTableWidget() *widget.Table {
 	table := widget.NewTable(func() (int, int) {
-		return ui.playerData.Length(), 6
+		return len((*ui.gameState).Players), 5
 	}, func() fyne.CanvasObject {
-		return container.NewMax(widget.NewLabel(""), newTableButtonLabel(""))
+		return container.NewMax(widget.NewLabel(""), ui.newTableButtonLabel(0))
 	}, func(id widget.TableCellID, object fyne.CanvasObject) {
 		label := object.(*fyne.Container).Objects[0].(*widget.Label)
 		icon := object.(*fyne.Container).Objects[1].(*tableButtonLabel)
 		label.Show()
 		icon.Hide()
-		if ui.playerData == nil || id.Row+1 > ui.playerData.Length() {
-			object.(*widget.Label).SetText("")
+		if (*ui.gameState).Players == nil || id.Row+1 > len((*ui.gameState).Players) {
+			label.SetText("")
 			return
 		}
-		if id.Row > ui.playerData.Length()-1 {
-			object.(*widget.Label).SetText("no value")
+		if id.Row > len((*ui.gameState).Players)-1 {
+			label.SetText("no value")
 			return
 		}
-		value, valueErr := ui.playerData.GetValue(id.Row)
-		if valueErr != nil {
-			object.(*widget.Label).SetText("err")
-			return
-		}
-		rv, ok := value.(model.PlayerState)
-		if !ok {
-			object.(*widget.Label).SetText("cast err")
-			return
-		}
+		value := (*ui.gameState).Players[id.Row]
 		switch id.Col {
 		case 0:
 			label.TextStyle.Symbol = true
 			label.TextStyle.Monospace = true
-			label.SetText(fmt.Sprintf("%04d", rv.UserId))
+			label.SetText(fmt.Sprintf("%04d", value.UserId))
 		case 1:
 			label.TextStyle.Monospace = true
-			label.SetText(rv.SteamId.String())
+			label.SetText(value.SteamId.String())
 		case 2:
 			label.TextStyle.Bold = true
-			label.SetText(rv.Name)
+			label.SetText(value.Name)
 		case 3:
 			label.Hide()
 			icon.Show()
 			icon.SetResource(theme.AccountIcon())
 		case 4:
-			label.SetText("0")
+			label.SetText(fmt.Sprintf("%d", value.Ping))
 		}
 	})
 	for i, v := range []float32{50, 200, 300, 24, 50} {

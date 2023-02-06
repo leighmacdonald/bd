@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	DefaultSteamRoot = "C:/Program Files (x86)/Steam"
-	DefaultTF2Root   = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
-
+	DefaultSteamRoot        = "C:/Program Files (x86)/Steam"
+	DefaultTF2Root          = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
+	BinaryName              = "hl2.exe"
 	SteamRootValidationFile = "Steam.dll"
 	TF2RootValidationFile   = "bin/client.dll"
 )

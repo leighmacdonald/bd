@@ -30,7 +30,7 @@ func main() {
 	}
 	defer store.Close()
 	bd := New(ctx, &settings, store)
-	gui := ui.New(ctx, &settings)
+	gui := ui.New(ctx, &settings, bd.gameState)
 	bd.AttachGui(gui)
 	go bd.start()
 	gui.Start()
