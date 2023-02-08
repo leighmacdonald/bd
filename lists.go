@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"time"
 )
 
 func fetchUrl(ctx context.Context, client http.Client, url string) ([]byte, error) {
@@ -30,9 +29,7 @@ func fetchUrl(ctx context.Context, client http.Client, url string) ([]byte, erro
 func downloadLists(ctx context.Context, lists []model.ListConfig) ([]playerListSchema, []ruleSchema) {
 	var playerLists []playerListSchema
 	var rulesLists []ruleSchema
-	client := http.Client{
-		Timeout: 10 * time.Second,
-	}
+	client := http.Client{}
 	for _, u := range lists {
 		if !u.Enabled {
 			continue

@@ -12,24 +12,22 @@ import (
 	"github.com/pkg/errors"
 	"log"
 	_ "modernc.org/sqlite"
+	//_ "github.com/mattn/go-sqlite3"
 	"time"
 )
 
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-var (
-	// ErrNoResult is returned on successful queries which return no rows
-	ErrNoResult = errors.New("No results found")
-)
-
 type dataStore interface {
 	Close()
 	Connect() error
 	Init() error
-	SaveName(ctx context.Context, source steamid.SID64, name string) error
-	SaveMessage(ctx context.Context, source steamid.SID64, message string) error
+	SaveName(ctx context.Context, steamId steamid.SID64, name string) error
+	SaveMessage(ctx context.Context, steamId steamid.SID64, message string) error
 	SavePlayer(ctx context.Context, state *model.PlayerState) error
+	FetchNames(ctx context.Context, sid64 steamid.SID64) ([]model.UserNameHistory, error)
+	FetchMessages(ctx context.Context, sid steamid.SID64) ([]model.UserMessage, error)
 	LoadOrCreatePlayer(ctx context.Context, steamId steamid.SID64, player *model.PlayerState) error
 }
 
@@ -56,9 +54,11 @@ func (store *sqliteStore) Connect() error {
 	if errOpen != nil {
 		return errors.Wrap(errOpen, "Failed to open database")
 	}
-	_, errFKSupport := database.Exec("PRAGMA foreign_keys = ON")
-	if errFKSupport != nil {
-		return errors.Wrap(errFKSupport, "Failed to enable foreign key support")
+	for _, pragma := range []string{"PRAGMA encoding = 'UTF-8'", "PRAGMA foreign_keys = ON"} {
+		_, errPragma := database.Exec(pragma)
+		if errPragma != nil {
+			return errors.Wrapf(errPragma, "Failed to enable pragma: %s", errPragma)
+		}
 	}
 	store.db = database
 	return nil
@@ -85,6 +85,7 @@ func (store *sqliteStore) Init() error {
 	if errMigrate := migrator.Up(); errMigrate != nil {
 		return errors.Wrap(errMigrate, "Failed to migrate database")
 	}
+
 	errSource, errDatabase := migrator.Close()
 	if errSource != nil {
 		return errors.Wrap(errSource, "Failed to Close source driver")
@@ -92,12 +93,12 @@ func (store *sqliteStore) Init() error {
 	if errDatabase != nil {
 		return errors.Wrap(errDatabase, "Failed to Close database driver")
 	}
-	return nil
+	return store.Connect()
 }
 
-func (store *sqliteStore) SaveName(ctx context.Context, source steamid.SID64, name string) error {
+func (store *sqliteStore) SaveName(ctx context.Context, steamId steamid.SID64, name string) error {
 	const query = `INSERT INTO player_names (steam_id, name) VALUES (?, ?)`
-	if _, errExec := store.db.ExecContext(ctx, query, source.Int64(), name); errExec != nil {
+	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), name); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
@@ -115,50 +116,100 @@ func (store *sqliteStore) SaveMessage(ctx context.Context, steamId steamid.SID64
 }
 
 func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerState) error {
+	if !state.SteamId.Valid() {
+		return errors.New("Invalid steam id")
+	}
 	// TODO sqlite replace is a bit odd, but maybe worth investigation eventually
 	const insertQuery = `INSERT INTO player (steam_id, kills_on, deaths_by, created_on, updated_on) VALUES (?, ?, ?, ?, ?)`
 	const updateQuery = `UPDATE player SET kills_on = ?, deaths_by = ?, updated_on = ? where steam_id = ?`
 	if state.Dangling {
-		_, errExec := store.db.ExecContext(ctx, insertQuery, state.SteamId, state.KillsOn, state.DeathsBy, state.CreatedOn, state.UpdatedOn)
-		if errExec != nil {
+		if _, errExec := store.db.ExecContext(
+			ctx,
+			insertQuery,
+			state.SteamId.Int64(),
+			state.KillsOn,
+			state.DeathsBy,
+			state.CreatedOn,
+			state.UpdatedOn,
+		); errExec != nil {
 			return errors.Wrap(errExec, "Could not save player state")
 		}
 		state.Dangling = false
 	} else {
 		state.UpdatedOn = time.Now()
-		_, errExec := store.db.ExecContext(ctx, updateQuery, state.KillsOn, state.DeathsBy, state.UpdatedOn, state.SteamId)
+		_, errExec := store.db.ExecContext(ctx, updateQuery, state.KillsOn, state.DeathsBy, state.UpdatedOn, state.SteamId.Int64())
 		if errExec != nil {
 			return errors.Wrap(errExec, "Could not update player state")
 		}
-	}
-	if errSaveName := store.SaveName(ctx, state.SteamId, state.Name); errSaveName != nil {
-		log.Printf("Failed to save name")
 	}
 	return nil
 }
 
 func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steamid.SID64, player *model.PlayerState) error {
-	const query = `SELECT kills_on, deaths_by, created_on, updated_on FROM player where steam_id = ?`
-	rowErr := dbErr(store.db.
+	const query = `
+		SELECT p.kills_on, p.deaths_by, p.created_on, p.updated_on, 
+		        coalesce((SELECT name FROM player_names n WHERE p.steam_id = n.steam_id ORDER BY created_on DESC LIMIT 1), '') as last_name
+		FROM player p
+		WHERE steam_id = ?`
+	var prevName *string
+	rowErr := store.db.
 		QueryRow(query, steamId).
-		Scan(&player.KillsOn, &player.DeathsBy, &player.CreatedOn, &player.UpdatedOn))
+		Scan(&player.KillsOn, &player.DeathsBy, &player.CreatedOn, &player.UpdatedOn, &prevName)
 	if rowErr != nil {
-		if rowErr != ErrNoResult {
+		if rowErr != sql.ErrNoRows {
 			return rowErr
 		}
 		player.Dangling = true
+		player.SteamId = steamId
 		return store.SavePlayer(ctx, player)
 	}
+	player.NamePrevious = *prevName
 	return nil
 }
 
-func dbErr(rootError error) error {
-	if rootError == nil {
-		return rootError
+func closeRows(rows *sql.Rows) {
+	if errClose := rows.Close(); errClose != nil {
+		log.Printf("Error trying to close rows: %v\n", errClose)
 	}
-	err := rootError.Error()
-	if err == "no rows in result set" {
-		return ErrNoResult
+}
+
+func (store *sqliteStore) FetchNames(ctx context.Context, steamId steamid.SID64) ([]model.UserNameHistory, error) {
+	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
+	rows, errQuery := store.db.QueryContext(ctx, query, steamId.Int64())
+	if errQuery != nil {
+		if errors.Is(errQuery, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errQuery
 	}
-	return rootError
+	defer closeRows(rows)
+	var hist []model.UserNameHistory
+	for rows.Next() {
+		var h model.UserNameHistory
+		if errScan := rows.Scan(&h.NameId, &h.Name, &h.FirstSeen); errScan != nil {
+			return nil, errScan
+		}
+		hist = append(hist, h)
+	}
+	return hist, nil
+}
+func (store *sqliteStore) FetchMessages(ctx context.Context, steamId steamid.SID64) ([]model.UserMessage, error) {
+	const query = `SELECT message_id, message, created_on FROM player_messages where steam_id = ?`
+	rows, errQuery := store.db.QueryContext(ctx, query, steamId.Int64())
+	if errQuery != nil {
+		if errors.Is(errQuery, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errQuery
+	}
+	defer closeRows(rows)
+	var messages []model.UserMessage
+	for rows.Next() {
+		var m model.UserMessage
+		if errScan := rows.Scan(&m.MessageId, &m.Message, &m.Created); errScan != nil {
+			return nil, errScan
+		}
+		messages = append(messages, m)
+	}
+	return messages, nil
 }

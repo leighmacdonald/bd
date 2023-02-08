@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type logReader struct {
@@ -62,6 +63,11 @@ var (
 	errRconDisconnected = errors.New("rcon not connected")
 )
 
+// parseTimestamp will convert the source formatted log timestamps into a time.Time value
+func parseTimestamp(timestamp string) (time.Time, error) {
+	return time.Parse("01/02/2006 - 15:04:05", timestamp)
+}
+
 type LogParser struct {
 	evtChan       chan model.LogEvent
 	ReadChannel   chan string
@@ -88,23 +94,35 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 			case model.EvtDisconnect:
 				outEvent.Player = m[1]
 			case model.EvtMsg:
-				outEvent.Player = m[1]
-				outEvent.Message = m[2]
+				ts, errTs := parseTimestamp(m[1])
+				if errTs != nil {
+					log.Printf("Failed to parse timestamp for message log: %s", errTs)
+					continue
+				}
+				outEvent.Timestamp = ts
+				outEvent.Player = m[2]
+				outEvent.Message = m[3]
 			case model.EvtStatusId:
-				userId, errUserId := strconv.ParseInt(m[1], 10, 32)
+				ts, errTs := parseTimestamp(m[1])
+				if errTs != nil {
+					log.Printf("Failed to parse timestamp for message log: %s", errTs)
+					continue
+				}
+				outEvent.Timestamp = ts
+				userId, errUserId := strconv.ParseInt(m[2], 10, 32)
 				if errUserId != nil {
 					log.Printf("Failed to parse userid: %v", errUserId)
 					continue
 				}
-				ping, errPing := strconv.ParseInt(m[5], 10, 32)
+				ping, errPing := strconv.ParseInt(m[6], 10, 32)
 				if errPing != nil {
 					log.Printf("Failed to parse ping: %v", errUserId)
 					continue
 				}
 				outEvent.UserId = userId
-				outEvent.Player = m[2]
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[3]))
-				outEvent.PlayerConnected = m[4]
+				outEvent.Player = m[3]
+				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
+				outEvent.PlayerConnected = m[5]
 				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
 				outEvent.Player = m[1]
@@ -117,7 +135,7 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 }
 
 // TODO why keep this?
-func (l *LogParser) start(ctx context.Context) {
+func (l *LogParser) start(ctx context.Context, gs *model.GameState) {
 	for {
 		select {
 		case msg := <-l.ReadChannel:
@@ -125,6 +143,22 @@ func (l *LogParser) start(ctx context.Context) {
 			if err := l.ParseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
+
+			if logEvent.Type == model.EvtMsg {
+				gs.RLock()
+				for _, p := range gs.Players {
+					if p.Name == logEvent.Player {
+						logEvent.PlayerSID = p.SteamId
+						break
+					}
+				}
+				gs.RUnlock()
+				if logEvent.PlayerSID == 0 {
+					// We don't know the player yet.
+					continue
+				}
+			}
+
 			l.evtChan <- logEvent
 		case <-ctx.Done():
 			return
@@ -139,10 +173,10 @@ func NewLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogPars
 		rxLobbyPlayer: regexp.MustCompile(`\s+(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))`),
 		rx: []*regexp.Regexp{
 			regexp.MustCompile(`^(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
-			regexp.MustCompile(`^\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}:\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
+			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
 			regexp.MustCompile(`(^Disconnecting from abandoned match server$|\(Server shutting down\)$)`),
-			regexp.MustCompile(`^\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}:\s#\s{1,6}(?P<id>\d+)\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d+])\s+(?P<time>\d+:\d+)\s+(?P<ping>\d+)\s+(?P<loss>\d+)\s(spawning|active)$`)},
+			regexp.MustCompile(`(?P<dt>^[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{2,3}:\d{2})\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`)},
 	}
 	return &lp
 }

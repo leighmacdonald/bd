@@ -19,8 +19,8 @@ type ServerState struct {
 	CurrentMap string
 }
 
-func NewGameState() *GameState {
-	return &GameState{
+func NewGameState() GameState {
+	return GameState{
 		RWMutex: &sync.RWMutex{},
 		Server: &ServerState{
 			ServerName: "n/a",
@@ -37,6 +37,7 @@ type PlayerState struct {
 	// using changer/stealers
 	Name string
 
+	NamePrevious string
 	// SteamId is the 64bit steamid of the user
 	SteamId steamid.SID64
 
@@ -44,9 +45,8 @@ type PlayerState struct {
 	ConnectedAt time.Time
 	Connected   string
 
-	// We got their disconnect message. This is used to calculate when to remove
-	// the player from the slice as there is a grace period on disconnect before dropping
-	DisconnectedAt *time.Time
+	Avatar     []byte
+	AvatarHash string // Computed on initial download
 
 	Team Team
 	// In game user id
@@ -70,7 +70,6 @@ type PlayerState struct {
 	// UpdatedOn is the last time we have interacted with the player
 	UpdatedOn time.Time
 
-	// Dangling tracks if the player has been inserted into db yet
 	Dangling bool
 }
 
@@ -91,4 +90,10 @@ func NewPlayerState(sid64 steamid.SID64, name string) PlayerState {
 		UpdatedOn:        t0,
 		Dangling:         true,
 	}
+}
+
+type UserNameHistory struct {
+	NameId    int64
+	Name      string
+	FirstSeen time.Time
 }

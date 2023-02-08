@@ -89,6 +89,7 @@ type playerDefinition struct {
 	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
 	SteamId    interface{}    `json:"steamid,string"`
 	Proof      []string       `json:"proof,omitempty"`
+	Origin     string         `json:"origin,omitempty"` // TODO add to schema
 }
 
 func parsePlayerSchema(data []byte, schema *playerListSchema) error {

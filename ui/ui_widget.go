@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
@@ -59,7 +60,9 @@ type tableButtonLabel struct {
 
 func (b *tableButtonLabel) Tapped(e *fyne.PointEvent) {
 	log.Println("Got click")
-	widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), e.AbsolutePosition)
+	if b.menu != nil {
+		widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), e.AbsolutePosition)
+	}
 }
 
 type externalUrl struct {
@@ -68,47 +71,68 @@ type externalUrl struct {
 	format string
 }
 
-func (ui *Ui) generateExternalLinksMenu(steamId steamid.SID64) []*fyne.MenuItem {
+func generateExternalLinksMenu(steamId steamid.SID64, urlOpener func(url *url.URL) error) []*fyne.MenuItem {
 	links := []externalUrl{
 		{title: "RGL", url: "https://rgl.gg/Public/PlayerProfile.aspx?p=%d", format: "steam64"},
 	}
 	var items []*fyne.MenuItem
 	for _, link := range links {
 		items = append(items, fyne.NewMenuItem(link.title, func() {
-			ul, urlErr := url.Parse(link.url)
+			u := link.url
+			switch link.format {
+			case "steam64":
+				u = fmt.Sprintf(u, steamId.Int64())
+			}
+			ul, urlErr := url.Parse(u)
 			if urlErr != nil {
 				log.Printf("Failed to create link: %v", urlErr)
 				return
 			}
-			if errOpen := ui.application.OpenURL(ul); errOpen != nil {
-				log.Printf("Failed to open external link: %v", errOpen)
+			if errOpen := urlOpener(ul); errOpen != nil {
+				log.Printf("Failed to open url: %v", errOpen)
 			}
 		}))
 	}
 	return items
 }
 
-func (ui *Ui) newTableButtonLabel(steamId steamid.SID64) *tableButtonLabel {
-	menuItem1 := fyne.NewMenuItem("Copy SteamID", nil)
+func generateUserMenu(steamId steamid.SID64, urlOpener func(url *url.URL) error, clipboard fyne.Clipboard) *fyne.Menu {
+	copySteamIdSubMenu := fyne.NewMenu("Copy SteamID",
+		fyne.NewMenuItem(fmt.Sprintf("%d", steamId), func() {
+			clipboard.SetContent(fmt.Sprintf("%d", steamId))
+		}),
+		fyne.NewMenuItem(string(steamid.SID64ToSID(steamId)), func() {
+			clipboard.SetContent(string(steamid.SID64ToSID(steamId)))
+		}),
+		fyne.NewMenuItem(string(steamid.SID64ToSID3(steamId)), func() {
+			clipboard.SetContent(string(steamid.SID64ToSID3(steamId)))
+		}),
+		fyne.NewMenuItem(fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)), func() {
+			clipboard.SetContent(fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)))
+		}),
+	)
 
-	subMenu := fyne.NewMenu("Sub Menu",
+	markAsSubMenu := fyne.NewMenu("Mark As",
 		fyne.NewMenuItem("Racist", nil),
 		fyne.NewMenuItem("Extra Racist", nil),
 		fyne.NewMenuItem("Ultra Racist", nil),
 	)
 
-	externalSubMenu := fyne.NewMenu("Sub Menu", ui.generateExternalLinksMenu(steamId)...)
+	externalSubMenu := fyne.NewMenu("Sub Menu", generateExternalLinksMenu(steamId, urlOpener)...)
 
-	menu := fyne.NewMenu("Actions",
-		&fyne.MenuItem{ChildMenu: subMenu, Label: "Mark As..."},
+	menu := fyne.NewMenu("User Actions",
+		&fyne.MenuItem{ChildMenu: markAsSubMenu, Label: "Mark As..."},
 		&fyne.MenuItem{ChildMenu: externalSubMenu, Label: "Open External..."},
-		menuItem1,
+		&fyne.MenuItem{ChildMenu: copySteamIdSubMenu, Label: "Copy SteamID"},
 	)
+	return menu
+}
 
-	l := widget.NewIcon(theme.CheckButtonIcon())
+func (ui *Ui) newTableButtonLabel() *tableButtonLabel {
+	l := widget.NewIcon(theme.SettingsIcon())
 	l.ExtendBaseWidget(l)
 	return &tableButtonLabel{
 		Icon: l,
-		menu: menu,
+		menu: nil,
 	}
 }

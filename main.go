@@ -15,6 +15,8 @@ import (
 func main() {
 	ctx := context.Background()
 	settings := model.NewSettings()
+	gameState := model.NewGameState()
+	rulesEngine := newRulesEngine()
 	if errReadSettings := settings.ReadDefault(); errReadSettings != nil {
 		log.Println(errReadSettings)
 	}
@@ -29,8 +31,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	bd := New(ctx, &settings, store)
-	gui := ui.New(ctx, &settings, bd.gameState)
+	bd := New(ctx, &settings, store, &gameState, &rulesEngine)
+	gui := ui.New(ctx, &settings, &gameState)
 	bd.AttachGui(gui)
 	go bd.start()
 	gui.Start()

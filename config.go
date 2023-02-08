@@ -3,13 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 )
 
@@ -28,35 +25,6 @@ func getLocalConfigPath(steamRoot string, steamId steamid.SID64) (string, error)
 	return fp, nil
 }
 
-func (bd *BD) launchGameAndWait() {
-	log.Println("Launching tf2...")
-	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Root), platform.BinaryName)
-	args, errArgs := getLaunchArgs(
-		bd.settings.Rcon.Password(),
-		bd.settings.Rcon.Port(),
-		bd.settings.SteamRoot,
-		bd.settings.GetSteamId())
-	if errArgs != nil {
-		log.Println(errArgs)
-		return
-	}
-	var procAttr os.ProcAttr
-	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
-	if errStart != nil {
-		log.Printf("Failed to launch TF2: %v", errStart)
-		return
-	}
-	bd.gameProcess = process
-	state, errWait := process.Wait()
-	if errWait != nil {
-		log.Printf("Error waiting for game process: %v\n", errWait)
-	} else {
-		log.Printf("Game exited: %s\n", state.String())
-	}
-	bd.gameProcess = nil
-}
-
 func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error) {
 	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamId)
 	if errConfigPath != nil {
@@ -66,7 +34,6 @@ func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
 	}
-
 	parser := vdf.NewParser(openVDF)
 	result, errParse := parser.Parse()
 	if errParse != nil {
@@ -77,7 +44,6 @@ func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error
 		launchOpts []string
 		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "Steam", "apps", "440"}
 	)
-
 	for i, key := range pathKeys {
 		result, ok = result[key].(map[string]any)
 		if !ok {
@@ -112,8 +78,8 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamId s
 		"+contimes", "0", "+alias", "contimes",
 		"+ip", "0.0.0.0", "+alias", "ip",
 		"+sv_rcon_whitelist_address", "127.0.0.1",
-		// "+alias", "sv_rcon_whitelist_address",
-		// "+sv_quota_stringcmdspersecond", "1000000", "+alias", "sv_quota_stringcmdspersecond",
+		"+alias", "sv_rcon_whitelist_address",
+		"+sv_quota_stringcmdspersecond", "1000000", "+alias", "sv_quota_stringcmdspersecond",
 		"+rcon_password", rconPass, "+alias", "rcon_password",
 		"+hostport", fmt.Sprintf("%d", rconPort), "+alias", "hostport",
 		"+alias", "cl_reload_localization_files",

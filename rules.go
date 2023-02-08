@@ -29,12 +29,13 @@ const (
 )
 
 type AvatarMatcher interface {
-	Match(hexDigest string) bool
+	Match(hexDigest string) *ruleMatchResult
 	Type() avatarMatchType
 }
 
 type avatarMatcher struct {
 	matchType avatarMatchType
+	origin    string
 	hashes    []string
 }
 
@@ -42,17 +43,18 @@ func (m avatarMatcher) Type() avatarMatchType {
 	return m.matchType
 }
 
-func (m avatarMatcher) Match(hexDigest string) bool {
+func (m avatarMatcher) Match(hexDigest string) *ruleMatchResult {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
-			return true
+			return &ruleMatchResult{origin: m.origin}
 		}
 	}
-	return false
+	return nil
 }
 
-func newAvatarMatcher(avatarMatchType avatarMatchType, hashes ...string) avatarMatcher {
+func newAvatarMatcher(origin string, avatarMatchType avatarMatchType, hashes ...string) avatarMatcher {
 	return avatarMatcher{
+		origin:    origin,
 		matchType: avatarMatchType,
 		hashes:    hashes,
 	}
@@ -60,46 +62,51 @@ func newAvatarMatcher(avatarMatchType avatarMatchType, hashes ...string) avatarM
 
 type TextMatcher interface {
 	// Match performs a text based match
-	// TODO Return a struct containing match & list source meta data
-	Match(text string) bool
+	// TODO Return a struct containing match & list source metadata
+	Match(text string) *ruleMatchResult
 	Type() textMatchType
 }
 
 type SteamIdMatcher interface {
-	Match(sid64 steamid.SID64) bool
+	Match(sid64 steamid.SID64) *ruleMatchResult
 }
 
 type steamIdMatcher struct {
 	steamId steamid.SID64
+	origin  string
 }
 
-func (m steamIdMatcher) Match(sid64 steamid.SID64) bool {
-	return sid64 == m.steamId
+func (m steamIdMatcher) Match(sid64 steamid.SID64) *ruleMatchResult {
+	if sid64 == m.steamId {
+		return &ruleMatchResult{origin: m.origin}
+	}
+	return nil
 }
 
-func newSteamIdMatcher(sid64 steamid.SID64) steamIdMatcher {
-	return steamIdMatcher{steamId: sid64}
+func newSteamIdMatcher(origin string, sid64 steamid.SID64) steamIdMatcher {
+	return steamIdMatcher{steamId: sid64, origin: origin}
 }
 
 type regexTextMatcher struct {
 	matcherType textMatchType
 	patterns    []*regexp.Regexp
+	origin      string
 }
 
-func (m regexTextMatcher) Match(value string) bool {
+func (m regexTextMatcher) Match(value string) *ruleMatchResult {
 	for _, re := range m.patterns {
 		if re.MatchString(value) {
-			return true
+			return &ruleMatchResult{origin: m.origin}
 		}
 	}
-	return false
+	return nil
 }
 
 func (m regexTextMatcher) Type() textMatchType {
 	return m.matcherType
 }
 
-func newRegexTextMatcher(matcherType textMatchType, patterns ...string) (regexTextMatcher, error) {
+func newRegexTextMatcher(origin string, matcherType textMatchType, patterns ...string) (regexTextMatcher, error) {
 	var compiled []*regexp.Regexp
 	for _, inputPattern := range patterns {
 		c, compErr := regexp.Compile(inputPattern)
@@ -109,6 +116,7 @@ func newRegexTextMatcher(matcherType textMatchType, patterns ...string) (regexTe
 		compiled = append(compiled, c)
 	}
 	return regexTextMatcher{
+		origin:      origin,
 		matcherType: matcherType,
 		patterns:    compiled,
 	}, nil
@@ -119,62 +127,63 @@ type generalTextMatcher struct {
 	mode          textMatchMode
 	caseSensitive bool
 	patterns      []string
+	origin        string
 }
 
-func (m generalTextMatcher) Match(value string) bool {
+func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 	switch m.mode {
 	case textMatchModeStartsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasPrefix(value, prefix) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			} else {
 				if strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			}
 		}
-		return false
+		return nil
 	case textMatchModeEndsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasSuffix(value, prefix) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			} else {
 				if strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			}
 		}
-		return false
+		return nil
 	case textMatchModeEqual:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if value == prefix {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			} else {
 				if strings.EqualFold(value, prefix) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			}
 		}
-		return false
+		return nil
 	case textMatchModeContains:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.Contains(value, prefix) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			} else {
 				if strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
-					return true
+					return &ruleMatchResult{origin: m.origin}
 				}
 			}
 		}
-		return false
+		return nil
 	case textMatchModeWord:
 		if !m.caseSensitive {
 			value = strings.ToLower(value)
@@ -183,26 +192,27 @@ func (m generalTextMatcher) Match(value string) bool {
 			for _, p := range m.patterns {
 				if m.caseSensitive {
 					if p == iw {
-						return true
+						return &ruleMatchResult{origin: m.origin}
 					}
 				} else {
 					if strings.EqualFold(strings.ToLower(p), iw) {
-						return true
+						return &ruleMatchResult{origin: m.origin}
 					}
 				}
 			}
 		}
-		return false
+		return nil
 	}
-	return false
+	return nil
 }
 
 func (m generalTextMatcher) Type() textMatchType {
 	return m.matcherType
 }
 
-func newGeneralTextMatcher(matcherType textMatchType, matchMode textMatchMode, caseSensitive bool, patterns ...string) TextMatcher {
+func newGeneralTextMatcher(origin string, matcherType textMatchType, matchMode textMatchMode, caseSensitive bool, patterns ...string) TextMatcher {
 	return generalTextMatcher{
+		origin:        origin,
 		matcherType:   matcherType,
 		mode:          matchMode,
 		caseSensitive: caseSensitive,
@@ -210,13 +220,17 @@ func newGeneralTextMatcher(matcherType textMatchType, matchMode textMatchMode, c
 	}
 }
 
-func newRulesEngine() *RulesEngine {
-	return &RulesEngine{
+func newRulesEngine() RulesEngine {
+	return RulesEngine{
 		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,
 		matchersText:   nil,
 		matchersAvatar: nil,
 	}
+}
+
+type ruleMatchResult struct {
+	origin string
 }
 
 type RulesEngine struct {
@@ -231,6 +245,7 @@ func (e *RulesEngine) ImportRules(list ruleSchema) error {
 		// rule.Actions.Mark
 		if rule.Triggers.UsernameTextMatch != nil {
 			e.registerTextMatcher(newGeneralTextMatcher(
+				list.FileInfo.Title,
 				textMatchTypeName,
 				rule.Triggers.UsernameTextMatch.Mode,
 				rule.Triggers.UsernameTextMatch.CaseSensitive,
@@ -239,6 +254,7 @@ func (e *RulesEngine) ImportRules(list ruleSchema) error {
 
 		if rule.Triggers.ChatMsgTextMatch != nil {
 			e.registerTextMatcher(newGeneralTextMatcher(
+				list.FileInfo.Title,
 				textMatchTypeMessage,
 				rule.Triggers.ChatMsgTextMatch.Mode,
 				rule.Triggers.ChatMsgTextMatch.CaseSensitive,
@@ -253,7 +269,10 @@ func (e *RulesEngine) ImportRules(list ruleSchema) error {
 				}
 				hashes = append(hashes, h.AvatarHash)
 			}
-			e.registerAvatarMatcher(newAvatarMatcher(avatarMatchExact, hashes...))
+			e.registerAvatarMatcher(newAvatarMatcher(
+				list.FileInfo.Title,
+				avatarMatchExact,
+				hashes...))
 		}
 	}
 	return nil
@@ -275,9 +294,10 @@ func (e *RulesEngine) ImportPlayers(list playerListSchema) error {
 			steamId = sid64
 		}
 		if !steamId.Valid() {
+			log.Printf("tried to import invalid steamdid: %v", player.SteamId)
 			continue
 		}
-		e.registerSteamIdMatcher(newSteamIdMatcher(steamId))
+		e.registerSteamIdMatcher(newSteamIdMatcher(list.FileInfo.Title, steamId))
 	}
 	return nil
 }
@@ -300,36 +320,32 @@ func (e *RulesEngine) registerTextMatcher(matcher TextMatcher) {
 	e.Unlock()
 }
 
-func (e *RulesEngine) matchTextType(text string, matchType textMatchType) bool {
+func (e *RulesEngine) matchTextType(text string, matchType textMatchType) *ruleMatchResult {
 	for _, matcher := range e.matchersText {
 		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
 			continue
 		}
-		if matcher.Match(text) {
-			return true
-		}
+		return matcher.Match(text)
 	}
-	return false
+	return nil
 }
 
-func (e *RulesEngine) matchSteam(steamId steamid.SID64) bool {
+func (e *RulesEngine) matchSteam(steamId steamid.SID64) *ruleMatchResult {
 	for _, sm := range e.matchersSteam {
-		if sm.Match(steamId) {
-			return true
-		}
+		return sm.Match(steamId)
 	}
-	return false
+	return nil
 }
 
-func (e *RulesEngine) matchName(name string) bool {
+func (e *RulesEngine) matchName(name string) *ruleMatchResult {
 	return e.matchTextType(name, textMatchTypeName)
 }
 
-func (e *RulesEngine) matchText(text string) bool {
+func (e *RulesEngine) matchText(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeMessage)
 }
 
-func (e *RulesEngine) matchAny(text string) bool {
+func (e *RulesEngine) matchAny(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeAny)
 }
 
@@ -339,15 +355,16 @@ func hashBytes(b []byte) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (e *RulesEngine) matchAvatar(avatar []byte) bool {
+func (e *RulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
 	if avatar == nil {
-		return false
+		return nil
 	}
 	hexDigest := hashBytes(avatar)
 	for _, matcher := range e.matchersAvatar {
-		if matcher.Match(hexDigest) {
-			return true
+		m := matcher.Match(hexDigest)
+		if m != nil {
+			return m
 		}
 	}
-	return false
+	return nil
 }

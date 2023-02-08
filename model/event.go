@@ -16,6 +16,7 @@ type LogEvent struct {
 	VictimSID       steamid.SID64
 	Message         string
 	Team            Team
+	Timestamp       time.Time
 }
 
 type Event struct {
@@ -24,6 +25,7 @@ type Event struct {
 }
 
 type UserMessage struct {
+	MessageId int64
 	Team      Team
 	Player    string
 	PlayerSID steamid.SID64

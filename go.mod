@@ -12,7 +12,6 @@ require (
 	github.com/leighmacdonald/rcon v1.0.10
 	github.com/leighmacdonald/steamid/v2 v2.2.0
 	github.com/leighmacdonald/steamweb v0.0.4
-	github.com/mattn/go-sqlite3 v1.14.15
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/nxadm/tail v1.4.8
@@ -53,7 +52,6 @@ require (
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.22 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

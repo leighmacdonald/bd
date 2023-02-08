@@ -15,7 +15,7 @@ func genTestRules() ruleSchema {
 			Schema: "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json",
 			FileInfo: fileInfo{
 				Authors:     []string{"test author"},
-				Description: "Test Rule List",
+				Description: "Test List",
 				Title:       "Test description",
 				UpdateURL:   "http://localhost",
 			},
@@ -67,20 +67,23 @@ func genTestRules() ruleSchema {
 
 func TestTextRules(t *testing.T) {
 	const testSteamId = 76561197961279983
+	const customListTitle = "Custom List"
+	tr := genTestRules()
 	re := newRulesEngine()
-	require.NoError(t, re.ImportRules(genTestRules()))
-	re.registerSteamIdMatcher(newSteamIdMatcher(testSteamId))
-	re.registerTextMatcher(newGeneralTextMatcher(textMatchTypeName, textMatchModeContains, false, "test", "blah"))
 
-	rm, eRm := newRegexTextMatcher(textMatchTypeName, `^test`)
+	require.NoError(t, re.ImportRules(tr))
+	re.registerSteamIdMatcher(newSteamIdMatcher(customListTitle, testSteamId))
+	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, "test", "blah"))
+
+	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeName, `^test`)
 	require.NoError(t, eRm)
 	re.registerTextMatcher(rm)
 
-	_, badRegex := newRegexTextMatcher(textMatchTypeName, `^t\s\x\t`)
+	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, `^t\s\x\t`)
 	require.Error(t, badRegex)
 
-	require.True(t, re.matchSteam(testSteamId))
-	require.False(t, re.matchSteam(testSteamId+100))
+	require.EqualValues(t, &ruleMatchResult{origin: customListTitle}, re.matchSteam(testSteamId))
+	require.Nil(t, re.matchSteam(testSteamId+100))
 
 	testCases := []struct {
 		mt      textMatchType
@@ -99,19 +102,22 @@ func TestTextRules(t *testing.T) {
 	for num, tc := range testCases {
 		switch tc.mt {
 		case textMatchTypeName:
-			require.Equal(t, tc.matched, re.matchName(tc.text), "Test %d failed", num)
+			require.Equal(t, tc.matched, re.matchName(tc.text) != nil, "Test %d failed", num)
 		case textMatchTypeMessage:
-			require.Equal(t, tc.matched, re.matchText(tc.text), "Test %d failed", num)
+			require.Equal(t, tc.matched, re.matchText(tc.text) != nil, "Test %d failed", num)
 		}
 	}
 
 }
 
 func TestAvatarRules(t *testing.T) {
+	const listName = "test avatar"
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
 	re := newRulesEngine()
-	re.registerAvatarMatcher(newAvatarMatcher(avatarMatchExact, hashBytes(buf.Bytes())))
-	require.True(t, re.matchAvatar(buf.Bytes()))
+	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, hashBytes(buf.Bytes())))
+	result := re.matchAvatar(buf.Bytes())
+	require.NotNil(t, result)
+	require.Equal(t, listName, result.origin)
 }

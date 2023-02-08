@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,16 +40,16 @@ type BD struct {
 	profileUpdateQueue chan steamid.SID64
 }
 
-func New(ctx context.Context, settings *model.Settings, store dataStore) BD {
+func New(ctx context.Context, settings *model.Settings, store dataStore, gameState *model.GameState, rules *RulesEngine) BD {
 	rootApp := BD{
+		ctx:                ctx,
+		store:              store,
+		gameState:          gameState,
+		rules:              rules,
 		settings:           settings,
 		logChan:            make(chan string),
 		incomingLogEvents:  make(chan model.LogEvent),
-		gameState:          model.NewGameState(),
-		rules:              newRulesEngine(),
 		profileUpdateQueue: make(chan steamid.SID64),
-		store:              store,
-		ctx:                ctx,
 	}
 
 	rootApp.createLogReader()
@@ -54,7 +59,7 @@ func New(ctx context.Context, settings *model.Settings, store dataStore) BD {
 }
 
 // profileUpdater handles fetching 3rd party data of players
-// MAYBE priority queue for new players in a already established game?
+// MAYBE priority queue for new players in an already established game?
 func (bd *BD) profileUpdater(interval time.Duration) {
 	var queuedUpdates steamid.Collection
 	ticker := time.NewTicker(interval)
@@ -108,8 +113,69 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 					}
 				}
 			}
+			type avatarUpdate struct {
+				url string
+				sid steamid.SID64
+			}
+			var avatarUpdates []avatarUpdate
+			for _, p := range bd.gameState.Players {
+				if p.Summary == nil {
+					continue
+				}
+				avatarUpdates = append(avatarUpdates, avatarUpdate{
+					url: p.Summary.AvatarFull,
+					sid: p.SteamId,
+				})
+			}
 			bd.gameState.Unlock()
 			log.Printf("Updated %d profiles\n", len(queuedUpdates))
+			client := &http.Client{}
+			wg := &sync.WaitGroup{}
+			var errorCount int32 = 0
+			for _, update := range avatarUpdates {
+				wg.Add(1)
+				go func(u avatarUpdate) {
+					defer wg.Done()
+					localCtx, cancel := context.WithTimeout(bd.ctx, time.Second*10)
+					defer cancel()
+					req, reqErr := http.NewRequestWithContext(localCtx, "GET", u.url, nil)
+					if reqErr != nil {
+						log.Printf("Failed to create avatar download request: %v", reqErr)
+						atomic.AddInt32(&errorCount, 1)
+						return
+					}
+					resp, respErr := client.Do(req)
+					if respErr != nil {
+						log.Printf("Failed to download avatar: %v", respErr)
+						atomic.AddInt32(&errorCount, 1)
+						return
+					}
+					if resp.StatusCode != http.StatusOK {
+						log.Printf("Invalid response code downloading avatar: %d", resp.StatusCode)
+						atomic.AddInt32(&errorCount, 1)
+						return
+					}
+					body, bodyErr := io.ReadAll(resp.Body)
+					if bodyErr != nil {
+						log.Printf("Failed to read avatar body: %v", bodyErr)
+						atomic.AddInt32(&errorCount, 1)
+						return
+					}
+					defer func() {
+						if errClose := resp.Body.Close(); errClose != nil {
+							log.Printf("Failed to close response body: %v", errClose)
+						}
+					}()
+					bd.gameState.Lock()
+					for _, player := range bd.gameState.Players {
+						player.Avatar = body
+						player.AvatarHash = hashBytes(body)
+						break
+					}
+					bd.gameState.Unlock()
+				}(update)
+			}
+			log.Printf("Downloaded %d avatars. [%d failed]", len(queuedUpdates), errorCount)
 			queuedUpdates = nil
 		}
 	}
@@ -148,6 +214,15 @@ func (bd *BD) eventHandler() {
 			})
 			bd.gameState.Unlock()
 			bd.gui.Refresh()
+			newPs := model.NewPlayerState(evt.PlayerSID, evt.Player)
+			if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, &newPs); errCreate != nil {
+				log.Printf("Error trying to load/create player: %v\n", errCreate)
+				bd.gameState.Unlock()
+				continue
+			}
+			if errSaveMsg := bd.store.SaveMessage(bd.ctx, newPs.SteamId, evt.Message); errSaveMsg != nil {
+				log.Printf("Error trying to store user messge log: %v\n", errSaveMsg)
+			}
 		case model.EvtStatusId:
 			var ps *model.PlayerState
 			bd.gameState.Lock()
@@ -160,10 +235,21 @@ func (bd *BD) eventHandler() {
 			}
 			isNew := ps == nil
 			if isNew {
-				newPlayer := model.NewPlayerState(evt.PlayerSID, evt.Player)
-				newPlayer.UserId = evt.UserId
-				ep = append(ep, &newPlayer)
-				ps = &newPlayer
+				newPs := model.NewPlayerState(evt.PlayerSID, evt.Player)
+				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, &newPs); errCreate != nil {
+					log.Printf("Error trying to load/create player: %v\n", errCreate)
+					bd.gameState.Unlock()
+					continue
+				}
+				if evt.Player != "" && evt.Player != newPs.NamePrevious {
+					if errSaveName := bd.store.SaveName(bd.ctx, evt.PlayerSID, evt.Player); errSaveName != nil {
+						log.Printf("Failed to save name")
+						continue
+					}
+				}
+				newPs.UserId = evt.UserId
+				ps = &newPs
+				ep = append(ep, ps)
 			}
 			ps.UpdatedOn = time.Now()
 			ps.Ping = evt.PlayerPing
@@ -171,12 +257,41 @@ func (bd *BD) eventHandler() {
 			log.Printf("[%d] [%d] %s\n", evt.UserId, evt.PlayerSID.Int64(), evt.Player)
 			if isNew {
 				bd.gameState.Players = append(bd.gameState.Players, ps)
-				bd.profileUpdateQueue <- evt.PlayerSID
-
 			}
 			bd.gameState.Unlock()
+			bd.profileUpdateQueue <- evt.PlayerSID
+			bd.gui.Refresh()
 		}
 	}
+}
+
+func (bd *BD) launchGameAndWait() {
+	log.Println("Launching tf2...")
+	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Root), platform.BinaryName)
+	args, errArgs := getLaunchArgs(
+		bd.settings.Rcon.Password(),
+		bd.settings.Rcon.Port(),
+		bd.settings.SteamRoot,
+		bd.settings.GetSteamId())
+	if errArgs != nil {
+		log.Println(errArgs)
+		return
+	}
+	var procAttr os.ProcAttr
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
+	if errStart != nil {
+		log.Printf("Failed to launch TF2: %v", errStart)
+		return
+	}
+	bd.gameProcess = process
+	state, errWait := process.Wait()
+	if errWait != nil {
+		log.Printf("Error waiting for game process: %v\n", errWait)
+	} else {
+		log.Printf("Game exited: %s\n", state.String())
+	}
+	bd.gameProcess = nil
 }
 
 func (bd *BD) AttachGui(gui ui.UserInterface) {
@@ -213,7 +328,6 @@ func (bd *BD) refreshLists() {
 func (bd *BD) checkPlayerStates() {
 	t0 := time.Now()
 	bd.gameState.Lock()
-	defer bd.gameState.Unlock()
 	var valid []*model.PlayerState
 	for _, ps := range bd.gameState.Players {
 		if t0.Sub(ps.UpdatedOn) > time.Second*60 {
@@ -227,7 +341,8 @@ func (bd *BD) checkPlayerStates() {
 		if t0.Sub(ps.UpdatedOn) > time.Second*60 {
 
 		}
-		if bd.rules.matchSteam(ps.SteamId) {
+		match := bd.rules.matchSteam(ps.SteamId)
+		if match != nil {
 			log.Println("Matched player...")
 		}
 		//for _, matcher := range bd.rules {
@@ -255,7 +370,10 @@ func (bd *BD) checkPlayerStates() {
 		//}
 	}
 	bd.gameState.Players = valid
-
+	bd.gameState.Unlock()
+	if bd.gui != nil {
+		go bd.gui.Refresh()
+	}
 }
 
 func (bd *BD) partyLog(fmtStr string, args ...any) error {
@@ -283,11 +401,10 @@ func (bd *BD) callVote(userId int64) error {
 func (bd *BD) start() {
 	go bd.logReader.start(bd.ctx)
 	defer bd.logReader.tail.Cleanup()
-	go bd.logParser.start(bd.ctx)
+	go bd.logParser.start(bd.ctx, bd.gameState)
 	go bd.playerStateUpdater()
 	go bd.refreshLists()
 	go bd.eventHandler()
 	go bd.profileUpdater(time.Second * 10)
-	//go ui2.eventSender(bd.ctx, bd, bd.ui)
 	<-bd.ctx.Done()
 }
