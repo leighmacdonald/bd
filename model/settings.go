@@ -120,6 +120,14 @@ func (s *Settings) DBPath() string {
 	return filepath.Join(s.ConfigRoot(), "bd.sqlite")
 }
 
+func (s *Settings) LocalPlayerListPath() string {
+	return filepath.Join(s.ConfigRoot(), "playerlist.local.json")
+}
+
+func (s *Settings) LocalRulesListPath() string {
+	return filepath.Join(s.ConfigRoot(), "rules.local.json")
+}
+
 func (s *Settings) ReadFilePath(filePath string) error {
 	if !golib.Exists(filePath) {
 		// Use defaults

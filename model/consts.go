@@ -26,4 +26,5 @@ const (
 	EvtDisconnect
 	EvtStatusId
 	EvtLobbyPlayerTeam
+	// EvtServerStatus
 )

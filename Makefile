@@ -16,6 +16,8 @@ fonts:
 	fyne bundle --pkg ui -a -o .\ui\font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-Bold.ttf
 	fyne bundle --pkg ui -a -o .\ui\font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-Italic.ttf
 	fyne bundle --pkg ui -a -o .\ui\font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-BoldItalic.ttf
+	fyne bundle --pkg ui    -o .\ui\img.go .\ui\resources\default_avatar.jpg
+	fyne bundle --pkg ui -a -o .\ui\img.go .\ui\resources\Icon.png
 
 lint:
 	# TODO remove `--disable unused` check once further along in development

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 )
 
 type ruleTriggerMode string
@@ -9,6 +10,13 @@ type ruleTriggerMode string
 const (
 	modeTrigMatchAny ruleTriggerMode = "match_any"
 	modeTrigMatchAll ruleTriggerMode = "match_all"
+)
+
+const (
+	localRuleName   = "local"
+	localRuleAuthor = "local"
+	urlPlayerSchema = "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/playerlist.schema.json"
+	urlRuleSchema   = "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json"
 )
 
 type textMatchMode string
@@ -32,6 +40,42 @@ type fileInfo struct {
 	Description string   `json:"description"`
 	Title       string   `json:"title"`
 	UpdateURL   string   `json:"update_url"`
+}
+
+func newPlayerListSchema(players ...playerDefinition) playerListSchema {
+	if players == nil {
+		// Prevents json encoder outputting `null` value instead of empty array `[]`
+		players = []playerDefinition{}
+	}
+	return playerListSchema{
+		baseSchema: baseSchema{
+			Schema: urlPlayerSchema,
+			FileInfo: fileInfo{
+				Authors:     []string{"local"},
+				Description: "local",
+				Title:       localRuleName,
+				UpdateURL:   "",
+			},
+		},
+		Players: players,
+	}
+}
+func newRuleSchema(rules ...ruleDefinition) ruleSchema {
+	if rules == nil {
+		rules = []ruleDefinition{}
+	}
+	return ruleSchema{
+		baseSchema: baseSchema{
+			Schema: urlRuleSchema,
+			FileInfo: fileInfo{
+				Authors:     []string{"local"},
+				Description: "local",
+				Title:       "local",
+				UpdateURL:   "",
+			},
+		},
+		Rules: rules,
+	}
 }
 
 type ruleSchema struct {
@@ -92,8 +136,8 @@ type playerDefinition struct {
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema
 }
 
-func parsePlayerSchema(data []byte, schema *playerListSchema) error {
-	if errUnmarshal := json.Unmarshal(data, schema); errUnmarshal != nil {
+func parsePlayerSchema(reader io.Reader, schema *playerListSchema) error {
+	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
 		return errUnmarshal
 	}
 	// Filter out people w/o cheater tags
@@ -115,8 +159,8 @@ func parsePlayerSchema(data []byte, schema *playerListSchema) error {
 	return nil
 }
 
-func parseRulesList(data []byte, schema *ruleSchema) error {
-	if errUnmarshal := json.Unmarshal(data, schema); errUnmarshal != nil {
+func parseRulesList(reader io.Reader, schema *ruleSchema) error {
+	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
 		return errUnmarshal
 	}
 	return nil

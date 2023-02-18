@@ -15,8 +15,56 @@ import (
 func main() {
 	ctx := context.Background()
 	settings := model.NewSettings()
-	gameState := model.NewGameState()
-	rulesEngine := newRulesEngine()
+	localRules := newRuleSchema()
+	localPlayersList := newPlayerListSchema()
+
+	// Try and load our existing custom players/rules
+	if exists(settings.LocalPlayerListPath()) {
+		input, errInput := os.Open(settings.LocalPlayerListPath())
+		if errInput != nil {
+			log.Printf("Failed to open local player list\n")
+		} else {
+			if errRead := parsePlayerSchema(input, &localPlayersList); errRead != nil {
+				log.Printf("Failed to parse local player list: %v\n", errRead)
+			}
+			logClose(input)
+		}
+	}
+	if exists(settings.LocalRulesListPath()) {
+		input, errInput := os.Open(settings.LocalRulesListPath())
+		if errInput != nil {
+			log.Printf("Failed to open local rules list\n")
+		} else {
+			if errRead := parseRulesList(input, &localRules); errRead != nil {
+				log.Printf("Failed to parse local rules list: %v\n", errRead)
+			}
+			logClose(input)
+		}
+	}
+	rulesEngine, ruleEngineErr := newRulesEngine(&localRules, &localPlayersList)
+	if ruleEngineErr != nil {
+		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
+	}
+
+	defer func() {
+		// Ensure we save on exit
+		playerListFile, playerListFileErr := os.Create(settings.LocalPlayerListPath())
+		if playerListFileErr != nil {
+			log.Panicf("Failed to open player list for writing: %v\n", playerListFileErr)
+		}
+		if errWrite := rulesEngine.ExportPlayers(localRuleName, playerListFile); errWrite != nil {
+			log.Panicf("Failed to export player list: %v\n", playerListFileErr)
+		}
+
+		rulesFile, rulesFileErr := os.Create(settings.LocalRulesListPath())
+		if rulesFileErr != nil {
+			log.Panicf("Failed to open player list for writing: %v\n", rulesFileErr)
+		}
+		if errWrite := rulesEngine.ExportRules(localRuleName, rulesFile); errWrite != nil {
+			log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
+		}
+	}()
+
 	if errReadSettings := settings.ReadDefault(); errReadSettings != nil {
 		log.Println(errReadSettings)
 	}
@@ -31,8 +79,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	bd := New(ctx, &settings, store, &gameState, &rulesEngine)
-	gui := ui.New(ctx, &settings, &gameState)
+	bd := New(ctx, &settings, store, rulesEngine)
+	gui := ui.New(ctx, &settings)
 	bd.AttachGui(gui)
 	go bd.start()
 	gui.Start()

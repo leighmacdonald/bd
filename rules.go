@@ -1,14 +1,20 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
+	"encoding/json"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
+	"io"
 	"log"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
+)
+
+const (
+	exportIndentSize = 4
 )
 
 type textMatchType string
@@ -62,7 +68,6 @@ func newAvatarMatcher(origin string, avatarMatchType avatarMatchType, hashes ...
 
 type TextMatcher interface {
 	// Match performs a text based match
-	// TODO Return a struct containing match & list source metadata
 	Match(text string) *ruleMatchResult
 	Type() textMatchType
 }
@@ -144,7 +149,6 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			}
 		}
-		return nil
 	case textMatchModeEndsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
@@ -157,7 +161,6 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			}
 		}
-		return nil
 	case textMatchModeEqual:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
@@ -170,7 +173,6 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			}
 		}
-		return nil
 	case textMatchModeContains:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
@@ -183,7 +185,6 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			}
 		}
-		return nil
 	case textMatchModeWord:
 		if !m.caseSensitive {
 			value = strings.ToLower(value)
@@ -201,7 +202,6 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			}
 		}
-		return nil
 	}
 	return nil
 }
@@ -220,17 +220,45 @@ func newGeneralTextMatcher(origin string, matcherType textMatchType, matchMode t
 	}
 }
 
-func newRulesEngine() RulesEngine {
-	return RulesEngine{
+func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*RulesEngine, error) {
+	re := RulesEngine{
 		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,
 		matchersText:   nil,
 		matchersAvatar: nil,
 	}
+	if localRules != nil {
+		if errImport := re.ImportRules(localRules); errImport != nil {
+			log.Printf("Failed to load local rules: %v\n", errImport)
+			return nil, errImport
+		}
+	} else {
+		ls := newRuleSchema()
+		re.rulesLists = append(re.rulesLists, &ls)
+	}
+	if localPlayers != nil {
+		if errImport := re.ImportPlayers(localPlayers); errImport != nil {
+			log.Printf("Failed to load local players: %v\n", errImport)
+			return nil, errImport
+		}
+	} else {
+		ls := newPlayerListSchema()
+		re.playerLists = append(re.playerLists, &ls)
+	}
+	return &re, nil
 }
 
 type ruleMatchResult struct {
-	origin string
+	origin     string // Title of the list that the match was generated against
+	attributes []string
+	proof      []string
+}
+
+type MarkOpts struct {
+	steamId    steamid.SID64
+	attributes []string
+	proof      []string
+	name       string
 }
 
 type RulesEngine struct {
@@ -238,11 +266,55 @@ type RulesEngine struct {
 	matchersSteam  []SteamIdMatcher
 	matchersText   []TextMatcher
 	matchersAvatar []AvatarMatcher
+	rulesLists     []*ruleSchema
+	playerLists    []*playerListSchema
 }
 
-func (e *RulesEngine) ImportRules(list ruleSchema) error {
+func (e *RulesEngine) Mark(opts MarkOpts) error {
+	e.Lock()
+	defer e.Unlock()
+	e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
+		Attributes: opts.attributes,
+		LastSeen: playerLastSeen{
+			Time:       int(time.Now().Unix()),
+			PlayerName: opts.name,
+		},
+		SteamId: opts.steamId,
+		Proof:   opts.proof,
+	})
+	return nil
+}
+
+func newJsonPrettyEncoder(w io.Writer) *json.Encoder {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", strings.Repeat(" ", exportIndentSize))
+	return enc
+}
+
+func (e *RulesEngine) ExportPlayers(listName string, w io.Writer) error {
+	e.RLock()
+	defer e.RUnlock()
+	for _, pl := range e.playerLists {
+		if listName == pl.FileInfo.Title {
+			return newJsonPrettyEncoder(w).Encode(pl)
+		}
+	}
+	return errors.Errorf("Unknown player list: %s", listName)
+}
+
+func (e *RulesEngine) ExportRules(listName string, w io.Writer) error {
+	e.RLock()
+	defer e.RUnlock()
+	for _, pl := range e.rulesLists {
+		if listName == pl.FileInfo.Title {
+			return newJsonPrettyEncoder(w).Encode(pl)
+		}
+	}
+	return errors.Errorf("Unknown rule list: %s", listName)
+}
+
+func (e *RulesEngine) ImportRules(list *ruleSchema) error {
 	for _, rule := range list.Rules {
-		// rule.Actions.Mark
 		if rule.Triggers.UsernameTextMatch != nil {
 			e.registerTextMatcher(newGeneralTextMatcher(
 				list.FileInfo.Title,
@@ -275,10 +347,11 @@ func (e *RulesEngine) ImportRules(list ruleSchema) error {
 				hashes...))
 		}
 	}
+	e.rulesLists = append(e.rulesLists, list)
 	return nil
 }
 
-func (e *RulesEngine) ImportPlayers(list playerListSchema) error {
+func (e *RulesEngine) ImportPlayers(list *playerListSchema) error {
 	for _, player := range list.Players {
 		var steamId steamid.SID64
 		// Some entries can be raw number types in addition to strings...
@@ -299,6 +372,7 @@ func (e *RulesEngine) ImportPlayers(list playerListSchema) error {
 		}
 		e.registerSteamIdMatcher(newSteamIdMatcher(list.FileInfo.Title, steamId))
 	}
+	e.playerLists = append(e.playerLists, list)
 	return nil
 }
 
@@ -349,17 +423,11 @@ func (e *RulesEngine) matchAny(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeAny)
 }
 
-func hashBytes(b []byte) string {
-	hash := sha1.New()
-	hash.Write(b)
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
 func (e *RulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
 	if avatar == nil {
 		return nil
 	}
-	hexDigest := hashBytes(avatar)
+	hexDigest := model.HashBytes(avatar)
 	for _, matcher := range e.matchersAvatar {
 		m := matcher.Match(hexDigest)
 		if m != nil {

@@ -3,3 +3,4 @@
 bd.yaml
 dist/
 *.json
+*.sqlite

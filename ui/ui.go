@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
@@ -25,7 +24,6 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
-	"image/color"
 	"log"
 	"net/url"
 	"path/filepath"
@@ -42,6 +40,8 @@ type UserInterface interface {
 	Refresh()
 	Start()
 	OnLaunchTF2(func())
+	UpdateTitle(string)
+	UpdatePlayerState([]model.PlayerState)
 }
 
 type Ui struct {
@@ -50,11 +50,11 @@ type Ui struct {
 	rootWindow     fyne.Window
 	chatWindow     fyne.Window
 	settingsDialog dialog.Dialog
-	PlayerTable    *widget.Table
 	aboutDialog    dialog.Dialog
-	gameState      *model.GameState
+	server         model.ServerState
 	settings       boundSettings
 	baseSettings   *model.Settings
+	playerList     *PlayerList
 	launcher       func()
 }
 
@@ -90,20 +90,19 @@ func readIcon(path string) fyne.Resource {
 	return r
 }
 
-func New(ctx context.Context, settings *model.Settings, gameState *model.GameState) UserInterface {
+func New(ctx context.Context, settings *model.Settings) UserInterface {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})
 	application.SetIcon(readIcon("ui/resources/Icon.png"))
 	rootWindow := application.NewWindow("Bot Detector")
+
 	ui := Ui{
 		ctx:          ctx,
 		application:  application,
 		rootWindow:   rootWindow,
-		gameState:    gameState,
 		settings:     boundSettings{binding.BindStruct(settings)},
 		baseSettings: settings,
 	}
-
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
 		if errSave := settings.Save(); errSave != nil {
 			log.Printf("Failed to save config file: %v\n", errSave)
@@ -113,16 +112,20 @@ func New(ctx context.Context, settings *model.Settings, gameState *model.GameSta
 	})
 	ui.aboutDialog = createAboutDialog(rootWindow)
 	ui.chatWindow = ui.newChatWidget()
-	table := ui.newPlayerTableWidget()
-	playerTable := container.NewVScroll(table)
-	ui.PlayerTable = table
-	//ui.rootWindow.SetCloseIntercept(func() {
-	//	ui.rootWindow.Hide()
-	//})
-	rootWindow.Resize(fyne.NewSize(750, 1000))
 
+	ui.playerList = newPlayerList(
+		func(url *url.URL) error {
+			return application.OpenURL(url)
+		},
+		ui.rootWindow.Clipboard(),
+	)
+
+	rootWindow.Resize(fyne.NewSize(750, 1000))
+	ui.rootWindow.SetCloseIntercept(func() {
+		ui.rootWindow.Hide()
+	})
 	ui.configureTray(func() {
-		rootWindow.Show()
+		ui.rootWindow.Show()
 	})
 
 	toolbar := ui.newToolbar(func() {
@@ -138,17 +141,28 @@ func New(ctx context.Context, settings *model.Settings, gameState *model.GameSta
 		nil,
 		nil,
 		nil,
-		playerTable,
+		ui.playerList.Widget(),
 	))
 	rootWindow.SetMainMenu(ui.newMainMenu())
 	return &ui
 }
 
 func (ui *Ui) Refresh() {
-	cw := ui.chatWindow.Content().(*chatListWidget)
-	cw.ScrollToBottom()
-	cw.Refresh()
-	ui.PlayerTable.Refresh()
+	//cw := ui.chatWindow.Content().(*chatListWidget)
+	//cw.ScrollToBottom()
+	//cw.Refresh()
+	ui.playerList.Widget().Refresh()
+	//ui.PlayerTable.Refresh()
+}
+
+func (ui *Ui) UpdateTitle(title string) {
+	ui.rootWindow.SetTitle(title)
+}
+
+func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {
+	if errReboot := ui.playerList.Reboot(state); errReboot != nil {
+		log.Printf("Faile to reboot data: %v\n", errReboot)
+	}
 }
 
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
@@ -164,7 +178,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	)
 	am := fyne.NewMenu("Actions",
 		fyne.NewMenuItem("Clear", func() {
-			(*ui.gameState).Messages = nil
+			//ui.messages = nil
 		}),
 	)
 	hm := fyne.NewMenu("Help",
@@ -376,7 +390,7 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 		}),
 		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
 		//widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.MediaPlayIcon(), func() {
+		widget.NewToolbarAction(theme.ContentRedoIcon(), func() {
 			ui.Refresh()
 		}),
 		//widget.NewToolbarAction(theme.FileTextIcon(), chatFunc),
@@ -393,133 +407,43 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 }
 
 type chatListWidget struct {
-	widget.List
+	list *widget.List
 }
 
 func (ui *Ui) newChatListWidget() *chatListWidget {
-	cl := &chatListWidget{
-		List: widget.List{
-			Length: func() int {
-				ui.gameState.RLock()
-				defer ui.gameState.RUnlock()
-				return len(ui.gameState.Messages)
-			},
-			CreateItem: func() fyne.CanvasObject {
-				return container.NewHSplit(widget.NewLabel(""), widget.NewLabel(""))
-			},
-			UpdateItem: func(id widget.ListItemID, item fyne.CanvasObject) {
-				ui.gameState.RLock()
-				defer ui.gameState.RUnlock()
-				if id+1 > len(ui.gameState.Messages) {
-					return
-				}
-				itm := ui.gameState.Messages[id]
-				cnt := item.(*container.Split)
-				a := cnt.Leading.(*widget.Label)
-				a.SetText(itm.Created.Format("3:04PM"))
-				b := cnt.Trailing.(*widget.Label)
-				b.SetText(itm.Message)
-			},
-			OnSelected: func(id widget.ListItemID) {
-				log.Printf("Selected row: %v\n", id)
-
-			},
-			OnUnselected: func(id widget.ListItemID) {
-				log.Printf("Unselected row: %v\n", id)
-			},
+	boundList := binding.BindUntypedList(&[]interface{}{})
+	userMessageListWidget := widget.NewListWithData(
+		boundList,
+		func() fyne.CanvasObject {
+			return container.NewHSplit(widget.NewLabel(""), widget.NewLabel(""))
 		},
+		func(i binding.DataItem, o fyne.CanvasObject) {
+			//if id+1 > len(ui.messages) {
+			//	return
+			//}
+			//itm := ui.messages[id]
+			//cnt := item.(*container.Split)
+			//a := cnt.Leading.(*widget.Label)
+			//a.SetText(itm.Created.Format("3:04PM"))
+			//b := cnt.Trailing.(*widget.Label)
+			//b.SetText(itm.Message)
+		})
+
+	return &chatListWidget{
+		list: userMessageListWidget,
 	}
-	cl.ExtendBaseWidget(cl)
-	return cl
 }
 
 func (ui *Ui) newChatWidget() fyne.Window {
-	chatWidget := ui.newChatListWidget()
+	//chatWidget := ui.newChatListWidget()
 	chatWindow := ui.application.NewWindow("Chat")
-	chatWindow.SetContent(chatWidget)
+	//chatWindow.SetContent(chatWidget)
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {
 		chatWindow.Hide()
 	})
 
 	return chatWindow
-}
-
-// newPlayerTableWidget will configure and return a new player table widget.
-// TODO: Investigate if its worth it to bother with binding this, external binding
-// may be better?
-func (ui *Ui) newPlayerTableWidget() *widget.Table {
-	defText := color.RGBA{
-		R: 100,
-		G: 100,
-		B: 100,
-		A: 50,
-	}
-	columns := []float32{50, 24, 300, 50, 50, 50}
-	table := widget.NewTable(func() (int, int) {
-		ui.gameState.RLock()
-		defer ui.gameState.RUnlock()
-		return len(ui.gameState.Players), len(columns)
-	}, func() fyne.CanvasObject {
-		return container.NewMax(canvas.NewText("", defText), ui.newTableButtonLabel())
-	}, func(id widget.TableCellID, object fyne.CanvasObject) {
-		label := object.(*fyne.Container).Objects[0].(*canvas.Text)
-		icon := object.(*fyne.Container).Objects[1].(*tableButtonLabel)
-		label.Show()
-		icon.Hide()
-		ui.gameState.RLock()
-		defer ui.gameState.RUnlock()
-		if ui.gameState.Players == nil || id.Row+1 > len(ui.gameState.Players) {
-			label.Text = ""
-			//label.Refresh()
-			return
-		}
-		if id.Row > len(ui.gameState.Players)-1 {
-			label.Text = "no value"
-			//label.Refresh()
-			return
-		}
-		value := ui.gameState.Players[id.Row]
-
-		if icon.menu == nil {
-			icon.menu = generateUserMenu(value.SteamId, ui.application.OpenURL, ui.rootWindow.Clipboard())
-		}
-
-		switch id.Col {
-		case 0:
-			label.TextStyle.Symbol = false
-			label.TextStyle.Monospace = true
-			label.Alignment = fyne.TextAlignCenter
-			label.Text = fmt.Sprintf("%04d", value.UserId)
-			//label.Refresh()
-		case 1:
-			label.Hide()
-			icon.Show()
-		case 2:
-			label.TextStyle.Bold = true
-			label.Text = value.Name
-			label.Color = color.RGBA{
-				R: 200,
-				G: 20,
-				B: 20,
-				A: 255,
-			}
-		case 3:
-			label.Alignment = fyne.TextAlignCenter
-			label.Text = fmt.Sprintf("%d", value.Ping)
-		case 4:
-			label.Alignment = fyne.TextAlignCenter
-			label.Text = fmt.Sprintf("%d", value.KillsOn)
-		case 5:
-			label.Alignment = fyne.TextAlignCenter
-			label.Text = fmt.Sprintf("%d", value.DeathsBy)
-		}
-	})
-	for i, v := range columns {
-		table.SetColumnWidth(i, v)
-	}
-
-	return table
 }
 
 func createAboutDialog(parent fyne.Window) dialog.Dialog {

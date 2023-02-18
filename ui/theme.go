@@ -70,7 +70,7 @@ func (bdTheme) Size(s fyne.ThemeSizeName) float32 {
 	case theme.SizeNameInlineIcon:
 		return 20
 	case theme.SizeNamePadding:
-		return 4
+		return 0
 	case theme.SizeNameScrollBar:
 		return 16
 	case theme.SizeNameScrollBarSmall:
@@ -78,7 +78,7 @@ func (bdTheme) Size(s fyne.ThemeSizeName) float32 {
 	case theme.SizeNameSeparatorThickness:
 		return 1
 	case theme.SizeNameText:
-		return 14
+		return 12
 	case theme.SizeNameInputBorder:
 		return 2
 	default:

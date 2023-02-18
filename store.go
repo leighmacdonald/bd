@@ -10,6 +10,7 @@ import (
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
+	"io"
 	"log"
 	_ "modernc.org/sqlite"
 	//_ "github.com/mattn/go-sqlite3"
@@ -120,15 +121,26 @@ func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerSta
 		return errors.New("Invalid steam id")
 	}
 	// TODO sqlite replace is a bit odd, but maybe worth investigation eventually
-	const insertQuery = `INSERT INTO player (steam_id, kills_on, deaths_by, created_on, updated_on) VALUES (?, ?, ?, ?, ?)`
-	const updateQuery = `UPDATE player SET kills_on = ?, deaths_by = ?, updated_on = ? where steam_id = ?`
+	const insertQuery = `INSERT INTO player (
+                    steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, vacBans, 
+                    kills_on, deaths_by, rage_quits, created_on, updated_on) 
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	const updateQuery = `UPDATE player SET visibility = ?, real_name = ?, account_created_on = ?, avatar_hash = ?, community_banned = ?,
+                  vacBans = ?, kills_on = ?, deaths_by = ?, rage_quits = ?, updated_on = ? where steam_id = ?`
 	if state.Dangling {
 		if _, errExec := store.db.ExecContext(
 			ctx,
 			insertQuery,
 			state.SteamId.Int64(),
+			state.Visibility,
+			state.RealName,
+			state.AccountCreatedOn,
+			state.AvatarHash,
+			state.CommunityBanned,
+			state.NumberOfVACBans,
 			state.KillsOn,
 			state.DeathsBy,
+			state.RageQuits,
 			state.CreatedOn,
 			state.UpdatedOn,
 		); errExec != nil {
@@ -137,7 +149,17 @@ func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerSta
 		state.Dangling = false
 	} else {
 		state.UpdatedOn = time.Now()
-		_, errExec := store.db.ExecContext(ctx, updateQuery, state.KillsOn, state.DeathsBy, state.UpdatedOn, state.SteamId.Int64())
+		_, errExec := store.db.ExecContext(ctx, updateQuery, state.Visibility,
+			state.RealName,
+			state.AccountCreatedOn,
+			state.AvatarHash,
+			state.CommunityBanned,
+			state.NumberOfVACBans,
+			state.KillsOn,
+			state.DeathsBy,
+			state.RageQuits,
+			state.UpdatedOn,
+			state.SteamId.Int64())
 		if errExec != nil {
 			return errors.Wrap(errExec, "Could not update player state")
 		}
@@ -167,9 +189,9 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steami
 	return nil
 }
 
-func closeRows(rows *sql.Rows) {
-	if errClose := rows.Close(); errClose != nil {
-		log.Printf("Error trying to close rows: %v\n", errClose)
+func logClose(closer io.Closer) {
+	if errClose := closer.Close(); errClose != nil {
+		log.Printf("Error trying to close: %v\n", errClose)
 	}
 }
 
@@ -182,7 +204,7 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamId steamid.SID64)
 		}
 		return nil, errQuery
 	}
-	defer closeRows(rows)
+	defer logClose(rows)
 	var hist []model.UserNameHistory
 	for rows.Next() {
 		var h model.UserNameHistory
@@ -202,7 +224,7 @@ func (store *sqliteStore) FetchMessages(ctx context.Context, steamId steamid.SID
 		}
 		return nil, errQuery
 	}
-	defer closeRows(rows)
+	defer logClose(rows)
 	var messages []model.UserMessage
 	for rows.Next() {
 		var m model.UserMessage

@@ -1,8 +1,15 @@
 create table if not exists player
 (
     steam_id integer unique,
+    visibility integer not null default 3, -- 1/3
+    real_name text not null default '',
+    account_created_on integer not null default 0,
+    avatar_hash text not null default '',
+    community_banned integer not null default 0,
+    vacBans integer not null default 0,
     kills_on integer not null default 0,
     deaths_by integer not null default 0,
+    rage_quits integer not null default 0,
     created_on date not null default (DATETIME('now')),
     updated_on date not null default (DATETIME('now'))
 );

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/stretchr/testify/require"
 	"image"
 	"image/jpeg"
@@ -69,9 +70,10 @@ func TestTextRules(t *testing.T) {
 	const testSteamId = 76561197961279983
 	const customListTitle = "Custom List"
 	tr := genTestRules()
-	re := newRulesEngine()
+	re, reErr := newRulesEngine(nil, nil)
+	require.NoError(t, reErr)
 
-	require.NoError(t, re.ImportRules(tr))
+	require.NoError(t, re.ImportRules(&tr))
 	re.registerSteamIdMatcher(newSteamIdMatcher(customListTitle, testSteamId))
 	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, "test", "blah"))
 
@@ -107,7 +109,7 @@ func TestTextRules(t *testing.T) {
 			require.Equal(t, tc.matched, re.matchText(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-
+	require.NoError(t, re.Mark(MarkOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {
@@ -115,8 +117,9 @@ func TestAvatarRules(t *testing.T) {
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-	re := newRulesEngine()
-	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, hashBytes(buf.Bytes())))
+	re, reErr := newRulesEngine(nil, nil)
+	require.NoError(t, reErr)
+	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, model.HashBytes(buf.Bytes())))
 	result := re.matchAvatar(buf.Bytes())
 	require.NotNil(t, result)
 	require.Equal(t, listName, result.origin)
