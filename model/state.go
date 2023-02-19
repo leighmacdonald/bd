@@ -16,6 +16,13 @@ type ServerState struct {
 	CurrentMap string
 }
 
+type ProfileVisibility int
+
+const (
+	ProfileVisibilityPrivate ProfileVisibility = 1
+	ProfileVisibilityPublic  ProfileVisibility = 3
+)
+
 type PlayerState struct {
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
@@ -25,9 +32,16 @@ type PlayerState struct {
 	RealName         string
 	NamePrevious     string
 	AccountCreatedOn time.Time
-	Visibility       int
-	Avatar           fyne.Resource
-	AvatarHash       string
+	// This represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
+	// Note that because this WebAPI does not use authentication, there are only two possible values returned:
+	// 1 - the profile is not visible to you (Private, Friends Only, etc),
+	// 3 - the profile is "Public", and the data is visible.
+	// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
+	// than the privacy state. It's the effective visibility state from the account making the request to the account
+	// being viewed given the requesting account's relationship to the viewed account."
+	Visibility ProfileVisibility
+	Avatar     fyne.Resource
+	AvatarHash string
 
 	// PlayerBanState
 	CommunityBanned  bool
@@ -113,6 +127,7 @@ func NewPlayerState(sid64 steamid.SID64, name string) PlayerState {
 		Avatar:           nil,
 		AvatarHash:       "",
 		CommunityBanned:  false,
+		Visibility:       ProfileVisibilityPublic,
 		NumberOfVACBans:  0,
 		DaysSinceLastBan: 0,
 		NumberOfGameBans: 0,

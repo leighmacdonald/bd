@@ -268,6 +268,7 @@ type RulesEngine struct {
 	matchersAvatar []AvatarMatcher
 	rulesLists     []*ruleSchema
 	playerLists    []*playerListSchema
+	knownTags      []string
 }
 
 func (e *RulesEngine) Mark(opts MarkOpts) error {
@@ -283,6 +284,12 @@ func (e *RulesEngine) Mark(opts MarkOpts) error {
 		Proof:   opts.proof,
 	})
 	return nil
+}
+
+func (e *RulesEngine) UniqueTags() []string {
+	e.RLock()
+	defer e.RUnlock()
+	return e.knownTags
 }
 
 func newJsonPrettyEncoder(w io.Writer) *json.Encoder {
@@ -352,6 +359,7 @@ func (e *RulesEngine) ImportRules(list *ruleSchema) error {
 }
 
 func (e *RulesEngine) ImportPlayers(list *playerListSchema) error {
+	var playerAttrs []string
 	for _, player := range list.Players {
 		var steamId steamid.SID64
 		// Some entries can be raw number types in addition to strings...
@@ -371,8 +379,23 @@ func (e *RulesEngine) ImportPlayers(list *playerListSchema) error {
 			continue
 		}
 		e.registerSteamIdMatcher(newSteamIdMatcher(list.FileInfo.Title, steamId))
+		playerAttrs = append(playerAttrs, player.Attributes...)
+	}
+	e.Lock()
+	for _, newTag := range playerAttrs {
+		found := false
+		for _, known := range e.knownTags {
+			if strings.EqualFold(newTag, known) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			e.knownTags = append(e.knownTags, newTag)
+		}
 	}
 	e.playerLists = append(e.playerLists, list)
+	e.Unlock()
 	return nil
 }
 

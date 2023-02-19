@@ -6,6 +6,7 @@ import (
 	"github.com/leighmacdonald/bd/model"
 	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"log"
@@ -17,6 +18,10 @@ func main() {
 	settings := model.NewSettings()
 	localRules := newRuleSchema()
 	localPlayersList := newPlayerListSchema()
+
+	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
+		log.Println(errReadSettings)
+	}
 
 	// Try and load our existing custom players/rules
 	if exists(settings.LocalPlayerListPath()) {
@@ -46,28 +51,6 @@ func main() {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
 
-	defer func() {
-		// Ensure we save on exit
-		playerListFile, playerListFileErr := os.Create(settings.LocalPlayerListPath())
-		if playerListFileErr != nil {
-			log.Panicf("Failed to open player list for writing: %v\n", playerListFileErr)
-		}
-		if errWrite := rulesEngine.ExportPlayers(localRuleName, playerListFile); errWrite != nil {
-			log.Panicf("Failed to export player list: %v\n", playerListFileErr)
-		}
-
-		rulesFile, rulesFileErr := os.Create(settings.LocalRulesListPath())
-		if rulesFileErr != nil {
-			log.Panicf("Failed to open player list for writing: %v\n", rulesFileErr)
-		}
-		if errWrite := rulesEngine.ExportRules(localRuleName, rulesFile); errWrite != nil {
-			log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
-		}
-	}()
-
-	if errReadSettings := settings.ReadDefault(); errReadSettings != nil {
-		log.Println(errReadSettings)
-	}
 	if settings.ApiKey != "" {
 		if errApiKey := steamweb.SetKey(settings.ApiKey); errApiKey != nil {
 			log.Printf("Failed to set steam api key: %v\n", errApiKey)
@@ -79,8 +62,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	bd := New(ctx, &settings, store, rulesEngine)
+	bd := New(ctx, &settings, store, rulesEngine, func(sid64 steamid.SID64, reason string) error {
+		return nil
+	})
 	gui := ui.New(ctx, &settings)
+	defer bd.Shutdown()
 	bd.AttachGui(gui)
 	go bd.start()
 	gui.Start()

@@ -44,24 +44,28 @@ type BD struct {
 	triggerUpdate      chan any
 	lastUpdate         time.Time
 	cache              localCache
+	markFn             MarkFunc
 }
+type MarkFunc func(sid64 steamid.SID64, reason string) error
 
-func New(ctx context.Context, settings *model.Settings, store dataStore, rules *RulesEngine) BD {
+func New(ctx context.Context, settings *model.Settings, store dataStore, rules *RulesEngine, markFn MarkFunc) BD {
+	logChan := make(chan string)
+	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
 		ctx:                ctx,
 		store:              store,
 		rules:              rules,
 		settings:           settings,
-		logChan:            make(chan string),
-		incomingLogEvents:  make(chan model.LogEvent),
+		logChan:            logChan,
+		incomingLogEvents:  eventChan,
 		profileUpdateQueue: make(chan steamid.SID64),
 		lastUpdate:         time.Now(),
 		triggerUpdate:      make(chan any),
 		cache:              newFsCache(settings.ConfigRoot(), time.Hour*12),
+		logParser:          newLogParser(logChan, eventChan),
 	}
 
 	rootApp.createLogReader()
-	rootApp.createLogParser()
 
 	return rootApp
 }
@@ -115,7 +119,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 				queuedUpdates = append(queuedUpdates, queuedSid)
 			}
 		case <-ticker.C:
-			if len(queuedUpdates) == 0 {
+			if len(queuedUpdates) == 0 || bd.settings.ApiKey == "" {
 				continue
 			}
 			if len(queuedUpdates) > 100 {
@@ -245,10 +249,6 @@ func (bd *BD) createLogReader() {
 	bd.logReader = reader
 }
 
-func (bd *BD) createLogParser() {
-	bd.logParser = NewLogParser(bd.logChan, bd.incomingLogEvents)
-}
-
 func (bd *BD) eventHandler() {
 	for {
 		evt := <-bd.incomingLogEvents
@@ -363,6 +363,7 @@ func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.OnLaunchTF2(func() {
 		go bd.launchGameAndWait()
 	})
+	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }
 
@@ -388,6 +389,7 @@ func (bd *BD) refreshLists() {
 			log.Printf("Failed to import rules list (%s): %v\n", list.FileInfo.Title, errImport)
 		}
 	}
+	bd.gui.UpdateAttributes(bd.rules.UniqueTags())
 }
 
 func (bd *BD) checkPlayerStates() {
@@ -470,6 +472,26 @@ func (bd *BD) callVote(userId int64) error {
 		return errors.Wrap(errExec, "Failed to send rcon callvote")
 	}
 	return nil
+}
+
+func (bd *BD) Shutdown() {
+	// Ensure we save on exit
+	playerListFile, playerListFileErr := os.Create(bd.settings.LocalPlayerListPath())
+	if playerListFileErr != nil {
+		log.Panicf("Failed to open player list for writing: %v\n", playerListFileErr)
+	}
+	if errWrite := bd.rules.ExportPlayers(localRuleName, playerListFile); errWrite != nil {
+		log.Panicf("Failed to export player list: %v\n", playerListFileErr)
+	}
+
+	rulesFile, rulesFileErr := os.Create(bd.settings.LocalRulesListPath())
+	if rulesFileErr != nil {
+		log.Panicf("Failed to open player list for writing: %v\n", rulesFileErr)
+	}
+	if errWrite := bd.rules.ExportRules(localRuleName, rulesFile); errWrite != nil {
+		log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
+	}
+	bd.store.Close()
 }
 
 func (bd *BD) start() {

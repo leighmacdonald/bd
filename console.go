@@ -164,7 +164,7 @@ func (l *LogParser) start(ctx context.Context, gs []*model.PlayerState) {
 	}
 }
 
-func NewLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogParser {
+func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogParser {
 	lp := LogParser{
 		evtChan:       evtChan,
 		ReadChannel:   readChannel,
@@ -173,7 +173,7 @@ func NewLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogPars
 			regexp.MustCompile(`^(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
 			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
-			regexp.MustCompile(`(^Disconnecting from abandoned match server$|\(server shutting down\)$)`),
+			regexp.MustCompile(`(^Disconnecting from abandoned match server$|\([Ss]erver shutting down\)$)`),
 			regexp.MustCompile(`(?P<dt>^[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{2,3}:\d{2})\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`)},
 	}
 	return &lp

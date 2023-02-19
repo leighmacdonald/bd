@@ -1,7 +1,7 @@
 create table if not exists player
 (
     steam_id integer unique,
-    visibility integer not null default 3, -- 1/3
+    visibility integer not null default 3 check ( visibility == 1 or visibility == 3 ), -- 1/3
     real_name text not null default '',
     account_created_on integer not null default 0,
     avatar_hash text not null default '',
@@ -20,7 +20,7 @@ create table if not exists player_names
     steam_id integer not null,
     name text not null,
     created_on date not null default (DATETIME('now')),
-    FOREIGN KEY (steam_id) REFERENCES player (steam_id) ON DELETE CASCADE
+    foreign key (steam_id) references player (steam_id) on delete cascade
 );
 
 create index if not exists idx_player_name on player_names (steam_id, name);
@@ -31,5 +31,5 @@ create table if not exists player_messages (
     steam_id integer not null,
     message text not null,
     created_on date not null default (DATETIME('now')),
-    FOREIGN KEY (steam_id) REFERENCES player (steam_id) ON DELETE CASCADE
+    foreign key (steam_id) references player (steam_id) on delete cascade
 );

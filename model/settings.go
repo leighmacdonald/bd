@@ -22,7 +22,8 @@ const configRoot = "bd"
 const defaultConfigFileName = "bd.yaml"
 
 var (
-	errDuplicateList = errors.New("duplicate list")
+	errDuplicateList  = errors.New("duplicate list")
+	errConfigNotFound = errors.New("config path does not exist")
 )
 
 type ListType string
@@ -40,6 +41,23 @@ type ListConfig struct {
 	URL      string   `yaml:"url"`
 }
 
+// TODO add to steamid pkg
+type SteamIdFormat string
+
+const (
+	Steam64 SteamIdFormat = "steam64"
+	Steam3  SteamIdFormat = "steam3"
+	Steam32 SteamIdFormat = "steam32"
+	Steam   SteamIdFormat = "steam"
+)
+
+type LinkConfig struct {
+	Enabled  bool          `yaml:"enabled"`
+	Name     string        `yaml:"name"`
+	URL      string        `yaml:"url"`
+	IdFormat SteamIdFormat `yaml:"id_format"`
+}
+
 type Settings struct {
 	*sync.RWMutex `yaml:"-"`
 	// Path to config used when reading settings
@@ -54,6 +72,7 @@ type Settings struct {
 	ChatWarningsEnabled  bool               `yaml:"chat_warnings_enabled"`
 	PartyWarningsEnabled bool               `yaml:"party_warnings_enabled"`
 	Lists                []ListConfig       `yaml:"lists"`
+	Links                []LinkConfig       `yaml:"links"`
 	SteamId              string             `yaml:"steam_id"`
 	RconMode             rconMode           `yaml:"rcon_mode"`
 	Rcon                 rconConfigProvider `yaml:"-"`
@@ -81,6 +100,11 @@ func (s *Settings) AddList(config ListConfig) error {
 	return nil
 }
 
+func (s *Settings) GetLinks() []LinkConfig {
+	s.RLock()
+	defer s.RUnlock()
+	return s.Links
+}
 func NewSettings() Settings {
 	settings := Settings{
 		RWMutex:              &sync.RWMutex{},
@@ -92,20 +116,102 @@ func NewSettings() Settings {
 		KickerEnabled:        false,
 		ChatWarningsEnabled:  false,
 		PartyWarningsEnabled: true,
-		Lists:                []ListConfig{},
-		SteamId:              "",
-		RconMode:             rconModeRandom,
-		Rcon:                 newRconConfig(true),
+		Lists: []ListConfig{
+			{
+				ListType: "tf2bd_playerlist",
+				Enabled:  false,
+				URL:      "https://uncletopia.com/export/bans/tf2bd",
+			},
+			{
+				ListType: "tf2bd_playerlist",
+				Enabled:  true,
+				URL:      "https://trusted.roto.lol/v1/steamids",
+			},
+			{
+				ListType: "tf2bd_playerlist",
+				Enabled:  true,
+				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json",
+			},
+			{
+				ListType: "tf2bd_rules",
+				Enabled:  true,
+				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/rules.official.json",
+			},
+		},
+		Links: []LinkConfig{
+			{
+				Enabled:  true,
+				Name:     "RGL",
+				URL:      "https://rgl.gg/Public/PlayerProfile.aspx?p=%d",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "Steam",
+				URL:      "https://steamcommunity.com/profiles/%d",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "OzFortress",
+				URL:      "https://ozfortress.com/users/steam_id/%d",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "ESEA",
+				URL:      "https://play.esea.net/index.php?s=search&query=%s",
+				IdFormat: "steam3",
+			},
+			{
+				Enabled:  true,
+				Name:     "UGC",
+				URL:      "https://www.ugcleague.com/players_page.cfm?player_id=%d",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "ETF2L",
+				URL:      "https://etf2l.org/search/%d/",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "trends.tf",
+				URL:      "https://trends.tf/player/%d/",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "demos.tf",
+				URL:      "https://demos.tf/profiles/%d",
+				IdFormat: "steam64",
+			},
+			{
+				Enabled:  true,
+				Name:     "logs.tf",
+				URL:      "https://logs.tf/profile/%d",
+				IdFormat: "steam64",
+			},
+		},
+		SteamId:  "",
+		RconMode: rconModeRandom,
+		Rcon:     newRconConfig(true),
 	}
 	return settings
 }
 
-func (s *Settings) ReadDefault() error {
+func (s *Settings) ReadDefaultOrCreate() error {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
 		return err
 	}
-	return s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
+	errRead := s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
+	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
+		log.Printf("Creating new config file with defaults")
+		return s.Save()
+	}
+	return errRead
 }
 
 func (s *Settings) ConfigRoot() string {
@@ -132,7 +238,7 @@ func (s *Settings) ReadFilePath(filePath string) error {
 	if !golib.Exists(filePath) {
 		// Use defaults
 		s.configPath = filePath
-		return errors.New("config path does not exist")
+		return errConfigNotFound
 	}
 	settingsFile, errOpen := os.Open(filePath)
 	if errOpen != nil {

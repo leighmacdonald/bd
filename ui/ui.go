@@ -42,42 +42,22 @@ type UserInterface interface {
 	OnLaunchTF2(func())
 	UpdateTitle(string)
 	UpdatePlayerState([]model.PlayerState)
+	UpdateAttributes([]string)
 }
 
 type Ui struct {
-	ctx            context.Context
-	application    fyne.App
-	rootWindow     fyne.Window
-	chatWindow     fyne.Window
-	settingsDialog dialog.Dialog
-	aboutDialog    dialog.Dialog
-	server         model.ServerState
-	settings       boundSettings
-	baseSettings   *model.Settings
-	playerList     *PlayerList
-	launcher       func()
-}
-
-type boundSettings struct {
-	binding.Struct
-}
-
-func (s *boundSettings) getBoundStringDefault(key string, def string) binding.String {
-	value, apiKeyErr := s.GetValue(key)
-	if apiKeyErr != nil {
-		value = def
-	}
-	v := value.(string)
-	return binding.BindString(&v)
-}
-
-func (s *boundSettings) getBoundBoolDefault(key string, def bool) binding.Bool {
-	value, apiKeyErr := s.GetValue(key)
-	if apiKeyErr != nil {
-		value = def
-	}
-	v := value.(bool)
-	return binding.BindBool(&v)
+	ctx             context.Context
+	application     fyne.App
+	rootWindow      fyne.Window
+	chatWindow      fyne.Window
+	settingsDialog  dialog.Dialog
+	aboutDialog     dialog.Dialog
+	server          model.ServerState
+	settings        boundSettings
+	baseSettings    *model.Settings
+	playerList      *PlayerList
+	knownAttributes []string
+	launcher        func()
 }
 
 func readIcon(path string) fyne.Resource {
@@ -111,14 +91,8 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 		log.Println("Settings saved successfully")
 	})
 	ui.aboutDialog = createAboutDialog(rootWindow)
-	ui.chatWindow = ui.newChatWidget()
-
-	ui.playerList = newPlayerList(
-		func(url *url.URL) error {
-			return application.OpenURL(url)
-		},
-		ui.rootWindow.Clipboard(),
-	)
+	ui.chatWindow = ui.createChatWidget()
+	ui.playerList = ui.createPlayerList()
 
 	rootWindow.Resize(fyne.NewSize(750, 1000))
 	ui.rootWindow.SetCloseIntercept(func() {
@@ -148,11 +122,11 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 }
 
 func (ui *Ui) Refresh() {
-	//cw := ui.chatWindow.Content().(*chatListWidget)
-	//cw.ScrollToBottom()
-	//cw.Refresh()
 	ui.playerList.Widget().Refresh()
-	//ui.PlayerTable.Refresh()
+}
+
+func (ui *Ui) UpdateAttributes(attrs []string) {
+	ui.knownAttributes = attrs
 }
 
 func (ui *Ui) UpdateTitle(title string) {
@@ -160,7 +134,7 @@ func (ui *Ui) UpdateTitle(title string) {
 }
 
 func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {
-	if errReboot := ui.playerList.Reboot(state); errReboot != nil {
+	if errReboot := ui.playerList.Reload(state); errReboot != nil {
 		log.Printf("Faile to reboot data: %v\n", errReboot)
 	}
 }
@@ -384,7 +358,7 @@ func (ui *Ui) configureTray(showFunc func()) {
 func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.MediaPlayIcon(), func() {
+		widget.NewToolbarAction(resourceUiResourcesTf2logoSvg, func() {
 			log.Println("Launching game")
 			ui.launcher()
 		}),
@@ -434,7 +408,7 @@ func (ui *Ui) newChatListWidget() *chatListWidget {
 	}
 }
 
-func (ui *Ui) newChatWidget() fyne.Window {
+func (ui *Ui) createChatWidget() fyne.Window {
 	//chatWidget := ui.newChatListWidget()
 	chatWindow := ui.application.NewWindow("Chat")
 	//chatWindow.SetContent(chatWidget)
