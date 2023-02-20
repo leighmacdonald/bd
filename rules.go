@@ -34,6 +34,7 @@ const (
 	//avatarMatchReduced avatarMatchType = "hash_reduced"
 )
 
+// AvatarMatcher provides an interface to match avatars using custom methods
 type AvatarMatcher interface {
 	Match(hexDigest string) *ruleMatchResult
 	Type() avatarMatchType
@@ -66,30 +67,32 @@ func newAvatarMatcher(origin string, avatarMatchType avatarMatchType, hashes ...
 	}
 }
 
+// TextMatcher provides an interface to build text based matchers for names or in game messages
 type TextMatcher interface {
 	// Match performs a text based match
 	Match(text string) *ruleMatchResult
 	Type() textMatchType
 }
 
-type SteamIdMatcher interface {
+// SteamIDMatcher provides a basic interface to match steam ids.
+type SteamIDMatcher interface {
 	Match(sid64 steamid.SID64) *ruleMatchResult
 }
 
-type steamIdMatcher struct {
-	steamId steamid.SID64
+type steamIDMatcher struct {
+	steamID steamid.SID64
 	origin  string
 }
 
-func (m steamIdMatcher) Match(sid64 steamid.SID64) *ruleMatchResult {
-	if sid64 == m.steamId {
+func (m steamIDMatcher) Match(sid64 steamid.SID64) *ruleMatchResult {
+	if sid64 == m.steamID {
 		return &ruleMatchResult{origin: m.origin}
 	}
 	return nil
 }
 
-func newSteamIdMatcher(origin string, sid64 steamid.SID64) steamIdMatcher {
-	return steamIdMatcher{steamId: sid64, origin: origin}
+func newSteamIDMatcher(origin string, sid64 steamid.SID64) steamIDMatcher {
+	return steamIDMatcher{steamID: sid64, origin: origin}
 }
 
 type regexTextMatcher struct {
@@ -220,8 +223,8 @@ func newGeneralTextMatcher(origin string, matcherType textMatchType, matchMode t
 	}
 }
 
-func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*RulesEngine, error) {
-	re := RulesEngine{
+func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*rulesEngine, error) {
+	re := rulesEngine{
 		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,
 		matchersText:   nil,
@@ -254,16 +257,16 @@ type ruleMatchResult struct {
 	proof      []string
 }
 
-type MarkOpts struct {
-	steamId    steamid.SID64
+type markOpts struct {
+	steamID    steamid.SID64
 	attributes []string
 	proof      []string
 	name       string
 }
 
-type RulesEngine struct {
+type rulesEngine struct {
 	*sync.RWMutex
-	matchersSteam  []SteamIdMatcher
+	matchersSteam  []SteamIDMatcher
 	matchersText   []TextMatcher
 	matchersAvatar []AvatarMatcher
 	rulesLists     []*ruleSchema
@@ -271,7 +274,7 @@ type RulesEngine struct {
 	knownTags      []string
 }
 
-func (e *RulesEngine) Mark(opts MarkOpts) error {
+func (e *rulesEngine) mark(opts markOpts) error {
 	e.Lock()
 	defer e.Unlock()
 	e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
@@ -280,47 +283,51 @@ func (e *RulesEngine) Mark(opts MarkOpts) error {
 			Time:       int(time.Now().Unix()),
 			PlayerName: opts.name,
 		},
-		SteamId: opts.steamId,
+		SteamID: opts.steamID,
 		Proof:   opts.proof,
 	})
 	return nil
 }
 
-func (e *RulesEngine) UniqueTags() []string {
+// UniqueTags returns a list of the unique known tags across all player lists
+func (e *rulesEngine) UniqueTags() []string {
 	e.RLock()
 	defer e.RUnlock()
 	return e.knownTags
 }
 
-func newJsonPrettyEncoder(w io.Writer) *json.Encoder {
+func newJSONPrettyEncoder(w io.Writer) *json.Encoder {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", strings.Repeat(" ", exportIndentSize))
 	return enc
 }
 
-func (e *RulesEngine) ExportPlayers(listName string, w io.Writer) error {
+// ExportPlayers writes the json encoded player list matching the listName provided to the io.Writer
+func (e *rulesEngine) ExportPlayers(listName string, w io.Writer) error {
 	e.RLock()
 	defer e.RUnlock()
 	for _, pl := range e.playerLists {
 		if listName == pl.FileInfo.Title {
-			return newJsonPrettyEncoder(w).Encode(pl)
+			return newJSONPrettyEncoder(w).Encode(pl)
 		}
 	}
 	return errors.Errorf("Unknown player list: %s", listName)
 }
 
-func (e *RulesEngine) ExportRules(listName string, w io.Writer) error {
+// ExportRules writes the json encoded rules list matching the listName provided to the io.Writer
+func (e *rulesEngine) ExportRules(listName string, w io.Writer) error {
 	e.RLock()
 	defer e.RUnlock()
 	for _, pl := range e.rulesLists {
 		if listName == pl.FileInfo.Title {
-			return newJsonPrettyEncoder(w).Encode(pl)
+			return newJSONPrettyEncoder(w).Encode(pl)
 		}
 	}
 	return errors.Errorf("Unknown rule list: %s", listName)
 }
 
-func (e *RulesEngine) ImportRules(list *ruleSchema) error {
+// ImportRules loads the provided ruleset for use
+func (e *rulesEngine) ImportRules(list *ruleSchema) error {
 	for _, rule := range list.Rules {
 		if rule.Triggers.UsernameTextMatch != nil {
 			e.registerTextMatcher(newGeneralTextMatcher(
@@ -358,27 +365,28 @@ func (e *RulesEngine) ImportRules(list *ruleSchema) error {
 	return nil
 }
 
-func (e *RulesEngine) ImportPlayers(list *playerListSchema) error {
+// ImportPlayers loads the provided player list for matching
+func (e *rulesEngine) ImportPlayers(list *playerListSchema) error {
 	var playerAttrs []string
 	for _, player := range list.Players {
-		var steamId steamid.SID64
+		var steamID steamid.SID64
 		// Some entries can be raw number types in addition to strings...
-		switch v := player.SteamId.(type) {
+		switch v := player.SteamID.(type) {
 		case float64:
-			steamId = steamid.SID64(int64(v))
+			steamID = steamid.SID64(int64(v))
 		case string:
-			sid64, errSid := steamid.StringToSID64(player.SteamId.(string))
+			sid64, errSid := steamid.StringToSID64(player.SteamID.(string))
 			if errSid != nil {
 				log.Printf("Failed to import steamid: %v\n", errSid)
 				continue
 			}
-			steamId = sid64
+			steamID = sid64
 		}
-		if !steamId.Valid() {
-			log.Printf("tried to import invalid steamdid: %v", player.SteamId)
+		if !steamID.Valid() {
+			log.Printf("tried to import invalid steamdid: %v", player.SteamID)
 			continue
 		}
-		e.registerSteamIdMatcher(newSteamIdMatcher(list.FileInfo.Title, steamId))
+		e.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID))
 		playerAttrs = append(playerAttrs, player.Attributes...)
 	}
 	e.Lock()
@@ -399,25 +407,25 @@ func (e *RulesEngine) ImportPlayers(list *playerListSchema) error {
 	return nil
 }
 
-func (e *RulesEngine) registerSteamIdMatcher(matcher SteamIdMatcher) {
+func (e *rulesEngine) registerSteamIDMatcher(matcher SteamIDMatcher) {
 	e.Lock()
 	e.matchersSteam = append(e.matchersSteam, matcher)
 	e.Unlock()
 }
 
-func (e *RulesEngine) registerAvatarMatcher(matcher AvatarMatcher) {
+func (e *rulesEngine) registerAvatarMatcher(matcher AvatarMatcher) {
 	e.Lock()
 	e.matchersAvatar = append(e.matchersAvatar, matcher)
 	e.Unlock()
 }
 
-func (e *RulesEngine) registerTextMatcher(matcher TextMatcher) {
+func (e *rulesEngine) registerTextMatcher(matcher TextMatcher) {
 	e.Lock()
 	e.matchersText = append(e.matchersText, matcher)
 	e.Unlock()
 }
 
-func (e *RulesEngine) matchTextType(text string, matchType textMatchType) *ruleMatchResult {
+func (e *rulesEngine) matchTextType(text string, matchType textMatchType) *ruleMatchResult {
 	for _, matcher := range e.matchersText {
 		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
 			continue
@@ -430,26 +438,29 @@ func (e *RulesEngine) matchTextType(text string, matchType textMatchType) *ruleM
 	return nil
 }
 
-func (e *RulesEngine) matchSteam(steamId steamid.SID64) *ruleMatchResult {
+func (e *rulesEngine) matchSteam(steamID steamid.SID64) *ruleMatchResult {
 	for _, sm := range e.matchersSteam {
-		return sm.Match(steamId)
+		match := sm.Match(steamID)
+		if match != nil {
+			return match
+		}
 	}
 	return nil
 }
 
-func (e *RulesEngine) matchName(name string) *ruleMatchResult {
+func (e *rulesEngine) matchName(name string) *ruleMatchResult {
 	return e.matchTextType(name, textMatchTypeName)
 }
 
-func (e *RulesEngine) matchText(text string) *ruleMatchResult {
+func (e *rulesEngine) matchText(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeMessage)
 }
 
-func (e *RulesEngine) matchAny(text string) *ruleMatchResult {
+func (e *rulesEngine) matchAny(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeAny)
 }
 
-func (e *RulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
+func (e *rulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
 	if avatar == nil {
 		return nil
 	}

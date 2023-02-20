@@ -20,9 +20,21 @@ fonts:
 	fyne bundle --pkg ui -a -o .\ui\embed_img.go .\ui\resources\Icon.png
 	fyne bundle --pkg ui -a -o .\ui\embed_img.go .\ui\resources\tf2_logo.svg
 
-lint:
+lint: lint_deps
 	# TODO remove `--disable unused` check once further along in development
 	golangci-lint run --fix --disable unused --timeout 120s
+	go vet -tags ci ./...
+	test -z $(goimports -e -d . | tee /dev/stderr)
+	gocyclo -over 35 .
+	golint -set_exit_status $(go list -tags ci ./...)
+	#staticcheck -go 1.19 ./...
+
+lint_deps:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	go install golang.org/x/lint/golint@latest
+	#go install honnef.co/go/tools/cmd/staticcheck@latest
 
 release_local:
 	goreleaser release --snapshot --rm-dist

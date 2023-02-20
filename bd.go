@@ -21,6 +21,7 @@ import (
 	"time"
 )
 
+// BD is the main application container
 type BD struct {
 	// TODO
 	// - estimate private steam account ages (find nearby non-private account)
@@ -33,22 +34,21 @@ type BD struct {
 	messages           []*model.UserMessage
 	ctx                context.Context
 	logReader          *logReader
-	logParser          *LogParser
-	rules              *RulesEngine
+	logParser          *logParser
+	rules              *rulesEngine
 	rconConnection     rconConnection
 	settings           *model.Settings
 	store              dataStore
 	gui                ui.UserInterface
-	dryRun             bool
 	gameProcess        *os.Process
 	profileUpdateQueue chan steamid.SID64
 	triggerUpdate      chan any
 	lastUpdate         time.Time
 	cache              localCache
-	markFn             model.MarkFunc
 }
 
-func New(ctx context.Context, settings *model.Settings, store dataStore, rules *RulesEngine) BD {
+// New allocates a new bot detector application instance
+func New(ctx context.Context, settings *model.Settings, store dataStore, rules *rulesEngine) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -191,7 +191,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 							}
 						}
 					}
-					if errCache != nil && !errors.Is(errCache, ErrCacheExpired) {
+					if errCache != nil && !errors.Is(errCache, errCacheExpired) {
 						log.Printf("unexpected cache error: %v\n", errCache)
 						return
 					}
@@ -367,8 +367,8 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 			break
 		}
 	}
-	if errMark := bd.rules.Mark(MarkOpts{
-		steamId:    sid64,
+	if errMark := bd.rules.mark(markOpts{
+		steamID:    sid64,
 		attributes: attrs,
 		name:       name,
 	}); errMark != nil {
@@ -385,6 +385,7 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
+// AttachGui connects the backend functions to the frontend gui
 func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
@@ -439,7 +440,7 @@ func (bd *BD) checkPlayerStates() {
 				log.Printf("Failed to send party log message: %s\n", errLog)
 				continue
 			}
-			log.Println("Matched player...")
+			log.Printf("Matched: steamid %d %s %s", ps.SteamId, ps.Name, match.origin)
 		}
 		if ps.Name != "" {
 			match = bd.rules.matchName(ps.Name)
@@ -448,12 +449,12 @@ func (bd *BD) checkPlayerStates() {
 			}
 		}
 		//for _, matcher := range bd.rules {
-		//	if !matcher.FindMatch(ps.SteamId, &matched) {
+		//	if !matcher.FindMatch(ps.SteamID, &matched) {
 		//		continue
 		//	}
 		//	if bd.dryRun {
 		//		if errPL := bd.partyLog("(DRY) Matched player: %s %s %s",
-		//			matched.player.SteamId,
+		//			matched.player.SteamID,
 		//			strings.Join(matched.player.Attributes, ","),
 		//			matched.list.FileInfo.Description,
 		//		); errPL != nil {
@@ -503,17 +504,18 @@ func (bd *BD) partyLog(fmtStr string, args ...any) error {
 	return nil
 }
 
-func (bd *BD) callVote(userId int64, reason model.KickReason) error {
+func (bd *BD) callVote(userID int64, reason model.KickReason) error {
 	if errConn := bd.connectRcon(); errConn != nil {
 		return errConn
 	}
-	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userId, reason))
+	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
 	if errExec != nil {
 		return errors.Wrap(errExec, "Failed to send rcon callvote")
 	}
 	return nil
 }
 
+// Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
 		logClose(bd.rconConnection)
@@ -534,7 +536,7 @@ func (bd *BD) Shutdown() {
 	if errWrite := bd.rules.ExportRules(localRuleName, rulesFile); errWrite != nil {
 		log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
 	}
-	bd.store.Close()
+	logClose(bd.store)
 }
 
 func (bd *BD) start() {

@@ -94,13 +94,13 @@ func genTestRules() ruleSchema {
 const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
-	const testSteamId = 76561197961279983
+	const testSteamID = 76561197961279983
 	re, _ := newRulesEngine(nil, nil)
-	re.registerSteamIdMatcher(newSteamIdMatcher(customListTitle, testSteamId))
-	steamMatch := re.matchSteam(testSteamId)
+	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID))
+	steamMatch := re.matchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
 	require.Equal(t, customListTitle, steamMatch.origin)
-	require.Nil(t, re.matchSteam(testSteamId+1), "Matched invalid steamid")
+	require.Nil(t, re.matchSteam(testSteamID+1), "Matched invalid steamid")
 }
 
 func TestTextRules(t *testing.T) {
@@ -141,7 +141,7 @@ func TestTextRules(t *testing.T) {
 			require.Equal(t, tc.matched, re.matchText(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-	require.NoError(t, re.Mark(MarkOpts{}))
+	require.NoError(t, re.mark(markOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {

@@ -59,8 +59,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*logReader, erro
 }
 
 var (
-	errNoMatch          = errors.New("no match found")
-	errRconDisconnected = errors.New("rcon not connected")
+	errNoMatch = errors.New("no match found")
 )
 
 // parseTimestamp will convert the source formatted log timestamps into a time.Time value
@@ -68,14 +67,14 @@ func parseTimestamp(timestamp string) (time.Time, error) {
 	return time.Parse("01/02/2006 - 15:04:05", timestamp)
 }
 
-type LogParser struct {
+type logParser struct {
 	evtChan       chan model.LogEvent
 	ReadChannel   chan string
 	rxLobbyPlayer *regexp.Regexp
 	rx            []*regexp.Regexp
 }
 
-func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
+func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range l.rx {
 		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
@@ -109,17 +108,17 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 					continue
 				}
 				outEvent.Timestamp = ts
-				userId, errUserId := strconv.ParseInt(m[2], 10, 32)
-				if errUserId != nil {
-					log.Printf("Failed to parse userid: %v", errUserId)
+				userID, errUserID := strconv.ParseInt(m[2], 10, 32)
+				if errUserID != nil {
+					log.Printf("Failed to parse userid: %v", errUserID)
 					continue
 				}
 				ping, errPing := strconv.ParseInt(m[6], 10, 32)
 				if errPing != nil {
-					log.Printf("Failed to parse ping: %v", errUserId)
+					log.Printf("Failed to parse ping: %v", errUserID)
 					continue
 				}
-				outEvent.UserId = userId
+				outEvent.UserId = userID
 				outEvent.Player = m[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
 				outEvent.PlayerConnected = m[5]
@@ -135,12 +134,12 @@ func (l *LogParser) ParseEvent(msg string, outEvent *model.LogEvent) error {
 }
 
 // TODO why keep this?
-func (l *LogParser) start(ctx context.Context, gs []*model.PlayerState) {
+func (l *logParser) start(ctx context.Context, gs []*model.PlayerState) {
 	for {
 		select {
 		case msg := <-l.ReadChannel:
 			var logEvent model.LogEvent
-			if err := l.ParseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
+			if err := l.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
 
@@ -164,8 +163,8 @@ func (l *LogParser) start(ctx context.Context, gs []*model.PlayerState) {
 	}
 }
 
-func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *LogParser {
-	lp := LogParser{
+func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logParser {
+	lp := logParser{
 		evtChan:       evtChan,
 		ReadChannel:   readChannel,
 		rxLobbyPlayer: regexp.MustCompile(`\s+(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))`),

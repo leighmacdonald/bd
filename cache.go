@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrCacheExpired = errors.New("cached value expired")
+	errCacheExpired = errors.New("cached value expired")
 )
 
 type localCache interface {
@@ -73,16 +73,16 @@ func (cache fsCache) Set(ct cacheType, key string, value io.Reader) error {
 func (cache fsCache) Get(ct cacheType, key string, receiver io.Writer) error {
 	of, errOf := os.Open(cache.getPath(ct, key))
 	if errOf != nil {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 	defer logClose(of)
 
 	stat, errStat := of.Stat()
 	if errStat != nil {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 	if time.Since(stat.ModTime()) > cache.maxAge {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 	_, errCopy := io.Copy(receiver, of)
 	return errCopy

@@ -23,12 +23,12 @@ type dataStore interface {
 	Close() error
 	Connect() error
 	Init() error
-	SaveName(ctx context.Context, steamId steamid.SID64, name string) error
-	SaveMessage(ctx context.Context, steamId steamid.SID64, message string) error
+	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
+	SaveMessage(ctx context.Context, steamID steamid.SID64, message string) error
 	SavePlayer(ctx context.Context, state *model.PlayerState) error
 	FetchNames(ctx context.Context, sid64 steamid.SID64) ([]model.UserNameHistory, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) ([]model.UserMessage, error)
-	LoadOrCreatePlayer(ctx context.Context, steamId steamid.SID64, player *model.PlayerState) error
+	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.PlayerState) error
 }
 
 type sqliteStore struct {
@@ -97,20 +97,20 @@ func (store *sqliteStore) Init() error {
 	return store.Connect()
 }
 
-func (store *sqliteStore) SaveName(ctx context.Context, steamId steamid.SID64, name string) error {
+func (store *sqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
 	const query = `INSERT INTO player_names (steam_id, name, created_on) VALUES (?, ?, ?)`
-	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), name, time.Now()); errExec != nil {
+	if _, errExec := store.db.ExecContext(ctx, query, steamID.Int64(), name, time.Now()); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
 }
 
-func (store *sqliteStore) SaveMessage(ctx context.Context, steamId steamid.SID64, message string) error {
+func (store *sqliteStore) SaveMessage(ctx context.Context, steamID steamid.SID64, message string) error {
 	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?)`
 	if message == "" {
 		return nil
 	}
-	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), message, time.Now()); errExec != nil {
+	if _, errExec := store.db.ExecContext(ctx, query, steamID.Int64(), message, time.Now()); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
@@ -190,7 +190,7 @@ func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerSta
 	return store.updatePlayer(ctx, state)
 }
 
-func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steamid.SID64, player *model.PlayerState) error {
+func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.PlayerState) error {
 	const query = `
 		SELECT 
 		    p.visibility, 
@@ -213,7 +213,7 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steami
 
 	var prevName *string
 	rowErr := store.db.
-		QueryRow(query, steamId).
+		QueryRow(query, steamID).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfVACBans, &player.KillsOn, &player.DeathsBy,
 			&player.RageQuits,
@@ -223,7 +223,7 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steami
 			return rowErr
 		}
 		player.Dangling = true
-		player.SteamId = steamId
+		player.SteamId = steamID
 		return store.SavePlayer(ctx, player)
 	}
 	player.NamePrevious = *prevName
@@ -236,9 +236,9 @@ func logClose(closer io.Closer) {
 	}
 }
 
-func (store *sqliteStore) FetchNames(ctx context.Context, steamId steamid.SID64) ([]model.UserNameHistory, error) {
+func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) ([]model.UserNameHistory, error) {
 	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
-	rows, errQuery := store.db.QueryContext(ctx, query, steamId.Int64())
+	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
@@ -256,9 +256,9 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamId steamid.SID64)
 	}
 	return hist, nil
 }
-func (store *sqliteStore) FetchMessages(ctx context.Context, steamId steamid.SID64) ([]model.UserMessage, error) {
+func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) ([]model.UserMessage, error) {
 	const query = `SELECT message_id, message, created_on FROM player_messages WHERE steam_id = ?`
-	rows, errQuery := store.db.QueryContext(ctx, query, steamId.Int64())
+	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil

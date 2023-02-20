@@ -51,8 +51,8 @@ func main() {
 	}
 
 	if settings.ApiKey != "" {
-		if errApiKey := steamweb.SetKey(settings.ApiKey); errApiKey != nil {
-			log.Printf("Failed to set steam api key: %v\n", errApiKey)
+		if errAPIKey := steamweb.SetKey(settings.ApiKey); errAPIKey != nil {
+			log.Printf("Failed to set steam api key: %v\n", errAPIKey)
 		}
 	}
 	store := newSqliteStore(settings.DBPath())

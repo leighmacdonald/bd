@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-func fetchUrl(ctx context.Context, client http.Client, url string) ([]byte, error) {
+func fetchURL(ctx context.Context, client http.Client, url string) ([]byte, error) {
 	req, reqErr := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if reqErr != nil {
 		return nil, errors.Wrap(reqErr, "Failed to create request\n")
@@ -35,7 +35,7 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]playerListS
 		if !u.Enabled {
 			continue
 		}
-		body, errFetch := fetchUrl(ctx, client, u.URL)
+		body, errFetch := fetchURL(ctx, client, u.URL)
 		if errFetch != nil {
 			log.Printf("Failed to fetch player list: %v", u.URL)
 			continue

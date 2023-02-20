@@ -84,7 +84,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return nil
 	}
 
-	steamId := ui.settings.getBoundStringDefault("SteamId", "")
+	steamId := ui.settings.getBoundStringDefault("SteamID", "")
 	steamIdEntry := widget.NewEntry()
 	steamIdEntry.Bind(steamId)
 	steamIdEntry.Validator = func(s string) error {

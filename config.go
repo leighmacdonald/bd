@@ -17,16 +17,16 @@ func exists(filePath string) bool {
 	return true
 }
 
-func getLocalConfigPath(steamRoot string, steamId steamid.SID64) (string, error) {
-	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)), "config", "localconfig.vdf")
+func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
+	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamID)), "config", "localconfig.vdf")
 	if !exists(fp) {
 		return "", errors.New("Path does not exist")
 	}
 	return fp, nil
 }
 
-func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error) {
-	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamId)
+func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
+	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamID)
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
@@ -63,8 +63,8 @@ func getUserLaunchArgs(steamRoot string, steamId steamid.SID64) ([]string, error
 	return normOpts, nil
 }
 
-func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamId steamid.SID64) ([]string, error) {
-	currentArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamId)
+func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
+	currentArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}

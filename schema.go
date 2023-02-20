@@ -7,10 +7,10 @@ import (
 
 type ruleTriggerMode string
 
-const (
-	modeTrigMatchAny ruleTriggerMode = "match_any"
-	modeTrigMatchAll ruleTriggerMode = "match_all"
-)
+//const (
+// modeTrigMatchAny ruleTriggerMode = "match_any"
+// modeTrigMatchAll ruleTriggerMode = "match_all"
+//)
 
 const (
 	localRuleName   = "local"
@@ -131,7 +131,7 @@ type playerLastSeen struct {
 type playerDefinition struct {
 	Attributes []string       `json:"attributes"`
 	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
-	SteamId    interface{}    `json:"steamid"`
+	SteamID    interface{}    `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
 }
