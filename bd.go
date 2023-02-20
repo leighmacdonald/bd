@@ -7,6 +7,7 @@ import (
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/ui"
+	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
@@ -44,11 +45,10 @@ type BD struct {
 	triggerUpdate      chan any
 	lastUpdate         time.Time
 	cache              localCache
-	markFn             MarkFunc
+	markFn             model.MarkFunc
 }
-type MarkFunc func(sid64 steamid.SID64, reason string) error
 
-func New(ctx context.Context, settings *model.Settings, store dataStore, rules *RulesEngine, markFn MarkFunc) BD {
+func New(ctx context.Context, settings *model.Settings, store dataStore, rules *RulesEngine) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -174,7 +174,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 				})
 			}
 			log.Printf("Updated %d profiles\n", len(queuedUpdates))
-			client := &http.Client{}
+			httpClient := &http.Client{}
 			wg := &sync.WaitGroup{}
 			var errorCount int32 = 0
 			for _, update := range avatarUpdates {
@@ -191,7 +191,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 							}
 						}
 					}
-					if !errors.Is(errCache, ErrCacheExpired) {
+					if errCache != nil && !errors.Is(errCache, ErrCacheExpired) {
 						log.Printf("unexpected cache error: %v\n", errCache)
 						return
 					}
@@ -203,7 +203,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 						atomic.AddInt32(&errorCount, 1)
 						return
 					}
-					resp, respErr := client.Do(req)
+					resp, respErr := httpClient.Do(req)
 					if respErr != nil {
 						log.Printf("Failed to download avatar: %v", respErr)
 						atomic.AddInt32(&errorCount, 1)
@@ -322,7 +322,7 @@ func (bd *BD) eventHandler() {
 				ep = append(ep, ps)
 			}
 			bd.players = ep
-			if isNew || time.Now().Sub(ps.UpdatedOn) > time.Hour {
+			if isNew || time.Since(ps.UpdatedOn) > time.Hour {
 				bd.profileUpdateQueue <- evt.PlayerSID
 			}
 			bd.triggerUpdate <- true
@@ -360,9 +360,31 @@ func (bd *BD) launchGameAndWait() {
 }
 
 func (bd *BD) AttachGui(gui ui.UserInterface) {
-	gui.OnLaunchTF2(func() {
+	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
 	})
+	gui.SetOnMark(func(sid64 steamid.SID64, attrs []string) error {
+		name := ""
+		for _, player := range bd.players {
+			if player.SteamId == sid64 {
+				name = player.Name
+				break
+			}
+		}
+		if errMark := bd.rules.Mark(MarkOpts{
+			steamId:    sid64,
+			attributes: attrs,
+			proof:      nil,
+			name:       name,
+		}); errMark != nil {
+			return errMark
+		}
+		//bd.rules.rulesLists[0]
+		return nil
+	})
+
+	gui.SetOnKick(bd.callVote)
+
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }
@@ -452,9 +474,21 @@ func (bd *BD) checkPlayerStates() {
 
 }
 
+func (bd *BD) connectRcon() error {
+	if bd.rconConnection != nil {
+		logClose(bd.rconConnection)
+	}
+	conn, errConn := rcon.Dial(bd.ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password(), time.Second*5)
+	if errConn != nil {
+		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
+	}
+	bd.rconConnection = conn
+	return nil
+}
+
 func (bd *BD) partyLog(fmtStr string, args ...any) error {
-	if bd.rconConnection == nil {
-		return errRconDisconnected
+	if errConn := bd.connectRcon(); errConn != nil {
+		return errConn
 	}
 	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("say_party %s", fmt.Sprintf(fmtStr, args...)))
 	if errExec != nil {
@@ -464,8 +498,8 @@ func (bd *BD) partyLog(fmtStr string, args ...any) error {
 }
 
 func (bd *BD) callVote(userId int64) error {
-	if bd.rconConnection == nil {
-		return errRconDisconnected
+	if errConn := bd.connectRcon(); errConn != nil {
+		return errConn
 	}
 	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick %d", userId))
 	if errExec != nil {
@@ -475,6 +509,9 @@ func (bd *BD) callVote(userId int64) error {
 }
 
 func (bd *BD) Shutdown() {
+	if bd.rconConnection != nil {
+		logClose(bd.rconConnection)
+	}
 	// Ensure we save on exit
 	playerListFile, playerListFileErr := os.Create(bd.settings.LocalPlayerListPath())
 	if playerListFileErr != nil {
@@ -503,5 +540,6 @@ func (bd *BD) start() {
 	go bd.eventHandler()
 	go bd.profileUpdater(time.Second * 10)
 	go bd.uiStateUpdater()
+	go bd.discordPresence()
 	<-bd.ctx.Done()
 }

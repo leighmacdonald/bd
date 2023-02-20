@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+type MarkFunc func(sid64 steamid.SID64, attrs []string) error
+
+type KickFunc func(userId int64) error
+
 type ServerState struct {
 	ServerName string
 	CurrentMap string

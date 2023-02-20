@@ -13,6 +13,7 @@ var (
 
 type rconConnection interface {
 	Exec(command string) (string, error)
+	Close() error
 }
 
 func parseLobbyPlayers(body string) []model.PlayerState {

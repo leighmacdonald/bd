@@ -6,7 +6,6 @@ import (
 	"github.com/leighmacdonald/bd/model"
 	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"log"
@@ -62,9 +61,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	bd := New(ctx, &settings, store, rulesEngine, func(sid64 steamid.SID64, reason string) error {
-		return nil
-	})
+	bd := New(ctx, &settings, store, rulesEngine)
+
 	gui := ui.New(ctx, &settings)
 	defer bd.Shutdown()
 	bd.AttachGui(gui)

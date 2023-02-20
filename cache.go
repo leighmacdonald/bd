@@ -81,7 +81,7 @@ func (cache fsCache) Get(ct cacheType, key string, receiver io.Writer) error {
 	if errStat != nil {
 		return ErrCacheExpired
 	}
-	if time.Now().Sub(stat.ModTime()) > cache.maxAge {
+	if time.Since(stat.ModTime()) > cache.maxAge {
 		return ErrCacheExpired
 	}
 	_, errCopy := io.Copy(receiver, of)

@@ -5,10 +5,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/pkg/errors"
 	"log"
 	"net/url"
 	"sort"
@@ -80,7 +82,6 @@ func generateExternalLinksMenu(steamId steamid.SID64, links []model.LinkConfig, 
 				u = fmt.Sprintf(u, clsSteamId.Int64())
 			default:
 				log.Printf("Got unhandled steamid format, trying steam64: %v", clsLinkValue.IdFormat)
-				break
 			}
 			ul, urlErr := url.Parse(u)
 			if urlErr != nil {
@@ -108,7 +109,7 @@ func generateExternalLinksMenu(steamId steamid.SID64, links []model.LinkConfig, 
 
 const newItemLabel = "New..."
 
-func generateAttributeMenu(sid64 steamid.SID64, knownAttributes []string) *fyne.Menu {
+func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []string) *fyne.Menu {
 	mkAttr := func(attrName string) func() {
 		clsAttribute := attrName
 		clsSteamId := sid64
@@ -123,8 +124,30 @@ func generateAttributeMenu(sid64 steamid.SID64, knownAttributes []string) *fyne.
 	for _, mi := range knownAttributes {
 		attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(mi, mkAttr(mi)))
 	}
+	entry := widget.NewEntry()
+	entry.Validator = func(s string) error {
+		if s == "" {
+			return errors.New("Empty attribute name")
+		}
+		for _, knownAttr := range knownAttributes {
+			if strings.EqualFold(knownAttr, s) {
+				return errors.New("Duplicate attribute name")
+			}
+		}
+		return nil
+	}
+	fi := widget.NewFormItem("Attribute Name", entry)
+
 	attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
-		log.Printf("Make new attr...\n")
+		w := dialog.NewForm("Mark with custom attribute", "Confirm", "Dismiss", []*widget.FormItem{fi}, func(b bool) {
+			if b {
+				log.Printf("item: %v\n", b)
+				if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
+					log.Printf("Failed to mark player: %v\n", errMark)
+				}
+			}
+		}, ui.rootWindow)
+		w.Show()
 	}))
 	attrMenu.Refresh()
 	return attrMenu
@@ -148,11 +171,36 @@ func (ui *Ui) generateSteamIdMenu(steamId steamid.SID64) *fyne.Menu {
 	return m
 }
 
-func (ui *Ui) generateUserMenu(steamId steamid.SID64) *fyne.Menu {
+func (ui *Ui) generateKickMenu(userId int64) *fyne.Menu {
+	m := fyne.NewMenu("Call Vote",
+		fyne.NewMenuItem("Kick", func() {
+			log.Printf("Kicking user_id %d (cheating)\n", userId)
+			if errKick := ui.kickFn(userId); errKick != nil {
+				log.Printf("Error trying to call kick: %v\n", errKick)
+			}
+		}),
+	)
+	return m
+}
+
+func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 	menu := fyne.NewMenu("User Actions",
-		&fyne.MenuItem{ChildMenu: generateAttributeMenu(steamId, ui.knownAttributes), Label: "Mark As..."},
-		&fyne.MenuItem{ChildMenu: generateExternalLinksMenu(steamId, ui.baseSettings.GetLinks(), ui.application.OpenURL), Label: "Open External..."},
-		&fyne.MenuItem{ChildMenu: ui.generateSteamIdMenu(steamId), Label: "Copy SteamID..."},
+		&fyne.MenuItem{
+			Icon:      theme.CheckButtonCheckedIcon(),
+			ChildMenu: ui.generateKickMenu(userId),
+			Label:     "Call Vote..."},
+		&fyne.MenuItem{
+			Icon:      theme.ZoomFitIcon(),
+			ChildMenu: ui.generateAttributeMenu(steamId, ui.knownAttributes),
+			Label:     "Mark As..."},
+		&fyne.MenuItem{
+			Icon:      theme.SearchIcon(),
+			ChildMenu: generateExternalLinksMenu(steamId, ui.baseSettings.GetLinks(), ui.application.OpenURL),
+			Label:     "Open External..."},
+		&fyne.MenuItem{
+			Icon:      theme.ContentCopyIcon(),
+			ChildMenu: ui.generateSteamIdMenu(steamId),
+			Label:     "Copy SteamID..."},
 	)
 	return menu
 }
@@ -208,7 +256,7 @@ func (ui *Ui) createPlayerList() *PlayerList {
 			lowerContainer := rootContainer.Objects[1].(*fyne.Container)
 
 			btn := upperContainer.Objects[1].(*menuButton)
-			btn.menu = ui.generateUserMenu(ps.SteamId)
+			btn.menu = ui.generateUserMenu(ps.SteamId, ps.UserId)
 			btn.menu.Refresh()
 			if ps.Avatar != nil {
 				btn.Icon = ps.Avatar

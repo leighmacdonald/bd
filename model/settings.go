@@ -65,17 +65,18 @@ type Settings struct {
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	SteamRoot string `yaml:"steam_root"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	TF2Root              string             `yaml:"tf2_root"`
-	ApiKey               string             `yaml:"api_key"`
-	DisconnectedTimeout  string             `yaml:"disconnected_timeout"`
-	KickerEnabled        bool               `yaml:"kicker_enabled"`
-	ChatWarningsEnabled  bool               `yaml:"chat_warnings_enabled"`
-	PartyWarningsEnabled bool               `yaml:"party_warnings_enabled"`
-	Lists                []ListConfig       `yaml:"lists"`
-	Links                []LinkConfig       `yaml:"links"`
-	SteamId              string             `yaml:"steam_id"`
-	RconMode             rconMode           `yaml:"rcon_mode"`
-	Rcon                 rconConfigProvider `yaml:"-"`
+	TF2Root                string             `yaml:"tf2_root"`
+	ApiKey                 string             `yaml:"api_key"`
+	DisconnectedTimeout    string             `yaml:"disconnected_timeout"`
+	DiscordPresenceEnabled bool               `yaml:"discord_presence_enabled"`
+	KickerEnabled          bool               `yaml:"kicker_enabled"`
+	ChatWarningsEnabled    bool               `yaml:"chat_warnings_enabled"`
+	PartyWarningsEnabled   bool               `yaml:"party_warnings_enabled"`
+	Lists                  []ListConfig       `yaml:"lists"`
+	Links                  []LinkConfig       `yaml:"links"`
+	SteamId                string             `yaml:"steam_id"`
+	RconMode               rconMode           `yaml:"rcon_mode"`
+	Rcon                   rconConfigProvider `yaml:"-"`
 }
 
 func (s *Settings) GetSteamId() steamid.SID64 {
@@ -107,15 +108,16 @@ func (s *Settings) GetLinks() []LinkConfig {
 }
 func NewSettings() Settings {
 	settings := Settings{
-		RWMutex:              &sync.RWMutex{},
-		configPath:           "",
-		SteamRoot:            platform.DefaultSteamRoot,
-		TF2Root:              platform.DefaultTF2Root,
-		ApiKey:               "",
-		DisconnectedTimeout:  "60s",
-		KickerEnabled:        false,
-		ChatWarningsEnabled:  false,
-		PartyWarningsEnabled: true,
+		RWMutex:                &sync.RWMutex{},
+		configPath:             "",
+		SteamRoot:              platform.DefaultSteamRoot,
+		TF2Root:                platform.DefaultTF2Root,
+		ApiKey:                 "",
+		DisconnectedTimeout:    "60s",
+		DiscordPresenceEnabled: true,
+		KickerEnabled:          false,
+		ChatWarningsEnabled:    false,
+		PartyWarningsEnabled:   true,
 		Lists: []ListConfig{
 			{
 				ListType: "tf2bd_playerlist",
@@ -196,7 +198,7 @@ func NewSettings() Settings {
 		},
 		SteamId:  "",
 		RconMode: rconModeRandom,
-		Rcon:     newRconConfig(true),
+		Rcon:     newRconConfig(false),
 	}
 	return settings
 }
@@ -211,6 +213,7 @@ func (s *Settings) ReadDefaultOrCreate() error {
 		log.Printf("Creating new config file with defaults")
 		return s.Save()
 	}
+	s.Rcon = newRconConfig(s.RconMode == rconModeStatic)
 	return errRead
 }
 

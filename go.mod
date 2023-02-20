@@ -6,12 +6,14 @@ require (
 	fyne.io/fyne/v2 v2.3.1
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
+	github.com/hugolgst/rich-go v0.0.0-20210925091458-d59fb695d9c0
 	github.com/jeandeaual/go-locale v0.0.0-20220711133428-7de61946b173
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/leighmacdonald/golib v1.1.0
 	github.com/leighmacdonald/rcon v1.0.10
 	github.com/leighmacdonald/steamid/v2 v2.2.0
 	github.com/leighmacdonald/steamweb v0.0.4
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/nxadm/tail v1.4.8
@@ -21,7 +23,6 @@ require (
 	golang.org/x/text v0.7.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.20.4
 )
 
 require (
@@ -76,6 +77,7 @@ require (
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	honnef.co/go/js/dom v0.0.0-20221001195520-26252dedbe70 // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect
@@ -85,6 +87,7 @@ require (
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/opt v0.1.3 // indirect
+	modernc.org/sqlite v1.20.4 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.1.0 // indirect
 )
