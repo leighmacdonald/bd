@@ -114,7 +114,10 @@ func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []strin
 		clsAttribute := attrName
 		clsSteamId := sid64
 		return func() {
-			log.Printf("marked %d as %s", clsSteamId, clsAttribute)
+			log.Printf("marking %d as %s", clsSteamId, clsAttribute)
+			if errMark := ui.markFn(sid64, []string{clsAttribute}); errMark != nil {
+				log.Printf("Failed to mark player: %v\n", errMark)
+			}
 		}
 	}
 	attrMenu := fyne.NewMenu("Mark As")

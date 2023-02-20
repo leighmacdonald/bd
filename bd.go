@@ -359,32 +359,38 @@ func (bd *BD) launchGameAndWait() {
 	bd.gameProcess = nil
 }
 
+func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
+	name := ""
+	for _, player := range bd.players {
+		if player.SteamId == sid64 {
+			name = player.Name
+			break
+		}
+	}
+	if errMark := bd.rules.Mark(MarkOpts{
+		steamId:    sid64,
+		attributes: attrs,
+		name:       name,
+	}); errMark != nil {
+		return errMark
+	}
+	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR, 0666)
+	if errOf != nil {
+		return errors.Wrapf(errOf, "Failed to open player list for updating")
+	}
+	defer logClose(of)
+	if errExport := bd.rules.ExportPlayers(localRuleName, of); errExport != nil {
+		return errors.Wrapf(errExport, "Failed to export player list")
+	}
+	return nil
+}
+
 func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
 	})
-	gui.SetOnMark(func(sid64 steamid.SID64, attrs []string) error {
-		name := ""
-		for _, player := range bd.players {
-			if player.SteamId == sid64 {
-				name = player.Name
-				break
-			}
-		}
-		if errMark := bd.rules.Mark(MarkOpts{
-			steamId:    sid64,
-			attributes: attrs,
-			proof:      nil,
-			name:       name,
-		}); errMark != nil {
-			return errMark
-		}
-		//bd.rules.rulesLists[0]
-		return nil
-	})
-
+	gui.SetOnMark(bd.onMark)
 	gui.SetOnKick(bd.callVote)
-
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }
