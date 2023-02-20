@@ -283,7 +283,6 @@ func (e *RulesEngine) Mark(opts MarkOpts) error {
 		SteamId: opts.steamId,
 		Proof:   opts.proof,
 	})
-	log.Printf("marked player successfully: %d\n", opts.steamId)
 	return nil
 }
 

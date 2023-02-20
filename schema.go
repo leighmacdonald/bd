@@ -51,8 +51,8 @@ func newPlayerListSchema(players ...playerDefinition) playerListSchema {
 		baseSchema: baseSchema{
 			Schema: urlPlayerSchema,
 			FileInfo: fileInfo{
-				Authors:     []string{"local"},
-				Description: "local",
+				Authors:     []string{localRuleAuthor},
+				Description: "local player list",
 				Title:       localRuleName,
 				UpdateURL:   "",
 			},
@@ -68,9 +68,9 @@ func newRuleSchema(rules ...ruleDefinition) ruleSchema {
 		baseSchema: baseSchema{
 			Schema: urlRuleSchema,
 			FileInfo: fileInfo{
-				Authors:     []string{"local"},
+				Authors:     []string{localRuleAuthor},
 				Description: "local",
-				Title:       "local",
+				Title:       localRuleName,
 				UpdateURL:   "",
 			},
 		},

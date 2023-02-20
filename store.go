@@ -98,19 +98,19 @@ func (store *sqliteStore) Init() error {
 }
 
 func (store *sqliteStore) SaveName(ctx context.Context, steamId steamid.SID64, name string) error {
-	const query = `INSERT INTO player_names (steam_id, name) VALUES (?, ?)`
-	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), name); errExec != nil {
+	const query = `INSERT INTO player_names (steam_id, name, created_on) VALUES (?, ?, ?)`
+	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), name, time.Now()); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
 }
 
 func (store *sqliteStore) SaveMessage(ctx context.Context, steamId steamid.SID64, message string) error {
-	const query = `INSERT INTO player_messages (steam_id, message) VALUES (?, ?)`
+	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?)`
 	if message == "" {
 		return nil
 	}
-	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), message); errExec != nil {
+	if _, errExec := store.db.ExecContext(ctx, query, steamId.Int64(), message, time.Now()); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
@@ -208,8 +208,9 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steami
 		FROM player p
 		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
 		WHERE p.steam_id = ? 
-		ORDER BY p.created_on DESC
+		ORDER BY pn.created_on DESC
 		LIMIT 1`
+
 	var prevName *string
 	rowErr := store.db.
 		QueryRow(query, steamId).
