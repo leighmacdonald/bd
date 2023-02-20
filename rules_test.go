@@ -26,12 +26,12 @@ func genTestRules() ruleSchema {
 				Actions: ruleActions{
 					Mark: []string{"cheater"},
 				},
-				Description: "contains test",
+				Description: "contains test ci",
 				Triggers: ruleTriggers{
 					UsernameTextMatch: &ruleTriggerNameMatch{
 						CaseSensitive: false,
 						Mode:          textMatchModeContains,
-						Patterns:      []string{"MYG)T"},
+						Patterns:      []string{"test_contains_value_ci"},
 					},
 				},
 			},
@@ -39,12 +39,37 @@ func genTestRules() ruleSchema {
 				Actions: ruleActions{
 					Mark: []string{"cheater"},
 				},
-				Description: "cs equals test",
+				Description: "contains test cs",
+				Triggers: ruleTriggers{
+					UsernameTextMatch: &ruleTriggerNameMatch{
+						CaseSensitive: true,
+						Mode:          textMatchModeContains,
+						Patterns:      []string{"test_contains_value_CS"},
+					},
+				},
+			},
+			{
+				Actions: ruleActions{
+					Mark: []string{"cheater"},
+				},
+				Description: "regex name match test",
+				Triggers: ruleTriggers{
+					UsernameTextMatch: &ruleTriggerNameMatch{
+						Mode:     textMatchModeRegex,
+						Patterns: []string{"name_regex_test$"},
+					},
+				},
+			},
+			{
+				Actions: ruleActions{
+					Mark: []string{"cheater"},
+				},
+				Description: "equality test cs",
 				Triggers: ruleTriggers{
 					ChatMsgTextMatch: &ruleTriggerTextMatch{
 						CaseSensitive: true,
 						Mode:          textMatchModeEqual,
-						Patterns:      []string{"CS Equal String"},
+						Patterns:      []string{"test_equal_value_CS"},
 					},
 				},
 			},
@@ -52,12 +77,12 @@ func genTestRules() ruleSchema {
 				Actions: ruleActions{
 					Mark: []string{"cheater"},
 				},
-				Description: "ci equals test",
+				Description: "equality test ci",
 				Triggers: ruleTriggers{
 					ChatMsgTextMatch: &ruleTriggerTextMatch{
 						CaseSensitive: false,
 						Mode:          textMatchModeEqual,
-						Patterns:      []string{"Ci equal String"},
+						Patterns:      []string{"test_equal_value_CI"},
 					},
 				},
 			},
@@ -66,39 +91,46 @@ func genTestRules() ruleSchema {
 
 }
 
-func TestTextRules(t *testing.T) {
+const customListTitle = "Custom List"
+
+func TestSteamRules(t *testing.T) {
 	const testSteamId = 76561197961279983
-	const customListTitle = "Custom List"
-	tr := genTestRules()
+	re, _ := newRulesEngine(nil, nil)
+	re.registerSteamIdMatcher(newSteamIdMatcher(customListTitle, testSteamId))
+	steamMatch := re.matchSteam(testSteamId)
+	require.NotNil(t, steamMatch, "Failed to match steamid")
+	require.Equal(t, customListTitle, steamMatch.origin)
+	require.Nil(t, re.matchSteam(testSteamId+1), "Matched invalid steamid")
+}
+
+func TestTextRules(t *testing.T) {
 	re, reErr := newRulesEngine(nil, nil)
 	require.NoError(t, reErr)
-
+	tr := genTestRules()
 	require.NoError(t, re.ImportRules(&tr))
-	re.registerSteamIdMatcher(newSteamIdMatcher(customListTitle, testSteamId))
+
 	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, "test", "blah"))
 
-	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeName, `^test`)
+	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, `^test.+?`)
 	require.NoError(t, eRm)
 	re.registerTextMatcher(rm)
 
 	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, `^t\s\x\t`)
 	require.Error(t, badRegex)
 
-	require.EqualValues(t, &ruleMatchResult{origin: customListTitle}, re.matchSteam(testSteamId))
-	require.Nil(t, re.matchSteam(testSteamId+100))
-
 	testCases := []struct {
 		mt      textMatchType
 		text    string
 		matched bool
 	}{
-		{mt: textMatchTypeName, text: "**MYG)T**", matched: true},
-		{mt: textMatchTypeName, text: "**myG)T**", matched: true},
-		{mt: textMatchTypeMessage, text: "**myG)T**", matched: false},
-		{mt: textMatchTypeName, text: "test", matched: true},
-		{mt: textMatchTypeMessage, text: "Ci EqUaL String", matched: true},
-		{mt: textMatchTypeMessage, text: "CS Equal String", matched: true},
-		{mt: textMatchTypeMessage, text: "CS EqUaL StRing", matched: false},
+		{mt: textMatchTypeName, text: "** test_Contains_value_cI **", matched: true},
+		{mt: textMatchTypeName, text: "** test_contains_value_CS **", matched: true},
+		{mt: textMatchTypeName, text: "blah_name_regex_test", matched: true},
+		{mt: textMatchTypeName, text: "Uncle Dane", matched: false},
+		{mt: textMatchTypeMessage, text: "test_equal_value_CS", matched: true},
+		{mt: textMatchTypeMessage, text: "test_Equal_value_cI", matched: true},
+		{mt: textMatchTypeMessage, text: "test_regex", matched: true},
+		{mt: textMatchTypeMessage, text: "A sample ok message", matched: false},
 	}
 
 	for num, tc := range testCases {

@@ -423,7 +423,10 @@ func (e *RulesEngine) matchTextType(text string, matchType textMatchType) *ruleM
 		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
 			continue
 		}
-		return matcher.Match(text)
+		match := matcher.Match(text)
+		if match != nil {
+			return match
+		}
 	}
 	return nil
 }

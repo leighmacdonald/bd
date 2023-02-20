@@ -13,7 +13,16 @@ import (
 
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
 
-type KickFunc func(userId int64) error
+type KickReason string
+
+const (
+	KickReasonIdle     KickReason = "idle"
+	KickReasonScamming KickReason = "scamming"
+	KickReasonCheating KickReason = "cheating"
+	KickReasonOther    KickReason = "other"
+)
+
+type KickFunc func(userId int64, reason KickReason) error
 
 type ServerState struct {
 	ServerName string

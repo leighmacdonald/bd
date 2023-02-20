@@ -20,7 +20,7 @@ import (
 var migrations embed.FS
 
 type dataStore interface {
-	Close()
+	Close() error
 	Connect() error
 	Init() error
 	SaveName(ctx context.Context, steamId steamid.SID64, name string) error
@@ -40,13 +40,14 @@ func newSqliteStore(dsn string) *sqliteStore {
 	return &sqliteStore{dsn: dsn}
 }
 
-func (store *sqliteStore) Close() {
+func (store *sqliteStore) Close() error {
 	if store.db == nil {
-		return
+		return nil
 	}
 	if errClose := store.db.Close(); errClose != nil {
-		log.Printf("Failed to Close database: %v\n", errClose)
+		return errors.Wrapf(errClose, "Failed to Close database\n")
 	}
+	return nil
 }
 
 func (store *sqliteStore) Connect() error {
@@ -115,67 +116,107 @@ func (store *sqliteStore) SaveMessage(ctx context.Context, steamId steamid.SID64
 	return nil
 }
 
-func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerState) error {
-	if !state.SteamId.Valid() {
-		return errors.New("Invalid steam id")
-	}
-	// TODO sqlite replace is a bit odd, but maybe worth investigation eventually
-	const insertQuery = `INSERT INTO player (
+func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerState) error {
+	const insertQuery = `
+		INSERT INTO player (
                     steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, vacBans, 
                     kills_on, deaths_by, rage_quits, created_on, updated_on) 
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	const updateQuery = `UPDATE player SET visibility = ?, real_name = ?, account_created_on = ?, avatar_hash = ?, community_banned = ?,
-                  vacBans = ?, kills_on = ?, deaths_by = ?, rage_quits = ?, updated_on = ? where steam_id = ?`
-	if state.Dangling {
-		if _, errExec := store.db.ExecContext(
-			ctx,
-			insertQuery,
-			state.SteamId.Int64(),
-			state.Visibility,
-			state.RealName,
-			state.AccountCreatedOn,
-			state.AvatarHash,
-			state.CommunityBanned,
-			state.NumberOfVACBans,
-			state.KillsOn,
-			state.DeathsBy,
-			state.RageQuits,
-			state.CreatedOn,
-			state.UpdatedOn,
-		); errExec != nil {
-			return errors.Wrap(errExec, "Could not save player state")
-		}
-		state.Dangling = false
-	} else {
-		state.UpdatedOn = time.Now()
-		_, errExec := store.db.ExecContext(ctx, updateQuery, state.Visibility,
-			state.RealName,
-			state.AccountCreatedOn,
-			state.AvatarHash,
-			state.CommunityBanned,
-			state.NumberOfVACBans,
-			state.KillsOn,
-			state.DeathsBy,
-			state.RageQuits,
-			state.UpdatedOn,
-			state.SteamId.Int64())
-		if errExec != nil {
-			return errors.Wrap(errExec, "Could not update player state")
-		}
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, errExec := store.db.ExecContext(
+		ctx,
+		insertQuery,
+		state.SteamId.Int64(),
+		state.Visibility,
+		state.RealName,
+		state.AccountCreatedOn,
+		state.AvatarHash,
+		state.CommunityBanned,
+		state.NumberOfVACBans,
+		state.KillsOn,
+		state.DeathsBy,
+		state.RageQuits,
+		state.CreatedOn,
+		state.UpdatedOn,
+	); errExec != nil {
+		return errors.Wrap(errExec, "Could not save player state")
+	}
+	state.Dangling = false
+	return nil
+}
+
+func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerState) error {
+	const updateQuery = `
+		UPDATE player 
+		SET visibility = ?, 
+		    real_name = ?, 
+		    account_created_on = ?, 
+		    avatar_hash = ?, 
+		    community_banned = ?,
+            vacBans = ?,
+            kills_on = ?, 
+            deaths_by = ?, 
+            rage_quits = ?, 
+            updated_on = ? 
+		WHERE steam_id = ?`
+
+	state.UpdatedOn = time.Now()
+	_, errExec := store.db.ExecContext(
+		ctx,
+		updateQuery,
+		state.Visibility,
+		state.RealName,
+		state.AccountCreatedOn,
+		state.AvatarHash,
+		state.CommunityBanned,
+		state.NumberOfVACBans,
+		state.KillsOn,
+		state.DeathsBy,
+		state.RageQuits,
+		state.UpdatedOn,
+		state.SteamId.Int64())
+	if errExec != nil {
+		return errors.Wrap(errExec, "Could not update player state")
 	}
 	return nil
 }
 
+func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerState) error {
+	if !state.SteamId.Valid() {
+		return errors.New("Invalid steam id")
+	}
+	if state.Dangling {
+		return store.insertPlayer(ctx, state)
+	}
+	return store.updatePlayer(ctx, state)
+}
+
 func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamId steamid.SID64, player *model.PlayerState) error {
 	const query = `
-		SELECT p.kills_on, p.deaths_by, p.created_on, p.updated_on, 
-		        coalesce((SELECT name FROM player_names n WHERE p.steam_id = n.steam_id ORDER BY created_on DESC LIMIT 1), '') as last_name
+		SELECT 
+		    p.visibility, 
+		    p.real_name, 
+		    p.account_created_on, 
+		    p.avatar_hash, 
+		    p.community_banned, 
+		    p.vacBans, 
+		    p.kills_on, 
+		    p.deaths_by, 
+		    p.rage_quits,
+		    p.created_on,
+		    p.updated_on, 
+			pn.name
 		FROM player p
-		WHERE steam_id = ?`
+		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
+		WHERE p.steam_id = ? 
+		ORDER BY p.created_on DESC
+		LIMIT 1`
 	var prevName *string
 	rowErr := store.db.
 		QueryRow(query, steamId).
-		Scan(&player.KillsOn, &player.DeathsBy, &player.CreatedOn, &player.UpdatedOn, &prevName)
+		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
+			&player.CommunityBanned, &player.NumberOfVACBans, &player.KillsOn, &player.DeathsBy,
+			&player.RageQuits,
+			&player.CreatedOn, &player.UpdatedOn, &prevName)
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr
@@ -215,7 +256,7 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamId steamid.SID64)
 	return hist, nil
 }
 func (store *sqliteStore) FetchMessages(ctx context.Context, steamId steamid.SID64) ([]model.UserMessage, error) {
-	const query = `SELECT message_id, message, created_on FROM player_messages where steam_id = ?`
+	const query = `SELECT message_id, message, created_on FROM player_messages WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamId.Int64())
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {

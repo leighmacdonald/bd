@@ -176,13 +176,36 @@ func (ui *Ui) generateSteamIdMenu(steamId steamid.SID64) *fyne.Menu {
 
 func (ui *Ui) generateKickMenu(userId int64) *fyne.Menu {
 	m := fyne.NewMenu("Call Vote",
-		fyne.NewMenuItem("Kick", func() {
-			log.Printf("Kicking user_id %d (cheating)\n", userId)
-			if errKick := ui.kickFn(userId); errKick != nil {
-				log.Printf("Error trying to call kick: %v\n", errKick)
-			}
-		}),
+		&fyne.MenuItem{
+			Label: "Cheating",
+			Action: func() {
+				if errKick := ui.kickFn(userId, model.KickReasonCheating); errKick != nil {
+					log.Printf("Error trying to call kick: %v\n", errKick)
+				}
+			}},
+		&fyne.MenuItem{
+			Label: "Idle",
+			Action: func() {
+				if errKick := ui.kickFn(userId, model.KickReasonIdle); errKick != nil {
+					log.Printf("Error trying to call kick: %v\n", errKick)
+				}
+			}},
+		&fyne.MenuItem{
+			Label: "Scamming",
+			Action: func() {
+				if errKick := ui.kickFn(userId, model.KickReasonScamming); errKick != nil {
+					log.Printf("Error trying to call kick: %v\n", errKick)
+				}
+			}},
+		&fyne.MenuItem{
+			Label: "Other",
+			Action: func() {
+				if errKick := ui.kickFn(userId, model.KickReasonOther); errKick != nil {
+					log.Printf("Error trying to call kick: %v\n", errKick)
+				}
+			}},
 	)
+
 	return m
 }
 

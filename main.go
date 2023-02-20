@@ -60,11 +60,10 @@ func main() {
 		log.Printf("Failed to migrate database: %v\n", errMigrate)
 		os.Exit(1)
 	}
-	defer store.Close()
+	defer logClose(store)
 	bd := New(ctx, &settings, store, rulesEngine)
-
-	gui := ui.New(ctx, &settings)
 	defer bd.Shutdown()
+	gui := ui.New(ctx, &settings)
 	bd.AttachGui(gui)
 	go bd.start()
 	gui.Start()

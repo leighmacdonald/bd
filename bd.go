@@ -503,11 +503,11 @@ func (bd *BD) partyLog(fmtStr string, args ...any) error {
 	return nil
 }
 
-func (bd *BD) callVote(userId int64) error {
+func (bd *BD) callVote(userId int64, reason model.KickReason) error {
 	if errConn := bd.connectRcon(); errConn != nil {
 		return errConn
 	}
-	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick %d", userId))
+	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userId, reason))
 	if errExec != nil {
 		return errors.Wrap(errExec, "Failed to send rcon callvote")
 	}
