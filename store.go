@@ -9,7 +9,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"io"
 	"log"

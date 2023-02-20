@@ -2,7 +2,6 @@ package model
 
 import (
 	"crypto/sha1"
-	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"fyne.io/fyne/v2"

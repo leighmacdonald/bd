@@ -3,16 +3,14 @@
 package platform
 
 import (
-	"github.com/leighmacdonald/bd"
+	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 var (
@@ -45,7 +43,7 @@ func getSteamId() (steamid.SID64, error) {
 			continue
 		}
 		fp := path.Join(sr, "userdata", dirPath.Name(), "config", "localconfig.vdf")
-		if !main.exists(fp) {
+		if !golib.Exists(fp) {
 			continue
 		}
 		foundId, foundIdParse := strconv.ParseUint(dirPath.Name(), 10, 32)
@@ -69,53 +67,55 @@ func getSteamRoot() (string, error) {
 	if errSp != nil {
 		return "", errors.Wrap(errSp, "Failed to get user home steam dir")
 	}
-	if !main.exists(sp) {
+	if !golib.Exists(sp) {
 		return "", errors.Errorf("User home steam dir does not exist: %s", sp)
 	}
 	return sp, nil
 }
+func getTF2Folder() (string, error) {
+	return "", errors.New("not implemented")
+}
 
 func getHL2Path() (string, error) {
-	tf2Dir, errTF2Dir := main.getTF2Folder()
+	tf2Dir, errTF2Dir := getTF2Folder()
 	if errTF2Dir != nil {
 		return "", errTF2Dir
 	}
 	hl2Path := filepath.Join(tf2Dir, "..", "hl2.sh")
-	if !main.exists(hl2Path) {
+	if !golib.Exists(hl2Path) {
 		return "", errors.New("Failed to find hl2")
 	}
 	return hl2Path, nil
 }
 
-// On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size
-func launchTF2(rconPass string, rconPort uint16) {
-	log.Println("Launching tf2...")
-	hl2, errHl2 := getHL2Path()
-	if errHl2 != nil {
-		log.Println(errHl2)
-		return
-	}
-	args, errArgs := main.getLaunchArgs(rconPass, rconPort)
-	if errArgs != nil {
-		log.Println(errArgs)
-		return
-	}
-
-	binary := "/usr/bin/bash"
-	args = append([]string{hl2}, args...)
-	log.Printf("Calling: %s %s\n", binary, strings.Join(args, " "))
-
-	var procAttr os.ProcAttr
-	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	procAttr.Env = "TODO add steam ld paths"
-	procAttr.Dir = filepath.Dir(hl2)
-	_, errStart := os.StartProcess(binary, append([]string{binary, hl2}, args...), &procAttr)
-	if errStart != nil {
-		log.Printf("Failed to launch TF2: %v", errStart)
-	}
-}
+//// On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size
+//func launchTF2(rconPass string, rconPort uint16) {
+//	log.Println("Launching tf2...")
+//	hl2, errHl2 := getHL2Path()
+//	if errHl2 != nil {
+//		log.Println(errHl2)
+//		return
+//	}
+//	args, errArgs := getLaunchArgs(rconPass, rconPort)
+//	if errArgs != nil {
+//		log.Println(errArgs)
+//		return
+//	}
+//
+//	binary := "/usr/bin/bash"
+//	args = append([]string{hl2}, args...)
+//	log.Printf("Calling: %s %s\n", binary, strings.Join(args, " "))
+//
+//	var procAttr os.ProcAttr
+//	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+//	procAttr.Env = "TODO add steam ld paths"
+//	procAttr.Dir = filepath.Dir(hl2)
+//	_, errStart := os.StartProcess(binary, append([]string{binary, hl2}, args...), &procAttr)
+//	if errStart != nil {
+//		log.Printf("Failed to launch TF2: %v", errStart)
+//	}
+//}
 
 func init() {
 	DefaultSteamRoot = "~/.steam/steam"
-
 }
