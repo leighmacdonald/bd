@@ -20,6 +20,7 @@ import (
 	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/pkg/errors"
 	"log"
 	"net/url"
 )
@@ -71,7 +72,7 @@ func readIcon(path string) fyne.Resource {
 func New(ctx context.Context, settings *model.Settings) UserInterface {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})
-	application.SetIcon(resourceUiResourcesIconPng)
+	application.SetIcon(resourceIconPng)
 	rootWindow := application.NewWindow("BD")
 
 	ui := Ui{
@@ -226,12 +227,21 @@ func (ui *Ui) configureTray(showFunc func()) {
 	}
 }
 
+func showUserError(msg string, parent fyne.Window) {
+	d := dialog.NewError(errors.New(msg), parent)
+	d.Show()
+}
+
 func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
-		widget.NewToolbarAction(resourceUiResourcesTf2logoSvg, func() {
+		widget.NewToolbarAction(resourceTf2Png, func() {
 			log.Println("Launching game")
-			ui.launcher()
+			if !ui.baseSettings.GetSteamId().Valid() {
+				showUserError("Must configure your steamid", ui.rootWindow)
+			} else {
+				ui.launcher()
+			}
 		}),
 		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
 		//widget.NewToolbarSeparator(),

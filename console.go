@@ -23,7 +23,12 @@ func (reader *logReader) start(ctx context.Context) {
 	for {
 		select {
 		case msg := <-reader.tail.Lines:
+			if msg == nil {
+				// Happens on linux only?
+				continue
+			}
 			reader.outChan <- strings.TrimSuffix(msg.Text, "\r")
+
 		case <-ctx.Done():
 			if errStop := reader.tail.Stop(); errStop != nil {
 				log.Printf("Failed to Close tail: %v\n", errStop)

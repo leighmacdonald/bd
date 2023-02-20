@@ -98,9 +98,9 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return nil
 	}
 
-	tf2Root := ui.settings.getBoundStringDefault("TF2Root", platform.DefaultTF2Root)
-	tf2RootEntry := widget.NewEntryWithData(tf2Root)
-	tf2RootEntry.Validator = func(s string) error {
+	tf2Dir := ui.settings.getBoundStringDefault("TF2Dir", platform.DefaultTF2Root)
+	tf2RootEntry := widget.NewEntryWithData(tf2Dir)
+	validateSteamDir := func(s string) error {
 		if len(tf2RootEntry.Text) > 0 {
 			if !golib.Exists(tf2RootEntry.Text) {
 				return errors.New("Path does not exist")
@@ -112,21 +112,22 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		}
 		return nil
 	}
+	tf2RootEntry.Validator = validateSteamDir
 
-	steamRoot := ui.settings.getBoundStringDefault("SteamRoot", platform.DefaultSteamRoot)
-	steamRootEntry := widget.NewEntryWithData(steamRoot)
-	steamRootEntry.Validator = func(s string) error {
-		if len(steamRootEntry.Text) > 0 {
-			if !golib.Exists(steamRootEntry.Text) {
+	steamDir := ui.settings.getBoundStringDefault("SteamDir", platform.DefaultSteamRoot)
+	steamDirEntry := widget.NewEntryWithData(steamDir)
+	steamDirEntry.Validator = func(s string) error {
+		if len(steamDirEntry.Text) > 0 {
+			if !golib.Exists(steamDirEntry.Text) {
 				return errors.New("Path does not exist")
 			}
-			fp := filepath.Join(steamRootEntry.Text, platform.SteamRootValidationFile)
-			if !golib.Exists(fp) {
-				return errors.Errorf("Could not find %s inside, invalid steam root", platform.SteamRootValidationFile)
+			userDataDir := filepath.Join(steamDirEntry.Text, "userdata")
+			if !golib.Exists(userDataDir) {
+				return errors.New("THe userdata folder not found in steam dir")
 			}
 			if tf2RootEntry.Text == "" {
-				dp := filepath.Join(steamRootEntry.Text, "steamapps\\common\\Team Fortress 2\\tf")
-				if golib.Exists(dp) {
+				dp := filepath.Join(steamDirEntry.Text, "steamapps/common/Team Fortress 2/tf")
+				if errValid := validateSteamDir(dp); errValid == nil && golib.Exists(dp) {
 					tf2RootEntry.SetText(dp)
 				}
 			}
@@ -143,31 +144,38 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	partyWarningsEnabled := ui.settings.getBoundBoolDefault("PartyWarningsEnabled", true)
 	partyWarningsEnabledEntry := widget.NewCheckWithData("", partyWarningsEnabled)
 
+	discordPresenceEnabled := ui.settings.getBoundBoolDefault("DiscordPresenceEnabled", false)
+	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
+
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Kicker Enabled", Widget: kickerEnabledEntry},
-			{Text: "Chat Warning Enabled", Widget: chatWarningsEnabledEntry},
-			{Text: "Party Warning Enabled", Widget: partyWarningsEnabledEntry},
-			{Text: "Steam API Key", Widget: apiKeyEntry},
-			{Text: "Steam ID", Widget: steamIdEntry},
-			{Text: "Steam Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), steamRootEntry, "")},
-			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, "")},
+			{Text: "Vote Kicker", Widget: kickerEnabledEntry, HintText: "Enable vote kick functionality in-game"},
+			{Text: "Chat Warnings", Widget: chatWarningsEnabledEntry, HintText: "Show warning message using in-game chat"},
+			{Text: "Party Warnings", Widget: partyWarningsEnabledEntry, HintText: "Show lobby only warning messages"},
+			{Text: "Discord Presence", Widget: discordPresenceEnabledEntry, HintText: "Enables discord rich presence if discord is running"},
+			{Text: "Steam API Key", Widget: apiKeyEntry, HintText: "Steam web api key. https://steamcommunity.com/dev/apikey"},
+			{Text: "Steam ID", Widget: steamIdEntry, HintText: "Your steam id in any of the following formats: steam,steam3,steam32,steam64"},
+			{Text: "Steam Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), steamDirEntry, ""),
+				HintText: "Location of your steam install directory containing a userdata folder."},
+			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, ""),
+				HintText: "Path to your steamapps/common/Team Fortress 2/tf folder"},
 		},
 		OnSubmit: func() {
 			defer onClose()
-			// Update it to our preferred format
-			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
-			if errSid != nil {
-				// Should never happen? was validated previously.
-				log.Panicf("Steamid state invalid?: %v\n", errSid)
-			}
-			steamIdEntry.SetText(newSid.String())
-
 			ui.baseSettings.Lock()
+			// Update it to our preferred format
+			if steamIdEntry.Text != "" {
+				newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
+				if errSid != nil {
+					// Should never happen? was validated previously.
+					log.Panicf("Steamid state invalid?: %v\n", errSid)
+				}
+				ui.baseSettings.SteamID = newSid.String()
+				steamIdEntry.SetText(newSid.String())
+			}
 			ui.baseSettings.ApiKey = apiKeyEntry.Text
-			ui.baseSettings.SteamRoot = steamRootEntry.Text
-			ui.baseSettings.TF2Root = tf2RootEntry.Text
-			ui.baseSettings.SteamId = newSid.String()
+			ui.baseSettings.SteamDir = steamDirEntry.Text
+			ui.baseSettings.TF2Dir = tf2RootEntry.Text
 			ui.baseSettings.KickerEnabled = kickerEnabledEntry.Checked
 			ui.baseSettings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
 			ui.baseSettings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
@@ -182,6 +190,6 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	}
 
 	settingsWindow := dialog.NewCustom("Settings", "Cancel", container.NewVScroll(settingsForm), parent)
-	settingsWindow.Resize(fyne.NewSize(900, 500))
+	settingsWindow.Resize(fyne.NewSize(700, 600))
 	return settingsWindow
 }

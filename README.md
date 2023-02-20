@@ -3,7 +3,7 @@
 
 ## Development
 
-Install:
+Install os dependencies:
 
 - windows
   - golang
@@ -13,6 +13,16 @@ Install:
 
 - linux (debian/ubuntu)
   - `sudo apt-get install golang gcc libgl1-mesa-dev xorg-dev make`
+
+
+Checkout source
+
+    # New checkout
+    git clone --recurse-submodules -j8 git://github.com/leighmacdonald/bd.git
+    
+    # (or) Existing repo and/or Old git version
+    git clone git://github.com/leighmacdonald/bd.git
+    cd bd && git submodule update --init --recursive
 
 
 build

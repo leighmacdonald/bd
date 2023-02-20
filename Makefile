@@ -12,13 +12,13 @@ fmt:
 	gofmt -s -w .
 
 fonts:
-	fyne bundle --pkg ui    -o .\ui\embed_font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-Regular.ttf
-	fyne bundle --pkg ui -a -o .\ui\embed_font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-Bold.ttf
-	fyne bundle --pkg ui -a -o .\ui\embed_font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-Italic.ttf
-	fyne bundle --pkg ui -a -o .\ui\embed_font.go .\ui\resources\JetBrainsMono\fonts\ttf\JetBrainsMono-BoldItalic.ttf
-	fyne bundle --pkg ui    -o .\ui\embed_img.go .\ui\resources\default_avatar.jpg
-	fyne bundle --pkg ui -a -o .\ui\embed_img.go .\ui\resources\Icon.png
-	fyne bundle --pkg ui -a -o .\ui\embed_img.go .\ui\resources\tf2_logo.svg
+	fyne bundle --pkg ui    -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Regular.ttf
+	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Bold.ttf
+	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Italic.ttf
+	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-BoldItalic.ttf
+	fyne bundle --pkg ui    -o ./ui/embed_img.go ./ui/resources/default_avatar.jpg
+	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/Icon.png
+	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/tf2.png
 
 lint: lint_deps
 	# TODO remove `--disable unused` check once further along in development

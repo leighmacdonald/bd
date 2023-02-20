@@ -27,6 +27,8 @@ type BD struct {
 	// - estimate private steam account ages (find nearby non-private account)
 	// - "unmark" players, overriding any lists that may match
 	// - track rage quits
+	// - auto generate voice_ban.dt
+	// - install vote fail mod
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             *model.ServerState
@@ -241,7 +243,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 }
 
 func (bd *BD) createLogReader() {
-	consoleLogPath := filepath.Join(bd.settings.TF2Root, "console.log")
+	consoleLogPath := filepath.Join(bd.settings.TF2Dir, "console.log")
 	reader, errLogReader := newLogReader(consoleLogPath, bd.logChan, true)
 	if errLogReader != nil {
 		panic(errLogReader)
@@ -332,11 +334,11 @@ func (bd *BD) eventHandler() {
 
 func (bd *BD) launchGameAndWait() {
 	log.Println("Launching tf2...")
-	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Root), platform.BinaryName)
+	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Dir), platform.BinaryName)
 	args, errArgs := getLaunchArgs(
 		bd.settings.Rcon.Password(),
 		bd.settings.Rcon.Port(),
-		bd.settings.SteamRoot,
+		bd.settings.SteamDir,
 		bd.settings.GetSteamId())
 	if errArgs != nil {
 		log.Println(errArgs)

@@ -62,10 +62,12 @@ type Settings struct {
 	*sync.RWMutex `yaml:"-"`
 	// Path to config used when reading settings
 	configPath string `yaml:"-"`
+	SteamID    string `yaml:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
-	SteamRoot string `yaml:"steam_root"`
+	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
+	SteamDir string `yaml:"steam_dir"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	TF2Root                string             `yaml:"tf2_root"`
+	TF2Dir                 string             `yaml:"tf2_dir"`
 	ApiKey                 string             `yaml:"api_key"`
 	DisconnectedTimeout    string             `yaml:"disconnected_timeout"`
 	DiscordPresenceEnabled bool               `yaml:"discord_presence_enabled"`
@@ -74,18 +76,17 @@ type Settings struct {
 	PartyWarningsEnabled   bool               `yaml:"party_warnings_enabled"`
 	Lists                  []ListConfig       `yaml:"lists"`
 	Links                  []LinkConfig       `yaml:"links"`
-	SteamId                string             `yaml:"steam_id"`
 	RconMode               rconMode           `yaml:"rcon_mode"`
 	Rcon                   rconConfigProvider `yaml:"-"`
 }
 
 func (s *Settings) GetSteamId() steamid.SID64 {
-	v, err := steamid.StringToSID64(s.SteamId)
+	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
 		log.Printf("Failed to parse stored steam id: %v\n", err)
 		return 0
 	}
-	return v
+	return value
 }
 
 func (s *Settings) AddList(config ListConfig) error {
@@ -110,8 +111,8 @@ func NewSettings() Settings {
 	settings := Settings{
 		RWMutex:                &sync.RWMutex{},
 		configPath:             "",
-		SteamRoot:              platform.DefaultSteamRoot,
-		TF2Root:                platform.DefaultTF2Root,
+		SteamDir:               platform.DefaultSteamRoot,
+		TF2Dir:                 platform.DefaultTF2Root,
 		ApiKey:                 "",
 		DisconnectedTimeout:    "60s",
 		DiscordPresenceEnabled: true,
@@ -196,7 +197,7 @@ func NewSettings() Settings {
 				IdFormat: "steam64",
 			},
 		},
-		SteamId:  "",
+		SteamID:  "",
 		RconMode: rconModeRandom,
 		Rcon:     newRconConfig(false),
 	}

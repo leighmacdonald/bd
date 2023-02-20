@@ -10,18 +10,18 @@ type bdTheme struct{}
 
 func (bdTheme) Font(s fyne.TextStyle) fyne.Resource {
 	if s.Monospace {
-		return resourceUiResourcesJetBrainsMonoFontsTtfJetBrainsMonoRegularTtf
+		return resourceJetBrainsMonoRegularTtf
 	}
 	if s.Bold {
 		if s.Italic {
-			return resourceUiResourcesJetBrainsMonoFontsTtfJetBrainsMonoBoldItalicTtf
+			return resourceJetBrainsMonoBoldItalicTtf
 		}
-		return resourceUiResourcesJetBrainsMonoFontsTtfJetBrainsMonoBoldTtf
+		return resourceJetBrainsMonoBoldTtf
 	}
 	if s.Italic {
-		return resourceUiResourcesJetBrainsMonoFontsTtfJetBrainsMonoItalicTtf
+		return resourceJetBrainsMonoItalicTtf
 	}
-	return resourceUiResourcesJetBrainsMonoFontsTtfJetBrainsMonoRegularTtf
+	return resourceJetBrainsMonoRegularTtf
 }
 
 func (bdTheme) Color(c fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {

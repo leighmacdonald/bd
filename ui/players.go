@@ -247,7 +247,7 @@ func (ui *Ui) createPlayerList() *PlayerList {
 			lowerContainer := container.NewHBox()
 
 			menuBtn := newMenuButton(fyne.NewMenu(""))
-			menuBtn.Icon = resourceUiResourcesDefaultavatarJpg
+			menuBtn.Icon = resourceDefaultavatarJpg
 			menuBtn.IconPlacement = widget.ButtonIconTrailingText
 			menuBtn.Refresh()
 
