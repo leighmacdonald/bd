@@ -83,6 +83,22 @@ func getHL2Path() (string, error) {
 	return hl2Path, nil
 }
 
+func LaunchTF2(tf2Dir string, args []string) error {
+	hl2Path := filepath.Join(filepath.Dir(tf2Dir), platform.BinaryName)
+	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
+	if errStart != nil {
+		log.Printf("Failed to launch TF2: %v\n", errStart)
+		return
+	}
+	state, errWait := process.Wait()
+	if errWait != nil {
+		log.Printf("Error waiting for game process: %v\n", errWait)
+	} else {
+		log.Printf("Game exited: %s\n", state.String())
+	}
+	return nil
+}
+
 func init() {
 	foundSteamRoot, errFoundSteamRoot := getSteamRoot()
 	if errFoundSteamRoot == nil && golib.Exists(foundSteamRoot) {

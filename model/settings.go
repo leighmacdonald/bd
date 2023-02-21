@@ -107,6 +107,7 @@ func (s *Settings) GetLinks() []LinkConfig {
 	defer s.RUnlock()
 	return s.Links
 }
+
 func NewSettings() Settings {
 	settings := Settings{
 		RWMutex:                &sync.RWMutex{},
@@ -319,6 +320,7 @@ func (cfg rconConfig) Host() string {
 func (cfg rconConfig) Port() uint16 {
 	return cfg.port
 }
+
 func (cfg rconConfig) Password() string {
 	return cfg.password
 }

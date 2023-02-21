@@ -18,13 +18,17 @@ Install os dependencies:
 Checkout source
 
     # New checkout
-    git clone --recurse-submodules -j8 git://github.com/leighmacdonald/bd.git
+    git clone --recurse-submodules -j8 git://github.com/leighmacdonald/bd.git && cd bd
     
     # (or) Existing repo and/or Old git version
     git clone git://github.com/leighmacdonald/bd.git
     cd bd && git submodule update --init --recursive
 
 
-build
+Run it directly
     
-    make build_windows
+    go run .
+
+Or, Build it and run it.
+
+    go build && ./bd

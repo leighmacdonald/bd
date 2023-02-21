@@ -69,20 +69,17 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}
 	newArgs := []string{
-		"xx",
 		"-game", "tf",
+		"-noreactlogin", // needed for vac to load as of late 2022?
 		"-steam",
 		"-secure",
 		"-usercon",
 		"+developer", "1", "+alias", "developer",
-		"+contimes", "0", "+alias", "contimes",
 		"+ip", "0.0.0.0", "+alias", "ip",
 		"+sv_rcon_whitelist_address", "127.0.0.1",
-		"+alias", "sv_rcon_whitelist_address",
-		"+sv_quota_stringcmdspersecond", "1000000", "+alias", "sv_quota_stringcmdspersecond",
+		"+sv_quota_stringcmdspersecond", "1000000",
 		"+rcon_password", rconPass, "+alias", "rcon_password",
 		"+hostport", fmt.Sprintf("%d", rconPort), "+alias", "hostport",
-		"+alias", "cl_reload_localization_files",
 		"+net_start",
 		"+con_timestamp", "1", "+alias", "con_timestamp",
 		"-condebug",

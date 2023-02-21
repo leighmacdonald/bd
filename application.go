@@ -42,7 +42,6 @@ type BD struct {
 	settings           *model.Settings
 	store              dataStore
 	gui                ui.UserInterface
-	gameProcess        *os.Process
 	profileUpdateQueue chan steamid.SID64
 	triggerUpdate      chan any
 	lastUpdate         time.Time
@@ -333,8 +332,6 @@ func (bd *BD) eventHandler() {
 }
 
 func (bd *BD) launchGameAndWait() {
-	log.Println("Launching tf2...")
-	hl2Path := filepath.Join(filepath.Dir(bd.settings.TF2Dir), platform.BinaryName)
 	args, errArgs := getLaunchArgs(
 		bd.settings.Rcon.Password(),
 		bd.settings.Rcon.Port(),
@@ -344,21 +341,9 @@ func (bd *BD) launchGameAndWait() {
 		log.Println(errArgs)
 		return
 	}
-	var procAttr os.ProcAttr
-	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
-	if errStart != nil {
-		log.Printf("Failed to launch TF2: %v\n", errStart)
-		return
+	if errLaunch := platform.LaunchTF2(bd.settings.TF2Dir, args); errLaunch != nil {
+		log.Printf("Failed to launch game: %v\n", errLaunch)
 	}
-	bd.gameProcess = process
-	state, errWait := process.Wait()
-	if errWait != nil {
-		log.Printf("Error waiting for game process: %v\n", errWait)
-	} else {
-		log.Printf("Game exited: %s\n", state.String())
-	}
-	bd.gameProcess = nil
 }
 
 func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
