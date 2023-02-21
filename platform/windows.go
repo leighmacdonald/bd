@@ -7,16 +7,16 @@ import (
 	"github.com/leighmacdonald/golib"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
+	"log"
 	"os"
 	"path/filepath"
 )
 
 var (
-	DefaultSteamRoot        = "C:/Program Files (x86)/Steam"
-	DefaultTF2Root          = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
-	BinaryName              = "hl2.exe"
-	SteamRootValidationFile = "Steam.dll"
-	TF2RootValidationFile   = "bin/client.dll"
+	DefaultSteamRoot      = "C:/Program Files (x86)/Steam"
+	DefaultTF2Root        = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
+	BinaryName            = "hl2.exe"
+	TF2RootValidationFile = "bin/client.dll"
 )
 
 func openSteamRegistry() (registry.Key, error) {
@@ -71,24 +71,13 @@ func getTF2Folder() (string, error) {
 	return "", errors.New("TF2 install path could not be found")
 }
 
-func getHL2Path() (string, error) {
-	tf2Dir, errTF2Dir := getTF2Folder()
-	if errTF2Dir != nil {
-		return "", errTF2Dir
-	}
-	hl2Path := filepath.Join(tf2Dir, "..", "hl2.exe")
-	if !golib.Exists(hl2Path) {
-		return "", errors.New("Failed to find hl2.exe")
-	}
-	return hl2Path, nil
-}
-
 func LaunchTF2(tf2Dir string, args []string) error {
-	hl2Path := filepath.Join(filepath.Dir(tf2Dir), platform.BinaryName)
+	hl2Path := filepath.Join(filepath.Dir(tf2Dir), BinaryName)
+	var procAttr os.ProcAttr
+	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
-		log.Printf("Failed to launch TF2: %v\n", errStart)
-		return
+		return errors.Wrap(errStart, "Failed to launch TF2\n")
 	}
 	state, errWait := process.Wait()
 	if errWait != nil {
@@ -103,5 +92,9 @@ func init() {
 	foundSteamRoot, errFoundSteamRoot := getSteamRoot()
 	if errFoundSteamRoot == nil && golib.Exists(foundSteamRoot) {
 		DefaultSteamRoot = foundSteamRoot
+		tf2Dir, errTf2Dir := getTF2Folder()
+		if errTf2Dir == nil {
+			DefaultTF2Root = tf2Dir
+		}
 	}
 }
