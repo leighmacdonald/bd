@@ -29,10 +29,10 @@ var (
 type ListType string
 
 const (
-	ListTypeBD              ListType = "bd"
+	//ListTypeBD              ListType = "bd"
 	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
 	ListTypeTF2BDRules      ListType = "tf2bd_rules"
-	ListTypeUnknown         ListType = "unknown"
+	//ListTypeUnknown         ListType = "unknown"
 )
 
 type ListConfig struct {
@@ -76,8 +76,8 @@ type Settings struct {
 	PartyWarningsEnabled   bool               `yaml:"party_warnings_enabled"`
 	Lists                  []ListConfig       `yaml:"lists"`
 	Links                  []LinkConfig       `yaml:"links"`
-	RconMode               rconMode           `yaml:"rcon_mode"`
-	Rcon                   rconConfigProvider `yaml:"-"`
+	RconStatic             bool               `yaml:"rcon_static"`
+	Rcon                   RCONConfigProvider `yaml:"-"`
 }
 
 func (s *Settings) GetSteamId() steamid.SID64 {
@@ -198,9 +198,9 @@ func NewSettings() Settings {
 				IdFormat: "steam64",
 			},
 		},
-		SteamID:  "",
-		RconMode: rconModeRandom,
-		Rcon:     newRconConfig(false),
+		SteamID:    "",
+		RconStatic: false,
+		Rcon:       NewRconConfig(false),
 	}
 	return settings
 }
@@ -215,7 +215,7 @@ func (s *Settings) ReadDefaultOrCreate() error {
 		log.Printf("Creating new config file with defaults")
 		return s.Save()
 	}
-	s.Rcon = newRconConfig(s.RconMode == rconModeStatic)
+	s.Rcon = NewRconConfig(s.RconStatic)
 	return errRead
 }
 
@@ -290,38 +290,31 @@ func (s *Settings) Write(outputFile io.Writer) error {
 	return yaml.NewEncoder(outputFile).Encode(s)
 }
 
-type rconMode string
-
-const (
-	rconModeStatic rconMode = "static"
-	rconModeRandom rconMode = "random"
-)
-
 const (
 	rconDefaultHost     = "0.0.0.0"
 	rconDefaultPort     = 21212
 	rconDefaultPassword = "pazer_sux_lol"
 )
 
-type rconConfig struct {
+type RCONConfig struct {
 	address  string
 	password string
 	port     uint16
 }
 
-func (cfg rconConfig) String() string {
+func (cfg RCONConfig) String() string {
 	return fmt.Sprintf("%s:%d", cfg.address, cfg.port)
 }
 
-func (cfg rconConfig) Host() string {
+func (cfg RCONConfig) Host() string {
 	return cfg.address
 }
 
-func (cfg rconConfig) Port() uint16 {
+func (cfg RCONConfig) Port() uint16 {
 	return cfg.port
 }
 
-func (cfg rconConfig) Password() string {
+func (cfg RCONConfig) Password() string {
 	return cfg.password
 }
 
@@ -335,22 +328,22 @@ func randPort() uint16 {
 	return uint16(binary.LittleEndian.Uint64(b[:]))
 }
 
-type rconConfigProvider interface {
+type RCONConfigProvider interface {
 	String() string
 	Host() string
 	Port() uint16
 	Password() string
 }
 
-func newRconConfig(static bool) rconConfigProvider {
+func NewRconConfig(static bool) RCONConfigProvider {
 	if static {
-		return rconConfig{
+		return RCONConfig{
 			address:  rconDefaultHost,
 			port:     rconDefaultPort,
 			password: rconDefaultPassword,
 		}
 	}
-	return rconConfig{
+	return RCONConfig{
 		address:  rconDefaultHost,
 		port:     randPort(),
 		password: golib.RandomString(10),

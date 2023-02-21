@@ -144,6 +144,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 			for _, player := range existingPlayers {
 				for _, summary := range summaries {
 					if summary.Steamid == player.SteamId.String() {
+						player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
 						player.AvatarHash = summary.AvatarHash
 						player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
 						player.RealName = summary.RealName
@@ -446,6 +447,9 @@ func (bd *BD) checkPlayerStates() {
 	for _, ps := range bd.players {
 		if t0.Sub(ps.UpdatedOn) > time.Second*300 {
 			log.Printf("Player expired: %s %s", ps.SteamId.String(), ps.Name)
+			if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
+				log.Printf("Failed to save expired player state: %v\n", errSave)
+			}
 			continue
 		}
 		valid = append(valid, ps)
@@ -489,6 +493,9 @@ func (bd *BD) checkPlayerStates() {
 		//	break
 		//
 		//}
+		if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
+			log.Printf("Failed to save player state: %v\n", errSave)
+		}
 	}
 	var plState []model.PlayerState
 	for _, player := range valid {

@@ -58,8 +58,8 @@ type Ui struct {
 	launcher        func()
 	markFn          model.MarkFunc
 	kickFn          model.KickFunc
-	labelHostname   *widget.Label
-	labelMap        *widget.Label
+	labelHostname   *widget.RichText
+	labelMap        *widget.RichText
 }
 
 func New(ctx context.Context, settings *model.Settings) UserInterface {
@@ -103,10 +103,16 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 	}, func() {
 		ui.aboutDialog.Show()
 	})
+	ui.labelHostname = widget.NewRichText(
+		&widget.TextSegment{Text: "Hostname: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
+	)
+	ui.labelMap = widget.NewRichText(
+		&widget.TextSegment{Text: "Map: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
+	)
 
-	ui.labelMap = widget.NewLabel("Map: n/a")
-	ui.labelHostname = widget.NewLabel("Hostname: n/a")
-	statPanel := container.NewHBox(ui.labelHostname, ui.labelMap)
+	statPanel := container.NewHBox(ui.labelMap, ui.labelHostname)
 
 	rootWindow.SetContent(container.NewBorder(
 		toolbar,
@@ -139,9 +145,16 @@ func (ui *Ui) UpdateTitle(title string) {
 }
 
 func (ui *Ui) UpdateServerState(state model.ServerState) {
-	ui.labelHostname.SetText(fmt.Sprintf("Hostname: %s", state.ServerName))
-	ui.labelMap.SetText(fmt.Sprintf("Map: %s", state.CurrentMap))
-	//ui.labelTags.SetText(state.Tags)
+	ui.labelHostname.Segments = []widget.RichTextSegment{
+		&widget.TextSegment{Text: "Hostname: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
+	}
+	ui.labelHostname.Refresh()
+	ui.labelMap.Segments = []widget.RichTextSegment{
+		&widget.TextSegment{Text: "Map: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: state.CurrentMap, Style: widget.RichTextStyleStrong},
+	}
+	ui.labelMap.Refresh()
 }
 
 func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {

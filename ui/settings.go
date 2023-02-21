@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -147,6 +149,11 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	discordPresenceEnabled := ui.settings.getBoundBoolDefault("DiscordPresenceEnabled", false)
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
 
+	rconModeStatic := ui.settings.getBoundBoolDefault("RconStatic", false)
+	rconModeStaticEntry := widget.NewCheckWithData("", rconModeStatic)
+
+	staticConfig := model.NewRconConfig(true)
+
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Vote Kicker", Widget: kickerEnabledEntry, HintText: "Enable vote kick functionality in-game"},
@@ -159,6 +166,8 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 				HintText: "Location of your steam install directory containing a userdata folder."},
 			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, ""),
 				HintText: "Path to your steamapps/common/Team Fortress 2/tf folder"},
+			{Text: "Randomized RCON", Widget: rconModeStaticEntry,
+				HintText: fmt.Sprintf("Static: Port: %d, Password: %s", staticConfig.Port(), staticConfig.Password())},
 		},
 		OnSubmit: func() {
 			defer onClose()
@@ -179,6 +188,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 			ui.baseSettings.KickerEnabled = kickerEnabledEntry.Checked
 			ui.baseSettings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
 			ui.baseSettings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
+			ui.baseSettings.RconStatic = !rconModeStaticEntry.Checked
 			ui.baseSettings.Unlock()
 			if apiKeyOriginal != apiKeyEntry.Text {
 				if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
