@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,7 +32,7 @@ type BD struct {
 	// - install vote fail mod
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
-	server             *model.ServerState
+	server             model.ServerState
 	players            []*model.PlayerState
 	messages           []*model.UserMessage
 	ctx                context.Context
@@ -44,7 +45,6 @@ type BD struct {
 	gui                ui.UserInterface
 	profileUpdateQueue chan steamid.SID64
 	triggerUpdate      chan any
-	lastUpdate         time.Time
 	cache              localCache
 }
 
@@ -60,7 +60,6 @@ func New(ctx context.Context, settings *model.Settings, store dataStore, rules *
 		logChan:            logChan,
 		incomingLogEvents:  eventChan,
 		profileUpdateQueue: make(chan steamid.SID64),
-		lastUpdate:         time.Now(),
 		triggerUpdate:      make(chan any),
 		cache:              newFsCache(settings.ConfigRoot(), time.Hour*12),
 		logParser:          newLogParser(logChan, eventChan),
@@ -254,11 +253,42 @@ func (bd *BD) eventHandler() {
 	for {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
+		case model.EvtMap:
+			bd.server.CurrentMap = evt.MetaData
+		case model.EvtHostname:
+			bd.server.ServerName = evt.MetaData
+		case model.EvtTags:
+			bd.server.Tags = strings.Split(evt.MetaData, ",")
+			bd.gui.UpdateServerState(bd.server)
 		case model.EvtDisconnect:
 			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
 			// lag between actually removing the player from the player table.
 			log.Printf("Player disconnected: %d", evt.PlayerSID.Int64())
+		case model.EvtKill:
+			for _, p := range bd.players {
+				if p.Name == evt.Player {
+					atomic.AddInt64(&p.Kills, 1)
+					if bd.settings.GetSteamId() == p.SteamId {
+						atomic.AddInt64(&p.KillsOn, 1)
+					}
+				} else if p.Name == evt.Victim {
+					atomic.AddInt64(&p.Deaths, 1)
+					if bd.settings.GetSteamId() == p.SteamId {
+						atomic.AddInt64(&p.DeathsBy, 1)
+					}
+				}
+			}
 		case model.EvtMsg:
+			for _, p := range bd.players {
+				if p.Name == evt.Player {
+					evt.PlayerSID = p.SteamId
+					break
+				}
+			}
+			if evt.PlayerSID == 0 {
+				// We don't know the player yet.
+				continue
+			}
 			um := &model.UserMessage{
 				Team:      evt.Team,
 				Player:    evt.Player,
@@ -268,7 +298,8 @@ func (bd *BD) eventHandler() {
 				Created:   time.Now(),
 			}
 			bd.messages = append(bd.messages, um)
-			var ps *model.PlayerState
+			np := model.NewPlayerState(um.PlayerSID, um.Player)
+			ps := &np
 			isNew := true
 			for _, player := range bd.players {
 				if player.SteamId == evt.PlayerSID {
@@ -529,7 +560,7 @@ func (bd *BD) Shutdown() {
 func (bd *BD) start() {
 	go bd.logReader.start(bd.ctx)
 	defer bd.logReader.tail.Cleanup()
-	go bd.logParser.start(bd.ctx, bd.players)
+	go bd.logParser.start(bd.ctx)
 	go bd.playerStateUpdater()
 	go bd.refreshLists()
 	go bd.eventHandler()

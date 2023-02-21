@@ -17,6 +17,7 @@ type LogEvent struct {
 	Message         string
 	Team            Team
 	Timestamp       time.Time
+	MetaData        string
 }
 
 type Event struct {

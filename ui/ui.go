@@ -37,6 +37,7 @@ type UserInterface interface {
 	SetOnLaunchTF2(func())
 	SetOnMark(model.MarkFunc)
 	SetOnKick(kickFunc model.KickFunc)
+	UpdateServerState(state model.ServerState)
 	UpdateTitle(string)
 	UpdatePlayerState([]model.PlayerState)
 	UpdateAttributes([]string)
@@ -47,9 +48,9 @@ type Ui struct {
 	application     fyne.App
 	rootWindow      fyne.Window
 	chatWindow      fyne.Window
+	panelServerInfo fyne.Container
 	settingsDialog  dialog.Dialog
 	aboutDialog     dialog.Dialog
-	server          model.ServerState
 	settings        boundSettings
 	baseSettings    *model.Settings
 	playerList      *PlayerList
@@ -57,16 +58,8 @@ type Ui struct {
 	launcher        func()
 	markFn          model.MarkFunc
 	kickFn          model.KickFunc
-}
-
-func readIcon(path string) fyne.Resource {
-	r, re := fyne.LoadResourceFromPath(path)
-	if re != nil {
-		log.Println(re.Error())
-		// Fallback
-		return theme.InfoIcon()
-	}
-	return r
+	labelHostname   *widget.Label
+	labelMap        *widget.Label
 }
 
 func New(ctx context.Context, settings *model.Settings) UserInterface {
@@ -111,9 +104,13 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 		ui.aboutDialog.Show()
 	})
 
+	ui.labelMap = widget.NewLabel("Map: n/a")
+	ui.labelHostname = widget.NewLabel("Hostname: n/a")
+	statPanel := container.NewHBox(ui.labelHostname, ui.labelMap)
+
 	rootWindow.SetContent(container.NewBorder(
 		toolbar,
-		nil,
+		statPanel,
 		nil,
 		nil,
 		ui.playerList.Widget(),
@@ -139,6 +136,12 @@ func (ui *Ui) UpdateAttributes(attrs []string) {
 
 func (ui *Ui) UpdateTitle(title string) {
 	ui.rootWindow.SetTitle(title)
+}
+
+func (ui *Ui) UpdateServerState(state model.ServerState) {
+	ui.labelHostname.SetText(fmt.Sprintf("Hostname: %s", state.ServerName))
+	ui.labelMap.SetText(fmt.Sprintf("Map: %s", state.CurrentMap))
+	//ui.labelTags.SetText(state.Tags)
 }
 
 func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {

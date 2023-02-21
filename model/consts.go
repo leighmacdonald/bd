@@ -25,6 +25,7 @@ const (
 	EvtConnect
 	EvtDisconnect
 	EvtStatusId
-	EvtLobbyPlayerTeam
-	// EvtServerStatus
+	EvtHostname
+	EvtMap
+	EvtTags
 )

@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	DefaultSteamRoot      = "~/.local/steam/Steam"
-	DefaultTF2Root        = "~/.local/steam/Steam/steamapps/common/Team Fortress 2/tf"
+	DefaultSteamRoot      = "~/.local/share/steam/Steam"
+	DefaultTF2Root        = "~/.local/share/steam/Steam/steamapps/common/Team Fortress 2/tf"
 	TF2RootValidationFile = "bin/client.so"
 )
 

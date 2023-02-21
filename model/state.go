@@ -26,6 +26,7 @@ type KickFunc func(userId int64, reason KickReason) error
 type ServerState struct {
 	ServerName string
 	CurrentMap string
+	Tags       []string
 }
 
 type ProfileVisibility int
@@ -73,14 +74,14 @@ type PlayerState struct {
 	// In game user id
 	UserId int64
 
-	Kills  int
-	Deaths int
+	Kills  int64
+	Deaths int64
 
 	// The users kill count vs this player
-	KillsOn   int
-	RageQuits int
+	KillsOn   int64
+	RageQuits int64
 	// The users death count vs this player
-	DeathsBy int
+	DeathsBy int64
 	Ping     int
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int

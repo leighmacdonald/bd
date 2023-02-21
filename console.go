@@ -86,13 +86,6 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 			t := model.EventType(i)
 			outEvent.Type = t
 			switch t {
-			case model.EvtLobbyPlayerTeam:
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[1]))
-				if m[2] == "DEFENDERS" {
-					outEvent.Team = model.Red
-				} else {
-					outEvent.Team = model.Blu
-				}
 			case model.EvtConnect:
 				outEvent.Player = m[1]
 			case model.EvtDisconnect:
@@ -129,8 +122,14 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				outEvent.PlayerConnected = m[5]
 				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
-				outEvent.Player = m[1]
-				outEvent.Victim = m[2]
+				outEvent.Player = m[2]
+				outEvent.Victim = m[3]
+			case model.EvtHostname:
+				outEvent.MetaData = m[2]
+			case model.EvtMap:
+				outEvent.MetaData = m[2]
+			case model.EvtTags:
+				outEvent.MetaData = m[2]
 			}
 			return nil
 		}
@@ -139,7 +138,7 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 }
 
 // TODO why keep this?
-func (l *logParser) start(ctx context.Context, gs []*model.PlayerState) {
+func (l *logParser) start(ctx context.Context) {
 	for {
 		select {
 		case msg := <-l.ReadChannel:
@@ -147,20 +146,6 @@ func (l *logParser) start(ctx context.Context, gs []*model.PlayerState) {
 			if err := l.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
-
-			if logEvent.Type == model.EvtMsg {
-				for _, p := range gs {
-					if p.Name == logEvent.Player {
-						logEvent.PlayerSID = p.SteamId
-						break
-					}
-				}
-				if logEvent.PlayerSID == 0 {
-					// We don't know the player yet.
-					continue
-				}
-			}
-
 			l.evtChan <- logEvent
 		case <-ctx.Done():
 			return
@@ -174,11 +159,14 @@ func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logPars
 		ReadChannel:   readChannel,
 		rxLobbyPlayer: regexp.MustCompile(`\s+(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))`),
 		rx: []*regexp.Regexp{
-			regexp.MustCompile(`^(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
 			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
 			regexp.MustCompile(`(^Disconnecting from abandoned match server$|\([Ss]erver shutting down\)$)`),
-			regexp.MustCompile(`(?P<dt>^[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{2,3}:\d{2})\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`)},
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{2,3}:\d{2})\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\shostname:\s(.+?)$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\smap\s{5}:\s(.+?)\sat.+?$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\stags\s{4}:\s(.+?)$`)},
 	}
 	return &lp
 }
