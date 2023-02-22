@@ -38,6 +38,7 @@ type BD struct {
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             model.ServerState
+	serverMu           *sync.RWMutex
 	players            []*model.PlayerState
 	messages           []*model.UserMessage
 	ctx                context.Context
@@ -65,6 +66,7 @@ func New(ctx context.Context, settings *model.Settings, store dataStore, rules *
 		settings:           settings,
 		logChan:            logChan,
 		incomingLogEvents:  eventChan,
+		serverMu:           &sync.RWMutex{},
 		profileUpdateQueue: make(chan steamid.SID64),
 		triggerUpdate:      make(chan any),
 		cache:              newFsCache(settings.ConfigRoot(), time.Hour*12),
@@ -99,6 +101,8 @@ func (bd *BD) discordLogin() error {
 }
 
 func (bd *BD) discordUpdateActivity() {
+	bd.serverMu.RLock()
+	defer bd.serverMu.RUnlock()
 	if bd.server.CurrentMap != "" {
 		cnt := 0
 		for _, player := range bd.players {
@@ -331,11 +335,17 @@ func (bd *BD) eventHandler() {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
 		case model.EvtMap:
+			bd.serverMu.Lock()
 			bd.server.CurrentMap = evt.MetaData
+			bd.serverMu.Unlock()
 		case model.EvtHostname:
+			bd.serverMu.Lock()
 			bd.server.ServerName = evt.MetaData
+			bd.serverMu.Unlock()
 		case model.EvtTags:
+			bd.serverMu.Lock()
 			bd.server.Tags = strings.Split(evt.MetaData, ",")
+			bd.serverMu.Unlock()
 			// We only bother to call this for the tags event since it should be parsed last for the status output, updating all
 			// the other fields at the same time.
 			bd.gui.UpdateServerState(bd.server)
@@ -351,8 +361,10 @@ func (bd *BD) eventHandler() {
 				log.Printf("Failed to parse ip: %v", pcs[0])
 				continue
 			}
+			bd.serverMu.Lock()
 			bd.server.Addr = ip
 			bd.server.Port = uint16(portValue)
+			bd.serverMu.Unlock()
 		case model.EvtDisconnect:
 			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
 			// lag between actually removing the player from the player table.

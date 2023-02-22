@@ -102,6 +102,19 @@ type PlayerState struct {
 	AnnouncedLast time.Time
 
 	Dangling bool
+
+	friends steamid.Collection
+}
+
+func (ps *PlayerState) IsFriend(sid64 steamid.SID64) bool {
+	ps.RLock()
+	defer ps.RUnlock()
+	for _, friendSID := range ps.friends {
+		if friendSID == sid64 {
+			return true
+		}
+	}
+	return false
 }
 
 func (ps *PlayerState) GetSteamID() steamid.SID64 {
