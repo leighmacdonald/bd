@@ -28,4 +28,5 @@ const (
 	EvtHostname
 	EvtMap
 	EvtTags
+	EvtAddress
 )

@@ -1,7 +1,7 @@
 create table if not exists player
 (
     steam_id integer unique,
-    visibility integer not null default 3 check ( visibility == 1 or visibility == 3 ), -- 1/3
+    visibility integer not null default 3 check ( visibility >= 1 AND visibility <= 3 ),
     real_name text not null default '',
     account_created_on date not null default 0,
     avatar_hash text not null default '',

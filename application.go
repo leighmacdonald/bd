@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/hugolgst/rich-go/client"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/ui"
@@ -13,9 +14,11 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +33,8 @@ type BD struct {
 	// - track rage quits
 	// - auto generate voice_ban.dt
 	// - install vote fail mod
+	// - wipe map session stats k/d
+	// - track k/d over entire session?
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             model.ServerState
@@ -46,6 +51,7 @@ type BD struct {
 	profileUpdateQueue chan steamid.SID64
 	triggerUpdate      chan any
 	cache              localCache
+	startupTime        time.Time
 }
 
 // New allocates a new bot detector application instance
@@ -63,20 +69,95 @@ func New(ctx context.Context, settings *model.Settings, store dataStore, rules *
 		triggerUpdate:      make(chan any),
 		cache:              newFsCache(settings.ConfigRoot(), time.Hour*12),
 		logParser:          newLogParser(logChan, eventChan),
+		startupTime:        time.Now(),
 	}
 
 	rootApp.createLogReader()
 
+	rootApp.reload()
+
 	return rootApp
+}
+
+func (bd *BD) reload() {
+	if bd.settings.DiscordPresenceEnabled {
+		if errLogin := bd.discordLogin(); errLogin != nil {
+			log.Printf("Failed to login for discord rich presence\n")
+		}
+	} else {
+		client.Logout()
+	}
+}
+
+const discordAppID = "1076716221162082364"
+
+func (bd *BD) discordLogin() error {
+	if errLogin := client.Login(discordAppID); errLogin != nil {
+		return errors.Wrap(errLogin, "Failed to login to discord api\n")
+	}
+	return nil
+}
+
+func (bd *BD) discordUpdateActivity() {
+	if bd.server.CurrentMap != "" {
+		cnt := 0
+		for _, player := range bd.players {
+			// TODO remove this once we track disconnected players better
+			if time.Since(player.UpdatedOn) < time.Second*30 {
+				cnt++
+			}
+		}
+		buttons := []*client.Button{
+			{
+				Label: "GitHub",
+				Url:   "https://github.com/leighmacdonald/bd",
+			},
+		}
+		if !bd.server.Addr.IsLinkLocalUnicast() /*SDR*/ && !bd.server.Addr.IsPrivate() {
+			buttons = append(buttons, &client.Button{
+				Label: "Connect",
+				Url:   fmt.Sprintf("steam://connect/%s:%d", bd.server.Addr.String(), bd.server.Port),
+			})
+		}
+		currentMap := discordAssetNameMap(bd.server.CurrentMap)
+		if errSetActivity := client.SetActivity(client.Activity{
+			State:      "In-Game",
+			Details:    bd.server.ServerName,
+			LargeImage: fmt.Sprintf("map_%s", currentMap),
+			LargeText:  currentMap,
+			SmallImage: "map_cp_cloak",
+			SmallText:  bd.server.CurrentMap,
+			Party: &client.Party{
+				ID:         "-1",
+				Players:    cnt,
+				MaxPlayers: 24,
+			},
+			Timestamps: &client.Timestamps{
+				Start: &bd.startupTime,
+			},
+			//Secrets: &client.Secrets{
+			//	Match:    "steam://joinlobby/440/the_secret",
+			//	Join:     "lobby_join_id",
+			//	Spectate: "",
+			//},
+			Buttons: buttons,
+		}); errSetActivity != nil {
+			log.Printf("Failed to set discord activity: %v\n", errSetActivity)
+		}
+	}
 }
 
 func (bd *BD) uiStateUpdater() {
 	updateTicker := time.NewTicker(time.Second)
+	bd.discordUpdateActivity()
+	discordStateUpdateTicker := time.NewTicker(time.Second * 10)
 	updateQueued := false
 	for {
 		select {
 		case <-bd.triggerUpdate:
 			updateQueued = true
+		case <-discordStateUpdateTicker.C:
+			bd.discordUpdateActivity()
 		case <-bd.ctx.Done():
 			return
 		case <-updateTicker.C:
@@ -260,7 +341,23 @@ func (bd *BD) eventHandler() {
 			bd.server.ServerName = evt.MetaData
 		case model.EvtTags:
 			bd.server.Tags = strings.Split(evt.MetaData, ",")
+			// We only bother to call this for the tags event since it should be parsed last for the status output, updating all
+			// the other fields at the same time.
 			bd.gui.UpdateServerState(bd.server)
+		case model.EvtAddress:
+			pcs := strings.Split(evt.MetaData, ":")
+			portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
+			if errPort != nil {
+				log.Printf("Failed to parse port: %v", errPort)
+				continue
+			}
+			ip := net.ParseIP(pcs[0])
+			if ip == nil {
+				log.Printf("Failed to parse ip: %v", pcs[0])
+				continue
+			}
+			bd.server.Addr = ip
+			bd.server.Port = uint16(portValue)
 		case model.EvtDisconnect:
 			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
 			// lag between actually removing the player from the player table.
@@ -269,12 +366,12 @@ func (bd *BD) eventHandler() {
 			for _, p := range bd.players {
 				if p.Name == evt.Player {
 					atomic.AddInt64(&p.Kills, 1)
-					if bd.settings.GetSteamId() == p.SteamId {
+					if bd.settings.GetSteamId() == evt.PlayerSID {
 						atomic.AddInt64(&p.KillsOn, 1)
 					}
 				} else if p.Name == evt.Victim {
 					atomic.AddInt64(&p.Deaths, 1)
-					if bd.settings.GetSteamId() == p.SteamId {
+					if bd.settings.GetSteamId() == evt.VictimSID {
 						atomic.AddInt64(&p.DeathsBy, 1)
 					}
 				}
@@ -299,8 +396,7 @@ func (bd *BD) eventHandler() {
 				Created:   time.Now(),
 			}
 			bd.messages = append(bd.messages, um)
-			np := model.NewPlayerState(um.PlayerSID, um.Player)
-			ps := &np
+			var ps *model.PlayerState
 			isNew := true
 			for _, player := range bd.players {
 				if player.SteamId == evt.PlayerSID {
@@ -310,8 +406,8 @@ func (bd *BD) eventHandler() {
 				}
 			}
 			if isNew {
-				newPs := model.NewPlayerState(evt.PlayerSID, evt.Player)
-				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, &newPs); errCreate != nil {
+				ps = model.NewPlayerState(evt.PlayerSID, evt.Player)
+				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, ps); errCreate != nil {
 					log.Printf("Error trying to load/create player: %v\n", errCreate)
 					continue
 				}
@@ -322,7 +418,7 @@ func (bd *BD) eventHandler() {
 			}
 
 		case model.EvtStatusId:
-			var ps *model.PlayerState
+			ps := model.NewPlayerState(evt.PlayerSID, evt.Player)
 			ep := bd.players
 			isNew := true
 			for _, existingPlayer := range ep {
@@ -333,24 +429,21 @@ func (bd *BD) eventHandler() {
 				}
 			}
 			if isNew {
-				newPs := model.NewPlayerState(evt.PlayerSID, evt.Player)
-				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, &newPs); errCreate != nil {
+				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, ps); errCreate != nil {
 					log.Printf("Error trying to load/create player: %v\n", errCreate)
 					continue
 				}
-				if evt.Player != "" && evt.Player != newPs.NamePrevious {
+				if evt.Player != "" && evt.Player != ps.NamePrevious {
 					if errSaveName := bd.store.SaveName(bd.ctx, evt.PlayerSID, evt.Player); errSaveName != nil {
 						log.Printf("Failed to save name")
 						continue
 					}
 				}
-				newPs.UserId = evt.UserId
-				ps = &newPs
+				ps.UserId = evt.UserId
 			}
 			ps.UpdatedOn = time.Now()
 			ps.Ping = evt.PlayerPing
 			ps.Connected = evt.PlayerConnected
-			//log.Printf("[%d] [%d] %s\n", evt.UserId, evt.PlayerSID.Int64(), evt.Player)
 			if isNew {
 				ep = append(ep, ps)
 			}
@@ -441,11 +534,9 @@ func (bd *BD) refreshLists() {
 }
 
 func (bd *BD) checkPlayerStates() {
-	t0 := time.Now()
-
 	var valid []*model.PlayerState
 	for _, ps := range bd.players {
-		if t0.Sub(ps.UpdatedOn) > time.Second*300 {
+		if time.Since(ps.UpdatedOn) > time.Second*30 {
 			log.Printf("Player expired: %s %s", ps.SteamId.String(), ps.Name)
 			if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
 				log.Printf("Failed to save expired player state: %v\n", errSave)
@@ -456,16 +547,21 @@ func (bd *BD) checkPlayerStates() {
 	}
 
 	for _, ps := range valid {
-		match := bd.rules.matchSteam(ps.SteamId)
+		ps.Lock()
+		match := bd.rules.matchSteam(ps.GetSteamID())
 		if match != nil {
-			if errLog := bd.partyLog("Player is a bot: (%d) [%s] %s ", ps.UserId, match.origin, ps.Name); errLog != nil {
-				log.Printf("Failed to send party log message: %s\n", errLog)
-				continue
+			if time.Since(ps.AnnouncedLast) >= time.Second*30 {
+				if errLog := bd.partyLog("Player is a bot: (%d) [%s] %s ", ps.UserId, match.origin, ps.Name); errLog != nil {
+					log.Printf("Failed to send party log message: %s\n", errLog)
+					ps.Unlock()
+					continue
+				}
+				ps.AnnouncedLast = time.Now()
 			}
 			log.Printf("Matched: steamid %d %s %s", ps.SteamId, ps.Name, match.origin)
 		}
 		if ps.Name != "" {
-			match = bd.rules.matchName(ps.Name)
+			match = bd.rules.matchName(ps.GetName())
 			if match != nil {
 				log.Println("Matched name...")
 			}
@@ -496,6 +592,7 @@ func (bd *BD) checkPlayerStates() {
 		if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
 			log.Printf("Failed to save player state: %v\n", errSave)
 		}
+		ps.Unlock()
 	}
 	var plState []model.PlayerState
 	for _, player := range valid {
@@ -573,6 +670,5 @@ func (bd *BD) start() {
 	go bd.eventHandler()
 	go bd.profileUpdater(time.Second * 10)
 	go bd.uiStateUpdater()
-	go bd.discordPresence()
 	<-bd.ctx.Done()
 }

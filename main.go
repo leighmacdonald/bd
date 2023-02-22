@@ -46,7 +46,7 @@ func main() {
 			logClose(input)
 		}
 	}
-	rulesEngine, ruleEngineErr := newRulesEngine(&localRules, &localPlayersList)
+	engine, ruleEngineErr := newRulesEngine(&localRules, &localPlayersList)
 	if ruleEngineErr != nil {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
@@ -62,7 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer logClose(store)
-	bd := New(ctx, &settings, store, rulesEngine)
+	bd := New(ctx, &settings, store, engine)
 	defer bd.Shutdown()
 	gui := ui.New(ctx, &settings)
 	bd.AttachGui(gui)

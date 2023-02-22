@@ -228,7 +228,7 @@ func (s *Settings) ConfigRoot() string {
 }
 
 func (s *Settings) DBPath() string {
-	return filepath.Join(s.ConfigRoot(), "bd.sqlite")
+	return filepath.Join(s.ConfigRoot(), "bd.sqlite?cache=shared")
 }
 
 func (s *Settings) LocalPlayerListPath() string {

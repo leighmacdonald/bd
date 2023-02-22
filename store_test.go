@@ -33,7 +33,7 @@ func testStoreImpl(t *testing.T, ds dataStore) {
 	player1 := model.NewPlayerState(steamid.SID64(76561197961279983), golib.RandomString(10))
 
 	ctx := context.Background()
-	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, &player1), "Failed to create player")
+	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, player1), "Failed to create player")
 	randName := golib.RandomString(10)
 	randNameLast := golib.RandomString(10)
 	require.NoError(t, ds.SaveName(ctx, player1.SteamId, randName))

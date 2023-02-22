@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
+	"net"
+	"sync"
 	"time"
 )
 
@@ -25,6 +27,8 @@ type KickFunc func(userId int64, reason KickReason) error
 
 type ServerState struct {
 	ServerName string
+	Addr       net.IP
+	Port       uint16
 	CurrentMap string
 	Tags       []string
 }
@@ -32,11 +36,13 @@ type ServerState struct {
 type ProfileVisibility int
 
 const (
-	ProfileVisibilityPrivate ProfileVisibility = 1
-	ProfileVisibilityPublic  ProfileVisibility = 3
+	ProfileVisibilityPrivate ProfileVisibility = iota + 1
+	ProfileVisibilityFriendsOnly
+	ProfileVisibilityPublic
 )
 
 type PlayerState struct {
+	*sync.RWMutex
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string
@@ -92,7 +98,28 @@ type PlayerState struct {
 	// UpdatedOn is the last time we have interacted with the player
 	UpdatedOn time.Time
 
+	// Tracks the duration between announces
+	AnnouncedLast time.Time
+
 	Dangling bool
+}
+
+func (ps *PlayerState) GetSteamID() steamid.SID64 {
+	ps.RLock()
+	defer ps.RUnlock()
+	return ps.SteamId
+}
+
+func (ps *PlayerState) GetName() string {
+	ps.RLock()
+	defer ps.RUnlock()
+	return ps.Name
+}
+
+func (ps *PlayerState) GetAvatarHash() string {
+	ps.RLock()
+	defer ps.RUnlock()
+	return ps.AvatarHash
 }
 
 func firstN(s string, n int) string {
@@ -130,9 +157,10 @@ func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
 	}
 }
 
-func NewPlayerState(sid64 steamid.SID64, name string) PlayerState {
+func NewPlayerState(sid64 steamid.SID64, name string) *PlayerState {
 	t0 := time.Now()
-	return PlayerState{
+	return &PlayerState{
+		RWMutex:          &sync.RWMutex{},
 		Name:             name,
 		RealName:         "",
 		NamePrevious:     "",

@@ -60,6 +60,7 @@ func (store *sqliteStore) Connect() error {
 			return errors.Wrapf(errPragma, "Failed to enable pragma: %s", errPragma)
 		}
 	}
+	database.SetMaxOpenConns(1)
 	store.db = database
 	return nil
 }
@@ -225,7 +226,10 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		player.SteamId = steamID
 		return store.SavePlayer(ctx, player)
 	}
-	player.NamePrevious = *prevName
+	player.Dangling = false
+	if prevName != nil {
+		player.NamePrevious = *prevName
+	}
 	return nil
 }
 
