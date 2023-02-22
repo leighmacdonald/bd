@@ -49,7 +49,7 @@ release:
     name: bd
   ids:
     - linux
-    - windows
+    #- windows
   draft: true
   replace_existing_draft: true
 
