@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/pkg/errors"
 	"io"
 	"log"
@@ -27,9 +28,9 @@ func fetchURL(ctx context.Context, client http.Client, url string) ([]byte, erro
 	return body, nil
 }
 
-func downloadLists(ctx context.Context, lists []model.ListConfig) ([]playerListSchema, []ruleSchema) {
-	var playerLists []playerListSchema
-	var rulesLists []ruleSchema
+func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+	var playerLists []rules.PlayerListSchema
+	var rulesLists []rules.RuleSchema
 	client := http.Client{}
 	for _, u := range lists {
 		if !u.Enabled {
@@ -42,16 +43,16 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]playerListS
 		}
 		switch u.ListType {
 		case model.ListTypeTF2BDPlayerList:
-			var result playerListSchema
-			if errParse := parsePlayerSchema(bytes.NewReader(body), &result); errParse != nil {
+			var result rules.PlayerListSchema
+			if errParse := rules.ParsePlayerSchema(bytes.NewReader(body), &result); errParse != nil {
 				log.Printf("Failed to parse request: %v\n", errParse)
 				continue
 			}
 			playerLists = append(playerLists, result)
 			log.Printf("Downloaded playerlist successfully: %s\n", result.FileInfo.Title)
 		case model.ListTypeTF2BDRules:
-			var result ruleSchema
-			if errParse := parseRulesList(bytes.NewReader(body), &result); errParse != nil {
+			var result rules.RuleSchema
+			if errParse := rules.ParseRulesList(bytes.NewReader(body), &result); errParse != nil {
 				log.Printf("Failed to parse request: %v\n", errParse)
 				continue
 			}

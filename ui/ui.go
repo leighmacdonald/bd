@@ -6,7 +6,6 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -45,7 +44,6 @@ type UserInterface interface {
 }
 
 type Ui struct {
-	ctx             context.Context
 	application     fyne.App
 	rootWindow      fyne.Window
 	chatWindow      fyne.Window
@@ -63,14 +61,13 @@ type Ui struct {
 	labelMap        *widget.RichText
 }
 
-func New(ctx context.Context, settings *model.Settings) UserInterface {
+func New(settings *model.Settings) UserInterface {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})
 	application.SetIcon(resourceIconPng)
 	rootWindow := application.NewWindow("BD")
 
 	ui := Ui{
-		ctx:          ctx,
 		application:  application,
 		rootWindow:   rootWindow,
 		settings:     boundSettings{binding.BindStruct(settings)},

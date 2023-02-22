@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/rules"
 	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamweb"
@@ -16,8 +17,8 @@ import (
 func main() {
 	ctx := context.Background()
 	settings := model.NewSettings()
-	localRules := newRuleSchema()
-	localPlayersList := newPlayerListSchema()
+	localRules := rules.NewRuleSchema()
+	localPlayersList := rules.NewPlayerListSchema()
 
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
 		log.Println(errReadSettings)
@@ -29,7 +30,7 @@ func main() {
 		if errInput != nil {
 			log.Printf("Failed to open local player list\n")
 		} else {
-			if errRead := parsePlayerSchema(input, &localPlayersList); errRead != nil {
+			if errRead := rules.ParsePlayerSchema(input, &localPlayersList); errRead != nil {
 				log.Printf("Failed to parse local player list: %v\n", errRead)
 			}
 			logClose(input)
@@ -40,13 +41,13 @@ func main() {
 		if errInput != nil {
 			log.Printf("Failed to open local rules list\n")
 		} else {
-			if errRead := parseRulesList(input, &localRules); errRead != nil {
+			if errRead := rules.ParseRulesList(input, &localRules); errRead != nil {
 				log.Printf("Failed to parse local rules list: %v\n", errRead)
 			}
 			logClose(input)
 		}
 	}
-	engine, ruleEngineErr := newRulesEngine(&localRules, &localPlayersList)
+	engine, ruleEngineErr := rules.NewEngine(&localRules, &localPlayersList)
 	if ruleEngineErr != nil {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
@@ -62,10 +63,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer logClose(store)
-	bd := New(ctx, &settings, store, engine)
+	bd := New(&settings, store, engine)
 	defer bd.Shutdown()
-	gui := ui.New(ctx, &settings)
-	bd.AttachGui(gui)
-	go bd.start()
+	gui := ui.New(&settings)
+	bd.AttachGui(ctx, gui)
+	go bd.start(ctx)
 	gui.Start()
 }

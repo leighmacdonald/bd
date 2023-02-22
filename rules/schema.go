@@ -1,4 +1,4 @@
-package main
+package rules
 
 import (
 	"encoding/json"
@@ -13,8 +13,8 @@ type ruleTriggerMode string
 //)
 
 const (
-	localRuleName   = "local"
-	localRuleAuthor = "local"
+	LocalRuleName   = "local"
+	LocalRuleAuthor = "local"
 	urlPlayerSchema = "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/playerlist.schema.json"
 	urlRuleSchema   = "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json"
 )
@@ -42,35 +42,35 @@ type fileInfo struct {
 	UpdateURL   string   `json:"update_url"`
 }
 
-func newPlayerListSchema(players ...playerDefinition) playerListSchema {
+func NewPlayerListSchema(players ...playerDefinition) PlayerListSchema {
 	if players == nil {
 		// Prevents json encoder outputting `null` value instead of empty array `[]`
 		players = []playerDefinition{}
 	}
-	return playerListSchema{
+	return PlayerListSchema{
 		baseSchema: baseSchema{
 			Schema: urlPlayerSchema,
 			FileInfo: fileInfo{
-				Authors:     []string{localRuleAuthor},
+				Authors:     []string{LocalRuleAuthor},
 				Description: "local player list",
-				Title:       localRuleName,
+				Title:       LocalRuleName,
 				UpdateURL:   "",
 			},
 		},
 		Players: players,
 	}
 }
-func newRuleSchema(rules ...ruleDefinition) ruleSchema {
+func NewRuleSchema(rules ...ruleDefinition) RuleSchema {
 	if rules == nil {
 		rules = []ruleDefinition{}
 	}
-	return ruleSchema{
+	return RuleSchema{
 		baseSchema: baseSchema{
 			Schema: urlRuleSchema,
 			FileInfo: fileInfo{
-				Authors:     []string{localRuleAuthor},
+				Authors:     []string{LocalRuleAuthor},
 				Description: "local",
-				Title:       localRuleName,
+				Title:       LocalRuleName,
 				UpdateURL:   "",
 			},
 		},
@@ -78,7 +78,7 @@ func newRuleSchema(rules ...ruleDefinition) ruleSchema {
 	}
 }
 
-type ruleSchema struct {
+type RuleSchema struct {
 	baseSchema
 	Rules []ruleDefinition `json:"rules" yaml:"rules"`
 }
@@ -118,7 +118,7 @@ type ruleDefinition struct {
 	Triggers    ruleTriggers `json:"triggers,omitempty"`
 }
 
-type playerListSchema struct {
+type PlayerListSchema struct {
 	baseSchema
 	Players []playerDefinition `json:"players"`
 }
@@ -129,14 +129,14 @@ type playerLastSeen struct {
 }
 
 type playerDefinition struct {
-	Attributes []string       `json:"attributes"`
+	Attributes []string       `json:"Attributes"`
 	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
 	SteamID    interface{}    `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
 }
 
-func parsePlayerSchema(reader io.Reader, schema *playerListSchema) error {
+func ParsePlayerSchema(reader io.Reader, schema *PlayerListSchema) error {
 	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
 		return errUnmarshal
 	}
@@ -159,7 +159,7 @@ func parsePlayerSchema(reader io.Reader, schema *playerListSchema) error {
 	return nil
 }
 
-func parseRulesList(reader io.Reader, schema *ruleSchema) error {
+func ParseRulesList(reader io.Reader, schema *RuleSchema) error {
 	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
 		return errUnmarshal
 	}

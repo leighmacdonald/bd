@@ -1,4 +1,4 @@
-package main
+package rules
 
 import (
 	"encoding/json"
@@ -40,7 +40,7 @@ const (
 
 // AvatarMatcher provides an interface to match avatars using custom methods
 type AvatarMatcher interface {
-	Match(hexDigest string) *ruleMatchResult
+	Match(hexDigest string) *MatchResult
 	Type() avatarMatchType
 }
 
@@ -54,10 +54,10 @@ func (m avatarMatcher) Type() avatarMatchType {
 	return m.matchType
 }
 
-func (m avatarMatcher) Match(hexDigest string) *ruleMatchResult {
+func (m avatarMatcher) Match(hexDigest string) *MatchResult {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
-			return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
+			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
 		}
 	}
 	return nil
@@ -74,13 +74,13 @@ func newAvatarMatcher(origin string, avatarMatchType avatarMatchType, hashes ...
 // TextMatcher provides an interface to build text based matchers for names or in game messages
 type TextMatcher interface {
 	// Match performs a text based match
-	Match(text string) *ruleMatchResult
+	Match(text string) *MatchResult
 	Type() textMatchType
 }
 
 // SteamIDMatcher provides a basic interface to match steam ids.
 type SteamIDMatcher interface {
-	Match(sid64 steamid.SID64) *ruleMatchResult
+	Match(sid64 steamid.SID64) *MatchResult
 }
 
 type steamIDMatcher struct {
@@ -88,9 +88,9 @@ type steamIDMatcher struct {
 	origin  string
 }
 
-func (m steamIDMatcher) Match(sid64 steamid.SID64) *ruleMatchResult {
+func (m steamIDMatcher) Match(sid64 steamid.SID64) *MatchResult {
 	if sid64 == m.steamID {
-		return &ruleMatchResult{origin: m.origin, matcherType: "steam_id"}
+		return &MatchResult{Origin: m.origin, MatcherType: "steam_id"}
 	}
 	return nil
 }
@@ -105,10 +105,10 @@ type regexTextMatcher struct {
 	origin      string
 }
 
-func (m regexTextMatcher) Match(value string) *ruleMatchResult {
+func (m regexTextMatcher) Match(value string) *MatchResult {
 	for _, re := range m.patterns {
 		if re.MatchString(value) {
-			return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
+			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
 		}
 	}
 	return nil
@@ -142,17 +142,17 @@ type generalTextMatcher struct {
 	origin        string
 }
 
-func (m generalTextMatcher) Match(value string) *ruleMatchResult {
+func (m generalTextMatcher) Match(value string) *MatchResult {
 	switch m.mode {
 	case textMatchModeStartsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasPrefix(value, prefix) {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			} else {
 				if strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			}
 		}
@@ -160,11 +160,11 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasSuffix(value, prefix) {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			} else {
 				if strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
+					return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
 				}
 			}
 		}
@@ -172,11 +172,11 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if value == prefix {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			} else {
 				if strings.EqualFold(value, prefix) {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			}
 		}
@@ -184,11 +184,11 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.Contains(value, prefix) {
-					return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
+					return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
 				}
 			} else {
 				if strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &ruleMatchResult{origin: m.origin}
+					return &MatchResult{Origin: m.origin}
 				}
 			}
 		}
@@ -200,11 +200,11 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 			for _, p := range m.patterns {
 				if m.caseSensitive {
 					if p == iw {
-						return &ruleMatchResult{origin: m.origin}
+						return &MatchResult{Origin: m.origin}
 					}
 				} else {
 					if strings.EqualFold(strings.ToLower(p), iw) {
-						return &ruleMatchResult{origin: m.origin}
+						return &MatchResult{Origin: m.origin}
 					}
 				}
 			}
@@ -227,8 +227,8 @@ func newGeneralTextMatcher(origin string, matcherType textMatchType, matchMode t
 	}
 }
 
-func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*rulesEngine, error) {
-	re := rulesEngine{
+func NewEngine(localRules *RuleSchema, localPlayers *PlayerListSchema) (*Engine, error) {
+	re := Engine{
 		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,
 		matchersText:   nil,
@@ -240,7 +240,7 @@ func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*ru
 			return nil, errImport
 		}
 	} else {
-		ls := newRuleSchema()
+		ls := NewRuleSchema()
 		re.rulesLists = append(re.rulesLists, &ls)
 	}
 	if localPlayers != nil {
@@ -249,58 +249,58 @@ func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*ru
 			return nil, errImport
 		}
 	} else {
-		ls := newPlayerListSchema()
+		ls := NewPlayerListSchema()
 		re.playerLists = append(re.playerLists, &ls)
 	}
 	return &re, nil
 }
 
-type ruleMatchResult struct {
-	origin string // Title of the list that the match was generated against
-	//attributes  []string
-	//proof       []string
-	matcherType string
+type MatchResult struct {
+	Origin string // Title of the list that the match was generated against
+	//Attributes  []string
+	//Proof       []string
+	MatcherType string
 }
 
-type markOpts struct {
-	steamID    steamid.SID64
-	attributes []string
-	proof      []string
-	name       string
+type MarkOpts struct {
+	SteamID    steamid.SID64
+	Attributes []string
+	Proof      []string
+	Name       string
 }
 
-type rulesEngine struct {
+type Engine struct {
 	*sync.RWMutex
 	matchersSteam  []SteamIDMatcher
 	matchersText   []TextMatcher
 	matchersAvatar []AvatarMatcher
-	rulesLists     []*ruleSchema
-	playerLists    []*playerListSchema
+	rulesLists     []*RuleSchema
+	playerLists    []*PlayerListSchema
 	knownTags      []string
 }
 
-func (e *rulesEngine) mark(opts markOpts) error {
+func (e *Engine) Mark(opts MarkOpts) error {
 	e.Lock()
 	defer e.Unlock()
 	for _, knownPlayer := range e.playerLists[0].Players {
-		if knownPlayer.SteamID == opts.steamID {
+		if knownPlayer.SteamID == opts.SteamID {
 			return errDuplicateSteamID
 		}
 	}
 	e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
-		Attributes: opts.attributes,
+		Attributes: opts.Attributes,
 		LastSeen: playerLastSeen{
 			Time:       int(time.Now().Unix()),
-			PlayerName: opts.name,
+			PlayerName: opts.Name,
 		},
-		SteamID: opts.steamID,
-		Proof:   opts.proof,
+		SteamID: opts.SteamID,
+		Proof:   opts.Proof,
 	})
 	return nil
 }
 
 // UniqueTags returns a list of the unique known tags across all player lists
-func (e *rulesEngine) UniqueTags() []string {
+func (e *Engine) UniqueTags() []string {
 	e.RLock()
 	defer e.RUnlock()
 	return e.knownTags
@@ -313,7 +313,7 @@ func newJSONPrettyEncoder(w io.Writer) *json.Encoder {
 }
 
 // ExportPlayers writes the json encoded player list matching the listName provided to the io.Writer
-func (e *rulesEngine) ExportPlayers(listName string, w io.Writer) error {
+func (e *Engine) ExportPlayers(listName string, w io.Writer) error {
 	e.RLock()
 	defer e.RUnlock()
 	for _, pl := range e.playerLists {
@@ -325,7 +325,7 @@ func (e *rulesEngine) ExportPlayers(listName string, w io.Writer) error {
 }
 
 // ExportRules writes the json encoded rules list matching the listName provided to the io.Writer
-func (e *rulesEngine) ExportRules(listName string, w io.Writer) error {
+func (e *Engine) ExportRules(listName string, w io.Writer) error {
 	e.RLock()
 	defer e.RUnlock()
 	for _, pl := range e.rulesLists {
@@ -337,7 +337,7 @@ func (e *rulesEngine) ExportRules(listName string, w io.Writer) error {
 }
 
 // ImportRules loads the provided ruleset for use
-func (e *rulesEngine) ImportRules(list *ruleSchema) error {
+func (e *Engine) ImportRules(list *RuleSchema) error {
 	for _, rule := range list.Rules {
 		if rule.Triggers.UsernameTextMatch != nil {
 			e.registerTextMatcher(newGeneralTextMatcher(
@@ -376,14 +376,14 @@ func (e *rulesEngine) ImportRules(list *ruleSchema) error {
 }
 
 // ImportPlayers loads the provided player list for matching
-func (e *rulesEngine) ImportPlayers(list *playerListSchema) error {
+func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 	var playerAttrs []string
 	for _, player := range list.Players {
 		var steamID steamid.SID64
 		// Some entries can be raw number types in addition to strings...
-		switch v := player.SteamID.(type) {
+		switch value := player.SteamID.(type) {
 		case float64:
-			steamID = steamid.SID64(int64(v))
+			steamID = steamid.SID64(int64(value))
 		case string:
 			sid64, errSid := steamid.StringToSID64(player.SteamID.(string))
 			if errSid != nil {
@@ -417,25 +417,25 @@ func (e *rulesEngine) ImportPlayers(list *playerListSchema) error {
 	return nil
 }
 
-func (e *rulesEngine) registerSteamIDMatcher(matcher SteamIDMatcher) {
+func (e *Engine) registerSteamIDMatcher(matcher SteamIDMatcher) {
 	e.Lock()
 	e.matchersSteam = append(e.matchersSteam, matcher)
 	e.Unlock()
 }
 
-func (e *rulesEngine) registerAvatarMatcher(matcher AvatarMatcher) {
+func (e *Engine) registerAvatarMatcher(matcher AvatarMatcher) {
 	e.Lock()
 	e.matchersAvatar = append(e.matchersAvatar, matcher)
 	e.Unlock()
 }
 
-func (e *rulesEngine) registerTextMatcher(matcher TextMatcher) {
+func (e *Engine) registerTextMatcher(matcher TextMatcher) {
 	e.Lock()
 	e.matchersText = append(e.matchersText, matcher)
 	e.Unlock()
 }
 
-func (e *rulesEngine) matchTextType(text string, matchType textMatchType) *ruleMatchResult {
+func (e *Engine) matchTextType(text string, matchType textMatchType) *MatchResult {
 	for _, matcher := range e.matchersText {
 		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
 			continue
@@ -448,7 +448,7 @@ func (e *rulesEngine) matchTextType(text string, matchType textMatchType) *ruleM
 	return nil
 }
 
-func (e *rulesEngine) matchSteam(steamID steamid.SID64) *ruleMatchResult {
+func (e *Engine) MatchSteam(steamID steamid.SID64) *MatchResult {
 	for _, sm := range e.matchersSteam {
 		match := sm.Match(steamID)
 		if match != nil {
@@ -458,27 +458,27 @@ func (e *rulesEngine) matchSteam(steamID steamid.SID64) *ruleMatchResult {
 	return nil
 }
 
-func (e *rulesEngine) matchName(name string) *ruleMatchResult {
+func (e *Engine) MatchName(name string) *MatchResult {
 	return e.matchTextType(name, textMatchTypeName)
 }
 
-func (e *rulesEngine) matchText(text string) *ruleMatchResult {
+func (e *Engine) MatchMessage(text string) *MatchResult {
 	return e.matchTextType(text, textMatchTypeMessage)
 }
 
-//func (e *rulesEngine) matchAny(text string) *ruleMatchResult {
+//func (e *Engine) matchAny(text string) *MatchResult {
 //	return e.matchTextType(text, textMatchTypeAny)
 //}
 
-func (e *rulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
+func (e *Engine) matchAvatar(avatar []byte) *MatchResult {
 	if avatar == nil {
 		return nil
 	}
 	hexDigest := model.HashBytes(avatar)
 	for _, matcher := range e.matchersAvatar {
-		m := matcher.Match(hexDigest)
-		if m != nil {
-			return m
+		match := matcher.Match(hexDigest)
+		if match != nil {
+			return match
 		}
 	}
 	return nil

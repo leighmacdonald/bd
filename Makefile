@@ -22,8 +22,7 @@ fonts:
 	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/tf2.png
 
 lint: lint_deps
-	# TODO remove `--disable unused` check once further along in development
-	golangci-lint run --disable unused --timeout 3m --verbose
+	golangci-lint run --timeout 3m --verbose
 	go vet -tags ci ./...
 	test -z $(goimports -e -d . | tee /dev/stderr)
 	gocyclo -over 35 .
@@ -31,7 +30,7 @@ lint: lint_deps
 	staticcheck -go 1.19 ./...
 
 lint_deps:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	go install golang.org/x/lint/golint@latest
@@ -49,13 +48,13 @@ release_local:
 	goreleaser release --nightly --clean --snapshot
 
 snapshot_windows:
-	goreleaser build --single-target --snapshot --clean --id windows --config .goreleaser-win.yaml
+	goreleaser build --single-target --snapshot --clean --id windows
 
 snapshot_linux:
 	goreleaser build --snapshot --rm-dist --id unix
 
 test:
-	go test
+	go test .\...
 
 translations:
 	goi18n extract -outdir translations/ -format yaml

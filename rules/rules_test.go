@@ -1,4 +1,4 @@
-package main
+package rules
 
 import (
 	"bufio"
@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-func genTestRules() ruleSchema {
-	return ruleSchema{
+func genTestRules() RuleSchema {
+	return RuleSchema{
 		baseSchema: baseSchema{
 			Schema: "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json",
 			FileInfo: fileInfo{
@@ -95,16 +95,16 @@ const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
 	const testSteamID = 76561197961279983
-	re, _ := newRulesEngine(nil, nil)
+	re, _ := NewEngine(nil, nil)
 	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID))
-	steamMatch := re.matchSteam(testSteamID)
+	steamMatch := re.MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
-	require.Equal(t, customListTitle, steamMatch.origin)
-	require.Nil(t, re.matchSteam(testSteamID+1), "Matched invalid steamid")
+	require.Equal(t, customListTitle, steamMatch.Origin)
+	require.Nil(t, re.MatchSteam(testSteamID+1), "Matched invalid steamid")
 }
 
 func TestTextRules(t *testing.T) {
-	re, reErr := newRulesEngine(nil, nil)
+	re, reErr := NewEngine(nil, nil)
 	require.NoError(t, reErr)
 	tr := genTestRules()
 	require.NoError(t, re.ImportRules(&tr))
@@ -136,12 +136,12 @@ func TestTextRules(t *testing.T) {
 	for num, tc := range testCases {
 		switch tc.mt {
 		case textMatchTypeName:
-			require.Equal(t, tc.matched, re.matchName(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, tc.matched, re.MatchName(tc.text) != nil, "Test %d failed", num)
 		case textMatchTypeMessage:
-			require.Equal(t, tc.matched, re.matchText(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, tc.matched, re.MatchMessage(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-	require.NoError(t, re.mark(markOpts{}))
+	require.NoError(t, re.Mark(MarkOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {
@@ -149,10 +149,10 @@ func TestAvatarRules(t *testing.T) {
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-	re, reErr := newRulesEngine(nil, nil)
+	re, reErr := NewEngine(nil, nil)
 	require.NoError(t, reErr)
 	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, model.HashBytes(buf.Bytes())))
 	result := re.matchAvatar(buf.Bytes())
 	require.NotNil(t, result)
-	require.Equal(t, listName, result.origin)
+	require.Equal(t, listName, result.Origin)
 }
