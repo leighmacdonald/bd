@@ -58,9 +58,9 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
-
-signs:
-  - artifacts: checksum
+#
+#signs:
+#  - artifacts: checksum
 
 announce:
   discord:
