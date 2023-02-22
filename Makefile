@@ -46,8 +46,8 @@ build_linux:
 	fyne-cross linux -pull -arch=amd64 -name=bd
 
 release_local:
+	goreleaser release --nightly --clean --snapshot
 
-goreleaser release --nightly --clean --snapshot
 snapshot_windows:
 	goreleaser build --single-target --snapshot --clean --id windows --config .goreleaser-win.yaml
 
