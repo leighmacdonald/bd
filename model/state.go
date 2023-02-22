@@ -92,6 +92,8 @@ type PlayerState struct {
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int
 
+	ProfileUpdatedOn time.Time
+
 	// CreatedOn is the first time we have seen the player
 	CreatedOn time.Time
 
@@ -103,18 +105,9 @@ type PlayerState struct {
 
 	Dangling bool
 
-	friends steamid.Collection
-}
+	OurFriend bool
 
-func (ps *PlayerState) IsFriend(sid64 steamid.SID64) bool {
-	ps.RLock()
-	defer ps.RUnlock()
-	for _, friendSID := range ps.friends {
-		if friendSID == sid64 {
-			return true
-		}
-	}
-	return false
+	Dirty bool
 }
 
 func (ps *PlayerState) GetSteamID() steamid.SID64 {
@@ -135,6 +128,11 @@ func (ps *PlayerState) GetAvatarHash() string {
 	return ps.AvatarHash
 }
 
+func (ps *PlayerState) Touch() {
+	ps.Lock()
+	defer ps.Unlock()
+	ps.Dirty = true
+}
 func firstN(s string, n int) string {
 	i := 0
 	for j := range s {

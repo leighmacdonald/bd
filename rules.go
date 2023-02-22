@@ -252,9 +252,9 @@ func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*ru
 }
 
 type ruleMatchResult struct {
-	origin     string // Title of the list that the match was generated against
-	attributes []string
-	proof      []string
+	origin string // Title of the list that the match was generated against
+	//attributes []string
+	//proof      []string
 }
 
 type markOpts struct {
@@ -456,9 +456,9 @@ func (e *rulesEngine) matchText(text string) *ruleMatchResult {
 	return e.matchTextType(text, textMatchTypeMessage)
 }
 
-func (e *rulesEngine) matchAny(text string) *ruleMatchResult {
-	return e.matchTextType(text, textMatchTypeAny)
-}
+//func (e *rulesEngine) matchAny(text string) *ruleMatchResult {
+//	return e.matchTextType(text, textMatchTypeAny)
+//}
 
 func (e *rulesEngine) matchAvatar(avatar []byte) *ruleMatchResult {
 	if avatar == nil {

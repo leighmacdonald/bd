@@ -23,7 +23,7 @@ type dataStore interface {
 	Connect() error
 	Init() error
 	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
-	SaveMessage(ctx context.Context, steamID steamid.SID64, message string) error
+	SaveMessage(ctx context.Context, message *model.UserMessage) error
 	SavePlayer(ctx context.Context, state *model.PlayerState) error
 	FetchNames(ctx context.Context, sid64 steamid.SID64) ([]model.UserNameHistory, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) ([]model.UserMessage, error)
@@ -105,13 +105,10 @@ func (store *sqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, n
 	return nil
 }
 
-func (store *sqliteStore) SaveMessage(ctx context.Context, steamID steamid.SID64, message string) error {
-	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?)`
-	if message == "" {
-		return nil
-	}
-	if _, errExec := store.db.ExecContext(ctx, query, steamID.Int64(), message, time.Now()); errExec != nil {
-		return errors.Wrap(errExec, "Failed to save name")
+func (store *sqliteStore) SaveMessage(ctx context.Context, message *model.UserMessage) error {
+	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?) RETURNING message_id`
+	if errExec := store.db.QueryRowContext(ctx, query, message.PlayerSID, message.Message, time.Now()).Scan(&message.MessageId); errExec != nil {
+		return errors.Wrap(errExec, "Failed to save message")
 	}
 	return nil
 }
@@ -120,8 +117,8 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerS
 	const insertQuery = `
 		INSERT INTO player (
                     steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, vacBans, 
-                    kills_on, deaths_by, rage_quits, created_on, updated_on) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    kills_on, deaths_by, rage_quits, created_on, updated_on, profile_updated_on) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, errExec := store.db.ExecContext(
 		ctx,
 		insertQuery,
@@ -137,6 +134,7 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerS
 		state.RageQuits,
 		state.CreatedOn,
 		state.UpdatedOn,
+		state.ProfileUpdatedOn,
 	); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
@@ -156,7 +154,8 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerS
             kills_on = ?, 
             deaths_by = ?, 
             rage_quits = ?, 
-            updated_on = ? 
+            updated_on = ?,
+            profile_updated_on = ?
 		WHERE steam_id = ?`
 
 	state.UpdatedOn = time.Now()
@@ -173,6 +172,7 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerS
 		state.DeathsBy,
 		state.RageQuits,
 		state.UpdatedOn,
+		state.ProfileUpdatedOn,
 		state.SteamId.Int64())
 	if errExec != nil {
 		return errors.Wrap(errExec, "Could not update player state")
@@ -204,6 +204,7 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		    p.rage_quits,
 		    p.created_on,
 		    p.updated_on, 
+		    p.profile_updated_on,
 			pn.name
 		FROM player p
 		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
@@ -217,7 +218,8 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfVACBans, &player.KillsOn, &player.DeathsBy,
 			&player.RageQuits,
-			&player.CreatedOn, &player.UpdatedOn, &prevName)
+			&player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn,
+			&prevName)
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr

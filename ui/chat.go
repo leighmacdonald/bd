@@ -5,40 +5,106 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/model"
+	"log"
+	"sync"
+	"time"
 )
 
-type chatListWidget struct {
-	list *widget.List
+type userMessageList struct {
+	list        *widget.List
+	boundList   binding.ExternalUntypedList
+	content     fyne.CanvasObject
+	objectMu    sync.RWMutex
+	boundListMu sync.RWMutex
 }
 
-func (ui *Ui) newChatListWidget() *chatListWidget {
+func (chatList *userMessageList) Reload(rr []model.UserMessage) error {
+	bl := make([]interface{}, len(rr))
+	for i, r := range rr {
+		bl[i] = r
+	}
+	chatList.boundListMu.Lock()
+	defer chatList.boundListMu.Unlock()
+	if errSet := chatList.boundList.Set(bl); errSet != nil {
+		log.Printf("failed to set player list: %v\n", errSet)
+	}
+	if errReload := chatList.boundList.Reload(); errReload != nil {
+		return errReload
+	}
+	chatList.list.Refresh()
+	return nil
+}
+
+func (chatList *userMessageList) Append(msg model.UserMessage) error {
+	chatList.boundListMu.Lock()
+	defer chatList.boundListMu.Unlock()
+	if errSet := chatList.boundList.Append(msg); errSet != nil {
+		log.Printf("failed to append message: %v\n", errSet)
+	}
+	chatList.list.ScrollToBottom()
+	return nil
+}
+
+// Widget returns the actual select list widget.
+func (chatList *userMessageList) Widget() *widget.List {
+	return chatList.list
+}
+
+func (ui *Ui) createUserMessageList() *userMessageList {
+	uml := &userMessageList{}
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
 		func() fyne.CanvasObject {
-			return container.NewHSplit(widget.NewLabel(""), widget.NewLabel(""))
+			rootContainer := container.NewBorder(
+				nil,
+				nil,
+				container.NewHBox(widget.NewLabel(""), newContextMenuRichText(nil)),
+				nil,
+				widget.NewRichTextWithText(""))
+
+			rootContainer.Refresh()
+
+			return rootContainer
 		},
 		func(i binding.DataItem, o fyne.CanvasObject) {
-			//if id+1 > len(ui.messages) {
-			//	return
-			//}
-			//itm := ui.messages[id]
-			//cnt := item.(*container.Split)
-			//a := cnt.Leading.(*widget.Label)
-			//a.SetText(itm.Created.Format("3:04PM"))
-			//b := cnt.Trailing.(*widget.Label)
-			//b.SetText(itm.Message)
-		})
+			value := i.(binding.Untyped)
+			obj, _ := value.Get()
+			um := obj.(model.UserMessage)
+			uml.objectMu.Lock()
+			rootContainer := o.(*fyne.Container)
+			timeAndProfileContainer := rootContainer.Objects[1].(*fyne.Container)
+			timeStamp := timeAndProfileContainer.Objects[0].(*widget.Label)
+			profileButton := timeAndProfileContainer.Objects[1].(*contextMenuRichText)
+			messageRichText := rootContainer.Objects[0].(*widget.RichText)
 
-	return &chatListWidget{
-		list: userMessageListWidget,
-	}
+			timeStamp.SetText(um.Created.Format(time.Kitchen))
+			profileButton.SetText(um.Player)
+			sz := profileButton.Size()
+			sz.Width = 200
+			profileButton.Resize(sz)
+			profileButton.menu = ui.generateUserMenu(um.PlayerSID, um.UserId)
+			profileButton.menu.Refresh()
+			profileButton.Refresh()
+
+			messageRichText.Segments[0] = &widget.TextSegment{
+				Style: widget.RichTextStyleInline,
+				Text:  um.Message,
+			}
+			messageRichText.Refresh()
+
+			uml.objectMu.Unlock()
+		})
+	uml.list = userMessageListWidget
+	uml.boundList = boundList
+	uml.content = container.NewVScroll(userMessageListWidget)
+	return uml
 }
 
-func (ui *Ui) createChatWidget() fyne.Window {
-	//chatWidget := ui.newChatListWidget()
+func (ui *Ui) createChatWidget(msgList *userMessageList) fyne.Window {
 	chatWindow := ui.application.NewWindow("Chat")
-	//chatWindow.SetContent(chatWidget)
+	chatWindow.SetContent(msgList.Widget())
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {
 		chatWindow.Hide()

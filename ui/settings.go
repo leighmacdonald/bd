@@ -150,7 +150,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
 
 	rconModeStatic := ui.settings.getBoundBoolDefault("RconStatic", false)
-	rconModeStaticEntry := widget.NewCheckWithData("", rconModeStatic)
+	rconModeStaticEntry := widget.NewCheckWithData("Static", rconModeStatic)
 
 	staticConfig := model.NewRconConfig(true)
 
@@ -166,7 +166,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 				HintText: "Location of your steam install directory containing a userdata folder."},
 			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, ""),
 				HintText: "Path to your steamapps/common/Team Fortress 2/tf folder"},
-			{Text: "Randomized RCON", Widget: rconModeStaticEntry,
+			{Text: "RCON Mode", Widget: rconModeStaticEntry,
 				HintText: fmt.Sprintf("Static: Port: %d, Password: %s", staticConfig.Port(), staticConfig.Password())},
 		},
 		OnSubmit: func() {
@@ -188,7 +188,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 			ui.baseSettings.KickerEnabled = kickerEnabledEntry.Checked
 			ui.baseSettings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
 			ui.baseSettings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
-			ui.baseSettings.RconStatic = !rconModeStaticEntry.Checked
+			ui.baseSettings.RconStatic = rconModeStaticEntry.Checked
 			ui.baseSettings.Unlock()
 			if apiKeyOriginal != apiKeyEntry.Text {
 				if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {

@@ -105,7 +105,12 @@ func (bd *BD) discordUpdateActivity() {
 	defer bd.serverMu.RUnlock()
 	if bd.server.CurrentMap != "" {
 		cnt := 0
+		name := ""
+		ownSID := bd.settings.GetSteamId()
 		for _, player := range bd.players {
+			if player.SteamId == ownSID {
+				name = player.Name
+			}
 			// TODO remove this once we track disconnected players better
 			if time.Since(player.UpdatedOn) < time.Second*30 {
 				cnt++
@@ -129,7 +134,7 @@ func (bd *BD) discordUpdateActivity() {
 			Details:    bd.server.ServerName,
 			LargeImage: fmt.Sprintf("map_%s", currentMap),
 			LargeText:  currentMap,
-			SmallImage: "map_cp_cloak",
+			SmallImage: name,
 			SmallText:  bd.server.CurrentMap,
 			Party: &client.Party{
 				ID:         "-1",
@@ -220,8 +225,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 				log.Printf("Failed to fetch bans: %v\n", errBans)
 				continue
 			}
-			existingPlayers := bd.players
-			for _, player := range existingPlayers {
+			for _, player := range bd.players {
 				for _, summary := range summaries {
 					if summary.Steamid == player.SteamId.String() {
 						player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
@@ -241,10 +245,14 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 						break
 					}
 				}
+				player.ProfileUpdatedOn = time.Now()
+				if errSave := bd.store.SavePlayer(bd.ctx, player); errSave != nil {
+					log.Printf("Failed to save player state: %v", errSave)
+				}
 			}
 
 			var avatarUpdates []avatarUpdate
-			for _, p := range existingPlayers {
+			for _, p := range bd.players {
 				if p.AvatarHash == "" {
 					continue
 				}
@@ -254,10 +262,10 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 					sid:         p.SteamId,
 				})
 			}
-			log.Printf("Updated %d profiles\n", len(queuedUpdates))
 			httpClient := &http.Client{}
 			wg := &sync.WaitGroup{}
 			var errorCount int32 = 0
+			var downloaded int64 = 0
 			for _, update := range avatarUpdates {
 				wg.Add(1)
 				go func(u avatarUpdate) {
@@ -306,7 +314,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 					if errSet := bd.cache.Set(cacheTypeAvatar, u.hash, bytes.NewReader(body)); errSet != nil {
 						log.Printf("failed to set cached value: %v\n", errSet)
 					}
-
+					atomic.AddInt64(&downloaded, 1)
 					for _, player := range bd.players {
 						if player.SteamId == u.sid {
 							player.SetAvatar(u.hash, body)
@@ -315,7 +323,7 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 					}
 				}(update)
 			}
-			log.Printf("Downloaded %d avatars. [%d failed]", len(queuedUpdates), errorCount)
+			log.Printf("Downloaded %d avatars. [%d failed, %d cached]", downloaded, errorCount, len(queuedUpdates)-int(downloaded))
 			queuedUpdates = nil
 		}
 	}
@@ -376,17 +384,20 @@ func (bd *BD) eventHandler() {
 					if bd.settings.GetSteamId() == evt.PlayerSID {
 						atomic.AddInt64(&p.KillsOn, 1)
 					}
+					p.Touch()
 				} else if p.Name == evt.Victim {
 					atomic.AddInt64(&p.Deaths, 1)
 					if bd.settings.GetSteamId() == evt.VictimSID {
 						atomic.AddInt64(&p.DeathsBy, 1)
 					}
+					p.Touch()
 				}
 			}
 		case model.EvtMsg:
 			for _, p := range bd.players {
 				if p.Name == evt.Player {
 					evt.PlayerSID = p.SteamId
+					evt.UserId = p.UserId
 					break
 				}
 			}
@@ -403,26 +414,26 @@ func (bd *BD) eventHandler() {
 				Created:   time.Now(),
 			}
 			bd.messages = append(bd.messages, um)
-			var ps *model.PlayerState
 			isNew := true
 			for _, player := range bd.players {
 				if player.SteamId == evt.PlayerSID {
-					ps = player
 					isNew = false
 					break
 				}
 			}
 			if isNew {
-				ps = model.NewPlayerState(evt.PlayerSID, evt.Player)
+				ps := model.NewPlayerState(evt.PlayerSID, evt.Player)
 				if errCreate := bd.store.LoadOrCreatePlayer(bd.ctx, evt.PlayerSID, ps); errCreate != nil {
 					log.Printf("Error trying to load/create player: %v\n", errCreate)
 					continue
 				}
 			}
 
-			if errSaveMsg := bd.store.SaveMessage(bd.ctx, ps.SteamId, evt.Message); errSaveMsg != nil {
+			if errSaveMsg := bd.store.SaveMessage(bd.ctx, um); errSaveMsg != nil {
 				log.Printf("Error trying to store user messge log: %v\n", errSaveMsg)
 			}
+
+			bd.gui.AddUserMessage(*um)
 
 		case model.EvtStatusId:
 			ps := model.NewPlayerState(evt.PlayerSID, evt.Player)
@@ -455,7 +466,7 @@ func (bd *BD) eventHandler() {
 				ep = append(ep, ps)
 			}
 			bd.players = ep
-			if isNew || time.Since(ps.UpdatedOn) > time.Hour {
+			if isNew || time.Since(ps.ProfileUpdatedOn) > time.Hour*6 {
 				bd.profileUpdateQueue <- evt.PlayerSID
 			}
 			bd.triggerUpdate <- true
@@ -505,6 +516,7 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 }
 
 // AttachGui connects the backend functions to the frontend gui
+// TODO Use channels for communicating instead
 func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
@@ -543,7 +555,7 @@ func (bd *BD) refreshLists() {
 func (bd *BD) checkPlayerStates() {
 	var valid []*model.PlayerState
 	for _, ps := range bd.players {
-		if time.Since(ps.UpdatedOn) > time.Second*30 {
+		if time.Since(ps.UpdatedOn) > time.Second*15 {
 			log.Printf("Player expired: %s %s", ps.SteamId.String(), ps.Name)
 			if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
 				log.Printf("Failed to save expired player state: %v\n", errSave)
@@ -554,13 +566,11 @@ func (bd *BD) checkPlayerStates() {
 	}
 
 	for _, ps := range valid {
-		ps.Lock()
 		match := bd.rules.matchSteam(ps.GetSteamID())
 		if match != nil {
-			if time.Since(ps.AnnouncedLast) >= time.Second*30 {
+			if time.Since(ps.AnnouncedLast) >= time.Minute*5 {
 				if errLog := bd.partyLog("Player is a bot: (%d) [%s] %s ", ps.UserId, match.origin, ps.Name); errLog != nil {
 					log.Printf("Failed to send party log message: %s\n", errLog)
-					ps.Unlock()
 					continue
 				}
 				ps.AnnouncedLast = time.Now()
@@ -596,10 +606,13 @@ func (bd *BD) checkPlayerStates() {
 		//	break
 		//
 		//}
-		if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
-			log.Printf("Failed to save player state: %v\n", errSave)
+		if ps.Dirty {
+			if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
+				log.Printf("Failed to save player state: %v\n", errSave)
+				continue
+			}
+			ps.Dirty = false
 		}
-		ps.Unlock()
 	}
 	var plState []model.PlayerState
 	for _, player := range valid {

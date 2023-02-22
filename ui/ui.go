@@ -40,6 +40,7 @@ type UserInterface interface {
 	UpdateServerState(state model.ServerState)
 	UpdateTitle(string)
 	UpdatePlayerState([]model.PlayerState)
+	AddUserMessage(message model.UserMessage)
 	UpdateAttributes([]string)
 }
 
@@ -48,12 +49,12 @@ type Ui struct {
 	application     fyne.App
 	rootWindow      fyne.Window
 	chatWindow      fyne.Window
-	panelServerInfo fyne.Container
 	settingsDialog  dialog.Dialog
 	aboutDialog     dialog.Dialog
 	settings        boundSettings
 	baseSettings    *model.Settings
 	playerList      *PlayerList
+	userMessageList *userMessageList
 	knownAttributes []string
 	launcher        func()
 	markFn          model.MarkFunc
@@ -84,8 +85,9 @@ func New(ctx context.Context, settings *model.Settings) UserInterface {
 		log.Println("Settings saved successfully")
 	})
 	ui.aboutDialog = createAboutDialog(rootWindow)
-	ui.chatWindow = ui.createChatWidget()
 	ui.playerList = ui.createPlayerList()
+	ui.userMessageList = ui.createUserMessageList()
+	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
 
 	rootWindow.Resize(fyne.NewSize(750, 1000))
 	ui.rootWindow.SetCloseIntercept(func() {
@@ -160,6 +162,12 @@ func (ui *Ui) UpdateServerState(state model.ServerState) {
 func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {
 	if errReboot := ui.playerList.Reload(state); errReboot != nil {
 		log.Printf("Faile to reboot data: %v\n", errReboot)
+	}
+}
+
+func (ui *Ui) AddUserMessage(msg model.UserMessage) {
+	if errAppend := ui.userMessageList.Append(msg); errAppend != nil {
+		log.Printf("Failed to append user message: %v", errAppend)
 	}
 }
 

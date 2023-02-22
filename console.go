@@ -79,6 +79,8 @@ type logParser struct {
 	rx            []*regexp.Regexp
 }
 
+const deadPrefix = "*DEAD* "
+
 func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range l.rx {
@@ -97,7 +99,7 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 					continue
 				}
 				outEvent.Timestamp = ts
-				outEvent.Player = m[2]
+				outEvent.Player = strings.TrimPrefix(m[2], deadPrefix)
 				outEvent.Message = m[3]
 			case model.EvtStatusId:
 				ts, errTs := parseTimestamp(m[1])

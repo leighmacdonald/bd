@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/model"
-	//"github.com/leighmacdonald/bd/translations"
+	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamweb"
 	_ "github.com/mattn/go-sqlite3"

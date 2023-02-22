@@ -28,14 +28,14 @@ lint: lint_deps
 	test -z $(goimports -e -d . | tee /dev/stderr)
 	gocyclo -over 35 .
 	golint -set_exit_status $(go list -tags ci ./...)
-	#staticcheck -go 1.19 ./...
+	staticcheck -go 1.19 ./...
 
 lint_deps:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	go install golang.org/x/lint/golint@latest
-	#go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install honnef.co/go/tools/cmd/staticcheck@latest
 
 build: build_linux build_windows
 

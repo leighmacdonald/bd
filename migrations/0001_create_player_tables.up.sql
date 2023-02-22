@@ -10,6 +10,7 @@ create table if not exists player
     kills_on integer not null default 0,
     deaths_by integer not null default 0,
     rage_quits integer not null default 0,
+    profile_updated_on date not null default (DATETIME('now')),
     created_on date not null default (DATETIME('now')),
     updated_on date not null default (DATETIME('now'))
 );
