@@ -33,6 +33,13 @@ type ServerState struct {
 	Tags       []string
 }
 
+// ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
+// Note that because this WebAPI does not use authentication, there are only two possible values returned:
+// 1 - the profile is not visible to you (Private, Friends Only, etc),
+// 3 - the profile is "Public", and the data is visible.
+// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
+// than the privacy state. It's the effective visibility state from the account making the request to the account
+// being viewed given the requesting account's relationship to the viewed account."
 type ProfileVisibility int
 
 const (
@@ -51,15 +58,9 @@ type PlayerState struct {
 	RealName         string
 	NamePrevious     string
 	AccountCreatedOn time.Time
-	// This represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
-	// Note that because this WebAPI does not use authentication, there are only two possible values returned:
-	// 1 - the profile is not visible to you (Private, Friends Only, etc),
-	// 3 - the profile is "Public", and the data is visible.
-	// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
-	// than the privacy state. It's the effective visibility state from the account making the request to the account
-	// being viewed given the requesting account's relationship to the viewed account."
+
 	Visibility ProfileVisibility
-	Avatar     fyne.Resource
+	Avatar     fyne.Resource // TODO store somewhere else so we dont couple ui item to the model
 	AvatarHash string
 
 	// PlayerBanState
@@ -150,6 +151,8 @@ const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 const baseAvatarUrl = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
 
 func (ps *PlayerState) AvatarUrl() string {
+	ps.RLock()
+	defer ps.RUnlock()
 	avatarHash := defaultAvatarHash
 	if ps.AvatarHash != "" {
 		avatarHash = ps.AvatarHash
@@ -163,8 +166,10 @@ func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
 		log.Printf("Failed to load avatar\n")
 		return
 	} else {
+		ps.Lock()
 		ps.Avatar = res
 		ps.AvatarHash = HashBytes(buf)
+		ps.Unlock()
 	}
 }
 
@@ -203,14 +208,6 @@ type UserNameHistory struct {
 	NameId    int64
 	Name      string
 	FirstSeen time.Time
-}
-
-func init() {
-	//avatar, errDecode := jpeg.Decode(bytes.NewReader(defaultAvatarJpeg))
-	//if errDecode != nil {
-	//	log.Panic("Failed to decode default profile avatar")
-	//}
-	//DefaultAvatarImage = avatar
 }
 
 func HashBytes(b []byte) string {

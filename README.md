@@ -40,5 +40,5 @@ Since cross-compiling with cgo + windows is a bit annoying we just use wsl. Feel
     
     (wsl) $ goreleaser release --clean --split
     (win) $ goreleaser release --clean --split
-    (wsl) $ cp -rv /mnt/c/projects/bd/windows dist/
+    (wsl) $ cp -rv /mnt/c/projects/bd/dist/windows dist/
     (wsl) $ goreleaser continue --merge

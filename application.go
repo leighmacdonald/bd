@@ -262,71 +262,66 @@ func (bd *BD) profileUpdater(interval time.Duration) {
 					sid:         p.SteamId,
 				})
 			}
-			httpClient := &http.Client{}
+
 			wg := &sync.WaitGroup{}
 			var errorCount int32 = 0
-			var downloaded int64 = 0
 			for _, update := range avatarUpdates {
 				wg.Add(1)
-				go func(u avatarUpdate) {
-					defer wg.Done()
-					buf := bytes.NewBuffer(nil)
-					errCache := bd.cache.Get(cacheTypeAvatar, u.hash, buf)
-					if errCache == nil {
-						for _, player := range bd.players {
-							if player.SteamId == u.sid {
-								player.SetAvatar(u.hash, buf.Bytes())
-								return
-							}
-						}
-					}
-					if errCache != nil && !errors.Is(errCache, errCacheExpired) {
-						log.Printf("unexpected cache error: %v\n", errCache)
-						return
-					}
-					localCtx, cancel := context.WithTimeout(bd.ctx, time.Second*10)
-					defer cancel()
-					req, reqErr := http.NewRequestWithContext(localCtx, "GET", u.urlLocation, nil)
-					if reqErr != nil {
-						log.Printf("Failed to create avatar download request: %v", reqErr)
-						atomic.AddInt32(&errorCount, 1)
-						return
-					}
-					resp, respErr := httpClient.Do(req)
-					if respErr != nil {
-						log.Printf("Failed to download avatar: %v", respErr)
-						atomic.AddInt32(&errorCount, 1)
-						return
-					}
-					if resp.StatusCode != http.StatusOK {
-						log.Printf("Invalid response code downloading avatar: %d", resp.StatusCode)
-						atomic.AddInt32(&errorCount, 1)
-						return
-					}
-					body, bodyErr := io.ReadAll(resp.Body)
-					if bodyErr != nil {
-						log.Printf("Failed to read avatar body: %v", bodyErr)
-						atomic.AddInt32(&errorCount, 1)
-						return
-					}
-					defer logClose(resp.Body)
-
-					if errSet := bd.cache.Set(cacheTypeAvatar, u.hash, bytes.NewReader(body)); errSet != nil {
-						log.Printf("failed to set cached value: %v\n", errSet)
-					}
-					atomic.AddInt64(&downloaded, 1)
-					for _, player := range bd.players {
-						if player.SteamId == u.sid {
-							player.SetAvatar(u.hash, body)
-							break
-						}
-					}
-				}(update)
+				if errDownload := bd.updateAvatar(update); errDownload != nil {
+					atomic.AddInt32(&errorCount, 1)
+				}
+				wg.Done()
 			}
-			log.Printf("Downloaded %d avatars. [%d failed, %d cached]", downloaded, errorCount, len(queuedUpdates)-int(downloaded))
+			log.Printf("Updated %d avatars. [%d failed]", len(avatarUpdates), errorCount)
 			queuedUpdates = nil
 		}
 	}
+}
+
+func (bd *BD) updateAvatar(u avatarUpdate) error {
+	httpClient := &http.Client{}
+	buf := bytes.NewBuffer(nil)
+	errCache := bd.cache.Get(cacheTypeAvatar, u.hash, buf)
+	if errCache == nil {
+		for _, player := range bd.players {
+			if player.SteamId == u.sid {
+				player.SetAvatar(u.hash, buf.Bytes())
+				return nil
+			}
+		}
+	}
+	if errCache != nil && !errors.Is(errCache, errCacheExpired) {
+		return errors.Wrap(errCache, "unexpected cache error: %v")
+	}
+	localCtx, cancel := context.WithTimeout(bd.ctx, time.Second*10)
+	defer cancel()
+	req, reqErr := http.NewRequestWithContext(localCtx, "GET", u.urlLocation, nil)
+	if reqErr != nil {
+		return errors.Wrap(reqErr, "Failed to create avatar download request")
+	}
+	resp, respErr := httpClient.Do(req)
+	if respErr != nil {
+		return errors.Wrap(respErr, "Failed to download avatar")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.Errorf("Invalid response code downloading avatar: %d", resp.StatusCode)
+	}
+	body, bodyErr := io.ReadAll(resp.Body)
+	if bodyErr != nil {
+		return errors.Wrap(bodyErr, "Failed to read avatar response body")
+	}
+	defer logClose(resp.Body)
+
+	if errSet := bd.cache.Set(cacheTypeAvatar, u.hash, bytes.NewReader(body)); errSet != nil {
+		return errors.Wrap(errSet, "failed to set cached value")
+	}
+	for _, player := range bd.players {
+		if player.SteamId == u.sid {
+			player.SetAvatar(u.hash, body)
+			break
+		}
+	}
+	return nil
 }
 
 func (bd *BD) createLogReader() {
@@ -566,46 +561,16 @@ func (bd *BD) checkPlayerStates() {
 	}
 
 	for _, ps := range valid {
-		match := bd.rules.matchSteam(ps.GetSteamID())
-		if match != nil {
-			if time.Since(ps.AnnouncedLast) >= time.Minute*5 {
-				if errLog := bd.partyLog("Player is a bot: (%d) [%s] %s ", ps.UserId, match.origin, ps.Name); errLog != nil {
-					log.Printf("Failed to send party log message: %s\n", errLog)
-					continue
-				}
-				ps.AnnouncedLast = time.Now()
-			}
-			log.Printf("Matched: steamid %d %s %s", ps.SteamId, ps.Name, match.origin)
+		matchSteam := bd.rules.matchSteam(ps.GetSteamID())
+		if matchSteam != nil {
+			bd.announceMatch(ps, matchSteam)
 		}
 		if ps.Name != "" {
-			match = bd.rules.matchName(ps.GetName())
-			if match != nil {
-				log.Println("Matched name...")
+			matchName := bd.rules.matchName(ps.GetName())
+			if matchName != nil {
+				bd.announceMatch(ps, matchName)
 			}
 		}
-		//for _, matcher := range bd.rules {
-		//	if !matcher.FindMatch(ps.SteamID, &matched) {
-		//		continue
-		//	}
-		//	if bd.dryRun {
-		//		if errPL := bd.partyLog("(DRY) Matched player: %s %s %s",
-		//			matched.player.SteamID,
-		//			strings.Join(matched.player.Attributes, ","),
-		//			matched.list.FileInfo.Description,
-		//		); errPL != nil {
-		//			log.Println(errPL)
-		//			continue
-		//		}
-		//	} else {
-		//		if errVote := bd.callVote(ps.UserId); errVote != nil {
-		//			log.Printf("Error calling vote: %v", errVote)
-		//		}
-		//		ps.KickAttemptCount++
-		//	}
-		//	// Only try to vote once per iteration
-		//	break
-		//
-		//}
 		if ps.Dirty {
 			if errSave := bd.store.SavePlayer(bd.ctx, ps); errSave != nil {
 				log.Printf("Failed to save player state: %v\n", errSave)
@@ -621,6 +586,21 @@ func (bd *BD) checkPlayerStates() {
 	bd.players = valid
 	bd.gui.UpdatePlayerState(plState)
 
+}
+
+const announceMatchTimeout = time.Minute * 5
+
+func (bd *BD) announceMatch(ps *model.PlayerState, match *ruleMatchResult) {
+	if time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
+		// Don't spam friends, but eventually remind them if they manage to forget long enough
+		return
+	}
+	log.Printf("Matched (%s):  %d %s %s", match.matcherType, ps.SteamId, ps.Name, match.origin)
+	if errLog := bd.partyLog("Rule Match: (%d) [%s] %s ", ps.UserId, match.origin, ps.Name); errLog != nil {
+		log.Printf("Failed to send party log message: %s\n", errLog)
+		return
+	}
+	ps.AnnouncedLast = time.Now()
 }
 
 func (bd *BD) connectRcon() error {
@@ -684,6 +664,8 @@ func (bd *BD) Shutdown() {
 	logClose(bd.store)
 }
 
+const profileUpdateRate = time.Second * 10
+
 func (bd *BD) start() {
 	go bd.logReader.start(bd.ctx)
 	defer bd.logReader.tail.Cleanup()
@@ -691,7 +673,7 @@ func (bd *BD) start() {
 	go bd.playerStateUpdater()
 	go bd.refreshLists()
 	go bd.eventHandler()
-	go bd.profileUpdater(time.Second * 10)
+	go bd.profileUpdater(profileUpdateRate)
 	go bd.uiStateUpdater()
 	<-bd.ctx.Done()
 }

@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+var (
+	errDuplicateSteamID = errors.New("duplicate steam id")
+)
+
 const (
 	exportIndentSize = 4
 )
@@ -53,7 +57,7 @@ func (m avatarMatcher) Type() avatarMatchType {
 func (m avatarMatcher) Match(hexDigest string) *ruleMatchResult {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
-			return &ruleMatchResult{origin: m.origin}
+			return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
 		}
 	}
 	return nil
@@ -86,7 +90,7 @@ type steamIDMatcher struct {
 
 func (m steamIDMatcher) Match(sid64 steamid.SID64) *ruleMatchResult {
 	if sid64 == m.steamID {
-		return &ruleMatchResult{origin: m.origin}
+		return &ruleMatchResult{origin: m.origin, matcherType: "steam_id"}
 	}
 	return nil
 }
@@ -104,7 +108,7 @@ type regexTextMatcher struct {
 func (m regexTextMatcher) Match(value string) *ruleMatchResult {
 	for _, re := range m.patterns {
 		if re.MatchString(value) {
-			return &ruleMatchResult{origin: m.origin}
+			return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
 		}
 	}
 	return nil
@@ -160,7 +164,7 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 				}
 			} else {
 				if strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &ruleMatchResult{origin: m.origin}
+					return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
 				}
 			}
 		}
@@ -180,7 +184,7 @@ func (m generalTextMatcher) Match(value string) *ruleMatchResult {
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.Contains(value, prefix) {
-					return &ruleMatchResult{origin: m.origin}
+					return &ruleMatchResult{origin: m.origin, matcherType: string(m.Type())}
 				}
 			} else {
 				if strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
@@ -253,8 +257,9 @@ func newRulesEngine(localRules *ruleSchema, localPlayers *playerListSchema) (*ru
 
 type ruleMatchResult struct {
 	origin string // Title of the list that the match was generated against
-	//attributes []string
-	//proof      []string
+	//attributes  []string
+	//proof       []string
+	matcherType string
 }
 
 type markOpts struct {
@@ -277,6 +282,11 @@ type rulesEngine struct {
 func (e *rulesEngine) mark(opts markOpts) error {
 	e.Lock()
 	defer e.Unlock()
+	for _, knownPlayer := range e.playerLists[0].Players {
+		if knownPlayer.SteamID == opts.steamID {
+			return errDuplicateSteamID
+		}
+	}
 	e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
 		Attributes: opts.attributes,
 		LastSeen: playerLastSeen{
