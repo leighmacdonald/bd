@@ -22,7 +22,7 @@ fonts:
 
 lint: lint_deps
 	# TODO remove `--disable unused` check once further along in development
-	golangci-lint run --fix --disable unused --timeout 120s
+	golangci-lint run --disable unused --timeout 3m --verbose
 	go vet -tags ci ./...
 	test -z $(goimports -e -d . | tee /dev/stderr)
 	gocyclo -over 35 .
