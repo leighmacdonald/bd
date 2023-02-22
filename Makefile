@@ -45,6 +45,9 @@ snapshot_windows:
 snapshot_linux:
 	goreleaser build --snapshot --rm-dist --id unix
 
+test:
+	go test
+
 translations:
 	goi18n extract -outdir translations/ -format yaml
 

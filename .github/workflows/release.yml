@@ -30,11 +30,11 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Run GoReleaser
+      - name: Release Nightly
         uses: goreleaser/goreleaser-action@v4
         with:
-          distribution: goreleaser
+          distribution: goreleaser-pro
           version: latest
-          args: release --rm-dist
+          args: release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

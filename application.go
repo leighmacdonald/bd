@@ -135,11 +135,6 @@ func (bd *BD) discordUpdateActivity() {
 			Timestamps: &client.Timestamps{
 				Start: &bd.startupTime,
 			},
-			//Secrets: &client.Secrets{
-			//	Match:    "steam://joinlobby/440/the_secret",
-			//	Join:     "lobby_join_id",
-			//	Spectate: "",
-			//},
 			Buttons: buttons,
 		}); errSetActivity != nil {
 			log.Printf("Failed to set discord activity: %v\n", errSetActivity)
@@ -641,6 +636,9 @@ func (bd *BD) callVote(userID int64, reason model.KickReason) error {
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
 		logClose(bd.rconConnection)
+	}
+	if bd.settings.DiscordPresenceEnabled {
+		client.Logout()
 	}
 	// Ensure we save on exit
 	playerListFile, playerListFileErr := os.Create(bd.settings.LocalPlayerListPath())

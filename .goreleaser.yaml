@@ -37,6 +37,12 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
+nightly:
+  name_template: '{{ incpatch .Version }}-devel'
+  tag_name: devel
+  publish_release: true
+  keep_single_release: true
+
 release:
   github:
     owner: leighmacdonald
@@ -71,5 +77,5 @@ announce:
     # Defaults to `https://goreleaser.com/static/avatar.png`
     # icon_url: ''
 
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj

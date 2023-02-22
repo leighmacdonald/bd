@@ -10,7 +10,7 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
+  lint:
     name: Build
     runs-on: ubuntu-latest
     steps:
@@ -34,5 +34,41 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Build
-        run: go build -o bd_test
+  test:
+    runs-on: ubuntu-latest
+    environment: release
+    needs: lint
+    steps:
+      - name: Test
+        run: make test
+
+  snapshot:
+    runs-on: ubuntu-latest
+    environment: release
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Get dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
+      - run: git fetch --force --tags
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '>=1.19.5'
+          cache: true
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v5
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: release --nightly
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
