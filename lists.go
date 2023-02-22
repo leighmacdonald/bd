@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/leighmacdonald/bd/model"
-	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
 	"io"
 	"log"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/model"
-	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamweb"
@@ -19,11 +19,9 @@ func main() {
 	settings := model.NewSettings()
 	localRules := rules.NewRuleSchema()
 	localPlayersList := rules.NewPlayerListSchema()
-
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
 		log.Println(errReadSettings)
 	}
-
 	// Try and load our existing custom players/rules
 	if exists(settings.LocalPlayerListPath()) {
 		input, errInput := os.Open(settings.LocalPlayerListPath())
@@ -51,7 +49,6 @@ func main() {
 	if ruleEngineErr != nil {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
-
 	if settings.ApiKey != "" {
 		if errAPIKey := steamweb.SetKey(settings.ApiKey); errAPIKey != nil {
 			log.Printf("Failed to set steam api key: %v\n", errAPIKey)

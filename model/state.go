@@ -1,10 +1,9 @@
 package model
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"fyne.io/fyne/v2"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
 	"net"
@@ -168,7 +167,7 @@ func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
 	} else {
 		ps.Lock()
 		ps.Avatar = res
-		ps.AvatarHash = HashBytes(buf)
+		ps.AvatarHash = rules.HashBytes(buf)
 		ps.Unlock()
 	}
 }
@@ -208,10 +207,4 @@ type UserNameHistory struct {
 	NameId    int64
 	Name      string
 	FirstSeen time.Time
-}
-
-func HashBytes(b []byte) string {
-	hash := sha1.New()
-	hash.Write(b)
-	return hex.EncodeToString(hash.Sum(nil))
 }

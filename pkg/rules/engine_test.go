@@ -3,7 +3,6 @@ package rules
 import (
 	"bufio"
 	"bytes"
-	"github.com/leighmacdonald/bd/model"
 	"github.com/stretchr/testify/require"
 	"image"
 	"image/jpeg"
@@ -151,7 +150,7 @@ func TestAvatarRules(t *testing.T) {
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
 	re, reErr := NewEngine(nil, nil)
 	require.NoError(t, reErr)
-	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, model.HashBytes(buf.Bytes())))
+	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
 	result := re.matchAvatar(buf.Bytes())
 	require.NotNil(t, result)
 	require.Equal(t, listName, result.Origin)

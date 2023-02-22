@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	rx *regexp.Regexp
+	lobbyPlayerRx *regexp.Regexp
 )
 
 type rconConnection interface {
@@ -19,7 +19,7 @@ type rconConnection interface {
 func parseLobbyPlayers(body string) []*model.PlayerState {
 	var players []*model.PlayerState
 	for _, line := range strings.Split(body, "\n") {
-		match := rx.FindStringSubmatch(line)
+		match := lobbyPlayerRx.FindStringSubmatch(line)
 		if match == nil {
 			continue
 		}
@@ -35,5 +35,5 @@ func parseLobbyPlayers(body string) []*model.PlayerState {
 }
 
 func init() {
-	rx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
+	lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
 }
