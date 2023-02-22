@@ -227,6 +227,12 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 			Icon:      theme.ContentCopyIcon(),
 			ChildMenu: ui.generateSteamIdMenu(steamId),
 			Label:     "Copy SteamID..."},
+		&fyne.MenuItem{
+			Icon: theme.ListIcon(),
+			Action: func() {
+				ui.createChatHistoryWindow(steamId)
+			},
+			Label: "View Chat History"},
 	)
 	return menu
 }

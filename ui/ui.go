@@ -44,21 +44,22 @@ type UserInterface interface {
 }
 
 type Ui struct {
-	application     fyne.App
-	rootWindow      fyne.Window
-	chatWindow      fyne.Window
-	settingsDialog  dialog.Dialog
-	aboutDialog     dialog.Dialog
-	settings        boundSettings
-	baseSettings    *model.Settings
-	playerList      *PlayerList
-	userMessageList *userMessageList
-	knownAttributes []string
-	launcher        func()
-	markFn          model.MarkFunc
-	kickFn          model.KickFunc
-	labelHostname   *widget.RichText
-	labelMap        *widget.RichText
+	application        fyne.App
+	rootWindow         fyne.Window
+	chatWindow         fyne.Window
+	settingsDialog     dialog.Dialog
+	aboutDialog        dialog.Dialog
+	settings           boundSettings
+	baseSettings       *model.Settings
+	playerList         *PlayerList
+	userMessageList    *userMessageList
+	knownAttributes    []string
+	launcher           func()
+	markFn             model.MarkFunc
+	kickFn             model.KickFunc
+	labelHostname      *widget.RichText
+	labelMap           *widget.RichText
+	chatHistoryWindows map[steamid.SID64]fyne.Window
 }
 
 func New(settings *model.Settings) UserInterface {
@@ -68,10 +69,11 @@ func New(settings *model.Settings) UserInterface {
 	rootWindow := application.NewWindow("BD")
 
 	ui := Ui{
-		application:  application,
-		rootWindow:   rootWindow,
-		settings:     boundSettings{binding.BindStruct(settings)},
-		baseSettings: settings,
+		application:        application,
+		rootWindow:         rootWindow,
+		settings:           boundSettings{binding.BindStruct(settings)},
+		baseSettings:       settings,
+		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
 	}
 
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
@@ -165,6 +167,21 @@ func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {
 func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	if errAppend := ui.userMessageList.Append(msg); errAppend != nil {
 		log.Printf("Failed to append user message: %v", errAppend)
+	}
+}
+
+func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) {
+	_, found := ui.chatHistoryWindows[sid64]
+	if found {
+		ui.chatHistoryWindows[sid64].Show()
+	} else {
+		window := ui.application.NewWindow(fmt.Sprintf("Chat History: %d", sid64))
+		window.SetOnClosed(func() {
+			delete(ui.chatHistoryWindows, sid64)
+		})
+		window.Resize(fyne.NewSize(600, 600))
+		window.Show()
+		ui.chatHistoryWindows[sid64] = window
 	}
 }
 
