@@ -4,3 +4,4 @@ bd.yaml
 dist/
 *.json
 *.sqlite
+/fyne-cross/

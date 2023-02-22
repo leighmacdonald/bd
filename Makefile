@@ -3,7 +3,8 @@ all: fmt lint snapshot_windows
 deps:
 	go install fyne.io/fyne/v2/cmd/fyne@latest
 	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
-	go install github.com/goreleaser/goreleaser@latest
+	# go install github.com/goreleaser/goreleaser@latest
+	# for pro install frpm: https://github.com/goreleaser/goreleaser-pro/releases
 	go mod tidy
 
 extract: fonts translations
@@ -36,11 +37,19 @@ lint_deps:
 	go install golang.org/x/lint/golint@latest
 	#go install honnef.co/go/tools/cmd/staticcheck@latest
 
+build: build_linux build_windows
+
+build_windows:
+	fyne-cross windows -pull -arch=amd64 -name=bd.exe
+
+build_linux:
+	fyne-cross linux -pull -arch=amd64 -name=bd
+
 release_local:
-	goreleaser release --snapshot --rm-dist
+	goreleaser release --nightly --clean --snapshot
 
 snapshot_windows:
-	goreleaser build --single-target --snapshot --rm-dist --id windows
+	goreleaser build --single-target --snapshot --clean --id windows --config .goreleaser-win.yaml
 
 snapshot_linux:
 	goreleaser build --snapshot --rm-dist --id unix
