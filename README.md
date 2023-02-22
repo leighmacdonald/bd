@@ -32,3 +32,13 @@ Run it directly
 Or, Build it and run it.
 
     go build && ./bd
+
+
+## Release 
+
+Since cross-compiling with cgo + windows is a bit annoying we just use wsl. Feel free to improve via pr.
+    
+    (wsl) $ goreleaser release --clean --split
+    (win) $ goreleaser release --clean --split
+    (wsl) $ cp -rv /mnt/c/projects/bd/windows dist/
+    (wsl) $ goreleaser continue --merge
