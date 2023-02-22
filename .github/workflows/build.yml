@@ -18,7 +18,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ^1.19
-          cache: true
       - name: Get dependencies
         run: |
           sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
