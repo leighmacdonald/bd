@@ -8,15 +8,15 @@ builds:
       - amd64
     ldflags:
       - -s -w -X model.BuildVersion={{.Version}} -X model.BuildCommit={{.Commit}} -X model.BuildDate={{.Date}}
-  - env:
-      - CGO_ENABLED=1
-    id: windows
-    goos:
-      - windows
-    goarch:
-      - amd64
-    ldflags:
-      - -H=windowsgui -s -w -X model.BuildVersion={{.Version}} -X model.BuildCommit={{.Commit}} -X model.BuildDate={{.Date}}
+#  - env:
+#      - CGO_ENABLED=1
+#    id: windows
+#    goos:
+#      - windows
+#    goarch:
+#      - amd64
+#    ldflags:
+#      - -H=windowsgui -s -w -X model.BuildVersion={{.Version}} -X model.BuildCommit={{.Commit}} -X model.BuildDate={{.Date}}
 archives:
   - format: tar.gz
     name_template: >-

@@ -11,7 +11,7 @@ on:
 
 jobs:
   lint:
-    name: Build
+    name: Linter
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.x
@@ -35,6 +35,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    name: Test
     environment: release
     needs: lint
     steps:
@@ -56,6 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     needs: test
+    name: Release Snapshot
     steps:
       - uses: actions/checkout@v3
         with:
