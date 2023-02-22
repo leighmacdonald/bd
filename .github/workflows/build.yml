@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
       - name: Get dependencies
         run: |
-          sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
+          sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev gcc-multilib gcc-mingw-w64
       - run: git fetch --force --tags
       - uses: actions/setup-go@v3
         with:
