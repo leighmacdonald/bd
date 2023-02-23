@@ -53,6 +53,7 @@ type BD struct {
 	triggerUpdate      chan any
 	cache              localCache
 	startupTime        time.Time
+	richPresenceActive bool
 }
 
 // New allocates a new bot detector application instance
@@ -93,16 +94,36 @@ func (bd *BD) reload() {
 const discordAppID = "1076716221162082364"
 
 func (bd *BD) discordLogin() error {
-	if errLogin := client.Login(discordAppID); errLogin != nil {
-		return errors.Wrap(errLogin, "Failed to login to discord api\n")
+	if !bd.richPresenceActive {
+		if errLogin := client.Login(discordAppID); errLogin != nil {
+			return errors.Wrap(errLogin, "Failed to login to discord api\n")
+		}
+		bd.richPresenceActive = true
 	}
 	return nil
 }
 
+func (bd *BD) discordLogout() {
+	if bd.richPresenceActive {
+		client.Logout()
+		bd.richPresenceActive = false
+	}
+}
+
 func (bd *BD) discordUpdateActivity() {
+	if !bd.settings.DiscordPresenceEnabled {
+		return
+	}
 	bd.serverMu.RLock()
 	defer bd.serverMu.RUnlock()
+	if time.Since(bd.server.LastUpdate) > time.Second*30 {
+		bd.discordLogout()
+		return
+	}
 	if bd.server.CurrentMap != "" {
+		if errLogin := bd.discordLogin(); errLogin != nil {
+			return
+		}
 		cnt := 0
 		name := ""
 		ownSID := bd.settings.GetSteamId()
@@ -152,7 +173,6 @@ func (bd *BD) discordUpdateActivity() {
 
 func (bd *BD) uiStateUpdater(ctx context.Context) {
 	updateTicker := time.NewTicker(time.Second)
-	bd.discordUpdateActivity()
 	discordStateUpdateTicker := time.NewTicker(time.Second * 10)
 	updateQueued := false
 	for {
@@ -239,7 +259,11 @@ func (bd *BD) profileUpdater(ctx context.Context, interval time.Duration) {
 						player.NumberOfVACBans = ban.NumberOfVACBans
 						player.NumberOfGameBans = ban.NumberOfGameBans
 						player.CommunityBanned = ban.CommunityBanned
-						player.DaysSinceLastBan = ban.DaysSinceLastBan
+						if ban.DaysSinceLastBan > 0 {
+							t0 := time.Now()
+							subTime := t0.AddDate(0, 0, -ban.DaysSinceLastBan)
+							player.LastVACBanOn = &subTime
+						}
 						player.EconomyBan = ban.EconomyBan != "none"
 						break
 					}
@@ -338,15 +362,18 @@ func (bd *BD) eventHandler(ctx context.Context) {
 		switch evt.Type {
 		case model.EvtMap:
 			bd.serverMu.Lock()
+			bd.server.LastUpdate = time.Now()
 			bd.server.CurrentMap = evt.MetaData
 			bd.serverMu.Unlock()
 		case model.EvtHostname:
 			bd.serverMu.Lock()
+			bd.server.LastUpdate = time.Now()
 			bd.server.ServerName = evt.MetaData
 			bd.serverMu.Unlock()
 		case model.EvtTags:
 			bd.serverMu.Lock()
 			bd.server.Tags = strings.Split(evt.MetaData, ",")
+			bd.server.LastUpdate = time.Now()
 			bd.serverMu.Unlock()
 			// We only bother to call this for the tags event since it should be parsed last for the status output, updating all
 			// the other fields at the same time.
@@ -364,6 +391,7 @@ func (bd *BD) eventHandler(ctx context.Context) {
 				continue
 			}
 			bd.serverMu.Lock()
+			bd.server.LastUpdate = time.Now()
 			bd.server.Addr = ip
 			bd.server.Port = uint16(portValue)
 			bd.serverMu.Unlock()

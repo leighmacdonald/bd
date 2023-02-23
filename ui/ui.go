@@ -66,7 +66,7 @@ func New(settings *model.Settings) UserInterface {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})
 	application.SetIcon(resourceIconPng)
-	rootWindow := application.NewWindow("BD")
+	rootWindow := application.NewWindow("Bot Detector")
 
 	ui := Ui{
 		application:        application,

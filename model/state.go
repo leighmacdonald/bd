@@ -30,6 +30,7 @@ type ServerState struct {
 	Port       uint16
 	CurrentMap string
 	Tags       []string
+	LastUpdate time.Time
 }
 
 // ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
@@ -65,7 +66,7 @@ type PlayerState struct {
 	// PlayerBanState
 	CommunityBanned  bool
 	NumberOfVACBans  int
-	DaysSinceLastBan int
+	LastVACBanOn     *time.Time
 	NumberOfGameBans int
 	EconomyBan       bool
 
@@ -185,7 +186,7 @@ func NewPlayerState(sid64 steamid.SID64, name string) *PlayerState {
 		CommunityBanned:  false,
 		Visibility:       ProfileVisibilityPublic,
 		NumberOfVACBans:  0,
-		DaysSinceLastBan: 0,
+		LastVACBanOn:     nil,
 		NumberOfGameBans: 0,
 		EconomyBan:       false,
 		SteamId:          sid64,

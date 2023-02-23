@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type PlayerList struct {
@@ -308,7 +309,7 @@ func (ui *Ui) createPlayerList() *PlayerList {
 				vacState = append(vacState, fmt.Sprintf("VB: %d", ps.NumberOfGameBans))
 			}
 			if ps.NumberOfGameBans > 0 {
-				vacState = append(vacState, fmt.Sprintf("GB: %d (%d days)", ps.NumberOfVACBans, ps.DaysSinceLastBan))
+				vacState = append(vacState, fmt.Sprintf("GB: %d", ps.NumberOfVACBans))
 			}
 			if ps.CommunityBanned {
 				vacState = append(vacState, "CB: ✓")
@@ -321,6 +322,9 @@ func (ui *Ui) createPlayerList() *PlayerList {
 				vacState = append(vacState, "✓")
 				vacStyle = stlOk
 
+			}
+			if ps.LastVACBanOn != nil {
+				vacState = append(vacState, ps.LastVACBanOn.Format(time.RFC822))
 			}
 			vacLabel := upperContainer.Objects[2].(*widget.RichText)
 			vacLabel.Segments = []widget.RichTextSegment{

@@ -6,6 +6,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
+	"io"
 	"log"
 	"regexp"
 	"runtime"
@@ -45,6 +46,10 @@ func newLogReader(path string, outChan chan string, echo bool) (*logReader, erro
 	}
 	//goland:noinspection GoBoolExpressions
 	tailConfig := tail.Config{
+		Location: &tail.SeekInfo{
+			Offset: 0,
+			Whence: io.SeekEnd,
+		},
 		Follow:    true,
 		ReOpen:    true,
 		MustExist: false,

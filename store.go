@@ -116,9 +116,9 @@ func (store *sqliteStore) SaveMessage(ctx context.Context, message *model.UserMe
 func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerState) error {
 	const insertQuery = `
 		INSERT INTO player (
-                    steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, vacBans, 
-                    kills_on, deaths_by, rage_quits, created_on, updated_on, profile_updated_on) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, 
+                    last_vac_ban_on, kills_on, deaths_by, rage_quits, created_on, updated_on, profile_updated_on) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, errExec := store.db.ExecContext(
 		ctx,
 		insertQuery,
@@ -128,7 +128,9 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerS
 		state.AccountCreatedOn,
 		state.AvatarHash,
 		state.CommunityBanned,
+		state.NumberOfGameBans,
 		state.NumberOfVACBans,
+		state.LastVACBanOn,
 		state.KillsOn,
 		state.DeathsBy,
 		state.RageQuits,
@@ -150,7 +152,9 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerS
 		    account_created_on = ?, 
 		    avatar_hash = ?, 
 		    community_banned = ?,
-            vacBans = ?,
+		    game_bans = ?,
+            vac_bans = ?,
+            last_vac_ban_on = ?,
             kills_on = ?, 
             deaths_by = ?, 
             rage_quits = ?, 
@@ -167,7 +171,9 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerS
 		state.AccountCreatedOn,
 		state.AvatarHash,
 		state.CommunityBanned,
+		state.NumberOfGameBans,
 		state.NumberOfVACBans,
+		state.LastVACBanOn,
 		state.KillsOn,
 		state.DeathsBy,
 		state.RageQuits,
@@ -197,8 +203,10 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		    p.real_name, 
 		    p.account_created_on, 
 		    p.avatar_hash, 
-		    p.community_banned, 
-		    p.vacBans, 
+		    p.community_banned,
+		    p.game_bans,
+		    p.vac_bans, 
+		    p.last_vac_ban_on,
 		    p.kills_on, 
 		    p.deaths_by, 
 		    p.rage_quits,
@@ -216,7 +224,7 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 	rowErr := store.db.
 		QueryRow(query, steamID).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
-			&player.CommunityBanned, &player.NumberOfVACBans, &player.KillsOn, &player.DeathsBy,
+			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans, &player.LastVACBanOn, &player.KillsOn, &player.DeathsBy,
 			&player.RageQuits,
 			&player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn,
 			&prevName)
