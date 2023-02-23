@@ -141,7 +141,7 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 }
 
 func (ui *Ui) createChatWidget(msgList *userMessageList) fyne.Window {
-	chatWindow := ui.application.NewWindow("Chat")
+	chatWindow := ui.application.NewWindow("Chat History")
 	chatWindow.SetIcon(resourceIconPng)
 	chatWindow.SetContent(msgList.Widget())
 	chatWindow.Resize(fyne.NewSize(1000, 500))

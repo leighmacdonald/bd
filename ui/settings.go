@@ -57,7 +57,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return fileInputContainer
 	}
 
-	apiKey := ui.settings.getBoundStringDefault("ApiKey", "")
+	apiKey := ui.boundSettings.getBoundStringDefault("ApiKey", "")
 	apiKeyOriginal, _ := apiKey.Get()
 	apiKeyEntry := widget.NewPasswordEntry()
 	apiKeyEntry.Bind(apiKey)
@@ -86,7 +86,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return nil
 	}
 
-	steamId := ui.settings.getBoundStringDefault("SteamID", "")
+	steamId := ui.boundSettings.getBoundStringDefault("SteamID", "")
 	steamIdEntry := widget.NewEntry()
 	steamIdEntry.Bind(steamId)
 	steamIdEntry.Validator = func(s string) error {
@@ -100,7 +100,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return nil
 	}
 
-	tf2Dir := ui.settings.getBoundStringDefault("TF2Dir", platform.DefaultTF2Root)
+	tf2Dir := ui.boundSettings.getBoundStringDefault("TF2Dir", platform.DefaultTF2Root)
 	tf2RootEntry := widget.NewEntryWithData(tf2Dir)
 	validateSteamDir := func(s string) error {
 		if len(tf2RootEntry.Text) > 0 {
@@ -116,7 +116,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	}
 	tf2RootEntry.Validator = validateSteamDir
 
-	steamDir := ui.settings.getBoundStringDefault("SteamDir", platform.DefaultSteamRoot)
+	steamDir := ui.boundSettings.getBoundStringDefault("SteamDir", platform.DefaultSteamRoot)
 	steamDirEntry := widget.NewEntryWithData(steamDir)
 	steamDirEntry.Validator = func(s string) error {
 		if len(steamDirEntry.Text) > 0 {
@@ -137,19 +137,19 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		return nil
 	}
 
-	kickerEnabled := ui.settings.getBoundBoolDefault("KickerEnabled", true)
+	kickerEnabled := ui.boundSettings.getBoundBoolDefault("KickerEnabled", true)
 	kickerEnabledEntry := widget.NewCheckWithData("", kickerEnabled)
 
-	chatWarningsEnabled := ui.settings.getBoundBoolDefault("ChatWarningsEnabled", false)
+	chatWarningsEnabled := ui.boundSettings.getBoundBoolDefault("ChatWarningsEnabled", false)
 	chatWarningsEnabledEntry := widget.NewCheckWithData("", chatWarningsEnabled)
 
-	partyWarningsEnabled := ui.settings.getBoundBoolDefault("PartyWarningsEnabled", true)
+	partyWarningsEnabled := ui.boundSettings.getBoundBoolDefault("PartyWarningsEnabled", true)
 	partyWarningsEnabledEntry := widget.NewCheckWithData("", partyWarningsEnabled)
 
-	discordPresenceEnabled := ui.settings.getBoundBoolDefault("DiscordPresenceEnabled", false)
+	discordPresenceEnabled := ui.boundSettings.getBoundBoolDefault("DiscordPresenceEnabled", false)
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
 
-	rconModeStatic := ui.settings.getBoundBoolDefault("RconStatic", false)
+	rconModeStatic := ui.boundSettings.getBoundBoolDefault("RconStatic", false)
 	rconModeStaticEntry := widget.NewCheckWithData("Static", rconModeStatic)
 
 	staticConfig := model.NewRconConfig(true)
@@ -171,7 +171,7 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 		},
 		OnSubmit: func() {
 			defer onClose()
-			ui.baseSettings.Lock()
+			ui.settings.Lock()
 			// Update it to our preferred format
 			if steamIdEntry.Text != "" {
 				newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
@@ -179,17 +179,17 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 					// Should never happen? was validated previously.
 					log.Panicf("Steamid state invalid?: %v\n", errSid)
 				}
-				ui.baseSettings.SteamID = newSid.String()
+				ui.settings.SteamID = newSid.String()
 				steamIdEntry.SetText(newSid.String())
 			}
-			ui.baseSettings.ApiKey = apiKeyEntry.Text
-			ui.baseSettings.SteamDir = steamDirEntry.Text
-			ui.baseSettings.TF2Dir = tf2RootEntry.Text
-			ui.baseSettings.KickerEnabled = kickerEnabledEntry.Checked
-			ui.baseSettings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
-			ui.baseSettings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
-			ui.baseSettings.RconStatic = rconModeStaticEntry.Checked
-			ui.baseSettings.Unlock()
+			ui.settings.ApiKey = apiKeyEntry.Text
+			ui.settings.SteamDir = steamDirEntry.Text
+			ui.settings.TF2Dir = tf2RootEntry.Text
+			ui.settings.KickerEnabled = kickerEnabledEntry.Checked
+			ui.settings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
+			ui.settings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
+			ui.settings.RconStatic = rconModeStaticEntry.Checked
+			ui.settings.Unlock()
 			if apiKeyOriginal != apiKeyEntry.Text {
 				if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
 					log.Printf("Failed to set new steam key: %v\n", errSetKey)

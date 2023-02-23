@@ -47,5 +47,9 @@ jobs:
         with:
           go-version: ^1.19
           cache: true
+
+      - name: Tidy
+        run: go mod tidy
+
       - name: Test
         run: make test

@@ -222,7 +222,7 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 			Label:     "Mark As..."},
 		&fyne.MenuItem{
 			Icon:      theme.SearchIcon(),
-			ChildMenu: generateExternalLinksMenu(steamId, ui.baseSettings.GetLinks(), ui.application.OpenURL),
+			ChildMenu: generateExternalLinksMenu(steamId, ui.settings.GetLinks(), ui.application.OpenURL),
 			Label:     "Open External..."},
 		&fyne.MenuItem{
 			Icon:      theme.ContentCopyIcon(),
@@ -236,6 +236,14 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 				}
 			},
 			Label: "View Chat History"},
+		&fyne.MenuItem{
+			Icon: theme.VisibilityIcon(),
+			Action: func() {
+				if errChat := ui.createNameHistoryWindow(steamId); errChat != nil {
+					showUserError("Error trying to load names: %v", ui.rootWindow)
+				}
+			},
+			Label: "View Name History"},
 	)
 	return menu
 }

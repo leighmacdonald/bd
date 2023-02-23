@@ -51,8 +51,8 @@ type Ui struct {
 	chatWindow            fyne.Window
 	settingsDialog        dialog.Dialog
 	aboutDialog           dialog.Dialog
-	settings              boundSettings
-	baseSettings          *model.Settings
+	boundSettings         boundSettings
+	settings              *model.Settings
 	playerList            *PlayerList
 	userMessageList       *userMessageList
 	knownAttributes       []string
@@ -64,6 +64,7 @@ type Ui struct {
 	labelHostname         *widget.RichText
 	labelMap              *widget.RichText
 	chatHistoryWindows    map[steamid.SID64]fyne.Window
+	nameHistoryWindows    map[steamid.SID64]fyne.Window
 }
 
 func New(settings *model.Settings) UserInterface {
@@ -75,9 +76,10 @@ func New(settings *model.Settings) UserInterface {
 	ui := Ui{
 		application:        application,
 		rootWindow:         rootWindow,
-		settings:           boundSettings{binding.BindStruct(settings)},
-		baseSettings:       settings,
+		boundSettings:      boundSettings{binding.BindStruct(settings)},
+		settings:           settings,
 		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
+		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
 	}
 
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
@@ -208,6 +210,31 @@ func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
 	return nil
 }
 
+func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) error {
+	_, found := ui.nameHistoryWindows[sid64]
+	if found {
+		ui.nameHistoryWindows[sid64].Show()
+	} else {
+		window := ui.application.NewWindow(fmt.Sprintf("Name History: %d", sid64))
+		window.SetOnClosed(func() {
+			delete(ui.nameHistoryWindows, sid64)
+		})
+		names, errMessage := ui.queryNamesFunc(sid64)
+		if errMessage != nil {
+			return errors.Wrap(errMessage, "Failed to fetch user message history")
+		}
+		msgList := ui.createUserNameList()
+		if errReload := msgList.Reload(names); errReload != nil {
+			return errors.Wrap(errMessage, "Failed to reload user message history")
+		}
+		window.SetContent(msgList.Widget())
+		window.Resize(fyne.NewSize(600, 600))
+		window.Show()
+		ui.nameHistoryWindows[sid64] = window
+	}
+	return nil
+}
+
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	wikiUrl, _ := url.Parse(urlHelp)
 	fm := fyne.NewMenu("Bot Detector",
@@ -298,7 +325,7 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
 			log.Println("Launching game")
-			if !ui.baseSettings.GetSteamId().Valid() {
+			if !ui.settings.GetSteamId().Valid() {
 				showUserError("Must configure your steamid", ui.rootWindow)
 			} else {
 				ui.launcher()
