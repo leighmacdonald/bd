@@ -5,7 +5,6 @@ deps:
 	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
 	# go install github.com/goreleaser/goreleaser@latest
 	# for pro install frpm: https://github.com/goreleaser/goreleaser-pro/releases
-	go mod tidy
 
 extract: fonts translations
 

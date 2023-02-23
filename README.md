@@ -1,18 +1,57 @@
+# Bot Detector
 
-# THIS DOES NOT WORK YET
+Automatically detect and kick bots & cheaters in TF2. 
+
+## Warning
+
+This is very early in development, expect bugs.
+
+## What about [TF2 Bot Detector](https://github.com/PazerOP/tf2_bot_detector)?
+
+If it works for you, feel free to keep using it, active development however has stopped. bd supports 
+importing and exporting TF2BD player and rule lists to help ease adoption to this new tool. His tool is
+quite difficult to hack on, so one of the goals of this project was to simplify that to encourage more
+outside contributions.
+
+## Features
+
+- [x] Automatically download remote TF2BD lists
+  - [x] Rules
+  - [x] Players
+- [ ] Cool logo
+- [x] Custom 3rd party links
+- [x] Discord rich presence
+- [x] Fetch profile summary and ban info from steam web api
+- [ ] Detection Methods
+  - [x] Steam ID
+  - [x] Name Pattern
+  - [x] Avatar Pattern
+  - [ ] Multi match
+- [ ] Translations
+- [ ] GUI 
+  - [x] Player status display list
+  - [x] Current game chat dialogue 
+  - [x] Player all-time chat history dialogue
+  - [x] Player all-time name history dialogue
+  - [ ] Track all-time k:d against players
+  - [ ] External link configuration dialogue
+  - [ ] List configuration dialogue
+  - [x] Settings dialogue
+
+## Installation
+
+Check the [releases](https://github.com/leighmacdonald/bd/releases) page for latest binaries. There is currently
+no installers so just extract anywhere and run. All data will be stored in the same location.
 
 ## Development
 
-Install os dependencies:
+- Windows
+  - [golang 1.19+](https://go.dev/)
+  - [msys2](https://www.msys2.org/) 
+  - Open "MSYS2 MinGW 64-bit" and run: `pacman -Syu && pacman -S git mingw-w64-x86_64-toolchain make`
 
-- windows
-  - golang
-  - make (Optional)
-  - msys2 https://www.msys2.org/
-  - Open "MSYS2 MinGW 64-bit" and run: `pacman -Syu && pacman -S git mingw-w64-x86_64-toolchain`
-
-- linux (debian/ubuntu)
-  - `sudo apt-get install golang gcc libgl1-mesa-dev xorg-dev make`
+- Linux (debian/ubuntu)
+  - `sudo apt-get install git golang gcc libgl1-mesa-dev xorg-dev make`
 
 
 Checkout source
@@ -24,19 +63,19 @@ Checkout source
     git clone git://github.com/leighmacdonald/bd.git
     cd bd && git submodule update --init --recursive
 
+Linkers and static analysers 
 
-Run it directly
-    
-    go run .
+    make lint
+
+Run tests
+
+    make test
 
 Or, Build it and run it.
 
     go build && ./bd
 
-
-## Release 
-
-Since cross-compiling with cgo + windows is a bit annoying we just use wsl. Feel free to improve via pr.
+Releasing with cgo + windows is a bit annoying so we just use wsl for now. Feel free to improve via pr.
     
     (wsl) $ goreleaser release --clean --split
     (win) $ goreleaser release --clean --split
