@@ -49,7 +49,7 @@ jobs:
           cache: true
 
       - name: Tidy
-        run: go mod tidy
+        run: go mod tidy -e
 
       - name: Test
         run: make test
