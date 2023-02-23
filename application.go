@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/hugolgst/rich-go/client"
 	"github.com/leighmacdonald/bd/model"
-	rules2 "github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/rcon/rcon"
@@ -44,7 +44,7 @@ type BD struct {
 	messages           []*model.UserMessage
 	logReader          *logReader
 	logParser          *logParser
-	rules              *rules2.Engine
+	rules              *rules.Engine
 	rconConnection     rconConnection
 	settings           *model.Settings
 	store              dataStore
@@ -57,7 +57,7 @@ type BD struct {
 }
 
 // New allocates a new bot detector application instance
-func New(settings *model.Settings, store dataStore, rules *rules2.Engine) BD {
+func New(settings *model.Settings, store dataStore, rules *rules.Engine) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -518,7 +518,7 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 			break
 		}
 	}
-	if errMark := bd.rules.Mark(rules2.MarkOpts{
+	if errMark := bd.rules.Mark(rules.MarkOpts{
 		SteamID:    sid64,
 		Attributes: attrs,
 		Name:       name,
@@ -530,7 +530,7 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 		return errors.Wrapf(errOf, "Failed to open player list for updating")
 	}
 	defer logClose(of)
-	if errExport := bd.rules.ExportPlayers(rules2.LocalRuleName, of); errExport != nil {
+	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		return errors.Wrapf(errExport, "Failed to export player list")
 	}
 	return nil
@@ -621,7 +621,7 @@ func (bd *BD) checkPlayerStates(ctx context.Context) {
 
 const announceMatchTimeout = time.Minute * 5
 
-func (bd *BD) triggerMatch(ctx context.Context, ps *model.PlayerState, match *rules2.MatchResult) {
+func (bd *BD) triggerMatch(ctx context.Context, ps *model.PlayerState, match *rules.MatchResult) {
 	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
 	if time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
@@ -684,7 +684,7 @@ func (bd *BD) Shutdown() {
 	if playerListFileErr != nil {
 		log.Panicf("Failed to open player list for writing: %v\n", playerListFileErr)
 	}
-	if errWrite := bd.rules.ExportPlayers(rules2.LocalRuleName, playerListFile); errWrite != nil {
+	if errWrite := bd.rules.ExportPlayers(rules.LocalRuleName, playerListFile); errWrite != nil {
 		log.Panicf("Failed to export player list: %v\n", playerListFileErr)
 	}
 
@@ -692,7 +692,7 @@ func (bd *BD) Shutdown() {
 	if rulesFileErr != nil {
 		log.Panicf("Failed to open player list for writing: %v\n", rulesFileErr)
 	}
-	if errWrite := bd.rules.ExportRules(rules2.LocalRuleName, rulesFile); errWrite != nil {
+	if errWrite := bd.rules.ExportRules(rules.LocalRuleName, rulesFile); errWrite != nil {
 		log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
 	}
 	logClose(bd.store)
