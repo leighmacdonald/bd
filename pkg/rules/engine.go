@@ -68,9 +68,9 @@ type MarkOpts struct {
 
 func (e *Engine) Mark(opts MarkOpts) error {
 	e.Lock()
-	defer e.Unlock()
 	for _, knownPlayer := range e.playerLists[0].Players {
 		if knownPlayer.SteamID == opts.SteamID {
+			e.Unlock()
 			return errDuplicateSteamID
 		}
 	}
@@ -83,6 +83,8 @@ func (e *Engine) Mark(opts MarkOpts) error {
 		SteamID: opts.SteamID,
 		Proof:   opts.Proof,
 	})
+	e.Unlock()
+	e.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID))
 	return nil
 }
 

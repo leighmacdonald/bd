@@ -42,6 +42,9 @@ func (chatList *userMessageList) Append(msg model.UserMessage) error {
 	if errSet := chatList.boundList.Append(msg); errSet != nil {
 		log.Printf("failed to append message: %v\n", errSet)
 	}
+	if errReload := chatList.boundList.Reload(); errReload != nil {
+		log.Printf("Failed to update chat list: %v\n", errReload)
+	}
 	chatList.list.ScrollToBottom()
 	return nil
 }
@@ -51,7 +54,7 @@ func (chatList *userMessageList) Widget() *widget.List {
 	return chatList.list
 }
 
-func (ui *Ui) createUserMessageList() *userMessageList {
+func (ui *Ui) createGameChatMessageList() *userMessageList {
 	uml := &userMessageList{}
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
@@ -102,8 +105,44 @@ func (ui *Ui) createUserMessageList() *userMessageList {
 	return uml
 }
 
+func (ui *Ui) createUserHistoryMessageList() *userMessageList {
+	uml := &userMessageList{}
+	boundList := binding.BindUntypedList(&[]interface{}{})
+	userMessageListWidget := widget.NewListWithData(
+		boundList,
+		func() fyne.CanvasObject {
+			return container.NewBorder(
+				nil,
+				nil,
+				widget.NewLabel(""),
+				nil,
+				widget.NewRichTextWithText(""))
+		},
+		func(i binding.DataItem, o fyne.CanvasObject) {
+			value := i.(binding.Untyped)
+			obj, _ := value.Get()
+			um := obj.(model.UserMessage)
+			uml.objectMu.Lock()
+			rootContainer := o.(*fyne.Container)
+			timeStamp := rootContainer.Objects[1].(*widget.Label)
+			timeStamp.SetText(um.Created.Format(time.RFC822))
+			messageRichText := rootContainer.Objects[0].(*widget.RichText)
+			messageRichText.Segments[0] = &widget.TextSegment{
+				Style: widget.RichTextStyleInline,
+				Text:  um.Message,
+			}
+			messageRichText.Refresh()
+			uml.objectMu.Unlock()
+		})
+	uml.list = userMessageListWidget
+	uml.boundList = boundList
+	uml.content = container.NewVScroll(userMessageListWidget)
+	return uml
+}
+
 func (ui *Ui) createChatWidget(msgList *userMessageList) fyne.Window {
 	chatWindow := ui.application.NewWindow("Chat")
+	chatWindow.SetIcon(resourceIconPng)
 	chatWindow.SetContent(msgList.Widget())
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(func() {

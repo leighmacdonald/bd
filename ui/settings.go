@@ -200,6 +200,6 @@ func (ui *Ui) newSettingsDialog(parent fyne.Window, onClose func()) dialog.Dialo
 	}
 
 	settingsWindow := dialog.NewCustom("Settings", "Cancel", container.NewVScroll(settingsForm), parent)
-	settingsWindow.Resize(fyne.NewSize(700, 600))
+	settingsWindow.Resize(fyne.NewSize(750, 700))
 	return settingsWindow
 }

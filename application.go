@@ -546,6 +546,12 @@ func (bd *BD) AttachGui(ctx context.Context, gui ui.UserInterface) {
 	gui.SetOnKick(func(userId int64, reason model.KickReason) error {
 		return bd.callVote(ctx, userId, reason)
 	})
+	gui.SetFetchMessageHistory(func(sid64 steamid.SID64) ([]model.UserMessage, error) {
+		return bd.store.FetchMessages(ctx, sid64)
+	})
+	gui.SetFetchNameHistory(func(sid64 steamid.SID64) ([]model.UserNameHistory, error) {
+		return bd.store.FetchNames(ctx, sid64)
+	})
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }
@@ -619,7 +625,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.PlayerState, match *ru
 	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
 	if time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := bd.partyLog(ctx, "Rule Match: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
+		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
 			log.Printf("Failed to send party log message: %s\n", errLog)
 			return
 		}

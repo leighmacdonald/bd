@@ -22,6 +22,10 @@ const (
 	KickReasonOther    KickReason = "other"
 )
 
+type QueryNamesFunc func(sid64 steamid.SID64) ([]UserNameHistory, error)
+
+type QueryUserMessagesFunc func(sid64 steamid.SID64) ([]UserMessage, error)
+
 type KickFunc func(userId int64, reason KickReason) error
 
 type ServerState struct {

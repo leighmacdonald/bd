@@ -36,6 +36,8 @@ type UserInterface interface {
 	SetOnLaunchTF2(func())
 	SetOnMark(model.MarkFunc)
 	SetOnKick(kickFunc model.KickFunc)
+	SetFetchMessageHistory(messagesFunc model.QueryUserMessagesFunc)
+	SetFetchNameHistory(namesFunc model.QueryNamesFunc)
 	UpdateServerState(state model.ServerState)
 	UpdateTitle(string)
 	UpdatePlayerState([]model.PlayerState)
@@ -44,22 +46,24 @@ type UserInterface interface {
 }
 
 type Ui struct {
-	application        fyne.App
-	rootWindow         fyne.Window
-	chatWindow         fyne.Window
-	settingsDialog     dialog.Dialog
-	aboutDialog        dialog.Dialog
-	settings           boundSettings
-	baseSettings       *model.Settings
-	playerList         *PlayerList
-	userMessageList    *userMessageList
-	knownAttributes    []string
-	launcher           func()
-	markFn             model.MarkFunc
-	kickFn             model.KickFunc
-	labelHostname      *widget.RichText
-	labelMap           *widget.RichText
-	chatHistoryWindows map[steamid.SID64]fyne.Window
+	application           fyne.App
+	rootWindow            fyne.Window
+	chatWindow            fyne.Window
+	settingsDialog        dialog.Dialog
+	aboutDialog           dialog.Dialog
+	settings              boundSettings
+	baseSettings          *model.Settings
+	playerList            *PlayerList
+	userMessageList       *userMessageList
+	knownAttributes       []string
+	launcher              func()
+	markFn                model.MarkFunc
+	kickFn                model.KickFunc
+	queryNamesFunc        model.QueryNamesFunc
+	queryUserMessagesFunc model.QueryUserMessagesFunc
+	labelHostname         *widget.RichText
+	labelMap              *widget.RichText
+	chatHistoryWindows    map[steamid.SID64]fyne.Window
 }
 
 func New(settings *model.Settings) UserInterface {
@@ -85,10 +89,10 @@ func New(settings *model.Settings) UserInterface {
 	})
 	ui.aboutDialog = createAboutDialog(rootWindow)
 	ui.playerList = ui.createPlayerList()
-	ui.userMessageList = ui.createUserMessageList()
+	ui.userMessageList = ui.createGameChatMessageList()
 	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
 
-	rootWindow.Resize(fyne.NewSize(750, 1000))
+	rootWindow.Resize(fyne.NewSize(800, 1000))
 	ui.rootWindow.SetCloseIntercept(func() {
 		ui.rootWindow.Hide()
 	})
@@ -125,6 +129,15 @@ func New(settings *model.Settings) UserInterface {
 	rootWindow.SetMainMenu(ui.newMainMenu())
 	return &ui
 }
+
+func (ui *Ui) SetFetchMessageHistory(messagesFunc model.QueryUserMessagesFunc) {
+	ui.queryUserMessagesFunc = messagesFunc
+}
+
+func (ui *Ui) SetFetchNameHistory(namesFunc model.QueryNamesFunc) {
+	ui.queryNamesFunc = namesFunc
+}
+
 func (ui *Ui) SetOnMark(fn model.MarkFunc) {
 	ui.markFn = fn
 }
@@ -170,7 +183,7 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	}
 }
 
-func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) {
+func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
 	_, found := ui.chatHistoryWindows[sid64]
 	if found {
 		ui.chatHistoryWindows[sid64].Show()
@@ -179,10 +192,20 @@ func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) {
 		window.SetOnClosed(func() {
 			delete(ui.chatHistoryWindows, sid64)
 		})
+		messages, errMessage := ui.queryUserMessagesFunc(sid64)
+		if errMessage != nil {
+			return errors.Wrap(errMessage, "Failed to fetch user message history")
+		}
+		msgList := ui.createUserHistoryMessageList()
+		if errReload := msgList.Reload(messages); errReload != nil {
+			return errors.Wrap(errMessage, "Failed to reload user message history")
+		}
+		window.SetContent(msgList.Widget())
 		window.Resize(fyne.NewSize(600, 600))
 		window.Show()
 		ui.chatHistoryWindows[sid64] = window
 	}
+	return nil
 }
 
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
@@ -281,12 +304,7 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 				ui.launcher()
 			}
 		}),
-		widget.NewToolbarAction(theme.DocumentIcon(), chatFunc),
-		//widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.ContentRedoIcon(), func() {
-			ui.Refresh()
-		}),
-		//widget.NewToolbarAction(theme.FileTextIcon(), chatFunc),
+		widget.NewToolbarAction(theme.MailComposeIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {

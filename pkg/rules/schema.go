@@ -129,7 +129,7 @@ type playerLastSeen struct {
 }
 
 type playerDefinition struct {
-	Attributes []string       `json:"Attributes"`
+	Attributes []string       `json:"attributes"`
 	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
 	SteamID    interface{}    `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`

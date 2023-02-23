@@ -231,7 +231,9 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 		&fyne.MenuItem{
 			Icon: theme.ListIcon(),
 			Action: func() {
-				ui.createChatHistoryWindow(steamId)
+				if errChat := ui.createChatHistoryWindow(steamId); errChat != nil {
+					showUserError("Error trying to load chat: %v", ui.rootWindow)
+				}
 			},
 			Label: "View Chat History"},
 	)
