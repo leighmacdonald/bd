@@ -81,7 +81,7 @@ func New(settings *model.Settings) UserInterface {
 		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
 		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
 	}
-
+	rootWindow.CenterOnScreen()
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
 		if errSave := settings.Save(); errSave != nil {
 			log.Printf("Failed to save config file: %v\n", errSave)

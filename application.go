@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/hugolgst/rich-go/client"
+	"github.com/leighmacdonald/bd/addons"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/platform"
@@ -496,6 +497,9 @@ func (bd *BD) eventHandler(ctx context.Context) {
 }
 
 func (bd *BD) launchGameAndWait() {
+	if errInstall := addons.Install(bd.settings.TF2Dir); errInstall != nil {
+		log.Printf("Error trying to install addons: %v", errInstall)
+	}
 	args, errArgs := getLaunchArgs(
 		bd.settings.Rcon.Password(),
 		bd.settings.Rcon.Port(),
@@ -623,16 +627,19 @@ const announceMatchTimeout = time.Minute * 5
 
 func (bd *BD) triggerMatch(ctx context.Context, ps *model.PlayerState, match *rules.MatchResult) {
 	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
-	if time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
+	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
 			log.Printf("Failed to send party log message: %s\n", errLog)
 			return
 		}
 		ps.AnnouncedLast = time.Now()
+
 	}
-	if errVote := bd.callVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
-		log.Printf("Error calling vote: %v\n", errVote)
+	if bd.settings.KickerEnabled {
+		if errVote := bd.callVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
+			log.Printf("Error calling vote: %v\n", errVote)
+		}
 	}
 	ps.KickAttemptCount++
 }
