@@ -32,7 +32,7 @@ func (nameList *userNameList) Reload(rr []model.UserNameHistory) error {
 	if errReload := nameList.boundList.Reload(); errReload != nil {
 		return errReload
 	}
-	nameList.list.Refresh()
+	nameList.list.ScrollToBottom()
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 )
 
 func fetchURL(ctx context.Context, client http.Client, url string) ([]byte, error) {
@@ -31,35 +32,47 @@ func fetchURL(ctx context.Context, client http.Client, url string) ([]byte, erro
 func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	var playerLists []rules.PlayerListSchema
 	var rulesLists []rules.RuleSchema
+	mu := &sync.RWMutex{}
 	client := http.Client{}
-	for _, u := range lists {
-		if !u.Enabled {
-			continue
-		}
+	downloadFn := func(u model.ListConfig) error {
 		body, errFetch := fetchURL(ctx, client, u.URL)
 		if errFetch != nil {
-			log.Printf("Failed to fetch player list: %v", u.URL)
-			continue
+			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", u.URL)
 		}
 		switch u.ListType {
 		case model.ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := rules.ParsePlayerSchema(bytes.NewReader(body), &result); errParse != nil {
-				log.Printf("Failed to parse request: %v\n", errParse)
-				continue
+				return errors.Wrap(errParse, "Failed to parse request")
 			}
+			mu.Lock()
 			playerLists = append(playerLists, result)
+			mu.Unlock()
 			log.Printf("Downloaded playerlist successfully: %s\n", result.FileInfo.Title)
 		case model.ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := rules.ParseRulesList(bytes.NewReader(body), &result); errParse != nil {
-				log.Printf("Failed to parse request: %v\n", errParse)
-				continue
+				return errors.Wrap(errParse, "Failed to parse request")
 			}
+			mu.Lock()
 			rulesLists = append(rulesLists, result)
+			mu.Unlock()
 			log.Printf("Downloaded rules successfully: %s\n", result.FileInfo.Title)
 		}
-
+		return nil
+	}
+	wg := &sync.WaitGroup{}
+	for _, listConfig := range lists {
+		if !listConfig.Enabled {
+			continue
+		}
+		wg.Add(1)
+		go func(lc model.ListConfig) {
+			defer wg.Done()
+			if errDL := downloadFn(lc); errDL != nil {
+				log.Printf("Failed to download list: %v", errDL)
+			}
+		}(listConfig)
 	}
 	return playerLists, rulesLists
 }

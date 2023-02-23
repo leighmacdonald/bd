@@ -254,6 +254,11 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 // │ K: 10  A: 66                                            │
 // └─────────────────────────────────────────────────────────┘
 func (ui *Ui) createPlayerList() *PlayerList {
+	const (
+		symbolOk  = "✓"
+		symbolBad = "✗"
+	)
+
 	//iconSize := fyne.NewSize(64, 64)
 	pl := &PlayerList{}
 	boundList := binding.BindUntypedList(&[]interface{}{})
@@ -316,20 +321,20 @@ func (ui *Ui) createPlayerList() *PlayerList {
 			profileLabel.Refresh()
 			var vacState []string
 			if ps.NumberOfVACBans > 0 {
-				vacState = append(vacState, fmt.Sprintf("VB: %d", ps.NumberOfGameBans))
+				vacState = append(vacState, fmt.Sprintf("VB: %s", strings.Repeat(symbolBad, ps.NumberOfVACBans)))
 			}
 			if ps.NumberOfGameBans > 0 {
-				vacState = append(vacState, fmt.Sprintf("GB: %d", ps.NumberOfVACBans))
+				vacState = append(vacState, fmt.Sprintf("GB: %s", strings.Repeat(symbolBad, ps.NumberOfGameBans)))
 			}
 			if ps.CommunityBanned {
-				vacState = append(vacState, "CB: ✓")
+				vacState = append(vacState, fmt.Sprintf("CB: %s", symbolBad))
 			}
 			if ps.EconomyBan {
-				vacState = append(vacState, "EB: ✓")
+				vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
 			}
 			vacStyle := stlBad
 			if len(vacState) == 0 {
-				vacState = append(vacState, "✓")
+				vacState = append(vacState, symbolOk)
 				vacStyle = stlOk
 
 			}

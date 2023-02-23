@@ -32,7 +32,7 @@ func (chatList *userMessageList) Reload(rr []model.UserMessage) error {
 	if errReload := chatList.boundList.Reload(); errReload != nil {
 		return errReload
 	}
-	chatList.list.Refresh()
+	chatList.list.ScrollToBottom()
 	return nil
 }
 
@@ -60,16 +60,12 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
 		func() fyne.CanvasObject {
-			rootContainer := container.NewBorder(
+			return container.NewBorder(
 				nil,
 				nil,
 				container.NewHBox(widget.NewLabel(""), newContextMenuRichText(nil)),
 				nil,
 				widget.NewRichTextWithText(""))
-
-			rootContainer.Refresh()
-
-			return rootContainer
 		},
 		func(i binding.DataItem, o fyne.CanvasObject) {
 			value := i.(binding.Untyped)

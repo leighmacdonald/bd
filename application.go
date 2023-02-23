@@ -679,22 +679,6 @@ func (bd *BD) Shutdown() {
 	if bd.settings.DiscordPresenceEnabled {
 		client.Logout()
 	}
-	// Ensure we save on exit
-	playerListFile, playerListFileErr := os.Create(bd.settings.LocalPlayerListPath())
-	if playerListFileErr != nil {
-		log.Panicf("Failed to open player list for writing: %v\n", playerListFileErr)
-	}
-	if errWrite := bd.rules.ExportPlayers(rules.LocalRuleName, playerListFile); errWrite != nil {
-		log.Panicf("Failed to export player list: %v\n", playerListFileErr)
-	}
-
-	rulesFile, rulesFileErr := os.Create(bd.settings.LocalRulesListPath())
-	if rulesFileErr != nil {
-		log.Panicf("Failed to open player list for writing: %v\n", rulesFileErr)
-	}
-	if errWrite := bd.rules.ExportRules(rules.LocalRuleName, rulesFile); errWrite != nil {
-		log.Panicf("Failed to export rules list: %v\n", rulesFileErr)
-	}
 	logClose(bd.store)
 }
 
