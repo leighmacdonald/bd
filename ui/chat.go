@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/pkg/errors"
 	"log"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ type userMessageList struct {
 	content           fyne.CanvasObject
 	objectMu          sync.RWMutex
 	boundListMu       sync.RWMutex
+	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
 }
 
@@ -29,6 +31,9 @@ func (chatList *userMessageList) Reload(rr []model.UserMessage) error {
 	defer chatList.boundListMu.Unlock()
 	if errSet := chatList.boundList.Set(bl); errSet != nil {
 		log.Printf("failed to set player list: %v\n", errSet)
+	}
+	if errSet := chatList.messageCount.Set(chatList.boundList.Length()); errSet != nil {
+		return errors.Wrapf(errSet, "Failed to set message count")
 	}
 	if errReload := chatList.boundList.Reload(); errReload != nil {
 		return errReload
@@ -43,6 +48,9 @@ func (chatList *userMessageList) Append(msg model.UserMessage) error {
 	if errSet := chatList.boundList.Append(msg); errSet != nil {
 		log.Printf("failed to append message: %v\n", errSet)
 	}
+	if errSet := chatList.messageCount.Set(chatList.boundList.Length()); errSet != nil {
+		return errors.Wrapf(errSet, "Failed to set message count")
+	}
 	if errReload := chatList.boundList.Reload(); errReload != nil {
 		log.Printf("Failed to update chat list: %v\n", errReload)
 	}
@@ -54,12 +62,13 @@ func (chatList *userMessageList) Append(msg model.UserMessage) error {
 }
 
 // Widget returns the actual select list widget.
-func (chatList *userMessageList) Widget() *widget.List {
-	return chatList.list
+func (chatList *userMessageList) Widget() fyne.CanvasObject {
+	return chatList.content
 }
 
 func (ui *Ui) createGameChatMessageList() *userMessageList {
 	uml := &userMessageList{
+		messageCount:      binding.NewInt(),
 		autoScrollEnabled: binding.NewBool(),
 	}
 	_ = uml.autoScrollEnabled.Set(true)
@@ -105,7 +114,13 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 	uml.list = userMessageListWidget
 	uml.boundList = boundList
 	uml.content = container.NewBorder(
-		container.NewHBox(widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled)),
+		container.NewBorder(
+			nil,
+			nil,
+			widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
+			widget.NewLabel(""),
+		),
 		nil,
 		nil,
 		nil,
@@ -117,6 +132,7 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 	uml := &userMessageList{
 		autoScrollEnabled: binding.NewBool(),
+		messageCount:      binding.NewInt(),
 	}
 	_ = uml.autoScrollEnabled.Set(true)
 	boundList := binding.BindUntypedList(&[]interface{}{})
@@ -149,7 +165,13 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 	uml.list = userMessageListWidget
 	uml.boundList = boundList
 	uml.content = container.NewBorder(
-		container.NewHBox(widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled)),
+		container.NewBorder(
+			nil,
+			nil,
+			widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
+			widget.NewLabel(""),
+		),
 		nil,
 		nil,
 		nil,

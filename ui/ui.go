@@ -104,10 +104,6 @@ func New(settings *model.Settings) UserInterface {
 		application.Quit()
 	})
 
-	ui.configureTray(func() {
-		ui.rootWindow.Show()
-	})
-
 	toolbar := ui.newToolbar(func() {
 		ui.chatWindow.Show()
 	}, func() {
@@ -314,31 +310,63 @@ func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) error {
 }
 
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
+	launchLabel := translations.Tr(&i18n.Message{
+		ID:  "LaunchButton",
+		One: "Launch TF2",
+	}, 1, nil)
 	wikiUrl, _ := url.Parse(urlHelp)
+
+	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+		ui.launcher()
+	})
+
+	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+		ui.settingsDialog.Show()
+	})
+
+	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+		ui.application.Quit()
+	})
+
+	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(shortcut fyne.Shortcut) {
+		if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
+			log.Printf("Failed to open help url: %v\n", errOpenHelp)
+		}
+	})
+
+	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(shortcut fyne.Shortcut) {
+		ui.aboutDialog.Show()
+	})
+
 	fm := fyne.NewMenu("Bot Detector",
+		&fyne.MenuItem{
+			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyG, Modifier: fyne.KeyModifierControl},
+			Label:    launchLabel,
+			Action: func() {
+				ui.launcher()
+			},
+			Icon: resourceTf2Png,
+		},
 		&fyne.MenuItem{
 			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl},
 			Label:    "Settings",
-			Action: func() {
-				ui.settingsDialog.Show()
-			},
-			Icon: theme.SettingsIcon(),
+			Action:   ui.settingsDialog.Show,
+			Icon:     theme.SettingsIcon(),
 		},
 		fyne.NewMenuItemSeparator(),
 		&fyne.MenuItem{
 			Icon:     theme.ContentUndoIcon(),
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyX, Modifier: fyne.KeyModifierControl},
+			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl},
 			Label:    "Exit",
 			IsQuit:   true,
-			Action: func() {
-				ui.application.Quit()
-			},
+			Action:   ui.application.Quit,
 		},
 	)
+
 	hm := fyne.NewMenu("Help",
 		&fyne.MenuItem{
 			Label:    "Help",
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyF1},
+			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift},
 			Icon:     theme.HelpIcon(),
 			Action: func() {
 				if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
@@ -347,11 +375,9 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 			}},
 		&fyne.MenuItem{
 			Label:    "About",
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyF10},
+			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift},
 			Icon:     theme.InfoIcon(),
-			Action: func() {
-				ui.aboutDialog.Show()
-			}},
+			Action:   ui.aboutDialog.Show},
 	)
 	return fyne.NewMainMenu(fm, hm)
 }
@@ -378,21 +404,6 @@ func (ui *Ui) Run() {
 	ui.application.Run()
 }
 
-func (ui *Ui) configureTray(showFunc func()) {
-	launchLabel := translations.Tr(&i18n.Message{
-		ID:  "LaunchButton",
-		One: "Launch TF2",
-	}, 1, nil)
-
-	if desk, ok := ui.application.(desktop.App); ok {
-		m := fyne.NewMenu(ui.application.Preferences().StringWithFallback("appName", "Bot Detector"),
-			fyne.NewMenuItem("Show", showFunc),
-			fyne.NewMenuItem(launchLabel, ui.launcher))
-		desk.SetSystemTrayMenu(m)
-		ui.application.SetIcon(theme.InfoIcon())
-	}
-}
-
 func showUserError(msg string, parent fyne.Window) {
 	d := dialog.NewError(errors.New(msg), parent)
 	d.Show()
@@ -415,6 +426,7 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
 			platform.OpenFolder(ui.settings.ConfigRoot())
 		}),
+		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {
 			if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
 				log.Printf("Failed to open help url: %v\n", errOpenHelp)
