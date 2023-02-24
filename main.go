@@ -62,6 +62,9 @@ func main() {
 	defer logClose(store)
 	bd := New(&settings, store, engine)
 	defer bd.Shutdown()
+	defer func() {
+		log.Printf("Goodbye\n")
+	}()
 	gui := ui.New(&settings)
 	bd.AttachGui(ctx, gui)
 	go bd.start(ctx)

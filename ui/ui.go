@@ -95,9 +95,9 @@ func New(settings *model.Settings) UserInterface {
 	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
 
 	rootWindow.Resize(fyne.NewSize(800, 1000))
-	//ui.rootWindow.SetCloseIntercept(func() {
-	//	ui.rootWindow.Hide()
-	//})
+	ui.rootWindow.SetCloseIntercept(func() {
+		application.Quit()
+	})
 
 	ui.configureTray(func() {
 		ui.rootWindow.Show()
@@ -149,6 +149,7 @@ func (ui *Ui) SetOnKick(fn model.KickFunc) {
 }
 
 func (ui *Ui) Refresh() {
+	ui.userMessageList.Widget().Refresh()
 	ui.playerList.Widget().Refresh()
 }
 

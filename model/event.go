@@ -15,9 +15,11 @@ type LogEvent struct {
 	Victim          string
 	VictimSID       steamid.SID64
 	Message         string
-	Team            Team
-	Timestamp       time.Time
-	MetaData        string
+	//Team            Team
+	Timestamp time.Time
+	MetaData  string
+	Dead      bool
+	TeamOnly  bool
 }
 
 type Event struct {

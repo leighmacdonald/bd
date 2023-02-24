@@ -338,12 +338,18 @@ func (ui *Ui) createPlayerList() *PlayerList {
 				vacStyle = stlOk
 
 			}
+			vacMsg := strings.Join(vacState, ", ")
+			vacMsgFull := ""
 			if ps.LastVACBanOn != nil {
-				vacState = append(vacState, ps.LastVACBanOn.Format(time.RFC822))
+				vacMsgFull = fmt.Sprintf("[%s] (%s - %d days)",
+					vacMsg,
+					ps.LastVACBanOn.Format("Mon Jan 02 2006"),
+					int(time.Since(*ps.LastVACBanOn).Hours()/24),
+				)
 			}
 			vacLabel := upperContainer.Objects[2].(*widget.RichText)
 			vacLabel.Segments = []widget.RichTextSegment{
-				&widget.TextSegment{Text: strings.Join(vacState, ", "), Style: vacStyle},
+				&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
 			}
 			vacLabel.Refresh()
 

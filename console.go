@@ -85,6 +85,7 @@ type logParser struct {
 }
 
 const deadPrefix = "*DEAD* "
+const deadTeamPrefix = "*DEAD*(TEAM) "
 
 func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
@@ -103,8 +104,21 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 					log.Printf("Failed to parse timestamp for message log: %s", errTs)
 					continue
 				}
+				name := m[2]
+				dead := false
+				team := false
+				if strings.HasPrefix(name, deadTeamPrefix) {
+					name = strings.TrimPrefix(name, deadTeamPrefix)
+					dead = true
+					team = true
+				} else if strings.HasPrefix(name, deadPrefix) {
+					dead = true
+					name = strings.TrimPrefix(name, deadPrefix)
+				}
+				outEvent.TeamOnly = team
+				outEvent.Dead = dead
 				outEvent.Timestamp = ts
-				outEvent.Player = strings.TrimPrefix(m[2], deadPrefix)
+				outEvent.Player = name
 				outEvent.Message = m[3]
 			case model.EvtStatusId:
 				ts, errTs := parseTimestamp(m[1])
