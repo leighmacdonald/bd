@@ -9,7 +9,9 @@ import (
 	"golang.org/x/sys/windows/registry"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -86,6 +88,13 @@ func LaunchTF2(tf2Dir string, args []string) error {
 		log.Printf("Game exited: %s\n", state.String())
 	}
 	return nil
+}
+
+func OpenFolder(dir string) {
+	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil {
+		log.Printf("Failed to start process: %v\n", errRun)
+		return
+	}
 }
 
 func init() {

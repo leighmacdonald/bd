@@ -143,12 +143,12 @@ func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []strin
 	fi := widget.NewFormItem("Attribute Name", entry)
 
 	attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
-		w := dialog.NewForm("Mark with custom attribute", "Confirm", "Dismiss", []*widget.FormItem{fi}, func(b bool) {
-			if b {
-				log.Printf("item: %v\n", b)
-				if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
-					log.Printf("Failed to mark player: %v\n", errMark)
-				}
+		w := dialog.NewForm("Mark with custom attribute", "Confirm", "Dismiss", []*widget.FormItem{fi}, func(success bool) {
+			if !success {
+				return
+			}
+			if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
+				log.Printf("Failed to mark player: %v\n", errMark)
 			}
 		}, ui.rootWindow)
 		w.Show()

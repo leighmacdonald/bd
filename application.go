@@ -395,13 +395,26 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, e
 	return results, nil
 }
 
+func (bd *BD) statusUpdater(ctx context.Context) {
+	statusTimer := time.NewTicker(time.Second * 5)
+	for {
+		select {
+		case <-statusTimer.C:
+			updatePlayerState(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// gameStateTracker handle processing incoming updateGameStateEvent events and applying them to the
+// current known player states stored locally in the players map.
 func (bd *BD) gameStateTracker(ctx context.Context) {
 	var queuedUpdates steamid.Collection
 	queueUpdate := false
 	players := map[steamid.SID64]*model.PlayerState{}
 	queueAvatars := make(chan steamid.SID64, 32)
 	deleteTimer := time.NewTicker(time.Second * 15)
-	statusTimer := time.NewTicker(time.Second * 5)
 	checkTimer := time.NewTicker(time.Second * 3)
 	updateTimer := time.NewTicker(time.Second * 1)
 
@@ -417,6 +430,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 		bd.gui.Refresh()
 		queueUpdate = false
 	}
+
 	for {
 		select {
 		case <-updateTimer.C:
@@ -447,21 +461,23 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 
 			}
 			queuedUpdates = nil
-		case <-statusTimer.C:
-			updatePlayerState(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
 		case <-checkTimer.C:
 			bd.checkPlayerStates(ctx, players)
 			queueUpdate = true
 		case <-deleteTimer.C:
 			var valid []*model.PlayerState
+			expired := 0
 			for steamID, ps := range players {
 				if time.Since(ps.UpdatedOn) > time.Second*15 {
-					log.Printf("Player expired: %s %s", ps.SteamId.String(), ps.Name)
 					if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
 						log.Printf("Failed to save expired player state: %v\n", errSave)
 					}
 					delete(players, steamID)
+					expired++
 				}
+			}
+			if expired > 0 {
+				log.Printf("Players expired: %d\n", expired)
 			}
 			queueUpdate = true
 			bd.discordUpdateActivity(len(valid))
@@ -753,5 +769,6 @@ func (bd *BD) start(ctx context.Context) {
 	go bd.refreshLists(ctx)
 	go bd.eventHandler()
 	go bd.gameStateTracker(ctx)
+	go bd.statusUpdater(ctx)
 	<-ctx.Done()
 }

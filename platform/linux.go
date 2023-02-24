@@ -28,6 +28,13 @@ func LaunchTF2(_ string, args []string) error {
 	return nil
 }
 
+func OpenFolder(dir string) {
+	if errRun := exec.Command("xdg-open", dir).Start(); errRun != nil {
+		log.Printf("Failed to start process: %v\n", errRun)
+		return
+	}
+}
+
 func init() {
 	// We cant really auto-detect this stuff in the same manner line on windows with the registry
 	// so linux users may need to configure this manually.

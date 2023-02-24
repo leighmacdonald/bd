@@ -16,12 +16,15 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
 	"net/url"
+	"sort"
+	"strings"
 )
 
 const (
@@ -65,6 +68,7 @@ type Ui struct {
 	labelMap              *widget.RichText
 	chatHistoryWindows    map[steamid.SID64]fyne.Window
 	nameHistoryWindows    map[steamid.SID64]fyne.Window
+	playerSortDir         playerSortType
 }
 
 func New(settings *model.Settings) UserInterface {
@@ -80,6 +84,7 @@ func New(settings *model.Settings) UserInterface {
 		settings:           settings,
 		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
 		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
+		playerSortDir:      playerSortStatus,
 	}
 
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
@@ -120,9 +125,24 @@ func New(settings *model.Settings) UserInterface {
 	)
 
 	statPanel := container.NewHBox(ui.labelMap, ui.labelHostname)
+	var dirNames []string
+	for _, dir := range sortDirections {
+		dirNames = append(dirNames, string(dir))
+	}
+	sortSelect := widget.NewSelect(dirNames, func(s string) {
+		ui.playerSortDir = playerSortType(s)
+		v, _ := ui.playerList.boundList.Get()
+		var sorted []model.PlayerState
+		for _, p := range v {
+			sorted = append(sorted, p.(model.PlayerState))
+		}
+		ui.UpdatePlayerState(sorted)
+	})
+	sortSelect.PlaceHolder = "Sort By..."
+	heading := container.NewBorder(nil, nil, toolbar, sortSelect, container.NewCenter(widget.NewLabel("")))
 
 	rootWindow.SetContent(container.NewBorder(
-		toolbar,
+		heading,
 		statPanel,
 		nil,
 		nil,
@@ -174,8 +194,64 @@ func (ui *Ui) UpdateServerState(state model.ServerState) {
 	ui.labelMap.Refresh()
 }
 
-func (ui *Ui) UpdatePlayerState(state []model.PlayerState) {
-	if errReboot := ui.playerList.Reload(state); errReboot != nil {
+type playerSortType string
+
+const (
+	playerSortName   playerSortType = "Name"
+	playerSortKills  playerSortType = "Kills"
+	playerSortKD     playerSortType = "K:D"
+	playerSortStatus playerSortType = "Status"
+)
+
+var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus}
+
+func (ui *Ui) UpdatePlayerState(players []model.PlayerState) {
+	switch ui.playerSortDir {
+	case playerSortKills:
+		sort.Slice(players, func(i, j int) bool {
+			return players[i].Kills > players[j].Kills
+		})
+	case playerSortStatus:
+		sort.Slice(players, func(i, j int) bool {
+			l := players[i]
+			r := players[j]
+			if l.NumberOfVACBans > r.NumberOfVACBans {
+				return true
+			} else if l.NumberOfGameBans > r.NumberOfGameBans {
+				return true
+			} else if l.CommunityBanned && !r.CommunityBanned {
+				return true
+			} else if l.EconomyBan && !r.EconomyBan {
+				return true
+			}
+			return false
+		})
+	case playerSortKD:
+		sort.Slice(players, func(i, j int) bool {
+			l, r := 0.0, 0.0
+			lk := players[i].Kills
+			ld := players[i].Deaths
+			if ld > 0 {
+				l = float64(lk) / float64(ld)
+			} else {
+				l = float64(lk)
+			}
+			rk := players[j].Kills
+			rd := players[j].Deaths
+			if rd > 0 {
+				r = float64(rk) / float64(rd)
+			} else {
+				r = float64(rk)
+			}
+
+			return l > r
+		})
+	default:
+		sort.Slice(players, func(i, j int) bool {
+			return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
+		})
+	}
+	if errReboot := ui.playerList.Reload(players); errReboot != nil {
 		log.Printf("Faile to reboot data: %v\n", errReboot)
 	}
 }
@@ -336,6 +412,9 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 		widget.NewToolbarAction(theme.MailComposeIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
+		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
+			platform.OpenFolder(ui.settings.ConfigRoot())
+		}),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {
 			if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
 				log.Printf("Failed to open help url: %v\n", errOpenHelp)

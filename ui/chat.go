@@ -12,11 +12,12 @@ import (
 )
 
 type userMessageList struct {
-	list        *widget.List
-	boundList   binding.ExternalUntypedList
-	content     fyne.CanvasObject
-	objectMu    sync.RWMutex
-	boundListMu sync.RWMutex
+	list              *widget.List
+	boundList         binding.ExternalUntypedList
+	content           fyne.CanvasObject
+	objectMu          sync.RWMutex
+	boundListMu       sync.RWMutex
+	autoScrollEnabled binding.Bool
 }
 
 func (chatList *userMessageList) Reload(rr []model.UserMessage) error {
@@ -45,7 +46,10 @@ func (chatList *userMessageList) Append(msg model.UserMessage) error {
 	if errReload := chatList.boundList.Reload(); errReload != nil {
 		log.Printf("Failed to update chat list: %v\n", errReload)
 	}
-	chatList.list.ScrollToBottom()
+	b, _ := chatList.autoScrollEnabled.Get()
+	if b {
+		chatList.list.ScrollToBottom()
+	}
 	return nil
 }
 
@@ -55,7 +59,10 @@ func (chatList *userMessageList) Widget() *widget.List {
 }
 
 func (ui *Ui) createGameChatMessageList() *userMessageList {
-	uml := &userMessageList{}
+	uml := &userMessageList{
+		autoScrollEnabled: binding.NewBool(),
+	}
+	_ = uml.autoScrollEnabled.Set(true)
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
@@ -97,12 +104,21 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 		})
 	uml.list = userMessageListWidget
 	uml.boundList = boundList
-	uml.content = container.NewVScroll(userMessageListWidget)
+	uml.content = container.NewBorder(
+		container.NewHBox(widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled)),
+		nil,
+		nil,
+		nil,
+		container.NewVScroll(userMessageListWidget))
+	uml.content.Refresh()
 	return uml
 }
 
 func (ui *Ui) createUserHistoryMessageList() *userMessageList {
-	uml := &userMessageList{}
+	uml := &userMessageList{
+		autoScrollEnabled: binding.NewBool(),
+	}
+	_ = uml.autoScrollEnabled.Set(true)
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
@@ -132,7 +148,12 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 		})
 	uml.list = userMessageListWidget
 	uml.boundList = boundList
-	uml.content = container.NewVScroll(userMessageListWidget)
+	uml.content = container.NewBorder(
+		container.NewHBox(widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled)),
+		nil,
+		nil,
+		nil,
+		container.NewVScroll(userMessageListWidget))
 	return uml
 }
 
