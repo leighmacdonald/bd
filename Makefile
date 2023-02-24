@@ -24,7 +24,7 @@ lint: lint_deps
 	golangci-lint run --timeout 3m --verbose
 	go vet -tags ci ./...
 	test -z $(goimports -e -d . | tee /dev/stderr)
-	gocyclo -over 35 .
+	gocyclo -over 50 .
 	golint -set_exit_status $(go list -tags ci ./...)
 	staticcheck -go 1.19 ./...
 

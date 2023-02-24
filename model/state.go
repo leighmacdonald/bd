@@ -7,7 +7,6 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -53,7 +52,6 @@ const (
 )
 
 type PlayerState struct {
-	*sync.RWMutex
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string
@@ -116,28 +114,21 @@ type PlayerState struct {
 }
 
 func (ps *PlayerState) GetSteamID() steamid.SID64 {
-	ps.RLock()
-	defer ps.RUnlock()
 	return ps.SteamId
 }
 
 func (ps *PlayerState) GetName() string {
-	ps.RLock()
-	defer ps.RUnlock()
 	return ps.Name
 }
 
 func (ps *PlayerState) GetAvatarHash() string {
-	ps.RLock()
-	defer ps.RUnlock()
 	return ps.AvatarHash
 }
 
 func (ps *PlayerState) Touch() {
-	ps.Lock()
-	defer ps.Unlock()
 	ps.Dirty = true
 }
+
 func firstN(s string, n int) string {
 	i := 0
 	for j := range s {
@@ -154,12 +145,10 @@ const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 // API returns non https urls, this will resolve them over https
 const baseAvatarUrl = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
 
-func (ps *PlayerState) AvatarUrl() string {
-	ps.RLock()
-	defer ps.RUnlock()
+func AvatarUrl(hash string) string {
 	avatarHash := defaultAvatarHash
-	if ps.AvatarHash != "" {
-		avatarHash = ps.AvatarHash
+	if hash != "" {
+		avatarHash = hash
 	}
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarUrl, firstN(avatarHash, 2), avatarHash)
 }
@@ -170,17 +159,14 @@ func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
 		log.Printf("Failed to load avatar\n")
 		return
 	} else {
-		ps.Lock()
 		ps.Avatar = res
 		ps.AvatarHash = rules.HashBytes(buf)
-		ps.Unlock()
 	}
 }
 
 func NewPlayerState(sid64 steamid.SID64, name string) *PlayerState {
 	t0 := time.Now()
 	return &PlayerState{
-		RWMutex:          &sync.RWMutex{},
 		Name:             name,
 		RealName:         "",
 		NamePrevious:     "",

@@ -118,7 +118,7 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 					log.Printf("Failed to parse userid: %v", errUserID)
 					continue
 				}
-				ping, errPing := strconv.ParseInt(m[6], 10, 32)
+				ping, errPing := strconv.ParseInt(m[7], 10, 32)
 				if errPing != nil {
 					log.Printf("Failed to parse ping: %v", errUserID)
 					continue
@@ -172,7 +172,7 @@ func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logPars
 			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(Disconnecting from abandoned match server$|\([Ss]erver shutting down\)$)`),
-			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{2,3}:\d{2})\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{1,3}:\d{2}(:\d{2})?)\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\shostname:\s(.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\smap\s{5}:\s(.+?)\sat.+?$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\stags\s{4}:\s(.+?)$`),

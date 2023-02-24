@@ -81,7 +81,7 @@ func New(settings *model.Settings) UserInterface {
 		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
 		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
 	}
-	rootWindow.CenterOnScreen()
+
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
 		if errSave := settings.Save(); errSave != nil {
 			log.Printf("Failed to save config file: %v\n", errSave)
@@ -95,9 +95,9 @@ func New(settings *model.Settings) UserInterface {
 	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
 
 	rootWindow.Resize(fyne.NewSize(800, 1000))
-	ui.rootWindow.SetCloseIntercept(func() {
-		ui.rootWindow.Hide()
-	})
+	//ui.rootWindow.SetCloseIntercept(func() {
+	//	ui.rootWindow.Hide()
+	//})
 
 	ui.configureTray(func() {
 		ui.rootWindow.Show()
@@ -183,6 +183,7 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	if errAppend := ui.userMessageList.Append(msg); errAppend != nil {
 		log.Printf("Failed to append user message: %v", errAppend)
 	}
+	ui.userMessageList.Widget().Refresh()
 }
 
 func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
