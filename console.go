@@ -86,9 +86,8 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	for i, rxMatcher := range l.rx {
 		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
 			outEvent.ApplyTimestamp(m[1])
-			t := model.EventType(i)
-			outEvent.Type = t
-			switch t {
+			outEvent.Type = model.EventType(i)
+			switch outEvent.Type {
 			case model.EvtConnect:
 				outEvent.Player = m[2]
 			case model.EvtDisconnect:

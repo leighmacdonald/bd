@@ -111,12 +111,14 @@ func New(settings *model.Settings) UserInterface {
 	}, func() {
 		ui.aboutDialog.Show()
 	})
+	hostnameLabel := translations.One(translations.LabelHostname)
+	mapLabel := translations.One(translations.LabelMap)
 	ui.labelHostname = widget.NewRichText(
-		&widget.TextSegment{Text: "Hostname: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: hostnameLabel, Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 	)
 	ui.labelMap = widget.NewRichText(
-		&widget.TextSegment{Text: "Map: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: mapLabel, Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 	)
 
@@ -134,7 +136,7 @@ func New(settings *model.Settings) UserInterface {
 		}
 		ui.UpdatePlayerState(sorted)
 	})
-	sortSelect.PlaceHolder = "Sort By..."
+	sortSelect.PlaceHolder = translations.One(translations.LabelSortBy)
 	heading := container.NewBorder(nil, nil, toolbar, sortSelect, container.NewCenter(widget.NewLabel("")))
 
 	rootWindow.SetContent(container.NewBorder(
@@ -179,12 +181,12 @@ func (ui *Ui) UpdateTitle(title string) {
 
 func (ui *Ui) UpdateServerState(state model.ServerState) {
 	ui.labelHostname.Segments = []widget.RichTextSegment{
-		&widget.TextSegment{Text: "Hostname: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
 	}
 	ui.labelHostname.Refresh()
 	ui.labelMap.Segments = []widget.RichTextSegment{
-		&widget.TextSegment{Text: "Map: ", Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: state.CurrentMap, Style: widget.RichTextStyleStrong},
 	}
 	ui.labelMap.Refresh()
@@ -276,7 +278,10 @@ func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
 	if found {
 		ui.chatHistoryWindows[sid64].Show()
 	} else {
-		window := ui.application.NewWindow(fmt.Sprintf("Chat History: %d", sid64))
+		windowTitle := translations.Tr(&i18n.Message{ID: string(translations.WindowChatHistoryUser)}, 1, map[string]interface{}{
+			"SteamId": sid64,
+		})
+		window := ui.application.NewWindow(windowTitle)
 		window.SetOnClosed(func() {
 			delete(ui.chatHistoryWindows, sid64)
 		})
@@ -301,7 +306,10 @@ func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) error {
 	if found {
 		ui.nameHistoryWindows[sid64].Show()
 	} else {
-		window := ui.application.NewWindow(fmt.Sprintf("Name History: %d", sid64))
+		windowTitle := translations.Tr(&i18n.Message{ID: string(translations.WindowNameHistory)}, 1, map[string]interface{}{
+			"SteamId": sid64,
+		})
+		window := ui.application.NewWindow(windowTitle)
 		window.SetOnClosed(func() {
 			delete(ui.nameHistoryWindows, sid64)
 		})
@@ -322,12 +330,10 @@ func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) error {
 }
 
 func (ui *Ui) newMainMenu() *fyne.MainMenu {
-	launchLabel := translations.Tr(&i18n.Message{
-		ID:  "LaunchButton",
-		One: "Launch TF2",
-	}, 1, nil)
-	wikiUrl, _ := url.Parse(urlHelp)
-
+	wikiUrl, errUrl := url.Parse(urlHelp)
+	if errUrl != nil {
+		log.Panicln("Failed to parse wiki url")
+	}
 	shortCutLaunch := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}
 	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutFolder := &desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
@@ -362,21 +368,19 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	fm := fyne.NewMenu("Bot Detector",
 		&fyne.MenuItem{
 			Shortcut: shortCutLaunch,
-			Label:    launchLabel,
-			Action: func() {
-				ui.launcher()
-			},
-			Icon: resourceTf2Png,
+			Label:    translations.One(translations.LabelLaunch),
+			Action:   ui.launcher,
+			Icon:     resourceTf2Png,
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutChat,
-			Label:    "Chat Log",
+			Label:    translations.One(translations.LabelChatLog),
 			Action:   ui.chatWindow.Show,
 			Icon:     theme.MailComposeIcon(),
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutFolder,
-			Label:    "Open Config Folder",
+			Label:    translations.One(translations.LabelConfigFolder),
 			Action: func() {
 				platform.OpenFolder(ui.settings.ConfigRoot())
 			},
@@ -384,7 +388,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutSettings,
-			Label:    "Settings",
+			Label:    translations.One(translations.LabelSettings),
 			Action:   ui.settingsDialog.Show,
 			Icon:     theme.SettingsIcon(),
 		},
@@ -392,15 +396,15 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 		&fyne.MenuItem{
 			Icon:     theme.ContentUndoIcon(),
 			Shortcut: shortCutQuit,
-			Label:    "Exit",
+			Label:    translations.One(translations.LabelQuit),
 			IsQuit:   true,
 			Action:   ui.application.Quit,
 		},
 	)
 
-	hm := fyne.NewMenu("Help",
+	hm := fyne.NewMenu(translations.One(translations.LabelHelp),
 		&fyne.MenuItem{
-			Label:    "Help",
+			Label:    translations.One(translations.LabelHelp),
 			Shortcut: shortCutHelp,
 			Icon:     theme.HelpIcon(),
 			Action: func() {
@@ -409,7 +413,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 				}
 			}},
 		&fyne.MenuItem{
-			Label:    "About",
+			Label:    translations.One(translations.LabelAbout),
 			Shortcut: shortCutAbout,
 			Icon:     theme.InfoIcon(),
 			Action:   ui.aboutDialog.Show},
@@ -427,10 +431,6 @@ func (ui *Ui) Start() {
 }
 
 func (ui *Ui) OnDisconnect(sid64 steamid.SID64) {
-	go func(sid steamid.SID64) {
-		//time.Sleep(time.Second * 60)
-		//
-	}(sid64)
 	log.Printf("Player disconnected: %d", sid64.Int64())
 }
 
@@ -479,5 +479,10 @@ func createAboutDialog(parent fyne.Window) dialog.Dialog {
 		widget.NewLabel(aboutMsg),
 		widget.NewHyperlink(urlHome, u),
 	)
-	return dialog.NewCustom("About", "Close", vbox, parent)
+	return dialog.NewCustom(
+		translations.One(translations.LabelAbout),
+		translations.One(translations.LabelClose),
+		vbox,
+		parent,
+	)
 }

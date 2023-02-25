@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"log"
@@ -121,7 +122,7 @@ func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []strin
 			}
 		}
 	}
-	attrMenu := fyne.NewMenu("Mark As")
+	attrMenu := fyne.NewMenu(translations.One(translations.LabelMarkAs))
 	sort.Slice(knownAttributes, func(i, j int) bool {
 		return strings.ToLower(knownAttributes[i]) < strings.ToLower(knownAttributes[j])
 	})
@@ -140,17 +141,21 @@ func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []strin
 		}
 		return nil
 	}
-	fi := widget.NewFormItem("Attribute Name", entry)
+	fi := widget.NewFormItem(translations.One(translations.LabelAttributeName), entry)
 
 	attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
-		w := dialog.NewForm("Mark with custom attribute", "Confirm", "Dismiss", []*widget.FormItem{fi}, func(success bool) {
-			if !success {
-				return
-			}
-			if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
-				log.Printf("Failed to mark player: %v\n", errMark)
-			}
-		}, ui.rootWindow)
+		w := dialog.NewForm(
+			translations.One(translations.WindowMarkCustom),
+			translations.One(translations.LabelApply),
+			translations.One(translations.LabelClose),
+			[]*widget.FormItem{fi}, func(success bool) {
+				if !success {
+					return
+				}
+				if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
+					log.Printf("Failed to mark player: %v\n", errMark)
+				}
+			}, ui.rootWindow)
 		w.Show()
 	}))
 	attrMenu.Refresh()
@@ -175,39 +180,28 @@ func (ui *Ui) generateSteamIdMenu(steamId steamid.SID64) *fyne.Menu {
 	return m
 }
 
-func (ui *Ui) generateKickMenu(userId int64) *fyne.Menu {
-	m := fyne.NewMenu("Call Vote",
-		&fyne.MenuItem{
-			Label: "Cheating",
-			Action: func() {
-				if errKick := ui.kickFn(userId, model.KickReasonCheating); errKick != nil {
-					log.Printf("Error trying to call kick: %v\n", errKick)
-				}
-			}},
-		&fyne.MenuItem{
-			Label: "Idle",
-			Action: func() {
-				if errKick := ui.kickFn(userId, model.KickReasonIdle); errKick != nil {
-					log.Printf("Error trying to call kick: %v\n", errKick)
-				}
-			}},
-		&fyne.MenuItem{
-			Label: "Scamming",
-			Action: func() {
-				if errKick := ui.kickFn(userId, model.KickReasonScamming); errKick != nil {
-					log.Printf("Error trying to call kick: %v\n", errKick)
-				}
-			}},
-		&fyne.MenuItem{
-			Label: "Other",
-			Action: func() {
-				if errKick := ui.kickFn(userId, model.KickReasonOther); errKick != nil {
-					log.Printf("Error trying to call kick: %v\n", errKick)
-				}
-			}},
-	)
+func newMenuItem(key translations.Key, fn func()) *fyne.MenuItem {
+	return &fyne.MenuItem{
+		Label:  translations.One(key),
+		Action: fn,
+	}
+}
 
-	return m
+func (ui *Ui) generateKickMenu(userId int64) *fyne.Menu {
+	fn := func(reason model.KickReason) func() {
+		return func() {
+			log.Printf("Calling vote: %d %v", userId, reason)
+			if errKick := ui.kickFn(userId, reason); errKick != nil {
+				log.Printf("Error trying to call kick: %v\n", errKick)
+			}
+		}
+	}
+	return fyne.NewMenu(translations.One(translations.MenuCallVote),
+		newMenuItem(translations.MenuVoteCheating, fn(model.KickReasonCheating)),
+		newMenuItem(translations.MenuVoteIdle, fn(model.KickReasonIdle)),
+		newMenuItem(translations.MenuVoteScamming, fn(model.KickReasonScamming)),
+		newMenuItem(translations.MenuVoteOther, fn(model.KickReasonOther)),
+	)
 }
 
 func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
@@ -215,19 +209,19 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 		&fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
 			ChildMenu: ui.generateKickMenu(userId),
-			Label:     "Call Vote..."},
+			Label:     translations.One(translations.MenuCallVote)},
 		&fyne.MenuItem{
 			Icon:      theme.ZoomFitIcon(),
 			ChildMenu: ui.generateAttributeMenu(steamId, ui.knownAttributes),
-			Label:     "Mark As..."},
+			Label:     translations.One(translations.MenuMarkAs)},
 		&fyne.MenuItem{
 			Icon:      theme.SearchIcon(),
 			ChildMenu: generateExternalLinksMenu(steamId, ui.settings.GetLinks(), ui.application.OpenURL),
-			Label:     "Open External..."},
+			Label:     translations.One(translations.MenuOpenExternal)},
 		&fyne.MenuItem{
 			Icon:      theme.ContentCopyIcon(),
 			ChildMenu: ui.generateSteamIdMenu(steamId),
-			Label:     "Copy SteamID..."},
+			Label:     translations.One(translations.MenuCopySteamId)},
 		&fyne.MenuItem{
 			Icon: theme.ListIcon(),
 			Action: func() {
@@ -235,7 +229,7 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 					showUserError("Error trying to load chat: %v", ui.rootWindow)
 				}
 			},
-			Label: "View Chat History"},
+			Label: translations.One(translations.MenuChatHistory)},
 		&fyne.MenuItem{
 			Icon: theme.VisibilityIcon(),
 			Action: func() {
@@ -243,7 +237,7 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 					showUserError("Error trying to load names: %v", ui.rootWindow)
 				}
 			},
-			Label: "View Name History"},
+			Label: translations.One(translations.MenuNameHistory)},
 	)
 	return menu
 }

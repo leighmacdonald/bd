@@ -1,2 +1,95 @@
-LaunchButton:
+label_launch:
   one: Launch TF2
+
+label_settings:
+  one: Settings
+
+label_chat_log:
+  one: Chat Log
+
+label_config_folder:
+  one: Open Config Folder
+
+label_help:
+  one: Help
+
+label_about:
+  one: About
+
+label_quit:
+  one: Quit
+
+label_hostname:
+  one: "Hostname: "
+
+label_map:
+  one: "Map: "
+
+label_auto_scroll:
+  one: Auto Scroll
+
+label_bottom:
+  one: Bottom
+
+label_clear:
+  one: Clear
+
+label_close:
+  one: Close
+
+label_apply:
+  one: Apply
+
+label_sort_by:
+  one: Sort By...
+
+label_attribute_name:
+  one: Attribute Name
+
+label_mark_as:
+  one: Mark As
+
+menu_vote_cheating:
+  one: "Cheating"
+
+menu_vote_idle:
+  one: "Idle"
+
+menu_vote_scamming:
+  one: "Scamming"
+
+menu_vote_other:
+  one: "Other"
+
+menu_call_vote:
+  one: "Call Vote..."
+
+menu_mark_as:
+  one: "Mark As..."
+
+menu_open_external:
+  one: "Open External..."
+
+menu_copy_steamid:
+  one: "Copy SteamID..."
+
+menu_chat_history:
+  one: "View Chat History"
+
+menu_name_history:
+  one: "View Name History"
+
+label_message_count:
+  one: "Message Count: "
+
+window_name_history:
+  one: "Name History: {{ .SteamId }}"
+
+window_chat_history_user:
+  one: "Chat History: {{ .SteamId }}"
+
+window_chat_history_game:
+  one: "Chat History"
+
+window_mark_custom:
+  one: Mark with custom attribute

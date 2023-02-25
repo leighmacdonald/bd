@@ -17,6 +17,43 @@ var (
 	localizer *i18n.Localizer
 )
 
+type Key string
+
+const (
+	LabelLaunch           Key = "label_launch"
+	LabelSettings         Key = "label_settings"
+	LabelChatLog          Key = "label_chat_log"
+	LabelConfigFolder     Key = "label_config_folder"
+	LabelHelp             Key = "label_help"
+	LabelQuit             Key = "label_quit"
+	LabelAbout            Key = "label_about"
+	LabelHostname         Key = "label_hostname"
+	LabelMap              Key = "label_map"
+	LabelClose            Key = "label_close"
+	LabelApply            Key = "label_apply"
+	LabelAutoScroll       Key = "label_auto_scroll"
+	LabelBottom           Key = "label_bottom"
+	LabelClear            Key = "label_clear"
+	LabelMarkAs           Key = "label_mark_as"
+	LabelSortBy           Key = "label_sort_by"
+	LabelAttributeName    Key = "label_attribute_name"
+	LabelMessageCount     Key = "label_message_count"
+	MenuVoteCheating      Key = "menu_vote_cheating"
+	MenuVoteIdle          Key = "menu_vote_idle"
+	MenuVoteScamming      Key = "menu_vote_scamming"
+	MenuVoteOther         Key = "menu_vote_other"
+	MenuCallVote          Key = "menu_call_vote"
+	MenuMarkAs            Key = "menu_mark_as"
+	MenuOpenExternal      Key = "menu_open_external"
+	MenuCopySteamId       Key = "menu_copy_steamid"
+	MenuChatHistory       Key = "menu_chat_history"
+	MenuNameHistory       Key = "menu_name_history"
+	WindowNameHistory     Key = "window_name_history"
+	WindowChatHistoryUser Key = "window_chat_history_user"
+	WindowChatHistoryGame Key = "window_chat_history_game"
+	WindowMarkCustom      Key = "window_mark_custom"
+)
+
 func Tr(message *i18n.Message, count int, tmplData map[string]interface{}) string {
 	translation := localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: message,
@@ -24,6 +61,10 @@ func Tr(message *i18n.Message, count int, tmplData map[string]interface{}) strin
 		PluralCount:    count,
 	})
 	return translation
+}
+
+func One(key Key) string {
+	return Tr(&i18n.Message{ID: string(key)}, 1, nil)
 }
 
 func init() {

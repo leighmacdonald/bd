@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
@@ -8,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/translations"
 	"github.com/pkg/errors"
 	"log"
 	"sync"
@@ -116,17 +118,17 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
-				widget.NewButtonWithIcon("Bottom", theme.MoveDownIcon(), func() {
+				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), uml.autoScrollEnabled),
+				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), func() {
 					uml.list.ScrollToBottom()
 				}),
-				widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), func() {
+				widget.NewButtonWithIcon(translations.One(translations.LabelClear), theme.ContentClearIcon(), func() {
 					if errReload := uml.Reload(nil); errReload != nil {
 						log.Printf("Failed to clear chat: %v\n", errReload)
 					}
 				}),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
 			widget.NewLabel(""),
 		),
 		nil,
@@ -183,17 +185,17 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
-				widget.NewButtonWithIcon("Bottom", theme.MoveDownIcon(), func() {
+				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), uml.autoScrollEnabled),
+				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), func() {
 					uml.list.ScrollToBottom()
 				}),
-				widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), func() {
+				widget.NewButtonWithIcon(translations.One(translations.LabelClear), theme.ContentClearIcon(), func() {
 					if errReload := uml.Reload(nil); errReload != nil {
 						log.Printf("Failed to clear chat: %v\n", errReload)
 					}
 				}),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
 			widget.NewLabel(""),
 		),
 		nil,
@@ -204,7 +206,7 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 }
 
 func (ui *Ui) createChatWidget(msgList *userMessageList) fyne.Window {
-	chatWindow := ui.application.NewWindow("Chat History")
+	chatWindow := ui.application.NewWindow(translations.One(translations.WindowChatHistoryGame))
 	chatWindow.SetIcon(resourceIconPng)
 	chatWindow.SetContent(msgList.Widget())
 	chatWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
