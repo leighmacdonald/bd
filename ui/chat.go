@@ -4,6 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/pkg/errors"
@@ -67,11 +68,7 @@ func (chatList *userMessageList) Widget() fyne.CanvasObject {
 }
 
 func (ui *Ui) createGameChatMessageList() *userMessageList {
-	uml := &userMessageList{
-		messageCount:      binding.NewInt(),
-		autoScrollEnabled: binding.NewBool(),
-	}
-	_ = uml.autoScrollEnabled.Set(true)
+	uml := ui.newMessageList()
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
@@ -111,7 +108,6 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 
 			uml.objectMu.Unlock()
 		})
-	uml.list = userMessageListWidget
 	uml.boundList = boundList
 	uml.content = container.NewBorder(
 		container.NewBorder(
@@ -129,15 +125,22 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 	return uml
 }
 
-func (ui *Ui) createUserHistoryMessageList() *userMessageList {
-	uml := &userMessageList{
+func (ui *Ui) newMessageList() *userMessageList {
+	uml := userMessageList{
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
+		boundList:         binding.BindUntypedList(&[]interface{}{}),
 	}
-	_ = uml.autoScrollEnabled.Set(true)
-	boundList := binding.BindUntypedList(&[]interface{}{})
+	if errSetAS := uml.autoScrollEnabled.Set(true); errSetAS != nil {
+		log.Printf("Failed to set auto-scroll preference: %v", errSetAS)
+	}
+	return &uml
+}
+
+func (ui *Ui) createUserHistoryMessageList() *userMessageList {
+	uml := ui.newMessageList()
 	userMessageListWidget := widget.NewListWithData(
-		boundList,
+		uml.boundList,
 		func() fyne.CanvasObject {
 			return container.NewBorder(
 				nil,
@@ -163,7 +166,6 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 			uml.objectMu.Unlock()
 		})
 	uml.list = userMessageListWidget
-	uml.boundList = boundList
 	uml.content = container.NewBorder(
 		container.NewBorder(
 			nil,
@@ -183,10 +185,10 @@ func (ui *Ui) createChatWidget(msgList *userMessageList) fyne.Window {
 	chatWindow := ui.application.NewWindow("Chat History")
 	chatWindow.SetIcon(resourceIconPng)
 	chatWindow.SetContent(msgList.Widget())
-	chatWindow.Resize(fyne.NewSize(1000, 500))
-	chatWindow.SetCloseIntercept(func() {
+	chatWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
 		chatWindow.Hide()
 	})
-
+	chatWindow.Resize(fyne.NewSize(1000, 500))
+	chatWindow.SetCloseIntercept(chatWindow.Hide)
 	return chatWindow
 }

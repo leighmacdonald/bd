@@ -316,31 +316,40 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	}, 1, nil)
 	wikiUrl, _ := url.Parse(urlHelp)
 
-	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+	shortCutLaunch := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}
+	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutFolder := &desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutSettings := &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}
+	shortCutQuit := &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}
+	shortCutHelp := &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+
+	ui.rootWindow.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
 		ui.launcher()
 	})
-
-	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+	ui.rootWindow.Canvas().AddShortcut(shortCutChat, func(shortcut fyne.Shortcut) {
+		ui.chatWindow.Show()
+	})
+	ui.rootWindow.Canvas().AddShortcut(shortCutFolder, func(shortcut fyne.Shortcut) {
+		platform.OpenFolder(ui.settings.ConfigRoot())
+	})
+	ui.rootWindow.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
 		ui.settingsDialog.Show()
 	})
-
-	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
+	ui.rootWindow.Canvas().AddShortcut(shortCutQuit, func(shortcut fyne.Shortcut) {
 		ui.application.Quit()
 	})
-
-	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(shortcut fyne.Shortcut) {
+	ui.rootWindow.Canvas().AddShortcut(shortCutHelp, func(shortcut fyne.Shortcut) {
 		if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
 			log.Printf("Failed to open help url: %v\n", errOpenHelp)
 		}
 	})
-
-	ui.rootWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(shortcut fyne.Shortcut) {
+	ui.rootWindow.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
 		ui.aboutDialog.Show()
 	})
-
 	fm := fyne.NewMenu("Bot Detector",
 		&fyne.MenuItem{
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyG, Modifier: fyne.KeyModifierControl},
+			Shortcut: shortCutLaunch,
 			Label:    launchLabel,
 			Action: func() {
 				ui.launcher()
@@ -348,7 +357,21 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 			Icon: resourceTf2Png,
 		},
 		&fyne.MenuItem{
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl},
+			Shortcut: shortCutChat,
+			Label:    "Chat Log",
+			Action:   ui.chatWindow.Show,
+			Icon:     theme.MailComposeIcon(),
+		},
+		&fyne.MenuItem{
+			Shortcut: shortCutFolder,
+			Label:    "Open Config Folder",
+			Action: func() {
+				platform.OpenFolder(ui.settings.ConfigRoot())
+			},
+			Icon: theme.FolderOpenIcon(),
+		},
+		&fyne.MenuItem{
+			Shortcut: shortCutSettings,
 			Label:    "Settings",
 			Action:   ui.settingsDialog.Show,
 			Icon:     theme.SettingsIcon(),
@@ -356,7 +379,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 		fyne.NewMenuItemSeparator(),
 		&fyne.MenuItem{
 			Icon:     theme.ContentUndoIcon(),
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl},
+			Shortcut: shortCutQuit,
 			Label:    "Exit",
 			IsQuit:   true,
 			Action:   ui.application.Quit,
@@ -366,7 +389,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	hm := fyne.NewMenu("Help",
 		&fyne.MenuItem{
 			Label:    "Help",
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift},
+			Shortcut: shortCutHelp,
 			Icon:     theme.HelpIcon(),
 			Action: func() {
 				if errOpenHelp := ui.application.OpenURL(wikiUrl); errOpenHelp != nil {
@@ -375,7 +398,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 			}},
 		&fyne.MenuItem{
 			Label:    "About",
-			Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift},
+			Shortcut: shortCutAbout,
 			Icon:     theme.InfoIcon(),
 			Action:   ui.aboutDialog.Show},
 	)
