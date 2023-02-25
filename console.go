@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type logReader struct {
@@ -72,11 +71,6 @@ var (
 	errNoMatch = errors.New("no match found")
 )
 
-// parseTimestamp will convert the source formatted log timestamps into a time.Time value
-func parseTimestamp(timestamp string) (time.Time, error) {
-	return time.Parse("01/02/2006 - 15:04:05", timestamp)
-}
-
 type logParser struct {
 	evtChan       chan model.LogEvent
 	ReadChannel   chan string
@@ -91,19 +85,15 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range l.rx {
 		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
+			outEvent.ApplyTimestamp(m[1])
 			t := model.EventType(i)
 			outEvent.Type = t
 			switch t {
 			case model.EvtConnect:
-				outEvent.Player = m[1]
+				outEvent.Player = m[2]
 			case model.EvtDisconnect:
-				outEvent.Player = m[1]
+				outEvent.Player = m[2]
 			case model.EvtMsg:
-				ts, errTs := parseTimestamp(m[1])
-				if errTs != nil {
-					log.Printf("Failed to parse timestamp for message log: %s", errTs)
-					continue
-				}
 				name := m[2]
 				dead := false
 				team := false
@@ -117,16 +107,9 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				}
 				outEvent.TeamOnly = team
 				outEvent.Dead = dead
-				outEvent.Timestamp = ts
 				outEvent.Player = name
 				outEvent.Message = m[3]
 			case model.EvtStatusId:
-				ts, errTs := parseTimestamp(m[1])
-				if errTs != nil {
-					log.Printf("Failed to parse timestamp for message log: %s", errTs)
-					continue
-				}
-				outEvent.Timestamp = ts
 				userID, errUserID := strconv.ParseInt(m[2], 10, 32)
 				if errUserID != nil {
 					log.Printf("Failed to parse userid: %v", errUserID)
@@ -184,7 +167,7 @@ func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logPars
 		rx: []*regexp.Regexp{
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
 			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
-			regexp.MustCompile(`(?:.+?\.)?(\S+)\sconnected$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\sconnected$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(Disconnecting from abandoned match server$|\([Ss]erver shutting down\)$)`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{1,3}:\d{2}(:\d{2})?)\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\shostname:\s(.+?)$`),

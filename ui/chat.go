@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/pkg/errors"
@@ -109,11 +110,22 @@ func (ui *Ui) createGameChatMessageList() *userMessageList {
 			uml.objectMu.Unlock()
 		})
 	uml.boundList = boundList
+	uml.list = userMessageListWidget
 	uml.content = container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
-			widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+			container.NewHBox(
+				widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+				widget.NewButtonWithIcon("Bottom", theme.MoveDownIcon(), func() {
+					uml.list.ScrollToBottom()
+				}),
+				widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), func() {
+					if errReload := uml.Reload(nil); errReload != nil {
+						log.Printf("Failed to clear chat: %v\n", errReload)
+					}
+				}),
+			),
 			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
 			widget.NewLabel(""),
 		),
@@ -170,7 +182,17 @@ func (ui *Ui) createUserHistoryMessageList() *userMessageList {
 		container.NewBorder(
 			nil,
 			nil,
-			widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+			container.NewHBox(
+				widget.NewCheckWithData("Auto-Scroll", uml.autoScrollEnabled),
+				widget.NewButtonWithIcon("Bottom", theme.MoveDownIcon(), func() {
+					uml.list.ScrollToBottom()
+				}),
+				widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), func() {
+					if errReload := uml.Reload(nil); errReload != nil {
+						log.Printf("Failed to clear chat: %v\n", errReload)
+					}
+				}),
+			),
 			widget.NewLabelWithData(binding.IntToStringWithFormat(uml.messageCount, "Message Count: %d")),
 			widget.NewLabel(""),
 		),

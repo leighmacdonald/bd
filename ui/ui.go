@@ -66,7 +66,7 @@ type Ui struct {
 	queryUserMessagesFunc model.QueryUserMessagesFunc
 	labelHostname         *widget.RichText
 	labelMap              *widget.RichText
-	chatHistoryWindows    map[steamid.SID64]fyne.Window
+	chatHistoryWindows    map[steamid.SID64]*userChatContainer
 	nameHistoryWindows    map[steamid.SID64]fyne.Window
 	playerSortDir         playerSortType
 }
@@ -82,7 +82,7 @@ func New(settings *model.Settings) UserInterface {
 		rootWindow:         rootWindow,
 		boundSettings:      boundSettings{binding.BindStruct(settings)},
 		settings:           settings,
-		chatHistoryWindows: map[steamid.SID64]fyne.Window{},
+		chatHistoryWindows: map[steamid.SID64]*userChatContainer{},
 		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
 		playerSortDir:      playerSortStatus,
 	}
@@ -254,9 +254,21 @@ func (ui *Ui) UpdatePlayerState(players []model.PlayerState) {
 
 func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	if errAppend := ui.userMessageList.Append(msg); errAppend != nil {
-		log.Printf("Failed to append user message: %v", errAppend)
+		log.Printf("Failed to append game message: %v", errAppend)
 	}
 	ui.userMessageList.Widget().Refresh()
+
+	if userChat, found := ui.chatHistoryWindows[msg.PlayerSID]; found {
+		if errAppend := userChat.list.Append(msg); errAppend != nil {
+			log.Printf("Failed to append user history message: %v", errAppend)
+		}
+		userChat.list.Widget().Refresh()
+	}
+}
+
+type userChatContainer struct {
+	fyne.Window
+	list *userMessageList
 }
 
 func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
@@ -279,7 +291,7 @@ func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
 		window.SetContent(msgList.Widget())
 		window.Resize(fyne.NewSize(600, 600))
 		window.Show()
-		ui.chatHistoryWindows[sid64] = window
+		ui.chatHistoryWindows[sid64] = &userChatContainer{Window: window, list: msgList}
 	}
 	return nil
 }
