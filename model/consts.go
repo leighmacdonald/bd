@@ -1,14 +1,6 @@
 package model
 
-// Embedded via goreleaser
-var (
-	// BuildVersion is the current Git tag or snapshot name
-	BuildVersion = "dev"
-	// BuildCommit is the current git commit SHA
-	BuildCommit = "none"
-	// BuildDate is the build BuildDate in the RFC3339 format
-	BuildDate = "unknown"
-)
+import "github.com/leighmacdonald/steamid/v2/steamid"
 
 type Team int
 
@@ -31,3 +23,20 @@ const (
 	EvtAddress
 	EvtLobby
 )
+
+type MarkFunc func(sid64 steamid.SID64, attrs []string) error
+
+type KickReason string
+
+const (
+	KickReasonIdle     KickReason = "idle"
+	KickReasonScamming KickReason = "scamming"
+	KickReasonCheating KickReason = "cheating"
+	KickReasonOther    KickReason = "other"
+)
+
+type KickFunc func(userId int64, reason KickReason) error
+
+type QueryNamesFunc func(sid64 steamid.SID64) ([]UserNameHistory, error)
+
+type QueryUserMessagesFunc func(sid64 steamid.SID64) (UserMessageCollection, error)

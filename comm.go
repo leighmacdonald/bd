@@ -23,7 +23,7 @@ func parseLobbyPlayers(body string) []*model.Player {
 		if match == nil {
 			continue
 		}
-		ps := model.NewPlayerState(steamid.SID3ToSID64(steamid.SID3(match[3])), "")
+		ps := model.NewPlayer(steamid.SID3ToSID64(steamid.SID3(match[3])), "")
 		if match[4] == "TF_GC_TEAM_INVADERS" {
 			ps.Team = model.Blu
 		} else {

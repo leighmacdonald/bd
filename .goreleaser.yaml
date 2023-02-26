@@ -8,14 +8,14 @@ builds:
     goarch:
       - amd64
     ldflags:
-      - -s -w -X model.BuildVersion={{ .Version }} -X model.BuildCommit={{ .Commit }} -X model.BuildDate={{ .Date }}
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
   - id: windows
     goos:
       - windows
     goarch:
       - amd64
     ldflags:
-      - -H=windowsgui -s -w -X model.BuildVersion={{ .Version }} -X model.BuildCommit={{ .Commit }} -X model.BuildDate={{ .Date }}
+      - -H=windowsgui -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
 archives:
   - format: tar.gz
     name_template: >-

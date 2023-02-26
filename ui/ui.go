@@ -6,7 +6,6 @@
 package ui
 
 import (
-	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -23,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"log"
 	"net/url"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -36,12 +36,13 @@ const (
 type UserInterface interface {
 	Refresh()
 	Start()
+	SetBuildInfo(version string, commit string, date string, builtBy string)
 	SetOnLaunchTF2(func())
 	SetOnMark(model.MarkFunc)
 	SetOnKick(kickFunc model.KickFunc)
 	SetFetchMessageHistory(messagesFunc model.QueryUserMessagesFunc)
 	SetFetchNameHistory(namesFunc model.QueryNamesFunc)
-	UpdateServerState(state model.ServerState)
+	UpdateServerState(state model.Server)
 	UpdateTitle(string)
 	UpdatePlayerState(collection model.PlayerCollection)
 	AddUserMessage(message model.UserMessage)
@@ -66,6 +67,11 @@ type Ui struct {
 	queryUserMessagesFunc model.QueryUserMessagesFunc
 	labelHostname         *widget.RichText
 	labelMap              *widget.RichText
+	labelBuiltBy          *widget.RichText
+	labelDate             *widget.RichText
+	labelVersion          *widget.RichText
+	labelCommit           *widget.RichText
+	labelGo               *widget.RichText
 	chatHistoryWindows    map[steamid.SID64]*userChatContainer
 	nameHistoryWindows    map[steamid.SID64]fyne.Window
 	playerSortDir         playerSortType
@@ -84,7 +90,15 @@ func New(settings *model.Settings) UserInterface {
 		settings:           settings,
 		chatHistoryWindows: map[steamid.SID64]*userChatContainer{},
 		nameHistoryWindows: map[steamid.SID64]fyne.Window{},
-		playerSortDir:      playerSortStatus,
+		labelBuiltBy:       widget.NewRichTextWithText("Built By: "),
+		labelDate:          widget.NewRichTextWithText("Build Date: "),
+		labelVersion:       widget.NewRichTextWithText("Version: "),
+		labelCommit:        widget.NewRichTextWithText("Commit: "),
+		labelGo: widget.NewRichText(
+			&widget.TextSegment{Text: "Go ", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: runtime.Version(), Style: widget.RichTextStyleStrong},
+		),
+		playerSortDir: playerSortStatus,
 	}
 
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
@@ -94,7 +108,7 @@ func New(settings *model.Settings) UserInterface {
 		}
 		log.Println("Settings saved successfully")
 	})
-	ui.aboutDialog = createAboutDialog(rootWindow)
+	ui.aboutDialog = ui.createAboutDialog(rootWindow)
 	ui.playerList = ui.createPlayerList()
 	ui.userMessageList = ui.createGameChatMessageList()
 	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
@@ -149,6 +163,37 @@ func New(settings *model.Settings) UserInterface {
 	return &ui
 }
 
+func (ui *Ui) SetBuildInfo(version string, commit string, date string, builtBy string) {
+	if len(ui.labelVersion.Segments) == 1 {
+		ui.labelVersion.Segments = append(ui.labelVersion.Segments, &widget.TextSegment{
+			Style: widget.RichTextStyleStrong,
+			Text:  version,
+		})
+		ui.labelVersion.Refresh()
+	}
+	if len(ui.labelCommit.Segments) == 1 {
+		ui.labelCommit.Segments = append(ui.labelCommit.Segments, &widget.TextSegment{
+			Style: widget.RichTextStyleStrong,
+			Text:  commit,
+		})
+		ui.labelCommit.Refresh()
+	}
+	if len(ui.labelDate.Segments) == 1 {
+		ui.labelDate.Segments = append(ui.labelDate.Segments, &widget.TextSegment{
+			Style: widget.RichTextStyleStrong,
+			Text:  date,
+		})
+		ui.labelDate.Refresh()
+	}
+	if len(ui.labelBuiltBy.Segments) == 1 {
+		ui.labelBuiltBy.Segments = append(ui.labelBuiltBy.Segments, &widget.TextSegment{
+			Style: widget.RichTextStyleStrong,
+			Text:  builtBy,
+		})
+		ui.labelBuiltBy.Refresh()
+	}
+}
+
 func (ui *Ui) SetFetchMessageHistory(messagesFunc model.QueryUserMessagesFunc) {
 	ui.queryUserMessagesFunc = messagesFunc
 }
@@ -178,7 +223,7 @@ func (ui *Ui) UpdateTitle(title string) {
 	ui.rootWindow.SetTitle(title)
 }
 
-func (ui *Ui) UpdateServerState(state model.ServerState) {
+func (ui *Ui) UpdateServerState(state model.Server) {
 	ui.labelHostname.Segments = []widget.RichTextSegment{
 		&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
@@ -199,9 +244,10 @@ const (
 	playerSortKD     playerSortType = "K:D"
 	playerSortStatus playerSortType = "Status"
 	playerSortTeam   playerSortType = "Team"
+	playerSortTime   playerSortType = "Time"
 )
 
-var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus, playerSortTeam}
+var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus, playerSortTeam, playerSortTime}
 
 func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 	// Sort by name first
@@ -232,6 +278,10 @@ func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 	case playerSortTeam:
 		sort.SliceStable(players, func(i, j int) bool {
 			return players[i].Team < players[j].Team
+		})
+	case playerSortTime:
+		sort.SliceStable(players, func(i, j int) bool {
+			return players[i].Connected < players[j].Connected
 		})
 	case playerSortKD:
 		sort.SliceStable(players, func(i, j int) bool {
@@ -477,11 +527,14 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 	return toolBar
 }
 
-func createAboutDialog(parent fyne.Window) dialog.Dialog {
+func (ui *Ui) createAboutDialog(parent fyne.Window) dialog.Dialog {
 	u, _ := url.Parse(urlHome)
-	aboutMsg := fmt.Sprintf("%s\n\nVersion: %s\nCommit: %s\nDate: %s\n", AppId, model.BuildVersion, model.BuildCommit, model.BuildDate)
 	vbox := container.NewVBox(
-		widget.NewLabel(aboutMsg),
+		ui.labelVersion,
+		ui.labelCommit,
+		ui.labelDate,
+		ui.labelBuiltBy,
+		ui.labelGo,
 		widget.NewHyperlink(urlHome, u),
 	)
 	return dialog.NewCustom(

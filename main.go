@@ -14,6 +14,14 @@ import (
 	"os"
 )
 
+var (
+	// Build info
+	version string = "dev"
+	commit  string = "dev"
+	date    string = "n/a"
+	builtBy string = "src"
+)
+
 func main() {
 	ctx := context.Background()
 	settings, errSettings := model.NewSettings()

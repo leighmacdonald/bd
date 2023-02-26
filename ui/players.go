@@ -249,6 +249,7 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 		lowerContainer.Add(widget.NewLabel(""))
 		lowerContainer.Add(widget.NewLabel(""))
 		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Add(widget.NewLabel(""))
 		lowerContainer.Resize(lowerContainer.MinSize())
 
 		rootContainer.Add(upperContainer)
@@ -334,6 +335,7 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 		lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
 		lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
 		lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
+		lowerContainer.Objects[4].(*widget.Label).SetText(ps.Connected.String())
 
 		pl.objectMu.Unlock()
 

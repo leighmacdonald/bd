@@ -6,35 +6,8 @@ import (
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
-	"net"
 	"time"
 )
-
-type MarkFunc func(sid64 steamid.SID64, attrs []string) error
-
-type KickReason string
-
-const (
-	KickReasonIdle     KickReason = "idle"
-	KickReasonScamming KickReason = "scamming"
-	KickReasonCheating KickReason = "cheating"
-	KickReasonOther    KickReason = "other"
-)
-
-type QueryNamesFunc func(sid64 steamid.SID64) ([]UserNameHistory, error)
-
-type QueryUserMessagesFunc func(sid64 steamid.SID64) (UserMessageCollection, error)
-
-type KickFunc func(userId int64, reason KickReason) error
-
-type ServerState struct {
-	ServerName string
-	Addr       net.IP
-	Port       uint16
-	CurrentMap string
-	Tags       []string
-	LastUpdate time.Time
-}
 
 // ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
 // Note that because this WebAPI does not use authentication, there are only two possible values returned:
@@ -77,7 +50,7 @@ type Player struct {
 
 	// First time we see the player
 	ConnectedAt time.Time
-	Connected   string
+	Connected   time.Duration
 
 	Team Team
 	// In game user id
@@ -174,7 +147,7 @@ func (players PlayerCollection) AsAny() []any {
 	return bl
 }
 
-func NewPlayerState(sid64 steamid.SID64, name string) *Player {
+func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	t0 := time.Now()
 	return &Player{
 		Name:             name,
@@ -191,7 +164,7 @@ func NewPlayerState(sid64 steamid.SID64, name string) *Player {
 		EconomyBan:       false,
 		SteamId:          sid64,
 		ConnectedAt:      t0,
-		Connected:        "",
+		Connected:        0,
 		Team:             0,
 		UserId:           0,
 		KillsOn:          0,

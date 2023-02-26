@@ -18,7 +18,7 @@ type LogEvent struct {
 	Type            EventType
 	Player          string
 	PlayerPing      int
-	PlayerConnected string
+	PlayerConnected time.Duration
 	Team            Team
 	UserId          int64
 	PlayerSID       steamid.SID64

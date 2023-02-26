@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type logReader struct {
@@ -128,7 +130,7 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				outEvent.UserId = userID
 				outEvent.Player = m[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
-				outEvent.PlayerConnected = m[5]
+				outEvent.PlayerConnected = parseConnected(m[5])
 				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
 				outEvent.Player = m[2]
@@ -153,6 +155,25 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 		}
 	}
 	return errNoMatch
+}
+func parseConnected(d string) time.Duration {
+	pcs := strings.Split(d, ":")
+	var dur time.Duration
+	var parseErr error
+	switch len(pcs) {
+	case 3:
+		dur, parseErr = time.ParseDuration(fmt.Sprintf("%sh%sm%ss", pcs[0], pcs[1], pcs[2]))
+	case 2:
+		dur, parseErr = time.ParseDuration(fmt.Sprintf("%sm%ss", pcs[0], pcs[1]))
+	case 1:
+		dur, parseErr = time.ParseDuration(fmt.Sprintf("%ss", pcs[0]))
+	default:
+		dur = 0
+	}
+	if parseErr != nil {
+		log.Printf("Failed to parse connected duration: %v", parseErr)
+	}
+	return dur
 }
 
 // TODO why keep this?

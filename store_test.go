@@ -30,7 +30,7 @@ func TestStore(t *testing.T) {
 
 func testStoreImpl(t *testing.T, ds dataStore) {
 	require.NoError(t, ds.Init(), "Failed to migrate default schema")
-	player1 := model.NewPlayerState(steamid.SID64(76561197961279983), golib.RandomString(10))
+	player1 := model.NewPlayer(steamid.SID64(76561197961279983), golib.RandomString(10))
 
 	ctx := context.Background()
 	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, player1), "Failed to create player")

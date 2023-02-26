@@ -39,9 +39,11 @@ type BD struct {
 	// - track k/d over entire session?
 	// - track history of interactions with players
 	// - colourise messages that trigger
+	// - auto launch tf2 upon open
+
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
-	server             model.ServerState
+	server             model.Server
 	serverMu           *sync.RWMutex
 	logReader          *logReader
 	logParser          *logParser
@@ -345,7 +347,7 @@ type statusEvent struct {
 	ping      int
 	userID    int64
 	name      string
-	connected string
+	connected time.Duration
 }
 
 type updateGameStateEvent struct {
@@ -616,7 +618,7 @@ func onUpdateProfile(players map[steamid.SID64]*model.Player, steamID steamid.SI
 
 func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, players map[steamid.SID64]*model.Player, found bool, queuedUpdates *steamid.Collection) error {
 	if !found {
-		ps := model.NewPlayerState(steamID, update.name)
+		ps := model.NewPlayer(steamID, update.name)
 		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, ps); errCreate != nil {
 			return errors.Wrap(errCreate, "Error trying to load/create player\n")
 		}
@@ -653,7 +655,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*mo
 	}); errMark != nil {
 		return errors.Wrap(errMark, "Failed to add mark")
 	}
-	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR, 0666)
+	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE, 0666)
 	if errOf != nil {
 		return errors.Wrap(errOf, "Failed to open player list for updating")
 	}
@@ -667,6 +669,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*mo
 // AttachGui connects the backend functions to the frontend gui
 // TODO Use channels for communicating instead
 func (bd *BD) AttachGui(ctx context.Context, gui ui.UserInterface) {
+	gui.SetBuildInfo(version, commit, date, builtBy)
 	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
 	})
