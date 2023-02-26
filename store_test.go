@@ -43,7 +43,7 @@ func testStoreImpl(t *testing.T, ds dataStore) {
 	require.NoError(t, errNames)
 	require.Equal(t, 3, len(names))
 
-	var player2 model.PlayerState
+	var player2 model.Player
 	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, &player2), "Failed to create player2")
 	require.Equal(t, player1.Visibility, player2.Visibility)
 	require.Equal(t, randNameLast, player2.NamePrevious)

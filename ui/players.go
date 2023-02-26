@@ -16,38 +16,11 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
 type PlayerList struct {
-	list        *widget.List
-	boundList   binding.ExternalUntypedList
-	content     fyne.CanvasObject
-	objectMu    sync.RWMutex
-	boundListMu sync.RWMutex
-}
-
-func (playerList *PlayerList) Reload(rr []model.PlayerState) error {
-	bl := make([]interface{}, len(rr))
-	for i, r := range rr {
-		bl[i] = r
-	}
-	playerList.boundListMu.Lock()
-	defer playerList.boundListMu.Unlock()
-	if errSet := playerList.boundList.Set(bl); errSet != nil {
-		log.Printf("failed to set player list: %v\n", errSet)
-	}
-	if errReload := playerList.boundList.Reload(); errReload != nil {
-		return errReload
-	}
-	playerList.list.Refresh()
-	return nil
-}
-
-// Widget returns the actual select list widget.
-func (playerList *PlayerList) Widget() *widget.List {
-	return playerList.list
+	baseListWidget
 }
 
 type menuButton struct {
@@ -247,117 +220,112 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 // │─────────────────────────────────────────────────────────┤
 // │ K: 10  A: 66                                            │
 // └─────────────────────────────────────────────────────────┘
-func (ui *Ui) createPlayerList() *PlayerList {
+func (ui *Ui) createPlayerList() *baseListWidget {
 	const (
 		symbolOk  = "✓"
 		symbolBad = "✗"
 	)
+	pl := newBaseListWidget()
+	_ = pl.autoScrollEnabled.Set(false)
+	createItem := func() fyne.CanvasObject {
+		rootContainer := container.NewVBox()
+		lowerContainer := container.NewHBox()
 
-	//iconSize := fyne.NewSize(64, 64)
-	pl := &PlayerList{}
-	boundList := binding.BindUntypedList(&[]interface{}{})
-	playerListWidget := widget.NewListWithData(
-		boundList,
-		func() fyne.CanvasObject {
-			rootContainer := container.NewVBox()
-			lowerContainer := container.NewHBox()
+		menuBtn := newMenuButton(fyne.NewMenu(""))
+		menuBtn.Icon = resourceDefaultavatarJpg
+		menuBtn.IconPlacement = widget.ButtonIconTrailingText
+		menuBtn.Refresh()
 
-			menuBtn := newMenuButton(fyne.NewMenu(""))
-			menuBtn.Icon = resourceDefaultavatarJpg
-			menuBtn.IconPlacement = widget.ButtonIconTrailingText
-			menuBtn.Refresh()
+		upperContainer := container.NewBorder(
+			nil,
+			nil,
+			menuBtn,
+			widget.NewRichText(),
+			widget.NewRichText(),
+		)
+		upperContainer.Resize(upperContainer.MinSize())
+		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Add(widget.NewLabel(""))
+		lowerContainer.Resize(lowerContainer.MinSize())
 
-			upperContainer := container.NewBorder(
-				nil,
-				nil,
-				menuBtn,
-				widget.NewRichText(),
-				widget.NewRichText(),
+		rootContainer.Add(upperContainer)
+		rootContainer.Add(lowerContainer)
+
+		rootContainer.Refresh()
+
+		return rootContainer
+	}
+	updateItem := func(i binding.DataItem, o fyne.CanvasObject) {
+		value := i.(binding.Untyped)
+		obj, _ := value.Get()
+		ps := obj.(model.Player)
+		pl.objectMu.Lock()
+		rootContainer := o.(*fyne.Container)
+		upperContainer := rootContainer.Objects[0].(*fyne.Container)
+		lowerContainer := rootContainer.Objects[1].(*fyne.Container)
+
+		btn := upperContainer.Objects[1].(*menuButton)
+		btn.menu = ui.generateUserMenu(ps.SteamId, ps.UserId)
+		btn.menu.Refresh()
+		if ps.Avatar != nil {
+			btn.Icon = ps.Avatar
+		}
+		btn.Refresh()
+
+		profileLabel := upperContainer.Objects[0].(*widget.RichText)
+		stlBad := widget.RichTextStyleStrong
+		stlBad.ColorName = theme.ColorNameError
+
+		stlOk := widget.RichTextStyleStrong
+		stlOk.ColorName = theme.ColorNameSuccess
+		profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: stlOk}}
+		profileLabel.Refresh()
+		var vacState []string
+		if ps.NumberOfVACBans > 0 {
+			vacState = append(vacState, fmt.Sprintf("VB: %s", strings.Repeat(symbolBad, ps.NumberOfVACBans)))
+		}
+		if ps.NumberOfGameBans > 0 {
+			vacState = append(vacState, fmt.Sprintf("GB: %s", strings.Repeat(symbolBad, ps.NumberOfGameBans)))
+		}
+		if ps.CommunityBanned {
+			vacState = append(vacState, fmt.Sprintf("CB: %s", symbolBad))
+		}
+		if ps.EconomyBan {
+			vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
+		}
+		vacStyle := stlBad
+		if len(vacState) == 0 {
+			vacState = append(vacState, symbolOk)
+			vacStyle = stlOk
+
+		}
+		vacMsg := strings.Join(vacState, ", ")
+		vacMsgFull := ""
+		if ps.LastVACBanOn != nil {
+			vacMsgFull = fmt.Sprintf("[%s] (%s - %d days)",
+				vacMsg,
+				ps.LastVACBanOn.Format("Mon Jan 02 2006"),
+				int(time.Since(*ps.LastVACBanOn).Hours()/24),
 			)
-			upperContainer.Resize(upperContainer.MinSize())
-			lowerContainer.Add(widget.NewLabel(""))
-			lowerContainer.Add(widget.NewLabel(""))
-			lowerContainer.Add(widget.NewLabel(""))
-			lowerContainer.Add(widget.NewLabel(""))
-			lowerContainer.Add(widget.NewLabel(""))
-			lowerContainer.Resize(lowerContainer.MinSize())
+		}
+		vacLabel := upperContainer.Objects[2].(*widget.RichText)
+		vacLabel.Segments = []widget.RichTextSegment{
+			&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
+		}
+		vacLabel.Refresh()
 
-			rootContainer.Add(upperContainer)
-			rootContainer.Add(lowerContainer)
+		lowerContainer.Objects[0].(*widget.Label).SetText(fmt.Sprintf("K: %d", ps.Kills))
+		lowerContainer.Objects[1].(*widget.Label).SetText(fmt.Sprintf("D: %d", ps.Deaths))
+		lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
+		lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
+		lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
 
-			rootContainer.Refresh()
+		pl.objectMu.Unlock()
 
-			return rootContainer
-		}, func(i binding.DataItem, o fyne.CanvasObject) {
-			value := i.(binding.Untyped)
-			obj, _ := value.Get()
-			ps := obj.(model.PlayerState)
-			pl.objectMu.Lock()
-			rootContainer := o.(*fyne.Container)
-			upperContainer := rootContainer.Objects[0].(*fyne.Container)
-			lowerContainer := rootContainer.Objects[1].(*fyne.Container)
-
-			btn := upperContainer.Objects[1].(*menuButton)
-			btn.menu = ui.generateUserMenu(ps.SteamId, ps.UserId)
-			btn.menu.Refresh()
-			if ps.Avatar != nil {
-				btn.Icon = ps.Avatar
-			}
-			btn.Refresh()
-
-			profileLabel := upperContainer.Objects[0].(*widget.RichText)
-			stlBad := widget.RichTextStyleStrong
-			stlBad.ColorName = theme.ColorNameError
-
-			stlOk := widget.RichTextStyleStrong
-			stlOk.ColorName = theme.ColorNameSuccess
-			profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: stlOk}}
-			profileLabel.Refresh()
-			var vacState []string
-			if ps.NumberOfVACBans > 0 {
-				vacState = append(vacState, fmt.Sprintf("VB: %s", strings.Repeat(symbolBad, ps.NumberOfVACBans)))
-			}
-			if ps.NumberOfGameBans > 0 {
-				vacState = append(vacState, fmt.Sprintf("GB: %s", strings.Repeat(symbolBad, ps.NumberOfGameBans)))
-			}
-			if ps.CommunityBanned {
-				vacState = append(vacState, fmt.Sprintf("CB: %s", symbolBad))
-			}
-			if ps.EconomyBan {
-				vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
-			}
-			vacStyle := stlBad
-			if len(vacState) == 0 {
-				vacState = append(vacState, symbolOk)
-				vacStyle = stlOk
-
-			}
-			vacMsg := strings.Join(vacState, ", ")
-			vacMsgFull := ""
-			if ps.LastVACBanOn != nil {
-				vacMsgFull = fmt.Sprintf("[%s] (%s - %d days)",
-					vacMsg,
-					ps.LastVACBanOn.Format("Mon Jan 02 2006"),
-					int(time.Since(*ps.LastVACBanOn).Hours()/24),
-				)
-			}
-			vacLabel := upperContainer.Objects[2].(*widget.RichText)
-			vacLabel.Segments = []widget.RichTextSegment{
-				&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
-			}
-			vacLabel.Refresh()
-
-			lowerContainer.Objects[0].(*widget.Label).SetText(fmt.Sprintf("K: %d", ps.Kills))
-			lowerContainer.Objects[1].(*widget.Label).SetText(fmt.Sprintf("D: %d", ps.Deaths))
-			lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
-			lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
-			lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
-
-			pl.objectMu.Unlock()
-
-		})
-	pl.list = playerListWidget
-	pl.boundList = boundList
-	pl.content = container.NewVScroll(playerListWidget)
+	}
+	pl.SetupList(createItem, updateItem)
 	return pl
 }

@@ -43,7 +43,7 @@ type UserInterface interface {
 	SetFetchNameHistory(namesFunc model.QueryNamesFunc)
 	UpdateServerState(state model.ServerState)
 	UpdateTitle(string)
-	UpdatePlayerState([]model.PlayerState)
+	UpdatePlayerState(collection model.PlayerCollection)
 	AddUserMessage(message model.UserMessage)
 	UpdateAttributes([]string)
 }
@@ -56,8 +56,8 @@ type Ui struct {
 	aboutDialog           dialog.Dialog
 	boundSettings         boundSettings
 	settings              *model.Settings
-	playerList            *PlayerList
-	userMessageList       *userMessageList
+	playerList            *baseListWidget
+	userMessageList       *baseListWidget
 	knownAttributes       []string
 	launcher              func()
 	markFn                model.MarkFunc
@@ -130,9 +130,9 @@ func New(settings *model.Settings) UserInterface {
 	sortSelect := widget.NewSelect(dirNames, func(s string) {
 		ui.playerSortDir = playerSortType(s)
 		v, _ := ui.playerList.boundList.Get()
-		var sorted []model.PlayerState
+		var sorted []model.Player
 		for _, p := range v {
-			sorted = append(sorted, p.(model.PlayerState))
+			sorted = append(sorted, p.(model.Player))
 		}
 		ui.UpdatePlayerState(sorted)
 	})
@@ -203,7 +203,7 @@ const (
 
 var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus}
 
-func (ui *Ui) UpdatePlayerState(players []model.PlayerState) {
+func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 	switch ui.playerSortDir {
 	case playerSortKills:
 		sort.Slice(players, func(i, j int) bool {
@@ -249,7 +249,7 @@ func (ui *Ui) UpdatePlayerState(players []model.PlayerState) {
 			return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
 		})
 	}
-	if errReboot := ui.playerList.Reload(players); errReboot != nil {
+	if errReboot := ui.playerList.Reload(players.AsAny()); errReboot != nil {
 		log.Printf("Faile to reboot data: %v\n", errReboot)
 	}
 }
@@ -270,7 +270,7 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 
 type userChatContainer struct {
 	fyne.Window
-	list *userMessageList
+	list *baseListWidget
 }
 
 func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
@@ -290,7 +290,7 @@ func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) error {
 			return errors.Wrap(errMessage, "Failed to fetch user message history")
 		}
 		msgList := ui.createUserHistoryMessageList()
-		if errReload := msgList.Reload(messages); errReload != nil {
+		if errReload := msgList.Reload(messages.AsAny()); errReload != nil {
 			return errors.Wrap(errMessage, "Failed to reload user message history")
 		}
 		window.SetContent(msgList.Widget())

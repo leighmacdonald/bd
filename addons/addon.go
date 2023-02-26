@@ -20,7 +20,7 @@ const addonNameEraser = "aaaaaaaaaa_votefailed_eraser_v2"
 func Install(tf2dir string) error {
 	wrapperPath := filepath.Join(tf2dir, "custom", chatWrapperName)
 	if golib.Exists(wrapperPath) {
-		if errDelete := os.Remove(wrapperPath); errDelete != nil {
+		if errDelete := os.RemoveAll(wrapperPath); errDelete != nil {
 			return errors.Wrapf(errDelete, "Failed to remove tf2bd chat wrappers")
 		}
 	}

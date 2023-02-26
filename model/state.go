@@ -23,7 +23,7 @@ const (
 
 type QueryNamesFunc func(sid64 steamid.SID64) ([]UserNameHistory, error)
 
-type QueryUserMessagesFunc func(sid64 steamid.SID64) ([]UserMessage, error)
+type QueryUserMessagesFunc func(sid64 steamid.SID64) (UserMessageCollection, error)
 
 type KickFunc func(userId int64, reason KickReason) error
 
@@ -51,7 +51,7 @@ const (
 	ProfileVisibilityPublic
 )
 
-type PlayerState struct {
+type Player struct {
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string
@@ -113,19 +113,19 @@ type PlayerState struct {
 	Dirty bool
 }
 
-func (ps *PlayerState) GetSteamID() steamid.SID64 {
+func (ps *Player) GetSteamID() steamid.SID64 {
 	return ps.SteamId
 }
 
-func (ps *PlayerState) GetName() string {
+func (ps *Player) GetName() string {
 	return ps.Name
 }
 
-func (ps *PlayerState) GetAvatarHash() string {
+func (ps *Player) GetAvatarHash() string {
 	return ps.AvatarHash
 }
 
-func (ps *PlayerState) Touch() {
+func (ps *Player) Touch() {
 	ps.Dirty = true
 }
 
@@ -153,7 +153,7 @@ func AvatarUrl(hash string) string {
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarUrl, firstN(avatarHash, 2), avatarHash)
 }
 
-func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
+func (ps *Player) SetAvatar(hash string, buf []byte) {
 	res := fyne.NewStaticResource(fmt.Sprintf("%s.jpg", hash), buf)
 	if res == nil {
 		log.Printf("Failed to load avatar\n")
@@ -164,9 +164,19 @@ func (ps *PlayerState) SetAvatar(hash string, buf []byte) {
 	}
 }
 
-func NewPlayerState(sid64 steamid.SID64, name string) *PlayerState {
+type PlayerCollection []Player
+
+func (players PlayerCollection) AsAny() []any {
+	bl := make([]any, len(players))
+	for i, r := range players {
+		bl[i] = r
+	}
+	return bl
+}
+
+func NewPlayerState(sid64 steamid.SID64, name string) *Player {
 	t0 := time.Now()
-	return &PlayerState{
+	return &Player{
 		Name:             name,
 		RealName:         "",
 		NamePrevious:     "",
@@ -199,3 +209,5 @@ type UserNameHistory struct {
 	Name      string
 	FirstSeen time.Time
 }
+
+type UserNameHistoryCollection []UserNameHistory

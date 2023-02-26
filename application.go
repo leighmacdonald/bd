@@ -412,14 +412,14 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 func (bd *BD) gameStateTracker(ctx context.Context) {
 	var queuedUpdates steamid.Collection
 	queueUpdate := false
-	players := map[steamid.SID64]*model.PlayerState{}
+	players := map[steamid.SID64]*model.Player{}
 	queueAvatars := make(chan steamid.SID64, 32)
 	deleteTimer := time.NewTicker(time.Second * 15)
 	checkTimer := time.NewTicker(time.Second * 3)
 	updateTimer := time.NewTicker(time.Second * 1)
 
 	updateUI := func() {
-		var p []model.PlayerState
+		var p []model.Player
 		for _, pl := range players {
 			p = append(p, *pl)
 		}
@@ -465,7 +465,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			bd.checkPlayerStates(ctx, players)
 			queueUpdate = true
 		case <-deleteTimer.C:
-			var valid []*model.PlayerState
+			var valid []*model.Player
 			expired := 0
 			for steamID, ps := range players {
 				if time.Since(ps.UpdatedOn) > time.Second*15 {
@@ -534,7 +534,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 	}
 }
 
-func nameToSid(players map[steamid.SID64]*model.PlayerState, name string) steamid.SID64 {
+func nameToSid(players map[steamid.SID64]*model.Player, name string) steamid.SID64 {
 	for _, player := range players {
 		if name == player.Name {
 			return player.SteamId
@@ -543,7 +543,7 @@ func nameToSid(players map[steamid.SID64]*model.PlayerState, name string) steami
 	return 0
 }
 
-func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.PlayerState, msg messageEvent, store dataStore, um *model.UserMessage) error {
+func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.Player, msg messageEvent, store dataStore, um *model.UserMessage) error {
 	source := nameToSid(players, msg.name)
 	if !source.Valid() {
 		return errors.New("Invalid steamid")
@@ -560,7 +560,7 @@ func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.Playe
 	return nil
 }
 
-func onUpdateKill(players map[steamid.SID64]*model.PlayerState, kill killEvent) {
+func onUpdateKill(players map[steamid.SID64]*model.Player, kill killEvent) {
 	source := nameToSid(players, kill.sourceName)
 	target := nameToSid(players, kill.victimName)
 	if source.Valid() {
@@ -571,7 +571,7 @@ func onUpdateKill(players map[steamid.SID64]*model.PlayerState, kill killEvent) 
 	}
 }
 
-func onUpdateBans(players map[steamid.SID64]*model.PlayerState, steamID steamid.SID64, ban steamweb.PlayerBanState) {
+func onUpdateBans(players map[steamid.SID64]*model.Player, steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	players[steamID].NumberOfVACBans = ban.NumberOfVACBans
 	players[steamID].NumberOfGameBans = ban.NumberOfGameBans
 	players[steamID].CommunityBanned = ban.CommunityBanned
@@ -582,7 +582,7 @@ func onUpdateBans(players map[steamid.SID64]*model.PlayerState, steamID steamid.
 	players[steamID].EconomyBan = ban.EconomyBan != "none"
 }
 
-func onUpdateProfile(players map[steamid.SID64]*model.PlayerState, steamID steamid.SID64, summary steamweb.PlayerSummary) {
+func onUpdateProfile(players map[steamid.SID64]*model.Player, steamID steamid.SID64, summary steamweb.PlayerSummary) {
 	players[steamID].Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
 	players[steamID].AvatarHash = summary.AvatarHash
 	players[steamID].AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
@@ -590,7 +590,7 @@ func onUpdateProfile(players map[steamid.SID64]*model.PlayerState, steamID steam
 	players[steamID].ProfileUpdatedOn = time.Now()
 }
 
-func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, players map[steamid.SID64]*model.PlayerState, found bool, queuedUpdates *steamid.Collection) error {
+func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, players map[steamid.SID64]*model.Player, found bool, queuedUpdates *steamid.Collection) error {
 	if !found {
 		ps := model.NewPlayerState(steamID, update.name)
 		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, ps); errCreate != nil {
@@ -614,7 +614,7 @@ func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64,
 	return nil
 }
 
-func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*model.PlayerState) error {
+func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*model.Player) error {
 	name := ""
 	for _, player := range players {
 		if player.SteamId == status.target {
@@ -650,7 +650,7 @@ func (bd *BD) AttachGui(ctx context.Context, gui ui.UserInterface) {
 	gui.SetOnKick(func(userId int64, reason model.KickReason) error {
 		return bd.callVote(ctx, userId, reason)
 	})
-	gui.SetFetchMessageHistory(func(sid64 steamid.SID64) ([]model.UserMessage, error) {
+	gui.SetFetchMessageHistory(func(sid64 steamid.SID64) (model.UserMessageCollection, error) {
 		return bd.store.FetchMessages(ctx, sid64)
 	})
 	gui.SetFetchNameHistory(func(sid64 steamid.SID64) ([]model.UserNameHistory, error) {
@@ -676,7 +676,7 @@ func (bd *BD) refreshLists(ctx context.Context) {
 	bd.gui.UpdateAttributes(bd.rules.UniqueTags())
 }
 
-func (bd *BD) checkPlayerStates(ctx context.Context, players map[steamid.SID64]*model.PlayerState) {
+func (bd *BD) checkPlayerStates(ctx context.Context, players map[steamid.SID64]*model.Player) {
 	for _, ps := range players {
 		if matchSteam := bd.rules.MatchSteam(ps.GetSteamID()); matchSteam != nil {
 			bd.triggerMatch(ctx, ps, matchSteam)
@@ -698,7 +698,7 @@ func (bd *BD) checkPlayerStates(ctx context.Context, players map[steamid.SID64]*
 
 const announceMatchTimeout = time.Minute * 5
 
-func (bd *BD) triggerMatch(ctx context.Context, ps *model.PlayerState, match *rules.MatchResult) {
+func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
 	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
 	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough

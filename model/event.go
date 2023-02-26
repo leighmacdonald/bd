@@ -52,3 +52,13 @@ type UserMessage struct {
 	Message   string
 	Created   time.Time
 }
+
+type UserMessageCollection []UserMessage
+
+func (messages UserMessageCollection) AsAny() []any {
+	bl := make([]any, len(messages))
+	for i, r := range messages {
+		bl[i] = r
+	}
+	return bl
+}

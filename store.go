@@ -24,10 +24,10 @@ type dataStore interface {
 	Init() error
 	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
 	SaveMessage(ctx context.Context, message *model.UserMessage) error
-	SavePlayer(ctx context.Context, state *model.PlayerState) error
+	SavePlayer(ctx context.Context, state *model.Player) error
 	FetchNames(ctx context.Context, sid64 steamid.SID64) ([]model.UserNameHistory, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) ([]model.UserMessage, error)
-	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.PlayerState) error
+	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
 }
 
 type sqliteStore struct {
@@ -113,7 +113,7 @@ func (store *sqliteStore) SaveMessage(ctx context.Context, message *model.UserMe
 	return nil
 }
 
-func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerState) error {
+func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.Player) error {
 	const insertQuery = `
 		INSERT INTO player (
                     steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, 
@@ -144,7 +144,7 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.PlayerS
 	return nil
 }
 
-func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerState) error {
+func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.Player) error {
 	const updateQuery = `
 		UPDATE player 
 		SET visibility = ?, 
@@ -186,7 +186,7 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.PlayerS
 	return nil
 }
 
-func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerState) error {
+func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.Player) error {
 	if !state.SteamId.Valid() {
 		return errors.New("Invalid steam id")
 	}
@@ -196,7 +196,7 @@ func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.PlayerSta
 	return store.updatePlayer(ctx, state)
 }
 
-func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.PlayerState) error {
+func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
 	const query = `
 		SELECT 
 		    p.visibility, 

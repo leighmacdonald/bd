@@ -16,8 +16,8 @@ type rconConnection interface {
 	Close() error
 }
 
-func parseLobbyPlayers(body string) []*model.PlayerState {
-	var players []*model.PlayerState
+func parseLobbyPlayers(body string) []*model.Player {
+	var players []*model.Player
 	for _, line := range strings.Split(body, "\n") {
 		match := lobbyPlayerRx.FindStringSubmatch(line)
 		if match == nil {
