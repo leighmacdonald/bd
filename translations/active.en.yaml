@@ -4,6 +4,9 @@ label_launch:
 label_settings:
   one: Settings
 
+label_list_config:
+  one: List Config
+
 label_chat_log:
   one: Chat Log
 

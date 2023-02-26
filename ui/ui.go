@@ -54,6 +54,7 @@ type Ui struct {
 	rootWindow            fyne.Window
 	chatWindow            fyne.Window
 	settingsDialog        dialog.Dialog
+	listsDialog           dialog.Dialog
 	aboutDialog           dialog.Dialog
 	boundSettings         boundSettings
 	settings              *model.Settings
@@ -101,13 +102,15 @@ func New(settings *model.Settings) UserInterface {
 		playerSortDir: playerSortStatus,
 	}
 
-	ui.settingsDialog = ui.newSettingsDialog(rootWindow, func() {
+	saveFunc := func() {
 		if errSave := settings.Save(); errSave != nil {
 			log.Printf("Failed to save config file: %v\n", errSave)
 			return
 		}
 		log.Println("Settings saved successfully")
-	})
+	}
+	ui.settingsDialog = ui.newSettingsDialog(rootWindow, saveFunc)
+	ui.listsDialog = newRuleListConfigDialog(rootWindow, saveFunc, settings)
 	ui.aboutDialog = ui.createAboutDialog(rootWindow)
 	ui.playerList = ui.createPlayerList()
 	ui.userMessageList = ui.createGameChatMessageList()
@@ -393,6 +396,7 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutFolder := &desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutSettings := &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}
+	shortCutLists := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutQuit := &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}
 	shortCutHelp := &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
@@ -408,6 +412,9 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 	})
 	ui.rootWindow.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
 		ui.settingsDialog.Show()
+	})
+	ui.rootWindow.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
+		ui.listsDialog.Show()
 	})
 	ui.rootWindow.Canvas().AddShortcut(shortCutQuit, func(shortcut fyne.Shortcut) {
 		ui.application.Quit()
@@ -446,6 +453,12 @@ func (ui *Ui) newMainMenu() *fyne.MainMenu {
 			Label:    translations.One(translations.LabelSettings),
 			Action:   ui.settingsDialog.Show,
 			Icon:     theme.SettingsIcon(),
+		},
+		&fyne.MenuItem{
+			Shortcut: shortCutLists,
+			Label:    translations.One(translations.LabelListConfig),
+			Action:   ui.listsDialog.Show,
+			Icon:     theme.StorageIcon(),
 		},
 		fyne.NewMenuItemSeparator(),
 		&fyne.MenuItem{
@@ -513,6 +526,9 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 		widget.NewToolbarAction(theme.MailComposeIcon(), chatFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
+		widget.NewToolbarAction(theme.StorageIcon(), func() {
+			ui.listsDialog.Show()
+		}),
 		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
 			platform.OpenFolder(ui.settings.ConfigRoot())
 		}),

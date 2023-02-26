@@ -11,6 +11,8 @@ import (
 	"sync"
 )
 
+const defaultDialogueWidth = 600
+
 type baseListWidget struct {
 	list              *widget.List
 	boundList         binding.ExternalUntypedList

@@ -29,12 +29,12 @@ func fetchURL(ctx context.Context, client http.Client, url string) ([]byte, erro
 	return body, nil
 }
 
-func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	var playerLists []rules.PlayerListSchema
 	var rulesLists []rules.RuleSchema
 	mu := &sync.RWMutex{}
 	client := http.Client{}
-	downloadFn := func(u model.ListConfig) error {
+	downloadFn := func(u *model.ListConfig) error {
 		body, errFetch := fetchURL(ctx, client, u.URL)
 		if errFetch != nil {
 			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", u.URL)
@@ -67,7 +67,7 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.Playe
 			continue
 		}
 		wg.Add(1)
-		go func(lc model.ListConfig) {
+		go func(lc *model.ListConfig) {
 			defer wg.Done()
 			if errDL := downloadFn(lc); errDL != nil {
 				log.Printf("Failed to download list: %v", errDL)

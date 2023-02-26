@@ -22,6 +22,7 @@ type Key string
 const (
 	LabelLaunch           Key = "label_launch"
 	LabelSettings         Key = "label_settings"
+	LabelListConfig       Key = "label_list_config"
 	LabelChatLog          Key = "label_chat_log"
 	LabelConfigFolder     Key = "label_config_folder"
 	LabelHelp             Key = "label_help"
