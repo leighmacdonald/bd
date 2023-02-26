@@ -12,23 +12,33 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ^1.19
-      - name: Get dependencies
+      - name: Install OS Dependencies
         run: |
           sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-          go install golang.org/x/lint/golint@latest
-          go install honnef.co/go/tools/cmd/staticcheck@v0.2.1
 
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
 
-      - name: Tidy
-        run: go mod tidy
+      - name: Install Analyzer Dependencies
+        run: make check_deps
 
-      - name: Lint
-        run: make lint
+      - name: Lint: golangci-lint
+        run: make link_golangci
+
+      - name: Lint: vet
+        run: make lint_vet
+
+      - name: Lint: imports
+        run: make lint_imports
+
+      - name: Lint: cyclo
+        run: make lint_cyclo
+
+      - name: Lint: golint
+        run: make lint_golint
+
+      - name: Lint: static
+        run: make link_golangci
 
   test:
     runs-on: ubuntu-latest
@@ -48,8 +58,5 @@ jobs:
           go-version: ^1.19
           cache: true
 
-      - name: Tidy
-        run: go mod tidy -e
-
-#      - name: Test
-#        run: make test
+      - name: Test
+        run: make test

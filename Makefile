@@ -1,4 +1,5 @@
-all: fmt lint snapshot_windows
+all: fmt check
+	go build
 
 deps:
 	go install fyne.io/fyne/v2/cmd/fyne@latest
@@ -20,15 +21,27 @@ fonts:
 	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/Icon.png
 	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/tf2.png
 
-lint: lint_deps
+check: link_golangci lint_vet lint_imports lint_cyclo lint_golint static
+
+link_golangci:
 	golangci-lint run --timeout 3m --verbose
+
+lint_vet:
 	go vet -tags ci ./...
+
+lint_imports:
 	test -z $(goimports -e -d . | tee /dev/stderr)
-	gocyclo -over 50 .
+
+lint_cyclo:
+	gocyclo -over 40 .
+
+lint_golint:
 	golint -set_exit_status $(go list -tags ci ./...)
+
+static:
 	staticcheck -go 1.19 ./...
 
-lint_deps:
+check_deps:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 	go install golang.org/x/tools/cmd/goimports@latest
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
@@ -53,7 +66,7 @@ snapshot_linux:
 	goreleaser build --snapshot --rm-dist --id unix
 
 test:
-	go test .\...
+	go test ./...
 
 translations:
 	goi18n extract -outdir translations/ -format yaml
