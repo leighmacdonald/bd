@@ -111,14 +111,13 @@ func New(settings *model.Settings) UserInterface {
 	}, func() {
 		ui.aboutDialog.Show()
 	})
-	hostnameLabel := translations.One(translations.LabelHostname)
-	mapLabel := translations.One(translations.LabelMap)
+
 	ui.labelHostname = widget.NewRichText(
-		&widget.TextSegment{Text: hostnameLabel, Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 	)
 	ui.labelMap = widget.NewRichText(
-		&widget.TextSegment{Text: mapLabel, Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 	)
 
@@ -199,18 +198,24 @@ const (
 	playerSortKills  playerSortType = "Kills"
 	playerSortKD     playerSortType = "K:D"
 	playerSortStatus playerSortType = "Status"
+	playerSortTeam   playerSortType = "Team"
 )
 
-var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus}
+var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus, playerSortTeam}
 
 func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
+	// Sort by name first
+	sort.Slice(players, func(i, j int) bool {
+		return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
+	})
+	// Apply secondary ordering
 	switch ui.playerSortDir {
 	case playerSortKills:
-		sort.Slice(players, func(i, j int) bool {
+		sort.SliceStable(players, func(i, j int) bool {
 			return players[i].Kills > players[j].Kills
 		})
 	case playerSortStatus:
-		sort.Slice(players, func(i, j int) bool {
+		sort.SliceStable(players, func(i, j int) bool {
 			l := players[i]
 			r := players[j]
 			if l.NumberOfVACBans > r.NumberOfVACBans {
@@ -224,8 +229,12 @@ func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 			}
 			return false
 		})
+	case playerSortTeam:
+		sort.SliceStable(players, func(i, j int) bool {
+			return players[i].Team < players[j].Team
+		})
 	case playerSortKD:
-		sort.Slice(players, func(i, j int) bool {
+		sort.SliceStable(players, func(i, j int) bool {
 			l, r := 0.0, 0.0
 			lk := players[i].Kills
 			ld := players[i].Deaths
@@ -243,10 +252,6 @@ func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 			}
 
 			return l > r
-		})
-	default:
-		sort.Slice(players, func(i, j int) bool {
-			return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
 		})
 	}
 	if errReboot := ui.playerList.Reload(players.AsAny()); errReboot != nil {

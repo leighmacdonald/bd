@@ -3,6 +3,7 @@ package model
 import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -18,6 +19,7 @@ type LogEvent struct {
 	Player          string
 	PlayerPing      int
 	PlayerConnected string
+	Team            Team
 	UserId          int64
 	PlayerSID       steamid.SID64
 	Victim          string
@@ -51,6 +53,20 @@ type UserMessage struct {
 	UserId    int64
 	Message   string
 	Created   time.Time
+	Dead      bool
+	TeamOnly  bool
+}
+
+func (um UserMessage) Formatted() string {
+	var msg []string
+	if um.TeamOnly {
+		msg = append(msg, "(TEAM)")
+	}
+	if um.Dead {
+		msg = append(msg, "(DEAD)")
+	}
+	msg = append(msg, um.Message)
+	return strings.Join(msg, " ")
 }
 
 type UserMessageCollection []UserMessage

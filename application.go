@@ -263,7 +263,7 @@ func (bd *BD) eventHandler() {
 					name:      evt.Player,
 					createdAt: evt.Timestamp,
 					message:   evt.Message,
-					team:      evt.TeamOnly,
+					teamOnly:  evt.TeamOnly,
 					dead:      evt.Dead,
 				},
 			}
@@ -279,7 +279,12 @@ func (bd *BD) eventHandler() {
 					connected: evt.PlayerConnected,
 				},
 			}
-
+		case model.EvtLobby:
+			bd.gameStateUpdate <- updateGameStateEvent{
+				kind:   updateLobby,
+				source: evt.PlayerSID,
+				data:   lobbyEvent{team: evt.Team},
+			}
 		}
 	}
 }
@@ -323,11 +328,16 @@ const (
 	updateStatus
 	updateMark
 	updateMessage
+	updateLobby
 )
 
 type killEvent struct {
 	sourceName string
 	victimName string
+}
+
+type lobbyEvent struct {
+	team model.Team
 }
 
 type statusEvent struct {
@@ -353,7 +363,7 @@ type messageEvent struct {
 	name      string
 	createdAt time.Time
 	message   string
-	team      bool
+	teamOnly  bool
 	dead      bool
 }
 
@@ -400,7 +410,14 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 	for {
 		select {
 		case <-statusTimer.C:
-			updatePlayerState(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
+			lobbyStatus, errUpdate := updatePlayerState(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
+			if errUpdate != nil {
+				log.Printf("Failed to query state: %v\n", errUpdate)
+				continue
+			}
+			for _, line := range strings.Split(lobbyStatus, "\n") {
+				bd.logParser.ReadChannel <- line
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -506,7 +523,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			case updateMessage:
 				um := model.UserMessage{}
 				if errUm := onUpdateMessage(ctx, players, update.data.(messageEvent), bd.store, &um); errUm != nil {
-					log.Printf("Failed to handle user message")
+					log.Printf("Failed to handle user message: %v", errUm)
 					continue
 				}
 				if match := bd.rules.MatchMessage(um.Message); match != nil {
@@ -528,6 +545,8 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				if errUpdate := bd.onUpdateMark(update.data.(updateMarkEvent), players); errUpdate != nil {
 					log.Printf("updateMark error: %v\n", errUpdate)
 				}
+			case updateLobby:
+				onUpdateLobby(players, update.source, update.data.(lobbyEvent))
 			}
 			queueUpdate = true
 		}
@@ -542,6 +561,9 @@ func nameToSid(players map[steamid.SID64]*model.Player, name string) steamid.SID
 	}
 	return 0
 }
+func onUpdateLobby(players map[steamid.SID64]*model.Player, steamID steamid.SID64, evt lobbyEvent) {
+	players[steamID].Team = evt.team
+}
 
 func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.Player, msg messageEvent, store dataStore, um *model.UserMessage) error {
 	source := nameToSid(players, msg.name)
@@ -549,11 +571,13 @@ func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.Playe
 		return errors.New("Invalid steamid")
 	}
 	um.Player = players[source].Name
+	um.Team = players[source].Team
 	um.PlayerSID = players[source].SteamId
 	um.UserId = players[source].UserId
 	um.Message = msg.message
 	um.Created = msg.createdAt
-
+	um.Dead = msg.dead
+	um.TeamOnly = msg.teamOnly
 	if errSaveMsg := store.SaveMessage(ctx, um); errSaveMsg != nil {
 		log.Printf("Error trying to store user messge log: %v\n", errSaveMsg)
 	}

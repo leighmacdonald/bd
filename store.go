@@ -60,7 +60,6 @@ func (store *sqliteStore) Connect() error {
 			return errors.Wrapf(errPragma, "Failed to enable pragma: %s", errPragma)
 		}
 	}
-	database.SetMaxOpenConns(1)
 	store.db = database
 	return nil
 }

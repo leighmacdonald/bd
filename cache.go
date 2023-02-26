@@ -26,8 +26,7 @@ type cacheType int
 
 const (
 	cacheTypeAvatar cacheType = iota
-	cacheTypeProfile
-	cacheTypeBans
+	cacheTypeLists
 )
 
 func newFsCache(rootDir string, maxAge time.Duration) fsCache {
@@ -37,7 +36,7 @@ func newFsCache(rootDir string, maxAge time.Duration) fsCache {
 }
 
 func (cache fsCache) init() {
-	for _, p := range []cacheType{cacheTypeAvatar, cacheTypeProfile, cacheTypeBans} {
+	for _, p := range []cacheType{cacheTypeAvatar, cacheTypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0770); errMkDir != nil {
 			log.Panicf("Failed to setup cache dirs: %v\n", errMkDir)
 		}
@@ -48,10 +47,8 @@ func (cache fsCache) getPath(ct cacheType, key string) string {
 	switch ct {
 	case cacheTypeAvatar:
 		return filepath.Join(cache.rootPath, "avatars", key)
-	case cacheTypeBans:
-		return filepath.Join(cache.rootPath, "steam_bans", key)
-	case cacheTypeProfile:
-		return filepath.Join(cache.rootPath, "steam_profile", key)
+	case cacheTypeLists:
+		return filepath.Join(cache.rootPath, "lists", key)
 	default:
 		log.Panicf("Got unknown cacheType: %v\n", ct)
 		return ""

@@ -281,7 +281,19 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 
 		stlOk := widget.RichTextStyleStrong
 		stlOk.ColorName = theme.ColorNameSuccess
-		profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: stlOk}}
+
+		nameStyle := stlOk
+		if ps.NumberOfVACBans > 0 {
+			nameStyle.ColorName = theme.ColorNameWarning
+		} else if ps.NumberOfGameBans > 0 || ps.CommunityBanned || ps.EconomyBan {
+			nameStyle.ColorName = theme.ColorNameWarning
+		} else if ps.Team == model.Red {
+			nameStyle.ColorName = theme.ColorNameError
+		} else {
+			nameStyle.ColorName = theme.ColorNamePrimary
+		}
+
+		profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: nameStyle}}
 		profileLabel.Refresh()
 		var vacState []string
 		if ps.NumberOfVACBans > 0 {

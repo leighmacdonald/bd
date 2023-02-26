@@ -72,12 +72,12 @@ var (
 )
 
 type logParser struct {
-	evtChan       chan model.LogEvent
-	ReadChannel   chan string
-	rxLobbyPlayer *regexp.Regexp
-	rx            []*regexp.Regexp
+	evtChan     chan model.LogEvent
+	ReadChannel chan string
+	rx          []*regexp.Regexp
 }
 
+const teamPrefix = "(TEAM) "
 const deadPrefix = "*DEAD* "
 const deadTeamPrefix = "*DEAD*(TEAM) "
 
@@ -85,8 +85,10 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range l.rx {
 		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
-			outEvent.ApplyTimestamp(m[1])
 			outEvent.Type = model.EventType(i)
+			if outEvent.Type != model.EvtLobby {
+				outEvent.ApplyTimestamp(m[1])
+			}
 			switch outEvent.Type {
 			case model.EvtConnect:
 				outEvent.Player = m[2]
@@ -96,6 +98,10 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				name := m[2]
 				dead := false
 				team := false
+				if strings.HasPrefix(name, teamPrefix) {
+					name = strings.TrimPrefix(name, teamPrefix)
+					team = true
+				}
 				if strings.HasPrefix(name, deadTeamPrefix) {
 					name = strings.TrimPrefix(name, deadTeamPrefix)
 					dead = true
@@ -135,6 +141,13 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				outEvent.MetaData = m[2]
 			case model.EvtAddress:
 				outEvent.MetaData = m[2]
+			case model.EvtLobby:
+				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[2]))
+				if m[3] == "INVADERS" {
+					outEvent.Team = model.Blu
+				} else {
+					outEvent.Team = model.Red
+				}
 			}
 			return nil
 		}
@@ -160,9 +173,8 @@ func (l *logParser) start(ctx context.Context) {
 
 func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logParser {
 	lp := logParser{
-		evtChan:       evtChan,
-		ReadChannel:   readChannel,
-		rxLobbyPlayer: regexp.MustCompile(`\s+(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))`),
+		evtChan:     evtChan,
+		ReadChannel: readChannel,
 		rx: []*regexp.Regexp{
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
 			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
@@ -172,7 +184,8 @@ func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logPars
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\shostname:\s(.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\smap\s{5}:\s(.+?)\sat.+?$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\stags\s{4}:\s(.+?)$`),
-			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\sudp/ip\s{2}:\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})$`)},
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\sudp/ip\s{2}:\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})$`),
+			regexp.MustCompile(`^\s{2}(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))\s{2}type\s=\sMATCH_PLAYER$`)},
 	}
 	return &lp
 }

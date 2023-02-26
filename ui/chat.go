@@ -47,10 +47,15 @@ func (ui *Ui) createGameChatMessageList() *baseListWidget {
 			profileButton.menu = ui.generateUserMenu(um.PlayerSID, um.UserId)
 			profileButton.menu.Refresh()
 			profileButton.Refresh()
-
+			nameStyle := widget.RichTextStyleInline
+			if um.Team == model.Red {
+				nameStyle.ColorName = theme.ColorNameError
+			} else {
+				nameStyle.ColorName = theme.ColorNamePrimary
+			}
 			messageRichText.Segments[0] = &widget.TextSegment{
-				Style: widget.RichTextStyleInline,
-				Text:  um.Message,
+				Style: nameStyle,
+				Text:  um.Formatted(),
 			}
 			messageRichText.Refresh()
 

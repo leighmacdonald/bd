@@ -29,4 +29,5 @@ const (
 	EvtMap
 	EvtTags
 	EvtAddress
+	EvtLobby
 )
