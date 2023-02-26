@@ -111,7 +111,7 @@ func New(settings *model.Settings) UserInterface {
 	ui.aboutDialog = ui.createAboutDialog(rootWindow)
 	ui.playerList = ui.createPlayerList()
 	ui.userMessageList = ui.createGameChatMessageList()
-	ui.chatWindow = ui.createChatWidget(ui.userMessageList)
+	ui.chatWindow = createChatWidget(ui.application, ui.userMessageList)
 
 	rootWindow.Resize(fyne.NewSize(800, 1000))
 	ui.rootWindow.SetCloseIntercept(func() {

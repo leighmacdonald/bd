@@ -41,13 +41,15 @@ func TestParseEvent(t *testing.T) {
 			match:    true,
 			expected: model.LogEvent{Type: model.EvtConnect, Player: "Hassium", Timestamp: ts},
 		}, {
-			text:     "02/24/2023 - 23:37:19: #    672 \"🎄AndreaJingling🎄\" [U:1:238393055] 42:57      62    0 active",
-			match:    true,
-			expected: model.LogEvent{Type: model.EvtStatusId, Timestamp: ts, PlayerPing: 62, UserId: 672, Player: "🎄AndreaJingling🎄", PlayerSID: steamid.SID64(76561198198658783), PlayerConnected: "42:57"},
+			text:  "02/24/2023 - 23:37:19: #    672 \"🎄AndreaJingling🎄\" [U:1:238393055] 42:57      62    0 active",
+			match: true,
+			expected: model.LogEvent{Type: model.EvtStatusId, Timestamp: ts, PlayerPing: 62, UserId: 672, Player: "🎄AndreaJingling🎄",
+				PlayerSID: steamid.SID64(76561198198658783), PlayerConnected: time.Duration(2577000000000)},
 		}, {
-			text:     "02/24/2023 - 23:37:19: #    672 \"some nerd\" [U:1:238393055] 42:57:02    62    0 active",
-			match:    true,
-			expected: model.LogEvent{Type: model.EvtStatusId, Timestamp: ts, PlayerPing: 62, UserId: 672, Player: "some nerd", PlayerSID: steamid.SID64(76561198198658783), PlayerConnected: "42:57:02"},
+			text:  "02/24/2023 - 23:37:19: #    672 \"some nerd\" [U:1:238393055] 42:57:02    62    0 active",
+			match: true,
+			expected: model.LogEvent{Type: model.EvtStatusId, Timestamp: ts, PlayerPing: 62, UserId: 672, Player: "some nerd",
+				PlayerSID: steamid.SID64(76561198198658783), PlayerConnected: time.Duration(154622000000000)},
 		}, {
 			text:     "02/24/2023 - 23:37:19: hostname: Uncletopia | Seattle | 1 | All Maps",
 			match:    true,

@@ -41,9 +41,6 @@ func (ui *Ui) createGameChatMessageList() *baseListWidget {
 
 			timeStamp.SetText(um.Created.Format(time.Kitchen))
 			profileButton.SetText(um.Player)
-			sz := profileButton.Size()
-			sz.Width = 200
-			profileButton.Resize(sz)
 			profileButton.menu = ui.generateUserMenu(um.PlayerSID, um.UserId)
 			profileButton.menu.Refresh()
 			profileButton.Refresh()
@@ -137,13 +134,15 @@ func (ui *Ui) createUserHistoryMessageList() *baseListWidget {
 	return uml
 }
 
-func (ui *Ui) createChatWidget(msgList *baseListWidget) fyne.Window {
-	chatWindow := ui.application.NewWindow(translations.One(translations.WindowChatHistoryGame))
+func createChatWidget(app fyne.App, msgList *baseListWidget) fyne.Window {
+	chatWindow := app.NewWindow(translations.One(translations.WindowChatHistoryGame))
 	chatWindow.SetIcon(resourceIconPng)
 	chatWindow.SetContent(msgList.Widget())
-	chatWindow.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl}, func(shortcut fyne.Shortcut) {
-		chatWindow.Hide()
-	})
+	chatWindow.Canvas().AddShortcut(
+		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
+		func(shortcut fyne.Shortcut) {
+			chatWindow.Hide()
+		})
 	chatWindow.Resize(fyne.NewSize(1000, 500))
 	chatWindow.SetCloseIntercept(chatWindow.Hide)
 	return chatWindow

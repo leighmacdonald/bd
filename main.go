@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	_ "github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamweb"
 	_ "github.com/mattn/go-sqlite3"
@@ -16,8 +16,8 @@ import (
 
 var (
 	// Build info
-	version string = "dev"
-	commit  string = "dev"
+	version string = "master"
+	commit  string = "latest"
 	date    string = "n/a"
 	builtBy string = "src"
 )
@@ -39,7 +39,7 @@ func main() {
 		if errInput != nil {
 			log.Printf("Failed to open local player list\n")
 		} else {
-			if errRead := rules.ParsePlayerSchema(input, &localPlayersList); errRead != nil {
+			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
 				log.Printf("Failed to parse local player list: %v\n", errRead)
 			}
 			logClose(input)
@@ -50,7 +50,7 @@ func main() {
 		if errInput != nil {
 			log.Printf("Failed to open local rules list\n")
 		} else {
-			if errRead := rules.ParseRulesList(input, &localRules); errRead != nil {
+			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
 				log.Printf("Failed to parse local rules list: %v\n", errRead)
 			}
 			logClose(input)

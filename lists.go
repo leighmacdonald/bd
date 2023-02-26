@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
@@ -42,7 +42,7 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.Playe
 		switch u.ListType {
 		case model.ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
-			if errParse := rules.ParsePlayerSchema(bytes.NewReader(body), &result); errParse != nil {
+			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
 			}
 			mu.Lock()
@@ -51,7 +51,7 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.Playe
 			log.Printf("Downloaded playerlist successfully: %s\n", result.FileInfo.Title)
 		case model.ListTypeTF2BDRules:
 			var result rules.RuleSchema
-			if errParse := rules.ParseRulesList(bytes.NewReader(body), &result); errParse != nil {
+			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
 			}
 			mu.Lock()
@@ -74,5 +74,6 @@ func downloadLists(ctx context.Context, lists []model.ListConfig) ([]rules.Playe
 			}
 		}(listConfig)
 	}
+	wg.Wait()
 	return playerLists, rulesLists
 }

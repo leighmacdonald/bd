@@ -1,10 +1,5 @@
 package rules
 
-import (
-	"encoding/json"
-	"io"
-)
-
 type ruleTriggerMode string
 
 //const (
@@ -134,34 +129,4 @@ type playerDefinition struct {
 	SteamID    interface{}    `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
-}
-
-func ParsePlayerSchema(reader io.Reader, schema *PlayerListSchema) error {
-	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
-		return errUnmarshal
-	}
-	// Filter out people w/o cheater tags
-	var cheatersOnly []playerDefinition
-	for _, p := range schema.Players {
-		isCheater := false
-		for _, attr := range p.Attributes {
-			if attr == "cheater" {
-				isCheater = true
-				break
-			}
-		}
-		if !isCheater {
-			continue
-		}
-		cheatersOnly = append(cheatersOnly, p)
-	}
-	schema.Players = cheatersOnly
-	return nil
-}
-
-func ParseRulesList(reader io.Reader, schema *RuleSchema) error {
-	if errUnmarshal := json.NewDecoder(reader).Decode(schema); errUnmarshal != nil {
-		return errUnmarshal
-	}
-	return nil
 }
