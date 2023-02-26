@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/kirsle/configdir"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -108,7 +109,7 @@ func (s *Settings) GetLinks() []LinkConfig {
 	return s.Links
 }
 
-func NewSettings() Settings {
+func NewSettings() (*Settings, error) {
 	settings := Settings{
 		RWMutex:                &sync.RWMutex{},
 		configPath:             "",
@@ -202,7 +203,12 @@ func NewSettings() Settings {
 		RconStatic: false,
 		Rcon:       NewRconConfig(false),
 	}
-	return settings
+	if !golib.Exists(settings.ListRoot()) {
+		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
+			return nil, errors.Wrap(err, "Failed to initialize settings directory")
+		}
+	}
+	return &settings, nil
 }
 
 func (s *Settings) ReadDefaultOrCreate() error {
@@ -219,6 +225,10 @@ func (s *Settings) ReadDefaultOrCreate() error {
 	return errRead
 }
 
+func (s *Settings) ListRoot() string {
+	return filepath.Join(s.ConfigRoot(), "lists")
+}
+
 func (s *Settings) ConfigRoot() string {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
@@ -232,11 +242,11 @@ func (s *Settings) DBPath() string {
 }
 
 func (s *Settings) LocalPlayerListPath() string {
-	return filepath.Join(s.ConfigRoot(), "playerlist.local.json")
+	return filepath.Join(s.ListRoot(), fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
 }
 
 func (s *Settings) LocalRulesListPath() string {
-	return filepath.Join(s.ConfigRoot(), "rules.local.json")
+	return filepath.Join(s.ListRoot(), fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
 }
 
 func (s *Settings) ReadFilePath(filePath string) error {

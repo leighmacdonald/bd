@@ -16,7 +16,10 @@ import (
 
 func main() {
 	ctx := context.Background()
-	settings := model.NewSettings()
+	settings, errSettings := model.NewSettings()
+	if errSettings != nil {
+		log.Panicf("Failed to initialize settings: %v", errSettings)
+	}
 	localRules := rules.NewRuleSchema()
 	localPlayersList := rules.NewPlayerListSchema()
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
@@ -60,12 +63,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer logClose(store)
-	bd := New(&settings, store, engine)
+	bd := New(settings, store, engine)
 	defer bd.Shutdown()
 	defer func() {
 		log.Printf("Goodbye\n")
 	}()
-	gui := ui.New(&settings)
+	gui := ui.New(settings)
 	bd.AttachGui(ctx, gui)
 	go bd.start(ctx)
 	gui.Start()
