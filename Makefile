@@ -63,7 +63,7 @@ snapshot_windows:
 	goreleaser build --single-target --snapshot --clean --id windows
 
 snapshot_linux:
-	goreleaser build --snapshot --rm-dist --id unix
+	goreleaser build --snapshot --clean --id linux
 
 test:
 	go test ./...
