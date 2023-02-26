@@ -1,7 +1,7 @@
 name: build
 
 on:
-  push
+  push:
 
 jobs:
   lint:
@@ -22,22 +22,22 @@ jobs:
       - name: Install Analyzer Dependencies
         run: make check_deps
 
-      - name: Lint: golangci-lint
+      - name: Lint golangci-lint
         run: make link_golangci
 
-      - name: Lint: vet
+      - name: Lint vet
         run: make lint_vet
 
-      - name: Lint: imports
+      - name: Lint imports
         run: make lint_imports
 
-      - name: Lint: cyclo
+      - name: Lint cyclo
         run: make lint_cyclo
 
-      - name: Lint: golint
+      - name: Lint golint
         run: make lint_golint
 
-      - name: Lint: static
+      - name: Lint static
         run: make link_golangci
 
   test:
