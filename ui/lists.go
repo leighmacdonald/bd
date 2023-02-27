@@ -114,7 +114,7 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.
 				newUrl := widget.NewFormItem("Update URL", newUrlEntry)
 				newEnabledEntry := widget.NewCheckWithData("", binding.NewBool())
 				newEnabled := widget.NewFormItem("Enabled", newEnabledEntry)
-				inputForm := dialog.NewForm("Import URL", "Confirm", "Dismisake s", []*widget.FormItem{
+				inputForm := dialog.NewForm("Import URL", "Confirm", "Cancel", []*widget.FormItem{
 					newName, newUrl, newEnabled,
 				}, func(b bool) {
 					if !b {
