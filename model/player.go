@@ -25,10 +25,28 @@ const (
 )
 
 type Player struct {
+	// - Permanent storage backed
+
+	// SteamId is the 64bit steamid of the user
+	SteamId steamid.SID64
+
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string
 
+	// CreatedOn is the first time we have seen the player
+	CreatedOn time.Time
+
+	// UpdatedOn is the last time we have received a status update from rcon
+	// This is used to calculate when we consider the player disconnected and also when
+	// they are expired and should be removed from the player pool entirely.
+	UpdatedOn        time.Time
+	ProfileUpdatedOn time.Time
+
+	// The users kill count vs this player
+	KillsOn   int64
+	RageQuits int64
+	DeathsBy  int64
 	// PlayerSummary
 	RealName         string
 	NamePrevious     string
@@ -45,45 +63,43 @@ type Player struct {
 	NumberOfGameBans int
 	EconomyBan       bool
 
-	// SteamId is the 64bit steamid of the user
-	SteamId steamid.SID64
+	// - Parsed Ephemeral data
 
-	// First time we see the player
-	ConnectedAt time.Time
-	Connected   time.Duration
-
+	// tf_lobby_debug
 	Team Team
+
+	// status
+	// Connected is how long the user has been in the server
+	Connected time.Duration
 	// In game user id
 	UserId int64
+	Ping   int
 
+	// Parsed stats from logs
 	Kills  int64
 	Deaths int64
 
-	// The users kill count vs this player
-	KillsOn   int64
-	RageQuits int64
-	// The users death count vs this player
-	DeathsBy int64
-	Ping     int
+	// - Misc
+
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int
 
-	ProfileUpdatedOn time.Time
-
-	// CreatedOn is the first time we have seen the player
-	CreatedOn time.Time
-
-	// UpdatedOn is the last time we have interacted with the player
-	UpdatedOn time.Time
-
-	// Tracks the duration between announces
+	// Tracks the duration between announces to chat
 	AnnouncedLast time.Time
 
+	// Dangling will be true when the user is new and doesn't have a physical entry in the database yet.
 	Dangling bool
 
 	OurFriend bool
 
+	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool
+
+	Match *rules.MatchResult
+}
+
+func (ps *Player) IsMatched() bool {
+	return ps.Match != nil
 }
 
 func (ps *Player) GetSteamID() steamid.SID64 {
@@ -96,6 +112,14 @@ func (ps *Player) GetName() string {
 
 func (ps *Player) GetAvatarHash() string {
 	return ps.AvatarHash
+}
+
+func (ps *Player) IsDisconnected() bool {
+	return time.Since(ps.UpdatedOn) > DurationDisconnected
+}
+
+func (ps *Player) IsExpired() bool {
+	return time.Since(ps.UpdatedOn) > DurationPlayerExpired
 }
 
 func (ps *Player) Touch() {
@@ -137,7 +161,7 @@ func (ps *Player) SetAvatar(hash string, buf []byte) {
 	}
 }
 
-type PlayerCollection []Player
+type PlayerCollection []*Player
 
 func (players PlayerCollection) AsAny() []any {
 	bl := make([]any, len(players))
@@ -163,7 +187,6 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		NumberOfGameBans: 0,
 		EconomyBan:       false,
 		SteamId:          sid64,
-		ConnectedAt:      t0,
 		Connected:        0,
 		Team:             0,
 		UserId:           0,

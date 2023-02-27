@@ -220,16 +220,26 @@ func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
 // │─────────────────────────────────────────────────────────┤
 // │ K: 10  A: 66                                            │
 // └─────────────────────────────────────────────────────────┘
-func (ui *Ui) createPlayerList() *baseListWidget {
+func (ui *Ui) createPlayerList(compact bool) *baseListWidget {
 	const (
 		symbolOk  = "✓"
 		symbolBad = "✗"
 	)
+	newLower := func() *fyne.Container {
+		cont := container.NewHBox()
+		cont.Add(widget.NewLabel("x"))
+		cont.Add(widget.NewLabel(""))
+		cont.Add(widget.NewLabel(""))
+		cont.Add(widget.NewLabel(""))
+		cont.Add(widget.NewLabel(""))
+		cont.Add(widget.NewLabel(""))
+
+		return cont
+	}
 	pl := newBaseListWidget()
 	_ = pl.autoScrollEnabled.Set(false)
 	createItem := func() fyne.CanvasObject {
 		rootContainer := container.NewVBox()
-		lowerContainer := container.NewHBox()
 
 		menuBtn := newMenuButton(fyne.NewMenu(""))
 		menuBtn.Icon = resourceDefaultavatarJpg
@@ -240,20 +250,15 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 			nil,
 			nil,
 			menuBtn,
-			widget.NewRichText(),
+			container.NewHBox(widget.NewRichText(), widget.NewRichText()),
 			widget.NewRichText(),
 		)
 		upperContainer.Resize(upperContainer.MinSize())
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Add(widget.NewLabel(""))
-		lowerContainer.Resize(lowerContainer.MinSize())
 
 		rootContainer.Add(upperContainer)
-		rootContainer.Add(lowerContainer)
+		if !compact {
+			rootContainer.Add(newLower())
+		}
 
 		rootContainer.Refresh()
 
@@ -262,12 +267,22 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 	updateItem := func(i binding.DataItem, o fyne.CanvasObject) {
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
-		ps := obj.(model.Player)
+		ps := obj.(*model.Player)
+
 		pl.objectMu.Lock()
 		rootContainer := o.(*fyne.Container)
 		upperContainer := rootContainer.Objects[0].(*fyne.Container)
-		lowerContainer := rootContainer.Objects[1].(*fyne.Container)
 
+		if !compact {
+			lowerContainer := rootContainer.Objects[1].(*fyne.Container)
+			lowerContainer.Objects[0].(*widget.Label).SetText(fmt.Sprintf("K: %d", ps.Kills))
+			lowerContainer.Objects[1].(*widget.Label).SetText(fmt.Sprintf("D: %d", ps.Deaths))
+			lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
+			lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
+			lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
+			lowerContainer.Objects[5].(*widget.Label).SetText(ps.Connected.String())
+			lowerContainer.Refresh()
+		}
 		btn := upperContainer.Objects[1].(*menuButton)
 		btn.menu = ui.generateUserMenu(ps.SteamId, ps.UserId)
 		btn.menu.Refresh()
@@ -310,7 +325,7 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 			vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
 		}
 		vacStyle := stlBad
-		if len(vacState) == 0 {
+		if len(vacState) == 0 && !ps.IsMatched() {
 			vacState = append(vacState, symbolOk)
 			vacStyle = stlOk
 
@@ -324,19 +339,21 @@ func (ui *Ui) createPlayerList() *baseListWidget {
 				int(time.Since(*ps.LastVACBanOn).Hours()/24),
 			)
 		}
-		vacLabel := upperContainer.Objects[2].(*widget.RichText)
+		lc := upperContainer.Objects[2].(*fyne.Container)
+		matchLabel := lc.Objects[0].(*widget.RichText)
+		if ps.IsMatched() {
+			matchLabel.Segments = []widget.RichTextSegment{
+				&widget.TextSegment{Text: fmt.Sprintf("Match: %s [%s]", ps.Match.Origin, ps.Match.MatcherType), Style: vacStyle},
+			}
+		}
+		matchLabel.Refresh()
+		vacLabel := lc.Objects[1].(*widget.RichText)
 		vacLabel.Segments = []widget.RichTextSegment{
 			&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
 		}
 		vacLabel.Refresh()
-
-		lowerContainer.Objects[0].(*widget.Label).SetText(fmt.Sprintf("K: %d", ps.Kills))
-		lowerContainer.Objects[1].(*widget.Label).SetText(fmt.Sprintf("D: %d", ps.Deaths))
-		lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
-		lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
-		lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
-		lowerContainer.Objects[4].(*widget.Label).SetText(ps.Connected.String())
-
+		upperContainer.Refresh()
+		rootContainer.Refresh()
 		pl.objectMu.Unlock()
 
 	}

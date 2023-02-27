@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -59,6 +60,7 @@ type Ui struct {
 	boundSettings         boundSettings
 	settings              *model.Settings
 	playerList            *baseListWidget
+	playerListMu          *sync.RWMutex
 	userMessageList       *baseListWidget
 	knownAttributes       []string
 	launcher              func()
@@ -73,6 +75,10 @@ type Ui struct {
 	labelVersion          *widget.RichText
 	labelCommit           *widget.RichText
 	labelGo               *widget.RichText
+	containerHeading      *fyne.Container
+	containerStatPanel    *fyne.Container
+	labelPlayersHeading   *widget.Label
+	checkboxCompatMode    *widget.Check
 	chatHistoryWindows    map[steamid.SID64]*userChatContainer
 	nameHistoryWindows    map[steamid.SID64]fyne.Window
 	playerSortDir         playerSortType
@@ -95,12 +101,18 @@ func New(settings *model.Settings) UserInterface {
 		labelDate:          widget.NewRichTextWithText("Build Date: "),
 		labelVersion:       widget.NewRichTextWithText("Version: "),
 		labelCommit:        widget.NewRichTextWithText("Commit: "),
+		playerListMu:       &sync.RWMutex{},
 		labelGo: widget.NewRichText(
 			&widget.TextSegment{Text: "Go ", Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: runtime.Version(), Style: widget.RichTextStyleStrong},
 		),
-		playerSortDir: playerSortStatus,
+		labelPlayersHeading: widget.NewLabel("Players"),
+		playerSortDir:       playerSortStatus,
 	}
+
+	ui.checkboxCompatMode = widget.NewCheckWithData(
+		"Compact View",
+		binding.BindPreferenceBool("compact_mode", application.Preferences()))
 
 	saveFunc := func() {
 		if errSave := settings.Save(); errSave != nil {
@@ -112,11 +124,11 @@ func New(settings *model.Settings) UserInterface {
 	ui.settingsDialog = ui.newSettingsDialog(rootWindow, saveFunc)
 	ui.listsDialog = newRuleListConfigDialog(rootWindow, saveFunc, settings)
 	ui.aboutDialog = ui.createAboutDialog(rootWindow)
-	ui.playerList = ui.createPlayerList()
+	//ui.ResetPlayers()
 	ui.userMessageList = ui.createGameChatMessageList()
 	ui.chatWindow = createChatWidget(ui.application, ui.userMessageList)
 
-	rootWindow.Resize(fyne.NewSize(800, 1000))
+	rootWindow.Resize(fyne.NewSize(800, 990))
 	ui.rootWindow.SetCloseIntercept(func() {
 		application.Quit()
 	})
@@ -138,7 +150,7 @@ func New(settings *model.Settings) UserInterface {
 		&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 	)
 
-	statPanel := container.NewHBox(ui.labelMap, ui.labelHostname)
+	ui.containerStatPanel = container.NewHBox(ui.labelMap, ui.labelHostname)
 	var dirNames []string
 	for _, dir := range sortDirections {
 		dirNames = append(dirNames, string(dir))
@@ -146,24 +158,57 @@ func New(settings *model.Settings) UserInterface {
 	sortSelect := widget.NewSelect(dirNames, func(s string) {
 		ui.playerSortDir = playerSortType(s)
 		v, _ := ui.playerList.boundList.Get()
-		var sorted []model.Player
+		var sorted model.PlayerCollection
 		for _, p := range v {
-			sorted = append(sorted, p.(model.Player))
+			sorted = append(sorted, p.(*model.Player))
 		}
 		ui.UpdatePlayerState(sorted)
 	})
 	sortSelect.PlaceHolder = translations.One(translations.LabelSortBy)
-	heading := container.NewBorder(nil, nil, toolbar, sortSelect, container.NewCenter(widget.NewLabel("")))
 
-	rootWindow.SetContent(container.NewBorder(
-		heading,
-		statPanel,
+	ui.containerHeading = container.NewBorder(
+		nil,
+		nil,
+		toolbar,
+		container.NewHBox(ui.checkboxCompatMode, sortSelect),
+		container.NewCenter(ui.labelPlayersHeading),
+	)
+	ui.checkboxCompatMode.OnChanged = func(checked bool) {
+		ui.ResetPlayers()
+
+	}
+	rootWindow.SetMainMenu(ui.newMainMenu())
+	ui.ResetPlayers()
+	return &ui
+}
+
+func (ui *Ui) ResetPlayers() {
+	var (
+		d       []interface{}
+		errList error
+	)
+	ui.playerListMu.Lock()
+	defer ui.playerListMu.Unlock()
+	if ui.playerList != nil {
+		d, errList = ui.playerList.boundList.Get()
+		if errList != nil {
+			d = nil
+		}
+	}
+	ui.playerList = ui.createPlayerList(ui.checkboxCompatMode.Checked)
+
+	if errSet := ui.playerList.boundList.Set(d); errSet != nil {
+		log.Printf("Failed to set new list: %v\n", errSet)
+	}
+
+	ui.rootWindow.SetContent(container.NewBorder(
+		ui.containerHeading,
+		ui.containerStatPanel,
 		nil,
 		nil,
 		ui.playerList.Widget(),
 	))
-	rootWindow.SetMainMenu(ui.newMainMenu())
-	return &ui
+
 }
 
 func (ui *Ui) SetBuildInfo(version string, commit string, date string, builtBy string) {
@@ -215,7 +260,9 @@ func (ui *Ui) SetOnKick(fn model.KickFunc) {
 
 func (ui *Ui) Refresh() {
 	ui.userMessageList.Widget().Refresh()
-	ui.playerList.Widget().Refresh()
+	if ui.playerList != nil {
+		ui.playerList.Widget().Refresh()
+	}
 }
 
 func (ui *Ui) UpdateAttributes(attrs []string) {
@@ -257,6 +304,9 @@ func (ui *Ui) UpdatePlayerState(players model.PlayerCollection) {
 	sort.Slice(players, func(i, j int) bool {
 		return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
 	})
+	if ui.playerList == nil {
+		return
+	}
 	// Apply secondary ordering
 	switch ui.playerSortDir {
 	case playerSortKills:
@@ -516,7 +566,6 @@ func (ui *Ui) newToolbar(chatFunc func(), settingsFunc func(), aboutFunc func())
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
-			log.Println("Launching game")
 			if !ui.settings.GetSteamId().Valid() {
 				showUserError("Must configure your steamid", ui.rootWindow)
 			} else {

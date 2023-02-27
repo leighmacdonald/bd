@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/pkg/errors"
 	"log"
-	"time"
 )
 
 func updatePlayerState(ctx context.Context, address string, password string) (string, error) {
-	conn, errConn := rcon.Dial(ctx, address, password, time.Second*5)
+	conn, errConn := rcon.Dial(ctx, address, password, model.DurationRCONRequestTimeout)
 	if errConn != nil {
 		return "", errors.Wrap(errConn, "Failed to connect to client")
 	}

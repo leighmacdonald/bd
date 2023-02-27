@@ -20,7 +20,7 @@ var (
 func LaunchTF2(_ string, args []string) error {
 	fa := []string{"-applaunch", "440"}
 	fa = append(fa, args...)
-	log.Printf("calling: %s %s", "steam", strings.Join(fa, " "))
+	log.Printf("Launching game: steam %s", strings.Join(args, " "))
 	cmd := exec.Command("steam", fa...)
 	if errLaunch := cmd.Run(); errLaunch != nil {
 		return errLaunch

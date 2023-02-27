@@ -72,7 +72,7 @@ func New(settings *model.Settings, store dataStore, rules *rules.Engine) BD {
 		serverMu:          &sync.RWMutex{},
 		triggerUpdate:     make(chan any),
 		gameStateUpdate:   make(chan updateGameStateEvent, 50),
-		cache:             newFsCache(settings.ConfigRoot(), time.Hour*12),
+		cache:             newFsCache(settings.ConfigRoot(), model.DurationCacheTimeout),
 		logParser:         newLogParser(logChan, eventChan),
 		startupTime:       time.Now(),
 	}
@@ -119,7 +119,7 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 	}
 	bd.serverMu.RLock()
 	defer bd.serverMu.RUnlock()
-	if time.Since(bd.server.LastUpdate) > time.Second*30 {
+	if time.Since(bd.server.LastUpdate) > model.DurationDisconnected {
 		bd.discordLogout()
 		return
 	}
@@ -173,7 +173,7 @@ func fetchAvatar(ctx context.Context, cache localCache, hash string) ([]byte, er
 	if errCache != nil && !errors.Is(errCache, errCacheExpired) {
 		return nil, errors.Wrap(errCache, "unexpected cache error")
 	}
-	localCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	localCtx, cancel := context.WithTimeout(ctx, model.DurationWebRequestTimeout)
 	defer cancel()
 	req, reqErr := http.NewRequestWithContext(localCtx, "GET", model.AvatarUrl(hash), nil)
 	if reqErr != nil {
@@ -408,7 +408,7 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, e
 }
 
 func (bd *BD) statusUpdater(ctx context.Context) {
-	statusTimer := time.NewTicker(time.Second * 5)
+	statusTimer := time.NewTicker(model.DurationStatusUpdateTimer)
 	for {
 		select {
 		case <-statusTimer.C:
@@ -433,14 +433,14 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 	queueUpdate := false
 	players := map[steamid.SID64]*model.Player{}
 	queueAvatars := make(chan steamid.SID64, 32)
-	deleteTimer := time.NewTicker(time.Second * 15)
-	checkTimer := time.NewTicker(time.Second * 3)
-	updateTimer := time.NewTicker(time.Second * 1)
+	deleteTimer := time.NewTicker(model.DurationPlayerExpired)
+	checkTimer := time.NewTicker(model.DurationCheckTimer)
+	updateTimer := time.NewTicker(model.DurationUpdateTimer)
 
 	updateUI := func() {
-		var p []model.Player
+		var p model.PlayerCollection
 		for _, pl := range players {
-			p = append(p, *pl)
+			p = append(p, pl)
 		}
 		sort.Slice(p, func(i, j int) bool {
 			return strings.ToLower(p[i].Name) < strings.ToLower(p[j].Name)
@@ -481,13 +481,18 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			}
 			queuedUpdates = nil
 		case <-checkTimer.C:
-			bd.checkPlayerStates(ctx, players)
+			p, found := players[bd.settings.GetSteamId()]
+			if !found {
+				// We have not connected yet.
+				continue
+			}
+			bd.checkPlayerStates(ctx, p.Team, players)
 			queueUpdate = true
 		case <-deleteTimer.C:
 			var valid []*model.Player
 			expired := 0
 			for steamID, ps := range players {
-				if time.Since(ps.UpdatedOn) > time.Second*15 {
+				if ps.IsExpired() {
 					if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
 						log.Printf("Failed to save expired player state: %v\n", errSave)
 					}
@@ -591,10 +596,13 @@ func onUpdateKill(players map[steamid.SID64]*model.Player, kill killEvent) {
 	target := nameToSid(players, kill.victimName)
 	if source.Valid() {
 		players[source].Kills++
+		players[source].Touch()
 	}
 	if target.Valid() {
 		players[target].Deaths++
+		players[target].Touch()
 	}
+
 }
 
 func onUpdateBans(players map[steamid.SID64]*model.Player, steamID steamid.SID64, ban steamweb.PlayerBanState) {
@@ -606,6 +614,7 @@ func onUpdateBans(players map[steamid.SID64]*model.Player, steamID steamid.SID64
 		players[steamID].LastVACBanOn = &subTime
 	}
 	players[steamID].EconomyBan = ban.EconomyBan != "none"
+	players[steamID].Touch()
 }
 
 func onUpdateProfile(players map[steamid.SID64]*model.Player, steamID steamid.SID64, summary steamweb.PlayerSummary) {
@@ -614,6 +623,7 @@ func onUpdateProfile(players map[steamid.SID64]*model.Player, steamID steamid.SI
 	players[steamID].AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
 	players[steamID].RealName = summary.RealName
 	players[steamID].ProfileUpdatedOn = time.Now()
+	players[steamID].Touch()
 }
 
 func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, players map[steamid.SID64]*model.Player, found bool, queuedUpdates *steamid.Collection) error {
@@ -634,7 +644,7 @@ func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64,
 	players[steamID].Name = update.name
 	players[steamID].Connected = update.connected
 	players[steamID].UpdatedOn = time.Now()
-	if time.Since(players[steamID].ProfileUpdatedOn) > time.Hour*6 {
+	if time.Since(players[steamID].ProfileUpdatedOn) > model.DurationCacheTimeout {
 		*queuedUpdates = append(*queuedUpdates, steamID)
 	}
 	return nil
@@ -703,13 +713,22 @@ func (bd *BD) refreshLists(ctx context.Context) {
 	bd.gui.UpdateAttributes(bd.rules.UniqueTags())
 }
 
-func (bd *BD) checkPlayerStates(ctx context.Context, players map[steamid.SID64]*model.Player) {
+func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team, players map[steamid.SID64]*model.Player) {
 	for _, ps := range players {
+		if ps.IsDisconnected() {
+			continue
+		}
 		if matchSteam := bd.rules.MatchSteam(ps.GetSteamID()); matchSteam != nil {
-			bd.triggerMatch(ctx, ps, matchSteam)
+			ps.Match = matchSteam
+			if validTeam == ps.Team {
+				bd.triggerMatch(ctx, ps, matchSteam)
+			}
 		} else if ps.Name != "" {
-			if matchName := bd.rules.MatchName(ps.GetName()); matchName != nil {
-				bd.triggerMatch(ctx, ps, matchName)
+			if matchName := bd.rules.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
+				ps.Match = matchSteam
+				if validTeam == ps.Team {
+					bd.triggerMatch(ctx, ps, matchSteam)
+				}
 			}
 		}
 		if ps.Dirty {
@@ -723,11 +742,9 @@ func (bd *BD) checkPlayerStates(ctx context.Context, players map[steamid.SID64]*
 	//bd.gui.UpdatePlayerState(players)
 }
 
-const announceMatchTimeout = time.Minute * 5
-
 func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
 	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
-	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= announceMatchTimeout {
+	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
 			log.Printf("Failed to send party log message: %s\n", errLog)

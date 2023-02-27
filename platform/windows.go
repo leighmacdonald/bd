@@ -77,6 +77,7 @@ func LaunchTF2(tf2Dir string, args []string) error {
 	hl2Path := filepath.Join(filepath.Dir(tf2Dir), BinaryName)
 	var procAttr os.ProcAttr
 	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	log.Printf("Launching game: %s %s", hl2Path, strings.Join(args, " "))
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
 		return errors.Wrap(errStart, "Failed to launch TF2\n")

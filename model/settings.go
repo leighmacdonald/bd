@@ -134,21 +134,25 @@ func NewSettings() (*Settings, error) {
 		PartyWarningsEnabled:   true,
 		Lists: []*ListConfig{
 			{
+				Name:     "Uncletopia",
 				ListType: "tf2bd_playerlist",
 				Enabled:  false,
 				URL:      "https://uncletopia.com/export/bans/tf2bd",
 			},
 			{
+				Name:     "@trusted",
 				ListType: "tf2bd_playerlist",
 				Enabled:  true,
 				URL:      "https://trusted.roto.lol/v1/steamids",
 			},
 			{
+				Name:     "TF2BD Players",
 				ListType: "tf2bd_playerlist",
 				Enabled:  true,
 				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json",
 			},
 			{
+				Name:     "TF2BD Rules",
 				ListType: "tf2bd_rules",
 				Enabled:  true,
 				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/rules.official.json",

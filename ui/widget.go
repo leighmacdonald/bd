@@ -68,11 +68,15 @@ func (l *baseListWidget) Append(msg any) error {
 }
 
 func newBaseListWidget() *baseListWidget {
-	return &baseListWidget{
+	w := &baseListWidget{
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
 	}
+	if errSet := w.autoScrollEnabled.Set(true); errSet != nil {
+		log.Printf("Failed to set default autoscroll: %v\n", errSet)
+	}
+	return w
 }
 
 func (l *baseListWidget) SetupList(createItem func() fyne.CanvasObject, updateItem func(i binding.DataItem, o fyne.CanvasObject)) {

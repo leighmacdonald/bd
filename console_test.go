@@ -66,6 +66,13 @@ func TestParseEvent(t *testing.T) {
 			text:     "02/24/2023 - 23:37:19: udp/ip  : 74.91.117.2:27015",
 			match:    true,
 			expected: model.LogEvent{Type: model.EvtAddress, Timestamp: ts, MetaData: "74.91.117.2:27015"}},
+		{
+			// 02/26/2023 - 16:45:43: Disconnect: #TF_Idle_kicked.
+			// 02/26/2023 - 16:39:59: Connected to 169.254.174.254:26128
+			// 02/26/2023 - 16:32:28: ุ has been idle for too long and has been kicked
+			text:     "02/24/2023 - 23:37:19: Disconnect: #TF_Idle_kicked.",
+			match:    true,
+			expected: model.LogEvent{Type: model.EvtDisconnect, Timestamp: ts, MetaData: "#TF_Idle_kicked."}},
 	}
 	reader := newLogParser(nil, nil)
 	for num, testCase := range cases {

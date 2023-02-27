@@ -1,6 +1,21 @@
 package model
 
-import "github.com/leighmacdonald/steamid/v2/steamid"
+import (
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"time"
+)
+
+const (
+	DurationStatusUpdateTimer    = time.Second * 2
+	DurationDisconnected         = DurationStatusUpdateTimer * 3
+	DurationPlayerExpired        = DurationStatusUpdateTimer * 10
+	DurationCheckTimer           = time.Second * 3
+	DurationUpdateTimer          = time.Second * 1
+	DurationAnnounceMatchTimeout = time.Minute * 5
+	DurationCacheTimeout         = time.Hour * 12
+	DurationWebRequestTimeout    = time.Second * 5
+	DurationRCONRequestTimeout   = time.Second
+)
 
 type Team int
 

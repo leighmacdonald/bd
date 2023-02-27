@@ -83,21 +83,21 @@ const teamPrefix = "(TEAM) "
 const deadPrefix = "*DEAD* "
 const deadTeamPrefix = "*DEAD*(TEAM) "
 
-func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
+func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 	// the index must match the index of the EventType const values
-	for i, rxMatcher := range l.rx {
-		if m := rxMatcher.FindStringSubmatch(msg); m != nil {
+	for i, rxMatcher := range parser.rx {
+		if match := rxMatcher.FindStringSubmatch(msg); match != nil {
 			outEvent.Type = model.EventType(i)
 			if outEvent.Type != model.EvtLobby {
-				outEvent.ApplyTimestamp(m[1])
+				outEvent.ApplyTimestamp(match[1])
 			}
 			switch outEvent.Type {
 			case model.EvtConnect:
-				outEvent.Player = m[2]
+				outEvent.Player = match[2]
 			case model.EvtDisconnect:
-				outEvent.Player = m[2]
+				outEvent.MetaData = match[2]
 			case model.EvtMsg:
-				name := m[2]
+				name := match[2]
 				dead := false
 				team := false
 				if strings.HasPrefix(name, teamPrefix) {
@@ -115,37 +115,37 @@ func (l *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
 				outEvent.TeamOnly = team
 				outEvent.Dead = dead
 				outEvent.Player = name
-				outEvent.Message = m[3]
+				outEvent.Message = match[3]
 			case model.EvtStatusId:
-				userID, errUserID := strconv.ParseInt(m[2], 10, 32)
+				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
 					log.Printf("Failed to parse userid: %v", errUserID)
 					continue
 				}
-				ping, errPing := strconv.ParseInt(m[7], 10, 32)
+				ping, errPing := strconv.ParseInt(match[7], 10, 32)
 				if errPing != nil {
 					log.Printf("Failed to parse ping: %v", errUserID)
 					continue
 				}
 				outEvent.UserId = userID
-				outEvent.Player = m[3]
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[4]))
-				outEvent.PlayerConnected = parseConnected(m[5])
+				outEvent.Player = match[3]
+				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
+				outEvent.PlayerConnected = parseConnected(match[5])
 				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
-				outEvent.Player = m[2]
-				outEvent.Victim = m[3]
+				outEvent.Player = match[2]
+				outEvent.Victim = match[3]
 			case model.EvtHostname:
-				outEvent.MetaData = m[2]
+				outEvent.MetaData = match[2]
 			case model.EvtMap:
-				outEvent.MetaData = m[2]
+				outEvent.MetaData = match[2]
 			case model.EvtTags:
-				outEvent.MetaData = m[2]
+				outEvent.MetaData = match[2]
 			case model.EvtAddress:
-				outEvent.MetaData = m[2]
+				outEvent.MetaData = match[2]
 			case model.EvtLobby:
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(m[2]))
-				if m[3] == "INVADERS" {
+				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[2]))
+				if match[3] == "INVADERS" {
 					outEvent.Team = model.Blu
 				} else {
 					outEvent.Team = model.Red
@@ -177,15 +177,15 @@ func parseConnected(d string) time.Duration {
 }
 
 // TODO why keep this?
-func (l *logParser) start(ctx context.Context) {
+func (parser *logParser) start(ctx context.Context) {
 	for {
 		select {
-		case msg := <-l.ReadChannel:
+		case msg := <-parser.ReadChannel:
 			var logEvent model.LogEvent
-			if err := l.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
+			if err := parser.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
-			l.evtChan <- logEvent
+			parser.evtChan <- logEvent
 		case <-ctx.Done():
 			return
 		}
@@ -193,14 +193,14 @@ func (l *logParser) start(ctx context.Context) {
 }
 
 func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logParser {
-	lp := logParser{
+	return &logParser{
 		evtChan:     evtChan,
 		ReadChannel: readChannel,
 		rx: []*regexp.Regexp{
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\skilled\s(.+?)\swith\s(.+)(\.|\. \(crit\))$`),
-			regexp.MustCompile(`^(?P<dt>\d{2}/\d{2}/\d{4}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(?P<name>.+?)\s:\s{2}(?P<message>.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(.+?)\sconnected$`),
-			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s(Disconnecting from abandoned match server$|\([Ss]erver shutting down\)$)`),
+			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\sDisconnect:\s(?P<reason>.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\s#\s{1,6}(?P<id>\d{1,6})\s"(?P<name>.+?)"\s+(?P<sid>\[U:\d:\d{1,10}])\s{1,8}(?P<time>\d{1,3}:\d{2}(:\d{2})?)\s+(?P<ping>\d{1,4})\s{1,8}(?P<loss>\d{1,3})\s(spawning|active)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\shostname:\s(.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\smap\s{5}:\s(.+?)\sat.+?$`),
@@ -208,5 +208,4 @@ func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logPars
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\sudp/ip\s{2}:\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})$`),
 			regexp.MustCompile(`^\s{2}(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))\s{2}type\s=\sMATCH_PLAYER$`)},
 	}
-	return &lp
 }
