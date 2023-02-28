@@ -45,6 +45,8 @@ type BD struct {
 	incomingLogEvents  chan model.LogEvent
 	server             model.Server
 	serverMu           *sync.RWMutex
+	players            model.PlayerCollection
+	playersMu          *sync.RWMutex
 	logReader          *logReader
 	logParser          *logParser
 	rules              *rules.Engine
@@ -60,7 +62,7 @@ type BD struct {
 }
 
 // New allocates a new bot detector application instance
-func New(settings *model.Settings, store dataStore, rules *rules.Engine) BD {
+func New(settings *model.Settings, store dataStore, rules *rules.Engine, cache fsCache) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -70,9 +72,11 @@ func New(settings *model.Settings, store dataStore, rules *rules.Engine) BD {
 		logChan:           logChan,
 		incomingLogEvents: eventChan,
 		serverMu:          &sync.RWMutex{},
+		players:           model.PlayerCollection{},
+		playersMu:         &sync.RWMutex{},
 		triggerUpdate:     make(chan any),
 		gameStateUpdate:   make(chan updateGameStateEvent, 50),
-		cache:             newFsCache(settings.ConfigRoot(), model.DurationCacheTimeout),
+		cache:             cache,
 		logParser:         newLogParser(logChan, eventChan),
 		startupTime:       time.Now(),
 	}
@@ -213,23 +217,11 @@ func (bd *BD) eventHandler() {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
 		case model.EvtMap:
-			bd.serverMu.Lock()
-			bd.server.LastUpdate = time.Now()
-			bd.server.CurrentMap = evt.MetaData
-			bd.serverMu.Unlock()
+			bd.gameStateUpdate <- updateGameStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
 		case model.EvtHostname:
-			bd.serverMu.Lock()
-			bd.server.LastUpdate = time.Now()
-			bd.server.ServerName = evt.MetaData
-			bd.serverMu.Unlock()
+			bd.gameStateUpdate <- updateGameStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
 		case model.EvtTags:
-			bd.serverMu.Lock()
-			bd.server.Tags = strings.Split(evt.MetaData, ",")
-			bd.server.LastUpdate = time.Now()
-			bd.serverMu.Unlock()
-			// We only bother to call this for the tags event since it should be parsed last for the status output, updating all
-			// the other fields at the same time.
-			bd.gui.UpdateServerState(bd.server)
+			bd.gameStateUpdate <- updateGameStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
 		case model.EvtAddress:
 			pcs := strings.Split(evt.MetaData, ":")
 			portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
@@ -242,11 +234,7 @@ func (bd *BD) eventHandler() {
 				log.Printf("Failed to parse ip: %v", pcs[0])
 				continue
 			}
-			bd.serverMu.Lock()
-			bd.server.LastUpdate = time.Now()
-			bd.server.Addr = ip
-			bd.server.Port = uint16(portValue)
-			bd.serverMu.Unlock()
+			bd.gameStateUpdate <- updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
 		case model.EvtDisconnect:
 			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
 			// lag between actually removing the player from the player table.
@@ -282,11 +270,7 @@ func (bd *BD) eventHandler() {
 				},
 			}
 		case model.EvtLobby:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateLobby,
-				source: evt.PlayerSID,
-				data:   lobbyEvent{team: evt.Team},
-			}
+			bd.gameStateUpdate <- updateGameStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
 		}
 	}
 }
@@ -331,6 +315,10 @@ const (
 	updateMark
 	updateMessage
 	updateLobby
+	updateMap
+	updateHostname
+	updateTags
+	updateAddress
 )
 
 type killEvent struct {
@@ -367,6 +355,22 @@ type messageEvent struct {
 	message   string
 	teamOnly  bool
 	dead      bool
+}
+
+type hostnameEvent struct {
+	hostname string
+}
+
+type mapEvent struct {
+	mapName string
+}
+type tagsEvent struct {
+	tags []string
+}
+
+type addressEvent struct {
+	ip   net.IP
+	port uint16
 }
 
 func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, error) {
@@ -426,26 +430,45 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 	}
 }
 
+func (bd *BD) getPlayer(sid64 steamid.SID64) *model.Player {
+	bd.playersMu.RLock()
+	defer bd.playersMu.RUnlock()
+	for _, player := range bd.players {
+		if player.SteamId == sid64 {
+			return player
+		}
+	}
+	return nil
+}
+func (bd *BD) getPlayerByName(name string) *model.Player {
+	bd.playersMu.RLock()
+	defer bd.playersMu.RUnlock()
+	for _, player := range bd.players {
+		if player.Name == name {
+			return player
+		}
+	}
+	return nil
+}
+
 // gameStateTracker handle processing incoming updateGameStateEvent events and applying them to the
 // current known player states stored locally in the players map.
 func (bd *BD) gameStateTracker(ctx context.Context) {
 	var queuedUpdates steamid.Collection
 	queueUpdate := false
-	players := map[steamid.SID64]*model.Player{}
+
 	queueAvatars := make(chan steamid.SID64, 32)
 	deleteTimer := time.NewTicker(model.DurationPlayerExpired)
 	checkTimer := time.NewTicker(model.DurationCheckTimer)
 	updateTimer := time.NewTicker(model.DurationUpdateTimer)
 
 	updateUI := func() {
-		var p model.PlayerCollection
-		for _, pl := range players {
-			p = append(p, pl)
-		}
-		sort.Slice(p, func(i, j int) bool {
-			return strings.ToLower(p[i].Name) < strings.ToLower(p[j].Name)
+		bd.playersMu.Lock()
+		sort.Slice(bd.players, func(i, j int) bool {
+			return strings.ToLower(bd.players[i].Name) < strings.ToLower(bd.players[j].Name)
 		})
-		bd.gui.UpdatePlayerState(p)
+		bd.playersMu.Unlock()
+		bd.gui.UpdatePlayerState(bd.players)
 		bd.gui.Refresh()
 		queueUpdate = false
 	}
@@ -454,6 +477,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 		select {
 		case <-updateTimer.C:
 			if queueUpdate {
+				// TODO not necessary?
 				updateUI()
 			}
 			if len(queuedUpdates) == 0 || bd.settings.ApiKey == "" {
@@ -481,33 +505,38 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			}
 			queuedUpdates = nil
 		case <-checkTimer.C:
-			p, found := players[bd.settings.GetSteamId()]
-			if !found {
+			p := bd.getPlayer(bd.settings.GetSteamId())
+			if p == nil {
 				// We have not connected yet.
 				continue
 			}
-			bd.checkPlayerStates(ctx, p.Team, players)
+			bd.checkPlayerStates(ctx, p.Team)
 			queueUpdate = true
 		case <-deleteTimer.C:
+			bd.playersMu.Lock()
 			var valid []*model.Player
 			expired := 0
-			for steamID, ps := range players {
+			for _, ps := range bd.players {
 				if ps.IsExpired() {
 					if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
 						log.Printf("Failed to save expired player state: %v\n", errSave)
 					}
-					delete(players, steamID)
 					expired++
+				} else {
+					valid = append(valid, ps)
 				}
 			}
+			bd.players = valid
+			bd.playersMu.Unlock()
 			if expired > 0 {
 				log.Printf("Players expired: %d\n", expired)
 			}
 			queueUpdate = true
 			bd.discordUpdateActivity(len(valid))
+			bd.gui.UpdatePlayerState(bd.players)
 		case sid64 := <-queueAvatars:
-			p, e := players[sid64]
-			if !e || p.AvatarHash == "" {
+			p := bd.getPlayer(sid64)
+			if p == nil || p.AvatarHash == "" {
 				continue
 			}
 			avatar, errDownload := fetchAvatar(ctx, bd.cache, p.AvatarHash)
@@ -515,52 +544,74 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				log.Printf("Failed to download avatar [%s]: %v\n", p.AvatarHash, errDownload)
 				continue
 			}
-			players[sid64].SetAvatar(players[sid64].AvatarHash, avatar)
+			p.SetAvatar(p.AvatarHash, avatar)
 			queueUpdate = true
 		case update := <-bd.gameStateUpdate:
-			found := false
+			var sourcePlayer *model.Player
 			if update.source.Valid() {
-				_, found = players[update.source]
-				if !found && update.kind != updateStatus {
+				sourcePlayer = bd.getPlayer(update.source)
+				if sourcePlayer == nil && update.kind != updateStatus {
 					// Only register a new user to track once we received a status line
 					continue
 				}
 			}
 			switch update.kind {
 			case updateMessage:
-				um := model.UserMessage{}
-				if errUm := onUpdateMessage(ctx, players, update.data.(messageEvent), bd.store, &um); errUm != nil {
+				if errUm := bd.onUpdateMessage(ctx, update.data.(messageEvent), bd.store); errUm != nil {
 					log.Printf("Failed to handle user message: %v", errUm)
 					continue
 				}
-				if match := bd.rules.MatchMessage(um.Message); match != nil {
-					bd.triggerMatch(ctx, players[update.source], match)
-				}
-				bd.gui.AddUserMessage(um)
 			case updateKill:
-				onUpdateKill(players, update.data.(killEvent))
+				bd.onUpdateKill(update.data.(killEvent))
 			case updateBans:
-				onUpdateBans(players, update.source, update.data.(steamweb.PlayerBanState))
+				bd.onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
 			case updateProfile:
-				onUpdateProfile(players, update.source, update.data.(steamweb.PlayerSummary))
+				bd.onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
 				queueAvatars <- update.source
 			case updateStatus:
-				if errUpdate := onUpdateStatus(ctx, bd.store, update.source, update.data.(statusEvent), players, found, &queuedUpdates); errUpdate != nil {
+				if errUpdate := bd.onUpdateStatus(ctx, bd.store, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
 					log.Printf("updateStatus error: %v\n", errUpdate)
 				}
 			case updateMark:
-				if errUpdate := bd.onUpdateMark(update.data.(updateMarkEvent), players); errUpdate != nil {
+				if errUpdate := bd.onUpdateMark(update.data.(updateMarkEvent)); errUpdate != nil {
 					log.Printf("updateMark error: %v\n", errUpdate)
 				}
 			case updateLobby:
-				onUpdateLobby(players, update.source, update.data.(lobbyEvent))
+				bd.onUpdateLobby(update.source, update.data.(lobbyEvent))
+			case updateTags:
+				bd.onUpdateTags(update.data.(tagsEvent))
+			case updateHostname:
+				bd.onUpdateHostname(update.data.(hostnameEvent))
+			case updateMap:
+				bd.onUpdateMap(update.data.(mapEvent))
 			}
 			queueUpdate = true
 		}
 	}
 }
 
-func nameToSid(players map[steamid.SID64]*model.Player, name string) steamid.SID64 {
+func (bd *BD) onUpdateTags(event tagsEvent) {
+	bd.serverMu.Lock()
+	bd.server.Tags = event.tags
+	bd.serverMu.Unlock()
+	bd.serverMu.RLock()
+	bd.gui.UpdateServerState(bd.server)
+	bd.serverMu.RUnlock()
+}
+func (bd *BD) onUpdateMap(event mapEvent) {
+	bd.serverMu.Lock()
+	bd.server.CurrentMap = event.mapName
+	bd.serverMu.Unlock()
+}
+func (bd *BD) onUpdateHostname(event hostnameEvent) {
+	bd.serverMu.Lock()
+	bd.server.ServerName = event.hostname
+	bd.serverMu.Unlock()
+}
+
+func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID64 {
+	bd.playersMu.RLock()
+	defer bd.playersMu.RUnlock()
 	for _, player := range players {
 		if name == player.Name {
 			return player.SteamId
@@ -568,100 +619,127 @@ func nameToSid(players map[steamid.SID64]*model.Player, name string) steamid.SID
 	}
 	return 0
 }
-func onUpdateLobby(players map[steamid.SID64]*model.Player, steamID steamid.SID64, evt lobbyEvent) {
-	players[steamID].Team = evt.team
+func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
+	player := bd.getPlayer(steamID)
+	if player != nil {
+		bd.playersMu.Lock()
+		player.Team = evt.team
+		bd.playersMu.Unlock()
+	}
 }
 
-func onUpdateMessage(ctx context.Context, players map[steamid.SID64]*model.Player, msg messageEvent, store dataStore, um *model.UserMessage) error {
-	source := nameToSid(players, msg.name)
-	if !source.Valid() {
-		return errors.New("Invalid steamid")
+func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store dataStore) error {
+	player := bd.getPlayerByName(msg.name)
+	if player == nil {
+		return errors.Errorf("Unknown name: %v", msg.name)
 	}
-	um.Player = players[source].Name
-	um.Team = players[source].Team
-	um.PlayerSID = players[source].SteamId
-	um.UserId = players[source].UserId
+
+	um := model.UserMessage{}
+	bd.playersMu.RLock()
+	um.Player = player.Name
+	um.Team = player.Team
+	um.PlayerSID = player.SteamId
+	um.UserId = player.UserId
+	bd.playersMu.RUnlock()
 	um.Message = msg.message
 	um.Created = msg.createdAt
 	um.Dead = msg.dead
 	um.TeamOnly = msg.teamOnly
-	if errSaveMsg := store.SaveMessage(ctx, um); errSaveMsg != nil {
+
+	if errSaveMsg := store.SaveMessage(ctx, &um); errSaveMsg != nil {
 		log.Printf("Error trying to store user messge log: %v\n", errSaveMsg)
 	}
+	if match := bd.rules.MatchMessage(um.Message); match != nil {
+		bd.triggerMatch(ctx, player, match)
+	}
+	bd.gui.AddUserMessage(um)
+	bd.gui.Refresh()
 	return nil
 }
 
-func onUpdateKill(players map[steamid.SID64]*model.Player, kill killEvent) {
-	source := nameToSid(players, kill.sourceName)
-	target := nameToSid(players, kill.victimName)
-	if source.Valid() {
-		players[source].Kills++
-		players[source].Touch()
+func (bd *BD) onUpdateKill(kill killEvent) {
+	source := bd.nameToSid(bd.players, kill.sourceName)
+	target := bd.nameToSid(bd.players, kill.victimName)
+	if !source.Valid() || !target.Valid() {
+		return
 	}
-	if target.Valid() {
-		players[target].Deaths++
-		players[target].Touch()
-	}
+	sourcePlayer := bd.getPlayer(source)
+	bd.playersMu.Lock()
+	sourcePlayer.Kills++
+	sourcePlayer.Touch()
+	bd.playersMu.Unlock()
+
+	targetPlayer := bd.getPlayer(source)
+	bd.playersMu.Lock()
+	targetPlayer.Kills++
+	targetPlayer.Touch()
+	bd.playersMu.Unlock()
 
 }
 
-func onUpdateBans(players map[steamid.SID64]*model.Player, steamID steamid.SID64, ban steamweb.PlayerBanState) {
-	players[steamID].NumberOfVACBans = ban.NumberOfVACBans
-	players[steamID].NumberOfGameBans = ban.NumberOfGameBans
-	players[steamID].CommunityBanned = ban.CommunityBanned
+func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
+	player := bd.getPlayer(steamID)
+	bd.playersMu.Lock()
+	defer bd.playersMu.Unlock()
+	player.NumberOfVACBans = ban.NumberOfVACBans
+	player.NumberOfGameBans = ban.NumberOfGameBans
+	player.CommunityBanned = ban.CommunityBanned
 	if ban.DaysSinceLastBan > 0 {
 		subTime := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
-		players[steamID].LastVACBanOn = &subTime
+		player.LastVACBanOn = &subTime
 	}
-	players[steamID].EconomyBan = ban.EconomyBan != "none"
-	players[steamID].Touch()
+	player.EconomyBan = ban.EconomyBan != "none"
+	player.Touch()
+
 }
 
-func onUpdateProfile(players map[steamid.SID64]*model.Player, steamID steamid.SID64, summary steamweb.PlayerSummary) {
-	players[steamID].Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
-	players[steamID].AvatarHash = summary.AvatarHash
-	players[steamID].AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
-	players[steamID].RealName = summary.RealName
-	players[steamID].ProfileUpdatedOn = time.Now()
-	players[steamID].Touch()
+func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
+	player := bd.getPlayer(steamID)
+	bd.playersMu.Lock()
+	defer bd.playersMu.Unlock()
+	player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
+	player.AvatarHash = summary.AvatarHash
+	player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
+	player.RealName = summary.RealName
+	player.ProfileUpdatedOn = time.Now()
+	player.Touch()
 }
 
-func onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, players map[steamid.SID64]*model.Player, found bool, queuedUpdates *steamid.Collection) error {
-	if !found {
-		ps := model.NewPlayer(steamID, update.name)
-		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, ps); errCreate != nil {
+func (bd *BD) onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
+	player := bd.getPlayer(steamID)
+	if player == nil {
+		player = model.NewPlayer(steamID, update.name)
+		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
 			return errors.Wrap(errCreate, "Error trying to load/create player\n")
 		}
-		if update.name != "" && update.name != ps.NamePrevious {
-			if errSaveName := store.SaveName(ctx, steamID, ps.Name); errSaveName != nil {
+		if update.name != "" && update.name != player.NamePrevious {
+			if errSaveName := store.SaveName(ctx, steamID, player.Name); errSaveName != nil {
 				return errors.Wrap(errSaveName, "Failed to save name")
 			}
 		}
-		players[steamID] = ps
+		bd.playersMu.Lock()
+		bd.players = append(bd.players, player)
+		bd.playersMu.Unlock()
 	}
-	players[steamID].Ping = update.ping
-	players[steamID].UserId = update.userID
-	players[steamID].Name = update.name
-	players[steamID].Connected = update.connected
-	players[steamID].UpdatedOn = time.Now()
-	if time.Since(players[steamID].ProfileUpdatedOn) > model.DurationCacheTimeout {
+	bd.playersMu.Lock()
+	player.Ping = update.ping
+	player.UserId = update.userID
+	player.Name = update.name
+	player.Connected = update.connected
+	player.UpdatedOn = time.Now()
+	if time.Since(player.ProfileUpdatedOn) > model.DurationCacheTimeout {
 		*queuedUpdates = append(*queuedUpdates, steamID)
 	}
+	bd.playersMu.Unlock()
 	return nil
 }
 
-func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*model.Player) error {
-	name := ""
-	for _, player := range players {
-		if player.SteamId == status.target {
-			name = player.Name
-			continue
-		}
-	}
+func (bd *BD) onUpdateMark(status updateMarkEvent) error {
+	player := bd.getPlayer(status.target)
 	if errMark := bd.rules.Mark(rules.MarkOpts{
 		SteamID:    status.target,
 		Attributes: status.attrs,
-		Name:       name,
+		Name:       player.Name,
 	}); errMark != nil {
 		return errors.Wrap(errMark, "Failed to add mark")
 	}
@@ -678,21 +756,15 @@ func (bd *BD) onUpdateMark(status updateMarkEvent, players map[steamid.SID64]*mo
 
 // AttachGui connects the backend functions to the frontend gui
 // TODO Use channels for communicating instead
-func (bd *BD) AttachGui(ctx context.Context, gui ui.UserInterface) {
+func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.SetBuildInfo(version, commit, date, builtBy)
 	gui.SetOnLaunchTF2(func() {
 		go bd.launchGameAndWait()
 	})
-	gui.SetOnMark(bd.onMark)
-	gui.SetOnKick(func(userId int64, reason model.KickReason) error {
+	gui.SetOnKick(func(ctx context.Context, userId int64, reason model.KickReason) error {
 		return bd.callVote(ctx, userId, reason)
 	})
-	gui.SetFetchMessageHistory(func(sid64 steamid.SID64) (model.UserMessageCollection, error) {
-		return bd.store.FetchMessages(ctx, sid64)
-	})
-	gui.SetFetchNameHistory(func(sid64 steamid.SID64) ([]model.UserNameHistory, error) {
-		return bd.store.FetchNames(ctx, sid64)
-	})
+
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }
@@ -713,8 +785,8 @@ func (bd *BD) refreshLists(ctx context.Context) {
 	bd.gui.UpdateAttributes(bd.rules.UniqueTags())
 }
 
-func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team, players map[steamid.SID64]*model.Player) {
-	for _, ps := range players {
+func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
+	for _, ps := range bd.players {
 		if ps.IsDisconnected() {
 			continue
 		}
@@ -736,10 +808,11 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team, playe
 				log.Printf("Failed to save player state: %v\n", errSave)
 				continue
 			}
+
 			ps.Dirty = false
 		}
 	}
-	//bd.gui.UpdatePlayerState(players)
+	bd.gui.UpdatePlayerState(bd.players)
 }
 
 func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
@@ -750,7 +823,9 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 			log.Printf("Failed to send party log message: %s\n", errLog)
 			return
 		}
+		bd.playersMu.Lock()
 		ps.AnnouncedLast = time.Now()
+		bd.playersMu.Unlock()
 
 	}
 	if bd.settings.KickerEnabled {
@@ -758,7 +833,9 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 			log.Printf("Error calling vote: %v\n", errVote)
 		}
 	}
+	bd.playersMu.Lock()
 	ps.KickAttemptCount++
+	bd.playersMu.Unlock()
 }
 
 func (bd *BD) connectRcon(ctx context.Context) error {
@@ -804,6 +881,7 @@ func (bd *BD) Shutdown() {
 		client.Logout()
 	}
 	logClose(bd.store)
+	log.Printf("Goodbye\n")
 }
 
 func (bd *BD) start(ctx context.Context) {

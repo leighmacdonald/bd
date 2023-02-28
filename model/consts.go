@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"time"
 )
@@ -50,8 +51,10 @@ const (
 	KickReasonOther    KickReason = "other"
 )
 
-type KickFunc func(userId int64, reason KickReason) error
+type KickFunc func(ctx context.Context, userId int64, reason KickReason) error
 
-type QueryNamesFunc func(sid64 steamid.SID64) ([]UserNameHistory, error)
+type LaunchFunc func()
 
-type QueryUserMessagesFunc func(sid64 steamid.SID64) (UserMessageCollection, error)
+type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
+
+type QueryUserMessagesFunc func(ctx context.Context, sid64 steamid.SID64) (UserMessageCollection, error)

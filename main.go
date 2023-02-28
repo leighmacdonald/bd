@@ -71,13 +71,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer logClose(store)
-	bd := New(settings, store, engine)
+	cache := newFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
+	bd := New(settings, store, engine, cache)
 	defer bd.Shutdown()
-	defer func() {
-		log.Printf("Goodbye\n")
-	}()
-	gui := ui.New(settings)
-	bd.AttachGui(ctx, gui)
+	gui := ui.New(ctx, settings, bd.onMark, store.FetchNames, store.FetchMessages, bd.launchGameAndWait, bd.callVote)
+	bd.AttachGui(gui)
 	go bd.start(ctx)
 	gui.Start()
 }

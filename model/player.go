@@ -44,9 +44,9 @@ type Player struct {
 	ProfileUpdatedOn time.Time
 
 	// The users kill count vs this player
-	KillsOn   int64
-	RageQuits int64
-	DeathsBy  int64
+	KillsOn   int
+	RageQuits int
+	DeathsBy  int
 	// PlayerSummary
 	RealName         string
 	NamePrevious     string
@@ -76,8 +76,8 @@ type Player struct {
 	Ping   int
 
 	// Parsed stats from logs
-	Kills  int64
-	Deaths int64
+	Kills  int
+	Deaths int
 
 	// - Misc
 
@@ -207,3 +207,11 @@ type UserNameHistory struct {
 }
 
 type UserNameHistoryCollection []UserNameHistory
+
+func (names UserNameHistoryCollection) AsAny() []any {
+	bl := make([]any, len(names))
+	for i, r := range names {
+		bl[i] = r
+	}
+	return bl
+}

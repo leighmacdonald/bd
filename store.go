@@ -25,8 +25,8 @@ type dataStore interface {
 	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
 	SaveMessage(ctx context.Context, message *model.UserMessage) error
 	SavePlayer(ctx context.Context, state *model.Player) error
-	FetchNames(ctx context.Context, sid64 steamid.SID64) ([]model.UserNameHistory, error)
-	FetchMessages(ctx context.Context, sid steamid.SID64) ([]model.UserMessage, error)
+	FetchNames(ctx context.Context, sid64 steamid.SID64) (model.UserNameHistoryCollection, error)
+	FetchMessages(ctx context.Context, sid steamid.SID64) (model.UserMessageCollection, error)
 	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
 }
 
@@ -248,7 +248,7 @@ func logClose(closer io.Closer) {
 	}
 }
 
-func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) ([]model.UserNameHistory, error) {
+func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
 	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
@@ -258,7 +258,7 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		return nil, errQuery
 	}
 	defer logClose(rows)
-	var hist []model.UserNameHistory
+	var hist model.UserNameHistoryCollection
 	for rows.Next() {
 		var h model.UserNameHistory
 		if errScan := rows.Scan(&h.NameId, &h.Name, &h.FirstSeen); errScan != nil {
@@ -268,7 +268,7 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	}
 	return hist, nil
 }
-func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) ([]model.UserMessage, error) {
+func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (model.UserMessageCollection, error) {
 	const query = `SELECT message_id, message, created_on FROM player_messages WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
@@ -278,7 +278,7 @@ func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		return nil, errQuery
 	}
 	defer logClose(rows)
-	var messages []model.UserMessage
+	var messages model.UserMessageCollection
 	for rows.Next() {
 		var m model.UserMessage
 		if errScan := rows.Scan(&m.MessageId, &m.Message, &m.Created); errScan != nil {

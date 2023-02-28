@@ -15,9 +15,17 @@ import (
 	"net/url"
 )
 
-func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.Settings) dialog.Dialog {
-	l := newBaseListWidget()
-	l.SetupList(func() fyne.CanvasObject {
+type ruleListConfigDialog struct {
+	dialog.Dialog
+
+	list      *widget.List
+	boundList binding.UntypedList
+	settings  *model.Settings
+}
+
+func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *model.Settings) dialog.Dialog {
+	boundList := binding.BindUntypedList(&[]interface{}{})
+	list := widget.NewListWithData(boundList, func() fyne.CanvasObject {
 		return container.NewBorder(
 			nil,
 			nil,
@@ -57,7 +65,9 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.
 				if !valid {
 					return
 				}
-				saveFn()
+				if errSave := saveFn(); errSave != nil {
+					log.Printf("Failed to save list settings")
+				}
 				name.SetText(nameEntry.Text)
 			}, parent)
 			sz := d.MinSize()
@@ -81,10 +91,12 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.
 				}
 				settings.Lists = lists
 				settings.Unlock()
-				if errReload := l.Reload(settings.Lists.AsAny()); errReload != nil {
+				if errReload := boundList.Set(settings.Lists.AsAny()); errReload != nil {
 					log.Printf("Failed to reload: %v\n", errReload)
 				}
-				saveFn()
+				if errSave := saveFn(); errSave != nil {
+					log.Printf("Failed to save list settings")
+				}
 			}, parent)
 			confirm.Show()
 		}
@@ -129,10 +141,12 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.
 					settings.Lock()
 					settings.Lists = append(settings.Lists, lc)
 					settings.Unlock()
-					if errAppend := l.boundList.Append(lc); errAppend != nil {
+					if errAppend := boundList.Append(lc); errAppend != nil {
 						log.Printf("Failed to update config list: %v", errAppend)
 					}
-					saveFn()
+					if errSave := saveFn(); errSave != nil {
+						log.Printf("Failed to save list settings")
+					}
 				}, parent)
 				sz := inputForm.MinSize()
 				sz.Width = defaultDialogueWidth
@@ -140,15 +154,27 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func(), settings *model.
 				inputForm.Show()
 			})),
 		container.NewHBox())
-	l.SetContent(container.NewBorder(toolBar, nil, nil, nil, l.Widget()))
-	if errSet := l.Reload(settings.Lists.AsAny()); errSet != nil {
+
+	if errSet := boundList.Set(settings.Lists.AsAny()); errSet != nil {
 		log.Printf("failed to load lists")
 	}
-	settingsWindow := dialog.NewCustom("List Config", translations.One(translations.LabelClose), l.Widget(), parent)
-	sz := settingsWindow.MinSize()
+
+	configDialog := ruleListConfigDialog{
+		Dialog: dialog.NewCustom(
+			"List Config",
+			translations.One(translations.LabelClose),
+			container.NewBorder(toolBar, nil, nil, nil, list),
+			parent,
+		),
+		list:      list,
+		boundList: nil,
+		settings:  settings,
+	}
+
+	sz := configDialog.MinSize()
 	sz.Width = defaultDialogueWidth
 	sz.Height = 500
-	settingsWindow.Resize(sz)
+	configDialog.Resize(sz)
 	//settingsWindow.Resize(fyne.NewSize(5050, 700))
-	return settingsWindow
+	return &configDialog
 }

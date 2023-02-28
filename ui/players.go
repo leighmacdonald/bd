@@ -6,238 +6,320 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/translations"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/pkg/errors"
 	"log"
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
-type PlayerList struct {
-	baseListWidget
+type playerWindow struct {
+	app         fyne.App
+	window      fyne.Window
+	list        *widget.List
+	boundList   binding.ExternalUntypedList
+	content     fyne.CanvasObject
+	objectMu    sync.RWMutex
+	boundListMu sync.RWMutex
+	settings    *model.Settings
+
+	aboutDialog    *aboutDialog
+	settingsDialog dialog.Dialog
+	listsDialog    dialog.Dialog
+
+	labelHostname       *widget.RichText
+	labelMap            *widget.RichText
+	labelPlayersHeading *widget.Label
+	toolbar             *widget.Toolbar
+
+	bindingPlayerCount binding.Int
+
+	playerSortDir playerSortType
+
+	containerHeading   *fyne.Container
+	containerStatPanel *fyne.Container
+
+	onShowChat func()
+
+	menuCreator MenuCreator
+	onReload    func(count int)
+	onLaunch    model.LaunchFunc
 }
 
-type menuButton struct {
-	widget.Button
-	menu *fyne.Menu
-}
-
-func (m *menuButton) Tapped(event *fyne.PointEvent) {
-	widget.ShowPopUpMenuAtPosition(m.menu, fyne.CurrentApp().Driver().CanvasForObject(m), event.AbsolutePosition)
-}
-
-func newMenuButton(menu *fyne.Menu) *menuButton {
-	c := &menuButton{menu: menu}
-	c.ExtendBaseWidget(c)
-	c.SetIcon(theme.SettingsIcon())
-
-	return c
-}
-
-func generateExternalLinksMenu(steamId steamid.SID64, links []model.LinkConfig, urlOpener func(url *url.URL) error) *fyne.Menu {
-	lk := func(link model.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
-		clsLinkValue := link
-		clsSteamId := sid64
-		return func() {
-			u := clsLinkValue.URL
-			switch clsLinkValue.IdFormat {
-			case model.Steam:
-				u = fmt.Sprintf(u, steamid.SID64ToSID(clsSteamId))
-			case model.Steam3:
-				u = fmt.Sprintf(u, steamid.SID64ToSID3(clsSteamId))
-			case model.Steam32:
-				u = fmt.Sprintf(u, steamid.SID64ToSID32(clsSteamId))
-			case model.Steam64:
-				u = fmt.Sprintf(u, clsSteamId.Int64())
-			default:
-				log.Printf("Got unhandled steamid format, trying steam64: %v", clsLinkValue.IdFormat)
-			}
-			ul, urlErr := url.Parse(u)
-			if urlErr != nil {
-				log.Printf("Failed to create link: %v", urlErr)
-				return
-			}
-			if errOpen := urlOpener(ul); errOpen != nil {
-				log.Printf("Failed to open url: %v", errOpen)
-			}
-		}
-	}
-
-	var items []*fyne.MenuItem
-	sort.Slice(links, func(i, j int) bool {
-		return strings.ToLower(links[i].Name) < strings.ToLower(links[j].Name)
+func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
+	// Sort by name first
+	sort.Slice(players, func(i, j int) bool {
+		return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
 	})
-	for _, link := range links {
-		if !link.Enabled {
-			continue
-		}
-		items = append(items, fyne.NewMenuItem(link.Name, lk(link, steamId, urlOpener)))
+	// Apply secondary ordering
+	switch screen.playerSortDir {
+	case playerSortKills:
+		sort.SliceStable(players, func(i, j int) bool {
+			return players[i].Kills > players[j].Kills
+		})
+	case playerSortStatus:
+		sort.SliceStable(players, func(i, j int) bool {
+			l := players[i]
+			r := players[j]
+			if l.NumberOfVACBans > r.NumberOfVACBans {
+				return true
+			} else if l.NumberOfGameBans > r.NumberOfGameBans {
+				return true
+			} else if l.CommunityBanned && !r.CommunityBanned {
+				return true
+			} else if l.EconomyBan && !r.EconomyBan {
+				return true
+			}
+			return false
+		})
+	case playerSortTeam:
+		sort.SliceStable(players, func(i, j int) bool {
+			return players[i].Team < players[j].Team
+		})
+	case playerSortTime:
+		sort.SliceStable(players, func(i, j int) bool {
+			return players[i].Connected < players[j].Connected
+		})
+	case playerSortKD:
+		sort.SliceStable(players, func(i, j int) bool {
+			l, r := 0.0, 0.0
+			lk := players[i].Kills
+			ld := players[i].Deaths
+			if ld > 0 {
+				l = float64(lk) / float64(ld)
+			} else {
+				l = float64(lk)
+			}
+			rk := players[j].Kills
+			rd := players[j].Deaths
+			if rd > 0 {
+				r = float64(rk) / float64(rd)
+			} else {
+				r = float64(rk)
+			}
+
+			return l > r
+		})
 	}
-	return fyne.NewMenu("Sub Menu", items...)
+	if errReboot := screen.Reload(players); errReboot != nil {
+		log.Printf("Faile to reboot data: %v\n", errReboot)
+	}
+	screen.content.Refresh()
 }
 
-const newItemLabel = "New..."
-
-func (ui *Ui) generateAttributeMenu(sid64 steamid.SID64, knownAttributes []string) *fyne.Menu {
-	mkAttr := func(attrName string) func() {
-		clsAttribute := attrName
-		clsSteamId := sid64
-		return func() {
-			log.Printf("marking %d as %s", clsSteamId, clsAttribute)
-			if errMark := ui.markFn(sid64, []string{clsAttribute}); errMark != nil {
-				log.Printf("Failed to mark player: %v\n", errMark)
-			}
-		}
+func (screen *playerWindow) UpdateServerState(state model.Server) {
+	screen.labelHostname.Segments = []widget.RichTextSegment{
+		&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
 	}
-	attrMenu := fyne.NewMenu(translations.One(translations.LabelMarkAs))
-	sort.Slice(knownAttributes, func(i, j int) bool {
-		return strings.ToLower(knownAttributes[i]) < strings.ToLower(knownAttributes[j])
+	screen.labelHostname.Refresh()
+	screen.labelMap.Segments = []widget.RichTextSegment{
+		&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: state.CurrentMap, Style: widget.RichTextStyleStrong},
+	}
+	screen.labelMap.Refresh()
+}
+
+func (screen *playerWindow) Reload(rr model.PlayerCollection) error {
+	bl := make([]interface{}, len(rr))
+	for i, r := range rr {
+		bl[i] = r
+	}
+	screen.boundListMu.Lock()
+	defer screen.boundListMu.Unlock()
+	if errSet := screen.boundList.Set(bl); errSet != nil {
+		log.Printf("failed to set player list: %v\n", errSet)
+	}
+	if errReload := screen.boundList.Reload(); errReload != nil {
+		return errReload
+	}
+	screen.list.ScrollToBottom()
+	screen.onReload(len(bl))
+	return nil
+}
+
+func (screen *playerWindow) createMainMenu() {
+	wikiUrl, errUrl := url.Parse(urlHelp)
+	if errUrl != nil {
+		log.Panicln("Failed to parse wiki url")
+	}
+	shortCutLaunch := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}
+	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutFolder := &desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutSettings := &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}
+	shortCutLists := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutQuit := &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}
+	shortCutHelp := &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
+
+	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
+		screen.onLaunch()
 	})
-	for _, mi := range knownAttributes {
-		attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(mi, mkAttr(mi)))
-	}
-	entry := widget.NewEntry()
-	entry.Validator = func(s string) error {
-		if s == "" {
-			return errors.New("Empty attribute name")
+	screen.window.Canvas().AddShortcut(shortCutChat, func(shortcut fyne.Shortcut) {
+		screen.onShowChat()
+	})
+	screen.window.Canvas().AddShortcut(shortCutFolder, func(shortcut fyne.Shortcut) {
+		platform.OpenFolder(screen.settings.ConfigRoot())
+	})
+	screen.window.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
+		screen.settingsDialog.Show()
+	})
+	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
+		screen.listsDialog.Show()
+	})
+	screen.window.Canvas().AddShortcut(shortCutQuit, func(shortcut fyne.Shortcut) {
+		screen.app.Quit()
+	})
+	screen.window.Canvas().AddShortcut(shortCutHelp, func(shortcut fyne.Shortcut) {
+		if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
+			log.Printf("Failed to open help url: %v\n", errOpenHelp)
 		}
-		for _, knownAttr := range knownAttributes {
-			if strings.EqualFold(knownAttr, s) {
-				return errors.New("Duplicate attribute name")
-			}
-		}
-		return nil
-	}
-	fi := widget.NewFormItem(translations.One(translations.LabelAttributeName), entry)
-
-	attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
-		w := dialog.NewForm(
-			translations.One(translations.WindowMarkCustom),
-			translations.One(translations.LabelApply),
-			translations.One(translations.LabelClose),
-			[]*widget.FormItem{fi}, func(success bool) {
-				if !success {
-					return
-				}
-				if errMark := ui.markFn(sid64, []string{entry.Text}); errMark != nil {
-					log.Printf("Failed to mark player: %v\n", errMark)
-				}
-			}, ui.rootWindow)
-		w.Show()
-	}))
-	attrMenu.Refresh()
-	return attrMenu
-}
-
-func (ui *Ui) generateSteamIdMenu(steamId steamid.SID64) *fyne.Menu {
-	m := fyne.NewMenu("Copy SteamID",
-		fyne.NewMenuItem(fmt.Sprintf("%d", steamId), func() {
-			ui.rootWindow.Clipboard().SetContent(fmt.Sprintf("%d", steamId))
-		}),
-		fyne.NewMenuItem(string(steamid.SID64ToSID(steamId)), func() {
-			ui.rootWindow.Clipboard().SetContent(string(steamid.SID64ToSID(steamId)))
-		}),
-		fyne.NewMenuItem(string(steamid.SID64ToSID3(steamId)), func() {
-			ui.rootWindow.Clipboard().SetContent(string(steamid.SID64ToSID3(steamId)))
-		}),
-		fyne.NewMenuItem(fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)), func() {
-			ui.rootWindow.Clipboard().SetContent(fmt.Sprintf("%d", steamid.SID64ToSID32(steamId)))
-		}),
-	)
-	return m
-}
-
-func newMenuItem(key translations.Key, fn func()) *fyne.MenuItem {
-	return &fyne.MenuItem{
-		Label:  translations.One(key),
-		Action: fn,
-	}
-}
-
-func (ui *Ui) generateKickMenu(userId int64) *fyne.Menu {
-	fn := func(reason model.KickReason) func() {
-		return func() {
-			log.Printf("Calling vote: %d %v", userId, reason)
-			if errKick := ui.kickFn(userId, reason); errKick != nil {
-				log.Printf("Error trying to call kick: %v\n", errKick)
-			}
-		}
-	}
-	return fyne.NewMenu(translations.One(translations.MenuCallVote),
-		newMenuItem(translations.MenuVoteCheating, fn(model.KickReasonCheating)),
-		newMenuItem(translations.MenuVoteIdle, fn(model.KickReasonIdle)),
-		newMenuItem(translations.MenuVoteScamming, fn(model.KickReasonScamming)),
-		newMenuItem(translations.MenuVoteOther, fn(model.KickReasonOther)),
-	)
-}
-
-func (ui *Ui) generateUserMenu(steamId steamid.SID64, userId int64) *fyne.Menu {
-	menu := fyne.NewMenu("User Actions",
+	})
+	screen.window.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
+		screen.aboutDialog.dialog.Show()
+	})
+	fm := fyne.NewMenu("Bot Detector",
 		&fyne.MenuItem{
-			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: ui.generateKickMenu(userId),
-			Label:     translations.One(translations.MenuCallVote)},
+			Shortcut: shortCutLaunch,
+			Label:    translations.One(translations.LabelLaunch),
+			Action:   screen.onLaunch,
+			Icon:     resourceTf2Png,
+		},
 		&fyne.MenuItem{
-			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: ui.generateAttributeMenu(steamId, ui.knownAttributes),
-			Label:     translations.One(translations.MenuMarkAs)},
+			Shortcut: shortCutChat,
+			Label:    translations.One(translations.LabelChatLog),
+			Action:   screen.onShowChat,
+			Icon:     theme.MailComposeIcon(),
+		},
 		&fyne.MenuItem{
-			Icon:      theme.SearchIcon(),
-			ChildMenu: generateExternalLinksMenu(steamId, ui.settings.GetLinks(), ui.application.OpenURL),
-			Label:     translations.One(translations.MenuOpenExternal)},
-		&fyne.MenuItem{
-			Icon:      theme.ContentCopyIcon(),
-			ChildMenu: ui.generateSteamIdMenu(steamId),
-			Label:     translations.One(translations.MenuCopySteamId)},
-		&fyne.MenuItem{
-			Icon: theme.ListIcon(),
+			Shortcut: shortCutFolder,
+			Label:    translations.One(translations.LabelConfigFolder),
 			Action: func() {
-				if errChat := ui.createChatHistoryWindow(steamId); errChat != nil {
-					showUserError("Error trying to load chat: %v", ui.rootWindow)
-				}
+				platform.OpenFolder(screen.settings.ConfigRoot())
 			},
-			Label: translations.One(translations.MenuChatHistory)},
+			Icon: theme.FolderOpenIcon(),
+		},
 		&fyne.MenuItem{
-			Icon: theme.VisibilityIcon(),
-			Action: func() {
-				if errChat := ui.createNameHistoryWindow(steamId); errChat != nil {
-					showUserError("Error trying to load names: %v", ui.rootWindow)
-				}
-			},
-			Label: translations.One(translations.MenuNameHistory)},
+			Shortcut: shortCutSettings,
+			Label:    translations.One(translations.LabelSettings),
+			Action:   screen.settingsDialog.Show,
+			Icon:     theme.SettingsIcon(),
+		},
+		&fyne.MenuItem{
+			Shortcut: shortCutLists,
+			Label:    translations.One(translations.LabelListConfig),
+			Action:   screen.listsDialog.Show,
+			Icon:     theme.StorageIcon(),
+		},
+		fyne.NewMenuItemSeparator(),
+		&fyne.MenuItem{
+			Icon:     theme.ContentUndoIcon(),
+			Shortcut: shortCutQuit,
+			Label:    translations.One(translations.LabelQuit),
+			IsQuit:   true,
+			Action:   screen.app.Quit,
+		},
 	)
-	return menu
+
+	hm := fyne.NewMenu(translations.One(translations.LabelHelp),
+		&fyne.MenuItem{
+			Label:    translations.One(translations.LabelHelp),
+			Shortcut: shortCutHelp,
+			Icon:     theme.HelpIcon(),
+			Action: func() {
+				if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
+					log.Printf("Failed to open help url: %v\n", errOpenHelp)
+				}
+			}},
+		&fyne.MenuItem{
+			Label:    translations.One(translations.LabelAbout),
+			Shortcut: shortCutAbout,
+			Icon:     theme.InfoIcon(),
+			Action:   screen.aboutDialog.dialog.Show},
+	)
+	screen.window.SetMainMenu(fyne.NewMainMenu(fm, hm))
 }
+
+const symbolOk = "✓"
+const symbolBad = "✗"
 
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  X  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
 // │ K: 10  A: 66                                            │
 // └─────────────────────────────────────────────────────────┘
-func (ui *Ui) createPlayerList(compact bool) *baseListWidget {
-	const (
-		symbolOk  = "✓"
-		symbolBad = "✗"
-	)
-	newLower := func() *fyne.Container {
-		cont := container.NewHBox()
-		cont.Add(widget.NewLabel("x"))
-		cont.Add(widget.NewLabel(""))
-		cont.Add(widget.NewLabel(""))
-		cont.Add(widget.NewLabel(""))
-		cont.Add(widget.NewLabel(""))
-		cont.Add(widget.NewLabel(""))
+func newPlayerWindow(app fyne.App, settings *model.Settings,
+	boundSettings boundSettings, showChatWindowFunc func(), launchFunc func(), menuCreator MenuCreator) *playerWindow {
+	window := app.NewWindow("Bot Detector")
 
-		return cont
+	screen := &playerWindow{
+		app:                app,
+		window:             window,
+		boundList:          binding.BindUntypedList(&[]interface{}{}),
+		bindingPlayerCount: binding.NewInt(),
+		onShowChat:         showChatWindowFunc,
+		onLaunch:           launchFunc,
+		menuCreator:        menuCreator,
+		labelHostname: widget.NewRichText(
+			&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
+		),
+		labelMap: widget.NewRichText(
+			&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
+		),
+		playerSortDir: playerSortStatus,
 	}
-	pl := newBaseListWidget()
-	_ = pl.autoScrollEnabled.Set(false)
+	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
+	screen.settingsDialog = newSettingsDialog(screen.window, boundSettings, settings)
+	screen.listsDialog = newRuleListConfigDialog(screen.window, settings.Save, settings)
+	screen.aboutDialog = newAboutDialog(window)
+	screen.onReload = func(count int) {
+		if errSet := screen.bindingPlayerCount.Set(count); errSet != nil {
+			log.Printf("Failed to update player count: %v\n", errSet)
+		}
+	}
+	screen.toolbar = newToolbar(
+		app,
+		screen.window,
+		settings,
+		func() {
+			showChatWindowFunc()
+		}, func() {
+			screen.settingsDialog.Show()
+		}, func() {
+			screen.aboutDialog.dialog.Show()
+		},
+		screen.onLaunch,
+		func() {
+			screen.listsDialog.Show()
+		})
+
+	var dirNames []string
+	for _, dir := range sortDirections {
+		dirNames = append(dirNames, string(dir))
+	}
+	sortSelect := widget.NewSelect(dirNames, func(s string) {
+		screen.playerSortDir = playerSortType(s)
+		v, _ := screen.boundList.Get()
+		var sorted model.PlayerCollection
+		for _, p := range v {
+			sorted = append(sorted, p.(*model.Player))
+		}
+		screen.updatePlayerState(sorted)
+	})
+
+	sortSelect.PlaceHolder = translations.One(translations.LabelSortBy)
+
+	screen.createMainMenu()
+
 	createItem := func() fyne.CanvasObject {
 		rootContainer := container.NewVBox()
 
@@ -253,39 +335,22 @@ func (ui *Ui) createPlayerList(compact bool) *baseListWidget {
 			container.NewHBox(widget.NewRichText(), widget.NewRichText()),
 			widget.NewRichText(),
 		)
-		upperContainer.Resize(upperContainer.MinSize())
-
 		rootContainer.Add(upperContainer)
-		if !compact {
-			rootContainer.Add(newLower())
-		}
-
 		rootContainer.Refresh()
 
 		return rootContainer
 	}
 	updateItem := func(i binding.DataItem, o fyne.CanvasObject) {
+		screen.objectMu.Lock()
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
 		ps := obj.(*model.Player)
 
-		pl.objectMu.Lock()
 		rootContainer := o.(*fyne.Container)
 		upperContainer := rootContainer.Objects[0].(*fyne.Container)
 
-		if !compact {
-			lowerContainer := rootContainer.Objects[1].(*fyne.Container)
-			lowerContainer.Objects[0].(*widget.Label).SetText(fmt.Sprintf("K: %d", ps.Kills))
-			lowerContainer.Objects[1].(*widget.Label).SetText(fmt.Sprintf("D: %d", ps.Deaths))
-			lowerContainer.Objects[2].(*widget.Label).SetText(fmt.Sprintf("TKA: %d", ps.KillsOn))
-			lowerContainer.Objects[3].(*widget.Label).SetText(fmt.Sprintf("TKB: %d", ps.DeathsBy))
-			lowerContainer.Objects[4].(*widget.Label).SetText(fmt.Sprintf("Ping: %d", ps.Ping))
-			lowerContainer.Objects[5].(*widget.Label).SetText(ps.Connected.String())
-			lowerContainer.Refresh()
-		}
 		btn := upperContainer.Objects[1].(*menuButton)
-		btn.menu = ui.generateUserMenu(ps.SteamId, ps.UserId)
-		btn.menu.Refresh()
+		btn.menu = screen.menuCreator(screen.window, ps.SteamId, ps.UserId)
 		if ps.Avatar != nil {
 			btn.Icon = ps.Avatar
 		}
@@ -328,7 +393,6 @@ func (ui *Ui) createPlayerList(compact bool) *baseListWidget {
 		if len(vacState) == 0 && !ps.IsMatched() {
 			vacState = append(vacState, symbolOk)
 			vacStyle = stlOk
-
 		}
 		vacMsg := strings.Join(vacState, ", ")
 		vacMsgFull := ""
@@ -351,12 +415,68 @@ func (ui *Ui) createPlayerList(compact bool) *baseListWidget {
 		vacLabel.Segments = []widget.RichTextSegment{
 			&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
 		}
+		lc.Refresh()
 		vacLabel.Refresh()
-		upperContainer.Refresh()
 		rootContainer.Refresh()
-		pl.objectMu.Unlock()
+		screen.objectMu.Unlock()
 
 	}
-	pl.SetupList(createItem, updateItem)
-	return pl
+
+	screen.containerHeading = container.NewBorder(
+		nil,
+		nil,
+		screen.toolbar,
+		container.NewHBox(sortSelect),
+		container.NewCenter(screen.labelPlayersHeading),
+	)
+	screen.containerStatPanel = container.NewHBox(
+		screen.labelMap,
+		screen.labelHostname,
+	)
+	screen.createMainMenu()
+	screen.window.Resize(fyne.NewSize(800, 990))
+	screen.window.SetCloseIntercept(func() {
+		screen.app.Quit()
+	})
+
+	screen.list = widget.NewListWithData(screen.boundList, createItem, updateItem)
+	screen.content = container.NewVScroll(screen.list)
+	screen.window.SetContent(container.NewBorder(
+		screen.containerHeading,
+		screen.containerStatPanel,
+		nil,
+		nil,
+		screen.content),
+	)
+	return screen
+}
+
+func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showListsFunc func()) *widget.Toolbar {
+	wikiUrl, _ := url.Parse(urlHelp)
+	toolBar := widget.NewToolbar(
+		widget.NewToolbarAction(resourceTf2Png, func() {
+			if !settings.GetSteamId().Valid() {
+				showUserError("Must configure your steamid", parent)
+			} else {
+				launchFunc()
+			}
+		}),
+		widget.NewToolbarAction(theme.MailComposeIcon(), chatFunc),
+		widget.NewToolbarSeparator(),
+		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
+		widget.NewToolbarAction(theme.StorageIcon(), func() {
+			showListsFunc()
+		}),
+		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
+			platform.OpenFolder(settings.ConfigRoot())
+		}),
+		widget.NewToolbarSeparator(),
+		widget.NewToolbarAction(theme.HelpIcon(), func() {
+			if errOpenHelp := app.OpenURL(wikiUrl); errOpenHelp != nil {
+				log.Printf("Failed to open help url: %v\n", errOpenHelp)
+			}
+		}),
+		widget.NewToolbarAction(theme.InfoIcon(), aboutFunc),
+	)
+	return toolBar
 }

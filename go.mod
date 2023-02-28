@@ -19,6 +19,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.1
+	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
 	golang.org/x/sys v0.5.0
 	golang.org/x/text v0.7.0
 	gopkg.in/yaml.v2 v2.4.0

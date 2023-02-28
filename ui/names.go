@@ -1,25 +1,34 @@
 package ui
 
 import (
+	"context"
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/translations"
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
 	"sync"
 	"time"
 )
 
-type userNameList struct {
-	list        *widget.List
-	boundList   binding.ExternalUntypedList
-	content     fyne.CanvasObject
-	objectMu    sync.RWMutex
-	boundListMu sync.RWMutex
+type userNameWindow struct {
+	fyne.Window
+
+	list              *widget.List
+	boundList         binding.ExternalUntypedList
+	content           fyne.CanvasObject
+	objectMu          sync.RWMutex
+	boundListMu       sync.RWMutex
+	messageCount      binding.Int
+	autoScrollEnabled binding.Bool
 }
 
-func (nameList *userNameList) Reload(rr []model.UserNameHistory) error {
+func (nameList *userNameWindow) Reload(rr []model.UserNameHistory) error {
 	bl := make([]interface{}, len(rr))
 	for i, r := range rr {
 		bl[i] = r
@@ -37,12 +46,21 @@ func (nameList *userNameList) Reload(rr []model.UserNameHistory) error {
 }
 
 // Widget returns the actual select list widget.
-func (nameList *userNameList) Widget() *widget.List {
+func (nameList *userNameWindow) Widget() *widget.List {
 	return nameList.list
 }
 
-func (ui *Ui) createUserNameList() *userNameList {
-	unl := &userNameList{}
+func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
+	appWindow := app.NewWindow(translations.Tr(&i18n.Message{ID: string(translations.WindowNameHistory)}, 1, map[string]interface{}{
+		"SteamId": sid64,
+	}))
+
+	unl := &userNameWindow{
+		Window:            appWindow,
+		boundList:         binding.BindUntypedList(&[]interface{}{}),
+		autoScrollEnabled: binding.NewBool(),
+		messageCount:      binding.NewInt(),
+	}
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	userMessageListWidget := widget.NewListWithData(
 		boundList,
@@ -73,5 +91,16 @@ func (ui *Ui) createUserNameList() *userNameList {
 	unl.list = userMessageListWidget
 	unl.boundList = boundList
 	unl.content = container.NewVScroll(userMessageListWidget)
+	names, err := namesFunc(ctx, sid64)
+	if err != nil {
+		names = append(names, model.UserNameHistory{
+			NameId:    0,
+			Name:      fmt.Sprintf("No names found for steamid: %d", sid64),
+			FirstSeen: time.Now(),
+		})
+	}
+	if errSet := unl.boundList.Set(names.AsAny()); errSet != nil {
+		log.Printf("Failed to set names list: %v\n", errSet)
+	}
 	return unl
 }
