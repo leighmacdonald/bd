@@ -822,8 +822,21 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 
 	}
 	if bd.settings.KickerEnabled {
-		if errVote := bd.callVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
-			log.Printf("Error calling vote: %v\n", errVote)
+		kickTag := false
+		for _, tag := range match.Attributes {
+			for _, allowedTag := range bd.settings.KickTags {
+				if strings.EqualFold(tag, allowedTag) {
+					kickTag = true
+					break
+				}
+			}
+		}
+		if kickTag {
+			if errVote := bd.callVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
+				log.Printf("Error calling vote: %v\n", errVote)
+			}
+		} else {
+			log.Printf("Skipping kick, no acceptable tag found")
 		}
 	}
 	bd.playersMu.Lock()

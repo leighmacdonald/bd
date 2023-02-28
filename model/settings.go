@@ -76,6 +76,7 @@ type Settings struct {
 	KickerEnabled          bool                 `yaml:"kicker_enabled"`
 	ChatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
 	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
+	KickTags               []string             `json:"kick_tags"`
 	Lists                  ListConfigCollection `yaml:"lists"`
 	Links                  []LinkConfig         `yaml:"links"`
 	RconStatic             bool                 `yaml:"rcon_static"`
@@ -130,6 +131,7 @@ func NewSettings() (*Settings, error) {
 		DisconnectedTimeout:    "60s",
 		DiscordPresenceEnabled: true,
 		KickerEnabled:          false,
+		KickTags:               []string{"cheater", "bot", "trigger_name", "trigger_msg"},
 		ChatWarningsEnabled:    false,
 		PartyWarningsEnabled:   true,
 		Lists: []*ListConfig{
@@ -297,7 +299,7 @@ func (s *Settings) Save() error {
 }
 
 func (s *Settings) WriteFilePath(filePath string) error {
-	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
+	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if errOpen != nil {
 		return errors.Wrapf(errOpen, "Failed to open Settings file for writing")
 	}

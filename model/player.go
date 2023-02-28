@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,7 @@ const (
 )
 
 type Player struct {
+	sync.RWMutex
 	// - Permanent storage backed
 
 	// SteamId is the 64bit steamid of the user

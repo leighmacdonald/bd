@@ -95,7 +95,7 @@ const customListTitle = "Custom List"
 func TestSteamRules(t *testing.T) {
 	const testSteamID = 76561197961279983
 	re, _ := NewEngine(nil, nil)
-	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID))
+	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
 	steamMatch := re.MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
 	require.Equal(t, customListTitle, steamMatch.Origin)
@@ -107,14 +107,14 @@ func TestTextRules(t *testing.T) {
 	require.NoError(t, reErr)
 	tr := genTestRules()
 	require.NoError(t, re.ImportRules(&tr))
+	testAttrs := []string{"test_attr"}
+	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
 
-	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, "test", "blah"))
-
-	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, `^test.+?`)
+	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, testAttrs, `^test.+?`)
 	require.NoError(t, eRm)
 	re.registerTextMatcher(rm)
 
-	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, `^t\s\x\t`)
+	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, testAttrs, `^t\s\x\t`)
 	require.Error(t, badRegex)
 
 	testCases := []struct {

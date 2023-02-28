@@ -11,7 +11,7 @@ import (
 )
 
 type aboutDialog struct {
-	dialog       dialog.Dialog
+	dialog.Dialog
 	labelBuiltBy *widget.RichText
 	labelDate    *widget.RichText
 	labelVersion *widget.RichText
@@ -62,7 +62,7 @@ func newAboutDialog(parent fyne.Window) *aboutDialog {
 			&widget.TextSegment{Text: runtime.Version(), Style: widget.RichTextStyleStrong},
 		),
 	}
-	about.dialog = dialog.NewCustom(
+	about.Dialog = dialog.NewCustom(
 		translations.One(translations.LabelAbout),
 		translations.One(translations.LabelClose),
 		container.NewVBox(

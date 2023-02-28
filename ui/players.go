@@ -41,7 +41,7 @@ type playerWindow struct {
 
 	bindingPlayerCount binding.Int
 
-	playerSortDir playerSortType
+	playerSortDir binding.String
 
 	containerHeading   *fyne.Container
 	containerStatPanel *fyne.Container
@@ -59,8 +59,13 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 	sort.Slice(players, func(i, j int) bool {
 		return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
 	})
+	sortType, errGet := screen.playerSortDir.Get()
+	if errGet != nil {
+		log.Printf("Failed to get sort dir: %v\n", errGet)
+		sortType = string(playerSortTeam)
+	}
 	// Apply secondary ordering
-	switch screen.playerSortDir {
+	switch playerSortType(sortType) {
 	case playerSortKills:
 		sort.SliceStable(players, func(i, j int) bool {
 			return players[i].Kills > players[j].Kills
@@ -112,7 +117,6 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 	if errReboot := screen.Reload(players); errReboot != nil {
 		log.Printf("Faile to reboot data: %v\n", errReboot)
 	}
-	screen.content.Refresh()
 }
 
 func (screen *playerWindow) UpdateServerState(state model.Server) {
@@ -141,7 +145,8 @@ func (screen *playerWindow) Reload(rr model.PlayerCollection) error {
 	if errReload := screen.boundList.Reload(); errReload != nil {
 		return errReload
 	}
-	screen.list.ScrollToBottom()
+
+	screen.list.Refresh()
 	screen.onReload(len(bl))
 	return nil
 }
@@ -184,7 +189,7 @@ func (screen *playerWindow) createMainMenu() {
 		}
 	})
 	screen.window.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
-		screen.aboutDialog.dialog.Show()
+		screen.aboutDialog.Show()
 	})
 	fm := fyne.NewMenu("Bot Detector",
 		&fyne.MenuItem{
@@ -243,7 +248,7 @@ func (screen *playerWindow) createMainMenu() {
 			Label:    translations.One(translations.LabelAbout),
 			Shortcut: shortCutAbout,
 			Icon:     theme.InfoIcon(),
-			Action:   screen.aboutDialog.dialog.Show},
+			Action:   screen.aboutDialog.Show},
 	)
 	screen.window.SetMainMenu(fyne.NewMainMenu(fm, hm))
 }
@@ -272,7 +277,12 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 			&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 		),
-		playerSortDir: playerSortStatus,
+		playerSortDir: binding.BindPreferenceString("sort_dir", app.Preferences()),
+	}
+	if sortDir, getErr := screen.playerSortDir.Get(); getErr != nil && sortDir == "" {
+		if errSetSort := screen.playerSortDir.Set(string(playerSortTeam)); errSetSort != nil {
+			log.Printf("Failed to set initial sort dir: %s\n", errSetSort)
+		}
 	}
 	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
 	screen.settingsDialog = newSettingsDialog(screen.window, boundSettings, settings)
@@ -288,11 +298,11 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		screen.window,
 		settings,
 		func() {
-			showChatWindowFunc()
+			screen.onShowChat()
 		}, func() {
 			screen.settingsDialog.Show()
 		}, func() {
-			screen.aboutDialog.dialog.Show()
+			screen.aboutDialog.Show()
 		},
 		screen.callBacks.gameLauncherFunc,
 		func() {
@@ -304,7 +314,9 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		dirNames = append(dirNames, string(dir))
 	}
 	sortSelect := widget.NewSelect(dirNames, func(s string) {
-		screen.playerSortDir = playerSortType(s)
+		if errSet := screen.playerSortDir.Set(s); errSet != nil {
+			log.Printf("Failed to set sort dir: %v\n", errSet)
+		}
 		v, _ := screen.boundList.Get()
 		var sorted model.PlayerCollection
 		for _, p := range v {
@@ -342,6 +354,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
 		ps := obj.(*model.Player)
+		ps.RLock()
 
 		rootContainer := o.(*fyne.Container)
 		upperContainer := rootContainer.Objects[0].(*fyne.Container)
@@ -368,7 +381,6 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		} else {
 			nameStyle.ColorName = theme.ColorNamePrimary
 		}
-
 		profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: nameStyle}}
 		profileLabel.Refresh()
 		var vacState []string
@@ -402,8 +414,11 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		matchLabel := lc.Objects[0].(*widget.RichText)
 		if ps.IsMatched() {
 			matchLabel.Segments = []widget.RichTextSegment{
-				&widget.TextSegment{Text: fmt.Sprintf("Match: %s [%s]", ps.Match.Origin, ps.Match.MatcherType), Style: vacStyle},
+				&widget.TextSegment{Text: fmt.Sprintf("%s [%s]", ps.Match.Origin, ps.Match.MatcherType),
+					Style: vacStyle},
 			}
+		} else {
+			matchLabel.Segments = nil
 		}
 		matchLabel.Refresh()
 		vacLabel := lc.Objects[1].(*widget.RichText)
@@ -413,10 +428,9 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		lc.Refresh()
 		vacLabel.Refresh()
 		rootContainer.Refresh()
+		ps.RUnlock()
 		screen.objectMu.Unlock()
-
 	}
-
 	screen.containerHeading = container.NewBorder(
 		nil,
 		nil,
@@ -433,7 +447,6 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 	screen.window.SetCloseIntercept(func() {
 		screen.app.Quit()
 	})
-
 	screen.list = widget.NewListWithData(screen.boundList, createItem, updateItem)
 	screen.content = container.NewVScroll(screen.list)
 	screen.window.SetContent(container.NewBorder(

@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"log"
 	"path/filepath"
+	"strings"
 )
 
 type boundSettings struct {
@@ -31,6 +32,14 @@ func (s *boundSettings) getBoundStringDefault(key string, def string) binding.St
 	return binding.BindString(&v)
 }
 
+func (s *boundSettings) getBoundStringListDefault(key string, def []string) binding.StringList {
+	value, apiKeyErr := s.GetValue(key)
+	if apiKeyErr != nil {
+		value = def
+	}
+	v := value.([]string)
+	return binding.BindStringList(&v)
+}
 func (s *boundSettings) getBoundBoolDefault(key string, def bool) binding.Bool {
 	value, apiKeyErr := s.GetValue(key)
 	if apiKeyErr != nil {
@@ -153,10 +162,32 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	rconModeStaticEntry := widget.NewCheckWithData("Static", rconModeStatic)
 
 	staticConfig := model.NewRconConfig(true)
+	boundTags := binding.NewString()
+	if errSet := boundTags.Set(strings.Join(settings.KickTags, ",")); errSet != nil {
+		log.Printf("Failed to set tags: %v\n", errSet)
+	}
+
+	tagsEntry := widget.NewEntryWithData(boundTags)
+
+	tagsEntry.Validator = func(s string) error {
+		var validTags []string
+		for _, tag := range strings.Split(s, ",") {
+			normalized := strings.Trim(tag, " ")
+			for _, vt := range validTags {
+				if strings.EqualFold(vt, normalized) {
+					return errors.Errorf("Duplicate tag found: %s", vt)
+				}
+			}
+			validTags = append(validTags, normalized)
+		}
+		return nil
+	}
 
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
 			{Text: "Vote Kicker", Widget: kickerEnabledEntry, HintText: "Enable vote kick functionality in-game"},
+			{Text: "Kickable Tags", Widget: tagsEntry,
+				HintText: "Attributes/Tags that when matched will trigger a in-game kick."},
 			{Text: "Chat Warnings", Widget: chatWarningsEnabledEntry, HintText: "Show warning message using in-game chat"},
 			{Text: "Party Warnings", Widget: partyWarningsEnabledEntry, HintText: "Show lobby only warning messages"},
 			{Text: "Discord Presence", Widget: discordPresenceEnabledEntry, HintText: "Enables discord rich presence if discord is running"},
@@ -169,35 +200,49 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 			{Text: "RCON Mode", Widget: rconModeStaticEntry,
 				HintText: fmt.Sprintf("Static: Port: %d, Password: %s", staticConfig.Port(), staticConfig.Password())},
 		},
-		OnSubmit: func() {
-			settings.Lock()
-			// Update it to our preferred format
-			if steamIdEntry.Text != "" {
-				newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
-				if errSid != nil {
-					// Should never happen? was validated previously.
-					log.Panicf("Steamid state invalid?: %v\n", errSid)
-				}
-				settings.SteamID = newSid.String()
-				steamIdEntry.SetText(newSid.String())
-			}
-			settings.ApiKey = apiKeyEntry.Text
-			settings.SteamDir = steamDirEntry.Text
-			settings.TF2Dir = tf2RootEntry.Text
-			settings.KickerEnabled = kickerEnabledEntry.Checked
-			settings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
-			settings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
-			settings.RconStatic = rconModeStaticEntry.Checked
-			settings.Unlock()
-			if apiKeyOriginal != apiKeyEntry.Text {
-				if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
-					log.Printf("Failed to set new steam key: %v\n", errSetKey)
-				}
-			}
-		},
 	}
 
 	settingsWindow := dialog.NewCustom("Settings", "Cancel", container.NewVScroll(settingsForm), parent)
-	settingsWindow.Resize(fyne.NewSize(750, 700))
+
+	settingsForm.OnSubmit = func() {
+		settings.Lock()
+		// Update it to our preferred format
+		if steamIdEntry.Text != "" {
+			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
+			if errSid != nil {
+				// Should never happen? was validated previously.
+				log.Panicf("Steamid state invalid?: %v\n", errSid)
+			}
+			settings.SteamID = newSid.String()
+			steamIdEntry.SetText(newSid.String())
+		}
+		var newTags []string
+		for _, t := range strings.Split(tagsEntry.Text, ",") {
+			if t == "" {
+				continue
+			}
+			newTags = append(newTags, strings.Trim(t, " "))
+		}
+		settings.KickTags = newTags
+		settings.ApiKey = apiKeyEntry.Text
+		settings.SteamDir = steamDirEntry.Text
+		settings.TF2Dir = tf2RootEntry.Text
+		settings.KickerEnabled = kickerEnabledEntry.Checked
+		settings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
+		settings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
+		settings.RconStatic = rconModeStaticEntry.Checked
+		settings.Unlock()
+		if apiKeyOriginal != apiKeyEntry.Text {
+			if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
+				log.Printf("Failed to set new steam key: %v\n", errSetKey)
+			}
+		}
+		if errSave := settings.Save(); errSave != nil {
+			log.Printf("Failed to save settings: %v\n", errSave)
+		}
+		settingsWindow.Hide()
+	}
+	settingsForm.Refresh()
+	settingsWindow.Resize(fyne.NewSize(750, 800))
 	return settingsWindow
 }

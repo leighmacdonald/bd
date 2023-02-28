@@ -82,6 +82,7 @@ type ruleTriggerNameMatch struct {
 	CaseSensitive bool          `json:"case_sensitive" yaml:"case_sensitive"`
 	Mode          textMatchMode `json:"mode" yaml:"mode"`
 	Patterns      []string      `json:"patterns" yaml:"patterns"`
+	Attributes    []string      `json:"attributes" yaml:"attributes"` // New
 }
 
 type ruleTriggerAvatarMatch struct {
@@ -92,6 +93,7 @@ type ruleTriggerTextMatch struct {
 	CaseSensitive bool          `json:"case_sensitive"`
 	Mode          textMatchMode `json:"mode"`
 	Patterns      []string      `json:"patterns"`
+	Attributes    []string      `json:"attributes" yaml:"attributes"` // New
 }
 
 type ruleTriggers struct {

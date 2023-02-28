@@ -57,6 +57,7 @@ type Engine struct {
 	rulesLists     []*RuleSchema
 	playerLists    []*PlayerListSchema
 	knownTags      []string
+	skipTags       []string
 }
 
 type MarkOpts struct {
@@ -67,6 +68,9 @@ type MarkOpts struct {
 }
 
 func (e *Engine) Mark(opts MarkOpts) error {
+	if len(opts.Attributes) == 0 {
+		return errors.New("Invalid attribute count")
+	}
 	e.Lock()
 	for _, knownPlayer := range e.playerLists[0].Players {
 		if knownPlayer.SteamID == opts.SteamID {
@@ -84,7 +88,7 @@ func (e *Engine) Mark(opts MarkOpts) error {
 		Proof:   opts.Proof,
 	})
 	e.Unlock()
-	e.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID))
+	e.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
 	return nil
 }
 
@@ -129,23 +133,32 @@ func (e *Engine) ExportRules(listName string, w io.Writer) error {
 func (e *Engine) ImportRules(list *RuleSchema) error {
 	for _, rule := range list.Rules {
 		if rule.Triggers.UsernameTextMatch != nil {
+			attrs := rule.Triggers.UsernameTextMatch.Attributes
+			if len(attrs) == 0 {
+				attrs = append(attrs, "trigger_name")
+			}
 			e.registerTextMatcher(newGeneralTextMatcher(
 				list.FileInfo.Title,
 				textMatchTypeName,
 				rule.Triggers.UsernameTextMatch.Mode,
 				rule.Triggers.UsernameTextMatch.CaseSensitive,
+				attrs,
 				rule.Triggers.UsernameTextMatch.Patterns...))
 		}
 
 		if rule.Triggers.ChatMsgTextMatch != nil {
+			attrs := rule.Triggers.ChatMsgTextMatch.Attributes
+			if len(attrs) == 0 {
+				attrs = append(attrs, "trigger_msg")
+			}
 			e.registerTextMatcher(newGeneralTextMatcher(
 				list.FileInfo.Title,
 				textMatchTypeMessage,
 				rule.Triggers.ChatMsgTextMatch.Mode,
 				rule.Triggers.ChatMsgTextMatch.CaseSensitive,
+				attrs,
 				rule.Triggers.ChatMsgTextMatch.Patterns...))
 		}
-
 		if len(rule.Triggers.AvatarMatch) > 0 {
 			var hashes []string
 			for _, h := range rule.Triggers.AvatarMatch {
@@ -186,7 +199,7 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 			log.Printf("tried to import invalid steamdid: %v", player.SteamID)
 			continue
 		}
-		e.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID))
+		e.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID, player.Attributes))
 		playerAttrs = append(playerAttrs, player.Attributes...)
 		count++
 	}
