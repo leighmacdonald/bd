@@ -195,8 +195,10 @@ func (screen *playerWindow) createMainMenu() {
 		&fyne.MenuItem{
 			Shortcut: shortCutLaunch,
 			Label:    translations.One(translations.LabelLaunch),
-			Action:   screen.callBacks.gameLauncherFunc,
-			Icon:     resourceTf2Png,
+			Action: func() {
+				go screen.callBacks.gameLauncherFunc()
+			},
+			Icon: resourceTf2Png,
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutChat,
@@ -304,7 +306,9 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		}, func() {
 			screen.aboutDialog.Show()
 		},
-		screen.callBacks.gameLauncherFunc,
+		func() {
+			go screen.callBacks.gameLauncherFunc()
+		},
 		func() {
 			screen.listsDialog.Show()
 		})
