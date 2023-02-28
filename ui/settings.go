@@ -32,14 +32,6 @@ func (s *boundSettings) getBoundStringDefault(key string, def string) binding.St
 	return binding.BindString(&v)
 }
 
-func (s *boundSettings) getBoundStringListDefault(key string, def []string) binding.StringList {
-	value, apiKeyErr := s.GetValue(key)
-	if apiKeyErr != nil {
-		value = def
-	}
-	v := value.([]string)
-	return binding.BindStringList(&v)
-}
 func (s *boundSettings) getBoundBoolDefault(key string, def bool) binding.Bool {
 	value, apiKeyErr := s.GetValue(key)
 	if apiKeyErr != nil {

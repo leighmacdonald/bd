@@ -57,7 +57,6 @@ type Engine struct {
 	rulesLists     []*RuleSchema
 	playerLists    []*PlayerListSchema
 	knownTags      []string
-	skipTags       []string
 }
 
 type MarkOpts struct {

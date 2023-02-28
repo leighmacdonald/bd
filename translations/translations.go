@@ -69,9 +69,9 @@ func One(key Key) string {
 }
 
 func init() {
-	bundle = i18n.NewBundle(language.English)
+	bundle = i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
-	for _, langFile := range []string{"active.en.yaml"} {
+	for _, langFile := range []string{"active.en.yaml", "ru.yaml"} {
 		_, errLoad := bundle.LoadMessageFileFS(localeFS, langFile)
 		if errLoad != nil {
 			log.Fatalf(errLoad.Error())

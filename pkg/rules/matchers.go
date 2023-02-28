@@ -51,7 +51,7 @@ func (m avatarMatcher) Type() avatarMatchType {
 func (m avatarMatcher) Match(hexDigest string) *MatchResult {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
-			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
+			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type()), Attributes: m.attributes}
 		}
 	}
 	return nil

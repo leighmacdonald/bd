@@ -140,7 +140,7 @@ func TestTextRules(t *testing.T) {
 			require.Equal(t, tc.matched, re.MatchMessage(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-	require.NoError(t, re.Mark(MarkOpts{}))
+	require.Error(t, re.Mark(MarkOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {
