@@ -176,17 +176,16 @@ func generateKickMenu(ctx context.Context, userId int64, kickFunc model.KickFunc
 	)
 }
 
-func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, steamId steamid.SID64, userId int64, kickFunc model.KickFunc,
-	knownAttributes binding.StringList, markFunc model.MarkFunc, links []model.LinkConfig,
-	createUserChat func(sid64 steamid.SID64), createNameHistory func(sid64 steamid.SID64)) *fyne.Menu {
+func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, steamId steamid.SID64, userId int64, cb callBacks,
+	knownAttributes binding.StringList, links []model.LinkConfig) *fyne.Menu {
 	menu := fyne.NewMenu("User Actions",
 		&fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: generateKickMenu(ctx, userId, kickFunc),
+			ChildMenu: generateKickMenu(ctx, userId, cb.kickFunc),
 			Label:     translations.One(translations.MenuCallVote)},
 		&fyne.MenuItem{
 			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, markFunc),
+			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, cb.markFn),
 			Label:     translations.One(translations.MenuMarkAs)},
 		&fyne.MenuItem{
 			Icon:      theme.SearchIcon(),
@@ -199,13 +198,13 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 		&fyne.MenuItem{
 			Icon: theme.ListIcon(),
 			Action: func() {
-				createUserChat(steamId)
+				cb.createUserChat(steamId)
 			},
 			Label: translations.One(translations.MenuChatHistory)},
 		&fyne.MenuItem{
 			Icon: theme.VisibilityIcon(),
 			Action: func() {
-				createNameHistory(steamId)
+				cb.createNameHistory(steamId)
 			},
 			Label: translations.One(translations.MenuNameHistory)},
 	)

@@ -50,7 +50,8 @@ type playerWindow struct {
 
 	menuCreator MenuCreator
 	onReload    func(count int)
-	onLaunch    model.LaunchFunc
+	callBacks   callBacks
+	avatarCache *avatarCache
 }
 
 func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
@@ -160,7 +161,7 @@ func (screen *playerWindow) createMainMenu() {
 	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 
 	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
-		screen.onLaunch()
+		screen.callBacks.gameLauncherFunc()
 	})
 	screen.window.Canvas().AddShortcut(shortCutChat, func(shortcut fyne.Shortcut) {
 		screen.onShowChat()
@@ -189,7 +190,7 @@ func (screen *playerWindow) createMainMenu() {
 		&fyne.MenuItem{
 			Shortcut: shortCutLaunch,
 			Label:    translations.One(translations.LabelLaunch),
-			Action:   screen.onLaunch,
+			Action:   screen.callBacks.gameLauncherFunc,
 			Icon:     resourceTf2Png,
 		},
 		&fyne.MenuItem{
@@ -251,22 +252,18 @@ const symbolOk = "✓"
 const symbolBad = "✗"
 
 // ┌─────┬───────────────────────────────────────────────────┐
-// │  X  │ profile name                          │   Vac..   │
+// │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-// │ K: 10  A: 66                                            │
-// └─────────────────────────────────────────────────────────┘
-func newPlayerWindow(app fyne.App, settings *model.Settings,
-	boundSettings boundSettings, showChatWindowFunc func(), launchFunc func(), menuCreator MenuCreator) *playerWindow {
-	window := app.NewWindow("Bot Detector")
-
+func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(), callbacks callBacks, menuCreator MenuCreator, cache *avatarCache) *playerWindow {
 	screen := &playerWindow{
 		app:                app,
-		window:             window,
+		window:             app.NewWindow("Bot Detector"),
 		boundList:          binding.BindUntypedList(&[]interface{}{}),
 		bindingPlayerCount: binding.NewInt(),
 		onShowChat:         showChatWindowFunc,
-		onLaunch:           launchFunc,
+		callBacks:          callbacks,
 		menuCreator:        menuCreator,
+		avatarCache:        cache,
 		labelHostname: widget.NewRichText(
 			&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
@@ -280,7 +277,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings,
 	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
 	screen.settingsDialog = newSettingsDialog(screen.window, boundSettings, settings)
 	screen.listsDialog = newRuleListConfigDialog(screen.window, settings.Save, settings)
-	screen.aboutDialog = newAboutDialog(window)
+	screen.aboutDialog = newAboutDialog(screen.window)
 	screen.onReload = func(count int) {
 		if errSet := screen.bindingPlayerCount.Set(count); errSet != nil {
 			log.Printf("Failed to update player count: %v\n", errSet)
@@ -297,7 +294,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings,
 		}, func() {
 			screen.aboutDialog.dialog.Show()
 		},
-		screen.onLaunch,
+		screen.callBacks.gameLauncherFunc,
 		func() {
 			screen.listsDialog.Show()
 		})
@@ -351,9 +348,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings,
 
 		btn := upperContainer.Objects[1].(*menuButton)
 		btn.menu = screen.menuCreator(screen.window, ps.SteamId, ps.UserId)
-		if ps.Avatar != nil {
-			btn.Icon = ps.Avatar
-		}
+		btn.Icon = screen.avatarCache.GetAvatar(ps.SteamId)
 		btn.Refresh()
 
 		profileLabel := upperContainer.Objects[0].(*widget.RichText)

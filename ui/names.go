@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/translations"
@@ -21,10 +22,9 @@ type userNameWindow struct {
 
 	list              *widget.List
 	boundList         binding.ExternalUntypedList
-	content           fyne.CanvasObject
 	objectMu          sync.RWMutex
 	boundListMu       sync.RWMutex
-	messageCount      binding.Int
+	nameCount         binding.Int
 	autoScrollEnabled binding.Bool
 }
 
@@ -54,16 +54,21 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 	appWindow := app.NewWindow(translations.Tr(&i18n.Message{ID: string(translations.WindowNameHistory)}, 1, map[string]interface{}{
 		"SteamId": sid64,
 	}))
-
+	appWindow.SetCloseIntercept(func() {
+		appWindow.Hide()
+	})
 	unl := &userNameWindow{
 		Window:            appWindow,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
-		messageCount:      binding.NewInt(),
+		nameCount:         binding.NewInt(),
 	}
-	boundList := binding.BindUntypedList(&[]interface{}{})
+	if errSet := unl.autoScrollEnabled.Set(true); errSet != nil {
+		log.Printf("Failed to set default autoscroll: %v\n", errSet)
+	}
+
 	userMessageListWidget := widget.NewListWithData(
-		boundList,
+		unl.boundList,
 		func() fyne.CanvasObject {
 			return container.NewBorder(
 				nil,
@@ -89,8 +94,7 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 			unl.objectMu.Unlock()
 		})
 	unl.list = userMessageListWidget
-	unl.boundList = boundList
-	unl.content = container.NewVScroll(userMessageListWidget)
+
 	names, err := namesFunc(ctx, sid64)
 	if err != nil {
 		names = append(names, model.UserNameHistory{
@@ -102,5 +106,25 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 	if errSet := unl.boundList.Set(names.AsAny()); errSet != nil {
 		log.Printf("Failed to set names list: %v\n", errSet)
 	}
+	if errSetCount := unl.nameCount.Set(unl.boundList.Length()); errSetCount != nil {
+		log.Printf("Failed to set name count: %v", errSetCount)
+	}
+	unl.SetContent(container.NewBorder(
+		container.NewBorder(
+			nil,
+			nil,
+			container.NewHBox(
+				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), unl.autoScrollEnabled),
+				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), unl.list.ScrollToBottom),
+			),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(unl.nameCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
+			widget.NewLabel(""),
+		),
+		nil,
+		nil,
+		nil,
+		container.NewVScroll(unl.list)))
+	unl.Resize(fyne.NewSize(600, 600))
+	unl.Show()
 	return unl
 }

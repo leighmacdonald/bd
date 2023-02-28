@@ -80,7 +80,7 @@ func (e *Engine) Mark(opts MarkOpts) error {
 			Time:       int(time.Now().Unix()),
 			PlayerName: opts.Name,
 		},
-		SteamID: opts.SteamID,
+		SteamID: opts.SteamID.String(),
 		Proof:   opts.Proof,
 	})
 	e.Unlock()
@@ -167,6 +167,7 @@ func (e *Engine) ImportRules(list *RuleSchema) error {
 // ImportPlayers loads the provided player list for matching
 func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 	var playerAttrs []string
+	var count int
 	for _, player := range list.Players {
 		var steamID steamid.SID64
 		// Some entries can be raw number types in addition to strings...
@@ -187,6 +188,7 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 		}
 		e.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID))
 		playerAttrs = append(playerAttrs, player.Attributes...)
+		count++
 	}
 	e.Lock()
 	for _, newTag := range playerAttrs {
@@ -203,6 +205,7 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 	}
 	e.playerLists = append(e.playerLists, list)
 	e.Unlock()
+	log.Printf("[%s] Loaded %d players\n", list.FileInfo.Title, count)
 	return nil
 }
 

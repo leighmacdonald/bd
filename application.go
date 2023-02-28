@@ -544,7 +544,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				log.Printf("Failed to download avatar [%s]: %v\n", p.AvatarHash, errDownload)
 				continue
 			}
-			p.SetAvatar(p.AvatarHash, avatar)
+			bd.gui.SetAvatar(sid64, avatar)
 			queueUpdate = true
 		case update := <-bd.gameStateUpdate:
 			var sourcePlayer *model.Player
@@ -758,13 +758,6 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 // TODO Use channels for communicating instead
 func (bd *BD) AttachGui(gui ui.UserInterface) {
 	gui.SetBuildInfo(version, commit, date, builtBy)
-	gui.SetOnLaunchTF2(func() {
-		go bd.launchGameAndWait()
-	})
-	gui.SetOnKick(func(ctx context.Context, userId int64, reason model.KickReason) error {
-		return bd.callVote(ctx, userId, reason)
-	})
-
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }

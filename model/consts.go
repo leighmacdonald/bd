@@ -40,6 +40,8 @@ const (
 	EvtLobby
 )
 
+type SteamIDFunc func(sid64 steamid.SID64)
+
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
 
 type KickReason string

@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/translations"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"log"
 	"sync"
@@ -19,35 +18,43 @@ import (
 )
 
 type gameChatWindow struct {
+	window            fyne.Window
 	ctx               context.Context
 	app               fyne.App
-	window            fyne.Window
 	list              *widget.List
 	boundList         binding.UntypedList
-	objectMu          sync.RWMutex
-	boundListMu       sync.RWMutex
+	objectMu          *sync.RWMutex
+	boundListMu       *sync.RWMutex
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
+	avatarCache       *avatarCache
+	cb                callBacks
 }
 
-func newGameChatWindow(ctx context.Context, app fyne.App, kickFunc model.KickFunc, attrs binding.StringList, markFunc model.MarkFunc,
-	settings *model.Settings, createUserChat func(sid64 steamid.SID64), createNameHistory func(sid64 steamid.SID64)) *gameChatWindow {
-	chatWindow := app.NewWindow(translations.One(translations.WindowChatHistoryGame))
-	chatWindow.Canvas().AddShortcut(
+func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs binding.StringList, settings *model.Settings, cache *avatarCache) *gameChatWindow {
+	window := app.NewWindow(translations.One(translations.WindowChatHistoryGame))
+	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
-			chatWindow.Hide()
+			window.Hide()
 		})
-
-	window := gameChatWindow{
+	window.SetCloseIntercept(func() {
+		window.Hide()
+	})
+	gcw := gameChatWindow{
+		window:            window,
 		ctx:               ctx,
 		app:               app,
-		window:            chatWindow,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
+		boundListMu:       &sync.RWMutex{},
+		objectMu:          &sync.RWMutex{},
+		avatarCache:       cache,
+		cb:                cb,
 	}
-	if errSet := window.autoScrollEnabled.Set(true); errSet != nil {
+
+	if errSet := gcw.autoScrollEnabled.Set(true); errSet != nil {
 		log.Printf("Failed to set default autoscroll: %v\n", errSet)
 	}
 
@@ -67,7 +74,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, kickFunc model.KickFun
 			return
 		}
 		um := obj.(model.UserMessage)
-		window.objectMu.Lock()
+		gcw.objectMu.Lock()
 		rootContainer := o.(*fyne.Container)
 		timeAndProfileContainer := rootContainer.Objects[1].(*fyne.Container)
 		timeStamp := timeAndProfileContainer.Objects[0].(*widget.Label)
@@ -76,9 +83,9 @@ func newGameChatWindow(ctx context.Context, app fyne.App, kickFunc model.KickFun
 
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
 		profileButton.SetText(um.Player)
-		profileButton.menu = generateUserMenu(window.ctx, app, window.window, um.PlayerSID, um.UserId,
-			kickFunc, attrs, markFunc, settings.Links, createUserChat, createNameHistory)
-		profileButton.menu.Refresh()
+		profileButton.SetIcon(gcw.avatarCache.GetAvatar(um.PlayerSID))
+		profileButton.menu = generateUserMenu(gcw.ctx, app, gcw.window, um.PlayerSID, um.UserId, cb, attrs, settings.Links)
+		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline
 		if um.Team == model.Red {
@@ -92,32 +99,31 @@ func newGameChatWindow(ctx context.Context, app fyne.App, kickFunc model.KickFun
 		}
 		messageRichText.Refresh()
 
-		window.objectMu.Unlock()
+		gcw.objectMu.Unlock()
 	}
-	window.list = widget.NewListWithData(window.boundList, createFunc, updateFunc)
-	window.window.SetContent(container.NewBorder(
+	gcw.list = widget.NewListWithData(gcw.boundList, createFunc, updateFunc)
+	gcw.window.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), window.autoScrollEnabled),
-				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), window.list.ScrollToBottom),
+				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), gcw.autoScrollEnabled),
+				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), gcw.list.ScrollToBottom),
 				widget.NewButtonWithIcon(translations.One(translations.LabelClear), theme.ContentClearIcon(), func() {
-					if errReload := window.boundList.Set(nil); errReload != nil {
+					if errReload := gcw.boundList.Set(nil); errReload != nil {
 						log.Printf("Failed to clear chat: %v\n", errReload)
 					}
 				}),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(window.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(gcw.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
 			widget.NewLabel(""),
 		),
 		nil,
 		nil,
 		nil,
-		container.NewVScroll(window.list)))
-	chatWindow.Resize(fyne.NewSize(1000, 500))
-	window.window.Content().Refresh()
-	return &window
+		container.NewVScroll(gcw.list)))
+	gcw.window.Resize(fyne.NewSize(1000, 500))
+	return &gcw
 }
 
 func (gcw *gameChatWindow) append(msg any) error {

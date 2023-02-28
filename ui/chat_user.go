@@ -35,7 +35,9 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 		1, map[string]interface{}{
 			"SteamId": sid64,
 		}))
-
+	appWindow.SetCloseIntercept(func() {
+		appWindow.Hide()
+	})
 	window := userChatWindow{
 		Window:            appWindow,
 		app:               app,
@@ -105,7 +107,7 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 			Team:      0,
 			Player:    "Bot Detector",
 			PlayerSID: 0,
-			UserId:    69,
+			UserId:    -1,
 			Message:   "No messages",
 			Created:   time.Now(),
 			Dead:      false,
@@ -116,6 +118,5 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 		log.Printf("Failed to set messages: %v\n", errSet)
 	}
 	window.Resize(fyne.NewSize(600, 600))
-	window.Show()
 	return &window
 }

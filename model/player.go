@@ -2,10 +2,8 @@ package model
 
 import (
 	"fmt"
-	"fyne.io/fyne/v2"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"log"
 	"time"
 )
 
@@ -53,7 +51,6 @@ type Player struct {
 	AccountCreatedOn time.Time
 
 	Visibility ProfileVisibility
-	Avatar     fyne.Resource // TODO store somewhere else so we dont couple ui item to the model
 	AvatarHash string
 
 	// PlayerBanState
@@ -150,17 +147,6 @@ func AvatarUrl(hash string) string {
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarUrl, firstN(avatarHash, 2), avatarHash)
 }
 
-func (ps *Player) SetAvatar(hash string, buf []byte) {
-	res := fyne.NewStaticResource(fmt.Sprintf("%s.jpg", hash), buf)
-	if res == nil {
-		log.Printf("Failed to load avatar\n")
-		return
-	} else {
-		ps.Avatar = res
-		ps.AvatarHash = rules.HashBytes(buf)
-	}
-}
-
 type PlayerCollection []*Player
 
 func (players PlayerCollection) AsAny() []any {
@@ -178,7 +164,6 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		RealName:         "",
 		NamePrevious:     "",
 		AccountCreatedOn: time.Time{},
-		Avatar:           nil,
 		AvatarHash:       "",
 		CommunityBanned:  false,
 		Visibility:       ProfileVisibilityPublic,

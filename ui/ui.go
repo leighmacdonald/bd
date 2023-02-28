@@ -24,12 +24,17 @@ const (
 	urlHelp = "https://github.com/leighmacdonald/bd/wiki"
 )
 
+func defaultApp() fyne.App {
+	application := app.NewWithID(AppId)
+	application.Settings().SetTheme(&bdTheme{})
+	application.SetIcon(resourceIconPng)
+	return application
+}
+
 type UserInterface interface {
 	Refresh()
 	Start()
 	SetBuildInfo(version string, commit string, date string, builtBy string)
-	SetOnLaunchTF2(func())
-	SetOnKick(kickFunc model.KickFunc)
 	UpdateServerState(state model.Server)
 	UpdatePlayerState(collection model.PlayerCollection)
 	AddUserMessage(message model.UserMessage)
@@ -41,28 +46,30 @@ type windows struct {
 	player      *playerWindow
 	chat        *gameChatWindow
 	chatHistory map[steamid.SID64]*userChatWindow
-	nameHistory map[steamid.SID64]fyne.Window
+	nameHistory map[steamid.SID64]*userNameWindow
+}
+
+type callBacks struct {
+	markFn                model.MarkFunc
+	kickFunc              model.KickFunc
+	queryNamesFunc        model.QueryNamesFunc
+	queryUserMessagesFunc model.QueryUserMessagesFunc
+	gameLauncherFunc      model.LaunchFunc
+	createUserChat        model.SteamIDFunc
+	createNameHistory     model.SteamIDFunc
 }
 
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
 
 type Ui struct {
-	ctx           context.Context
-	application   fyne.App
-	boundSettings boundSettings
-	settings      *model.Settings
-	//players               model.PlayerCollection
-	windows *windows
-
-	knownAttributes       binding.StringList
-	gameLauncherFunc      func()
-	markFn                model.MarkFunc
-	kickFunc              model.KickFunc
-	queryNamesFunc        model.QueryNamesFunc
-	queryUserMessagesFunc model.QueryUserMessagesFunc
-	userAvatarMu          *sync.RWMutex
-
-	userAvatar map[steamid.SID64]fyne.Resource
+	ctx             context.Context
+	application     fyne.App
+	boundSettings   boundSettings
+	settings        *model.Settings
+	windows         *windows
+	callBacks       callBacks
+	knownAttributes binding.StringList
+	avatarCache     *avatarCache
 }
 
 func (ui *Ui) UpdateServerState(state model.Server) {
@@ -71,13 +78,6 @@ func (ui *Ui) UpdateServerState(state model.Server) {
 
 func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 	ui.windows.player.updatePlayerState(collection)
-}
-
-func defaultApp() fyne.App {
-	application := app.NewWithID(AppId)
-	application.Settings().SetTheme(&bdTheme{})
-	application.SetIcon(resourceIconPng)
-	return application
 }
 
 func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc, namesFunc model.QueryNamesFunc,
@@ -90,33 +90,40 @@ func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc,
 		knownAttributes: binding.NewStringList(),
 		windows: &windows{
 			chatHistory: map[steamid.SID64]*userChatWindow{},
-			nameHistory: map[steamid.SID64]fyne.Window{},
+			nameHistory: map[steamid.SID64]*userNameWindow{},
 		},
-		userAvatarMu:          &sync.RWMutex{},
-		userAvatar:            make(map[steamid.SID64]fyne.Resource),
-		queryNamesFunc:        namesFunc,
-		queryUserMessagesFunc: messagesFunc,
-		kickFunc:              kickFunc,
-		gameLauncherFunc:      gameLaunchFunc,
+		avatarCache: &avatarCache{
+			RWMutex:    &sync.RWMutex{},
+			userAvatar: make(map[steamid.SID64]fyne.Resource),
+		},
+		callBacks: callBacks{
+			queryNamesFunc:        namesFunc,
+			queryUserMessagesFunc: messagesFunc,
+			kickFunc:              kickFunc,
+			markFn:                markFunc,
+			gameLauncherFunc:      gameLaunchFunc,
+		},
+	}
+	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {
+		ui.createChatHistoryWindow(sid64)
+	}
+	ui.callBacks.createNameHistory = func(sid64 steamid.SID64) {
+		ui.createNameHistoryWindow(sid64)
 	}
 
-	ui.windows.chat = newGameChatWindow(ui.ctx, ui.application, ui.kickFunc, ui.knownAttributes, markFunc, settings, func(sid64 steamid.SID64) {
-		ui.createChatHistoryWindow(sid64)
-	}, func(sid64 steamid.SID64) {
-		ui.createNameHistoryWindow(sid64)
-	})
+	ui.windows.chat = newGameChatWindow(ui.ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
 
 	ui.windows.player = newPlayerWindow(
 		ui.application,
 		settings,
-		ui.boundSettings, func() {
+		ui.boundSettings,
+		func() {
 			ui.windows.chat.window.Show()
 		},
-		ui.gameLauncherFunc,
+		ui.callBacks,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
-			return generateUserMenu(ui.ctx, ui.application, window, steamId, userId, ui.kickFunc, ui.knownAttributes, ui.markFn,
-				ui.settings.Links, ui.createChatHistoryWindow, ui.createNameHistoryWindow)
-		})
+			return generateUserMenu(ui.ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.Links)
+		}, ui.avatarCache)
 
 	return &ui
 }
@@ -125,39 +132,11 @@ func (ui *Ui) SetAvatar(sid64 steamid.SID64, data []byte) {
 	if !sid64.Valid() || data == nil {
 		return
 	}
-	ui.userAvatarMu.Lock()
-	ui.userAvatar[sid64] = fyne.NewStaticResource(sid64.String(), data)
-	ui.userAvatarMu.Unlock()
-}
-
-func (ui *Ui) GetAvatar(sid64 steamid.SID64) fyne.Resource {
-	ui.userAvatarMu.RLock()
-	defer ui.userAvatarMu.RUnlock()
-	av, found := ui.userAvatar[sid64]
-	if found {
-		return av
-	}
-	return resourceDefaultavatarJpg
+	ui.avatarCache.SetAvatar(sid64, data)
 }
 
 func (ui *Ui) SetBuildInfo(version string, commit string, date string, builtBy string) {
 	ui.windows.player.aboutDialog.SetBuildInfo(version, commit, date, builtBy)
-}
-
-func (ui *Ui) SetFetchMessageHistory(messagesFunc model.QueryUserMessagesFunc) {
-	ui.queryUserMessagesFunc = messagesFunc
-}
-
-func (ui *Ui) SetFetchNameHistory(namesFunc model.QueryNamesFunc) {
-	ui.queryNamesFunc = namesFunc
-}
-
-func (ui *Ui) SetOnMark(fn model.MarkFunc) {
-	ui.markFn = fn
-}
-
-func (ui *Ui) SetOnKick(fn model.KickFunc) {
-	ui.kickFunc = fn
 }
 
 func (ui *Ui) Refresh() {
@@ -202,24 +181,18 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 
 func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) {
 	_, found := ui.windows.chatHistory[sid64]
-	if found {
-		ui.windows.chatHistory[sid64].Show()
-	} else {
-		ui.windows.chatHistory[sid64] = newUserChatWindow(ui.ctx, ui.application, ui.queryUserMessagesFunc, sid64)
+	if !found {
+		ui.windows.chatHistory[sid64] = newUserChatWindow(ui.ctx, ui.application, ui.callBacks.queryUserMessagesFunc, sid64)
 	}
+	ui.windows.chatHistory[sid64].Show()
 }
 
 func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) {
 	_, found := ui.windows.nameHistory[sid64]
-	if found {
-		ui.windows.nameHistory[sid64].Show()
-	} else {
-		ui.windows.nameHistory[sid64] = newUserNameWindow(ui.ctx, ui.application, ui.queryNamesFunc, sid64)
+	if !found {
+		ui.windows.nameHistory[sid64] = newUserNameWindow(ui.ctx, ui.application, ui.callBacks.queryNamesFunc, sid64)
 	}
-}
-
-func (ui *Ui) SetOnLaunchTF2(fn func()) {
-	ui.gameLauncherFunc = fn
+	ui.windows.nameHistory[sid64].Show()
 }
 
 func (ui *Ui) Start() {
@@ -229,11 +202,6 @@ func (ui *Ui) Start() {
 
 func (ui *Ui) OnDisconnect(sid64 steamid.SID64) {
 	log.Printf("Player disconnected: %d", sid64.Int64())
-}
-
-func (ui *Ui) Run() {
-	ui.windows.player.window.Show()
-	ui.application.Run()
 }
 
 func showUserError(msg string, parent fyne.Window) {
