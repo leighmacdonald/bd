@@ -1,0 +1,98 @@
+label_launch:
+  one: Запустить TF2
+
+label_settings:
+  one: Настройки
+
+label_list_config:
+  one: Список Конфигураций
+
+label_chat_log:
+  one: Журнал Чата
+
+label_config_folder:
+  one: Открыть Папку Конфигураций
+
+label_help:
+  one: Помощь
+
+label_about:
+  one: Справка
+
+label_quit:
+  one: Выйти
+
+label_hostname:
+  one: "Имя Хоста: "
+
+label_map:
+  one: "Карта: "
+
+label_auto_scroll:
+  one: Авто Прокрутка
+
+label_bottom:
+  one: Кнопка
+
+label_clear:
+  one: Очистить
+
+label_close:
+  one: Закрыть
+
+label_apply:
+  one: Применить
+
+label_sort_by:
+  one: Сортировать По...
+
+label_attribute_name:
+  one: Имя Атрибута
+
+label_mark_as:
+  one: Пометить Как
+
+menu_vote_cheating:
+  one: "Игрок Использует Читы"
+
+menu_vote_idle:
+  one: "Игрок Бездействует"
+
+menu_vote_scamming:
+  one: "Игрок Пытался Обмануть Других"
+
+menu_vote_other:
+  one: "Без Причины"
+
+menu_call_vote:
+  one: "Начать Голосование..."
+
+menu_mark_as:
+  one: "Пометить Как..."
+
+menu_open_external:
+  one: "Открыть Во Внешнем..."
+
+menu_copy_steamid:
+  one: "Копировать SteamID..."
+
+menu_chat_history:
+  one: "Посмотреть Историю Чата"
+
+menu_name_history:
+  one: "Посмотреть Историю Имён"
+
+label_message_count:
+  one: "Счётчик Сообщений: "
+
+window_name_history:
+  one: "История Имён: {{ .SteamId }}"
+
+window_chat_history_user:
+  one: "История Чата: {{ .SteamId }}"
+
+window_chat_history_game:
+  one: "История Чата"
+
+window_mark_custom:
+  one: Отметить кастомным атрибутом
