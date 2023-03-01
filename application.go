@@ -40,6 +40,7 @@ type BD struct {
 	// - track history of interactions with players
 	// - colourise messages that trigger
 	// - auto launch tf2 upon open
+	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
 
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
