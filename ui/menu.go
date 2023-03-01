@@ -69,11 +69,11 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 	entry := widget.NewEntry()
 	entry.Validator = func(s string) error {
 		if s == "" {
-			return errors.New("Empty attribute name")
+			return errors.New(translations.One(translations.ErrorAttributeEmpty))
 		}
 		for _, knownAttr := range knownAttributes {
 			if strings.EqualFold(knownAttr, s) {
-				return errors.New("Duplicate attribute name")
+				return errors.New(translations.One(translations.ErrorAttributeDuplicate))
 			}
 		}
 		return nil
@@ -142,7 +142,7 @@ func generateExternalLinksMenu(steamId steamid.SID64, links []model.LinkConfig, 
 }
 
 func generateSteamIdMenu(window fyne.Window, steamId steamid.SID64) *fyne.Menu {
-	m := fyne.NewMenu("Copy SteamID",
+	m := fyne.NewMenu(translations.One(translations.MenuCopySteamId),
 		fyne.NewMenuItem(fmt.Sprintf("%d", steamId), func() {
 			window.Clipboard().SetContent(fmt.Sprintf("%d", steamId))
 		}),

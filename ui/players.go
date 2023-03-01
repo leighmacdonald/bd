@@ -12,6 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/translations"
+	"github.com/pkg/errors"
 	"log"
 	"net/url"
 	"sort"
@@ -468,7 +469,7 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
 			if !settings.GetSteamId().Valid() {
-				showUserError("Must configure your steamid", parent)
+				showUserError(errors.New(translations.One(translations.ErrorSteamIdMisconfigured)), parent)
 			} else {
 				launchFunc()
 			}

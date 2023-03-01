@@ -53,10 +53,10 @@ func (aboutDialog *aboutDialog) SetBuildInfo(version string, commit string, date
 func newAboutDialog(parent fyne.Window) *aboutDialog {
 	u, _ := url.Parse(urlHome)
 	about := aboutDialog{
-		labelBuiltBy: widget.NewRichTextWithText("Built By: "),
-		labelDate:    widget.NewRichTextWithText("Build Date: "),
-		labelVersion: widget.NewRichTextWithText("Version: "),
-		labelCommit:  widget.NewRichTextWithText("Commit: "),
+		labelBuiltBy: widget.NewRichTextWithText(translations.One(translations.LabelAboutBuiltBy)),
+		labelDate:    widget.NewRichTextWithText(translations.One(translations.LabelAboutBuildDate)),
+		labelVersion: widget.NewRichTextWithText(translations.One(translations.LabelAboutVersion)),
+		labelCommit:  widget.NewRichTextWithText(translations.One(translations.LabelAboutCommit)),
 		labelGo: widget.NewRichText(
 			&widget.TextSegment{Text: "Go ", Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: runtime.Version(), Style: widget.RichTextStyleStrong},

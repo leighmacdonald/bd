@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
@@ -10,9 +9,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/model"
 	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/translations"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
 	"path/filepath"
@@ -62,27 +63,28 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	apiKeyOriginal, _ := apiKey.Get()
 	apiKeyEntry := widget.NewPasswordEntry()
 	apiKeyEntry.Bind(apiKey)
-	apiKeyEntry.Validator = func(s string) error {
-		if len(apiKeyEntry.Text) > 0 && len(apiKeyEntry.Text) != 32 {
-			return errors.New("Invalid api key")
+	apiKeyEntry.Validator = func(newApiKey string) error {
+		if len(newApiKey) > 0 && len(newApiKey) != 32 {
+			return errors.New(translations.One(translations.ErrorInvalidApiKey))
 		}
 		// Wait until all validation is complete to keep the setting
 		defer func() {
 			_ = steamweb.SetKey(apiKeyOriginal)
 		}()
-		if apiKeyEntry.Text == "" {
+		if newApiKey == "" {
 			return nil
 		}
-		if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
+		if errSetKey := steamweb.SetKey(newApiKey); errSetKey != nil {
 			return errSetKey
 		}
 		res, errRes := steamweb.PlayerSummaries(steamid.Collection{testSteamId})
 		if errRes != nil {
 			log.Printf("Failed to fetch player summary for validation: %v", errRes)
-			return errors.New("Could not validate api call")
+			return errors.New(translations.One(translations.ErrorValidateAPICall))
 		}
 		if len(res) != 1 {
-			return errors.New("Failed to fetch summary")
+			log.Printf("Received incorrect number of steam api validation call\n")
+			return errors.New(translations.One(translations.ErrorValidateAPICall))
 		}
 		return nil
 	}
@@ -90,47 +92,26 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	steamId := boundSettings.getBoundStringDefault("SteamID", "")
 	steamIdEntry := widget.NewEntry()
 	steamIdEntry.Bind(steamId)
-	steamIdEntry.Validator = func(s string) error {
-		if len(steamIdEntry.Text) > 0 {
-			_, err := steamid.StringToSID64(steamIdEntry.Text)
-			if err != nil {
-				return errors.New("Invalid Steam ID")
-			}
-		}
-
-		return nil
-	}
+	steamIdEntry.Validator = validateSteamId
 
 	tf2Dir := boundSettings.getBoundStringDefault("TF2Dir", platform.DefaultTF2Root)
 	tf2RootEntry := widget.NewEntryWithData(tf2Dir)
-	validateSteamDir := func(s string) error {
-		if len(tf2RootEntry.Text) > 0 {
-			if !golib.Exists(tf2RootEntry.Text) {
-				return errors.New("Path does not exist")
-			}
-			fp := filepath.Join(tf2RootEntry.Text, platform.TF2RootValidationFile)
-			if !golib.Exists(fp) {
-				return errors.Errorf("Could not find %s inside, invalid steam root", platform.TF2RootValidationFile)
-			}
-		}
-		return nil
-	}
-	tf2RootEntry.Validator = validateSteamDir
+	tf2RootEntry.Validator = validateSteamRoot
 
 	steamDir := boundSettings.getBoundStringDefault("SteamDir", platform.DefaultSteamRoot)
 	steamDirEntry := widget.NewEntryWithData(steamDir)
-	steamDirEntry.Validator = func(s string) error {
-		if len(steamDirEntry.Text) > 0 {
-			if !golib.Exists(steamDirEntry.Text) {
-				return errors.New("Path does not exist")
+	steamDirEntry.Validator = func(newRoot string) error {
+		if len(newRoot) > 0 {
+			if !golib.Exists(newRoot) {
+				return errors.New(translations.One(translations.ErrorInvalidPath))
 			}
-			userDataDir := filepath.Join(steamDirEntry.Text, "userdata")
+			userDataDir := filepath.Join(newRoot, "userdata")
 			if !golib.Exists(userDataDir) {
-				return errors.New("THe userdata folder not found in steam dir")
+				return errors.New(translations.One(translations.ErrorInvalidSteamDirUserData))
 			}
 			if tf2RootEntry.Text == "" {
-				dp := filepath.Join(steamDirEntry.Text, "steamapps/common/Team Fortress 2/tf")
-				if errValid := validateSteamDir(dp); errValid == nil && golib.Exists(dp) {
+				dp := filepath.Join(newRoot, "steamapps/common/Team Fortress 2/tf")
+				if errValid := validateSteamRoot(dp); errValid == nil && golib.Exists(dp) {
 					tf2RootEntry.SetText(dp)
 				}
 			}
@@ -151,7 +132,7 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
 
 	rconModeStatic := boundSettings.getBoundBoolDefault("RconStatic", false)
-	rconModeStaticEntry := widget.NewCheckWithData("Static", rconModeStatic)
+	rconModeStaticEntry := widget.NewCheckWithData(translations.One(translations.CheckboxRconStatic), rconModeStatic)
 
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
@@ -160,41 +141,43 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	}
 
 	tagsEntry := widget.NewEntryWithData(boundTags)
-
-	tagsEntry.Validator = func(s string) error {
-		var validTags []string
-		for _, tag := range strings.Split(s, ",") {
-			normalized := strings.Trim(tag, " ")
-			for _, vt := range validTags {
-				if strings.EqualFold(vt, normalized) {
-					return errors.Errorf("Duplicate tag found: %s", vt)
-				}
-			}
-			validTags = append(validTags, normalized)
-		}
-		return nil
-	}
+	tagsEntry.Validator = validateTags
 
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Vote Kicker", Widget: kickerEnabledEntry, HintText: "Enable vote kick functionality in-game"},
-			{Text: "Kickable Tags", Widget: tagsEntry,
-				HintText: "Attributes/Tags that when matched will trigger a in-game kick."},
-			{Text: "Chat Warnings", Widget: chatWarningsEnabledEntry, HintText: "Show warning message using in-game chat"},
-			{Text: "Party Warnings", Widget: partyWarningsEnabledEntry, HintText: "Show lobby only warning messages"},
-			{Text: "Discord Presence", Widget: discordPresenceEnabledEntry, HintText: "Enables discord rich presence if discord is running"},
-			{Text: "Steam API Key", Widget: apiKeyEntry, HintText: "Steam web api key. https://steamcommunity.com/dev/apikey"},
-			{Text: "Steam ID", Widget: steamIdEntry, HintText: "Your steam id in any of the following formats: steam,steam3,steam32,steam64"},
-			{Text: "Steam Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), steamDirEntry, ""),
-				HintText: "Location of your steam install directory containing a userdata folder."},
-			{Text: "TF2 Root", Widget: createSelectorRow("Select", theme.FileTextIcon(), tf2RootEntry, ""),
-				HintText: "Path to your steamapps/common/Team Fortress 2/tf folder"},
-			{Text: "RCON Mode", Widget: rconModeStaticEntry,
-				HintText: fmt.Sprintf("Static: Port: %d, Password: %s", staticConfig.Port(), staticConfig.Password())},
+			{Text: translations.One(translations.LabelSettingsVoteKicker), Widget: kickerEnabledEntry,
+				HintText: translations.One(translations.LabelSettingsVoteKickerHint)},
+			{Text: translations.One(translations.LabelSettingsKickableTags), Widget: tagsEntry,
+				HintText: translations.One(translations.LabelSettingsKickableTagsHint)},
+			{Text: translations.One(translations.LabelSettingsChatWarnings), Widget: chatWarningsEnabledEntry,
+				HintText: translations.One(translations.LabelSettingsChatWarningsHint)},
+			{Text: translations.One(translations.LabelSettingsPartyWarnings), Widget: partyWarningsEnabledEntry,
+				HintText: translations.One(translations.LabelSettingsPartyWarningsHint)},
+			{Text: translations.One(translations.LabelSettingsDiscordPresence), Widget: discordPresenceEnabledEntry,
+				HintText: translations.One(translations.LabelSettingsDiscordPresenceHint)},
+			{Text: translations.One(translations.LabelSettingsSteamApiKey), Widget: apiKeyEntry,
+				HintText: translations.One(translations.LabelSettingsSteamApiKeyHint)},
+			{Text: translations.One(translations.LabelSettingsSteamId), Widget: steamIdEntry,
+				HintText: translations.One(translations.LabelSettingsSteamIdHint)},
+			{Text: translations.One(translations.LabelSettingsSteamRoot),
+				Widget:   createSelectorRow(translations.One(translations.LabelSelect), theme.FileTextIcon(), steamDirEntry, ""),
+				HintText: translations.One(translations.LabelSettingsSteamRootHint)},
+			{Text: translations.One(translations.LabelSettingsTF2Root),
+				Widget:   createSelectorRow(translations.One(translations.LabelSelect), theme.FileTextIcon(), tf2RootEntry, ""),
+				HintText: translations.One(translations.LabelSettingsTF2RootHint)},
+			{Text: translations.One(translations.LabelSettingsRCONMode), Widget: rconModeStaticEntry,
+				HintText: translations.Tr(&i18n.Message{ID: string(translations.LabelSettingsRCONModeHint)},
+					1, map[string]interface{}{"Port": staticConfig.Port(), "Password": staticConfig.Password()}),
+			},
 		},
 	}
 
-	settingsWindow := dialog.NewCustom("Settings", "Cancel", container.NewVScroll(settingsForm), parent)
+	settingsWindow := dialog.NewCustom(
+		translations.One(translations.TitleSettings),
+		translations.One(translations.LabelClose),
+		container.NewVScroll(settingsForm),
+		parent,
+	)
 
 	settingsForm.OnSubmit = func() {
 		settings.Lock()

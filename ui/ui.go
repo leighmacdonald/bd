@@ -12,9 +12,16 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/translations"
+	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -169,8 +176,6 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	if errAppend := ui.windows.chat.append(msg); errAppend != nil {
 		log.Printf("Failed to append game message: %v", errAppend)
 	}
-	//ui.chatWindow.window.Content().Refresh()
-
 	if userChat, found := ui.windows.chatHistory[msg.PlayerSID]; found {
 		if errAppend := userChat.boundList.Append(msg); errAppend != nil {
 			log.Printf("Failed to append user history message: %v", errAppend)
@@ -200,11 +205,59 @@ func (ui *Ui) Start() {
 	ui.application.Run()
 }
 
-func (ui *Ui) OnDisconnect(sid64 steamid.SID64) {
-	log.Printf("Player disconnected: %d", sid64.Int64())
+func showUserError(msg error, parent fyne.Window) {
+	d := dialog.NewError(msg, parent)
+	d.Show()
 }
 
-func showUserError(msg string, parent fyne.Window) {
-	d := dialog.NewError(errors.New(msg), parent)
-	d.Show()
+func validateUrl(urlString string) error {
+	_, errParse := url.Parse(urlString)
+	if errParse != nil {
+		return errors.New(translations.One(translations.ErrorInvalidURL))
+	}
+	return nil
+}
+
+func validateName(name string) error {
+	if len(name) == 0 {
+		return errors.New(translations.One(translations.ErrorNameEmpty))
+	}
+	return nil
+}
+
+func validateSteamId(steamId string) error {
+	if len(steamId) > 0 {
+		_, err := steamid.StringToSID64(steamId)
+		if err != nil {
+			return errors.New(translations.One(translations.ErrorInvalidSteamId))
+		}
+	}
+	return nil
+}
+func validateSteamRoot(newRoot string) error {
+	if len(newRoot) > 0 {
+		if !golib.Exists(newRoot) {
+			return errors.New(translations.One(translations.ErrorInvalidPath))
+		}
+		fp := filepath.Join(newRoot, platform.TF2RootValidationFile)
+		if !golib.Exists(fp) {
+			return errors.New(translations.Tr(&i18n.Message{ID: string(translations.ErrorInvalidSteamRoot)},
+				1, map[string]interface{}{"FileName": platform.TF2RootValidationFile}))
+		}
+	}
+	return nil
+}
+
+func validateTags(tagStr string) error {
+	var validTags []string
+	for _, tag := range strings.Split(tagStr, ",") {
+		normalized := strings.Trim(tag, " ")
+		for _, vt := range validTags {
+			if strings.EqualFold(vt, normalized) {
+				return errors.Errorf("Duplicate tag found: %s", vt)
+			}
+		}
+		validTags = append(validTags, normalized)
+	}
+	return nil
 }

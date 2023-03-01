@@ -98,8 +98,10 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 	names, err := namesFunc(ctx, sid64)
 	if err != nil {
 		names = append(names, model.UserNameHistory{
-			NameId:    0,
-			Name:      fmt.Sprintf("No names found for steamid: %d", sid64),
+			NameId: 0,
+			Name: translations.Tr(&i18n.Message{ID: string(translations.ErrorNoNamesFound)}, 1, map[string]interface{}{
+				"SteamId": sid64,
+			}),
 			FirstSeen: time.Now(),
 		})
 	}
