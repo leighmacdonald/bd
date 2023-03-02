@@ -1,15 +1,15 @@
-package main
+package detector
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"github.com/hugolgst/rich-go/client"
-	"github.com/leighmacdonald/bd/addons"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/addons"
+	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/platform"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
@@ -53,8 +53,8 @@ type BD struct {
 	rules              *rules.Engine
 	rconConnection     rconConnection
 	settings           *model.Settings
-	store              dataStore
-	gui                ui.UserInterface
+	store              store.DataStore
+	gui                model.UserInterface
 	triggerUpdate      chan any
 	gameStateUpdate    chan updateGameStateEvent
 	cache              localCache
@@ -63,7 +63,7 @@ type BD struct {
 }
 
 // New allocates a new bot detector application instance
-func New(settings *model.Settings, store dataStore, rules *rules.Engine, cache fsCache) BD {
+func New(settings *model.Settings, store store.DataStore, rules *rules.Engine, cache FsCache) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -87,6 +87,10 @@ func New(settings *model.Settings, store dataStore, rules *rules.Engine, cache f
 	rootApp.reload()
 
 	return rootApp
+}
+
+func (bd *BD) Settings() *model.Settings {
+	return bd.settings
 }
 
 func (bd *BD) reload() {
@@ -195,7 +199,7 @@ func fetchAvatar(ctx context.Context, cache localCache, hash string) ([]byte, er
 	if bodyErr != nil {
 		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
 	}
-	defer logClose(resp.Body)
+	defer store.LogClose(resp.Body)
 
 	if errSet := cache.Set(cacheTypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
@@ -276,7 +280,7 @@ func (bd *BD) eventHandler() {
 	}
 }
 
-func (bd *BD) launchGameAndWait() {
+func (bd *BD) LaunchGameAndWait() {
 	if errInstall := addons.Install(bd.settings.TF2Dir); errInstall != nil {
 		log.Printf("Error trying to install addons: %v", errInstall)
 	}
@@ -294,7 +298,7 @@ func (bd *BD) launchGameAndWait() {
 	}
 }
 
-func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
+func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
 	bd.gameStateUpdate <- updateGameStateEvent{
 		kind:   updateMark,
 		source: bd.settings.GetSteamId(),
@@ -306,7 +310,7 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
-func (bd *BD) onWhitelist(sid64 steamid.SID64) error {
+func (bd *BD) OnWhitelist(sid64 steamid.SID64) error {
 	bd.gameStateUpdate <- updateGameStateEvent{
 		kind:   updateWhitelist,
 		source: bd.settings.GetSteamId(),
@@ -652,7 +656,7 @@ func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store dataStore) error {
+func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStore) error {
 	player := bd.getPlayerByName(msg.name)
 	if player == nil {
 		return errors.Errorf("Unknown name: %v", msg.name)
@@ -729,7 +733,7 @@ func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSumm
 	player.Touch()
 }
 
-func (bd *BD) onUpdateStatus(ctx context.Context, store dataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
+func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
 	player := bd.getPlayer(steamID)
 	if player == nil {
 		player = model.NewPlayer(steamID, update.name)
@@ -787,13 +791,13 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		log.Printf("Failed to export player list: %v\n", errExport)
 	}
-	logClose(of)
+	store.LogClose(of)
 	return nil
 }
 
 // AttachGui connects the backend functions to the frontend gui
 // TODO Use channels for communicating instead
-func (bd *BD) AttachGui(gui ui.UserInterface) {
+func (bd *BD) AttachGui(gui model.UserInterface, version string, commit string, date string, builtBy string) {
 	gui.SetBuildInfo(version, commit, date, builtBy)
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
@@ -872,7 +876,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 			}
 		}
 		if kickTag {
-			if errVote := bd.callVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
+			if errVote := bd.CallVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
 				log.Printf("Error calling vote: %v\n", errVote)
 			}
 		} else {
@@ -886,7 +890,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 
 func (bd *BD) connectRcon(ctx context.Context) error {
 	if bd.rconConnection != nil {
-		logClose(bd.rconConnection)
+		store.LogClose(bd.rconConnection)
 	}
 	conn, errConn := rcon.Dial(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password(), time.Second*5)
 	if errConn != nil {
@@ -907,7 +911,7 @@ func (bd *BD) partyLog(ctx context.Context, fmtStr string, args ...any) error {
 	return nil
 }
 
-func (bd *BD) callVote(ctx context.Context, userID int64, reason model.KickReason) error {
+func (bd *BD) CallVote(ctx context.Context, userID int64, reason model.KickReason) error {
 	if errConn := bd.connectRcon(ctx); errConn != nil {
 		return errConn
 	}
@@ -921,16 +925,16 @@ func (bd *BD) callVote(ctx context.Context, userID int64, reason model.KickReaso
 // Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
-		logClose(bd.rconConnection)
+		store.LogClose(bd.rconConnection)
 	}
 	if bd.settings.DiscordPresenceEnabled {
 		client.Logout()
 	}
-	logClose(bd.store)
+	store.LogClose(bd.store)
 	log.Printf("Goodbye\n")
 }
 
-func (bd *BD) start(ctx context.Context) {
+func (bd *BD) Start(ctx context.Context) {
 	go bd.logReader.start(ctx)
 	defer bd.logReader.tail.Cleanup()
 	go bd.logParser.start(ctx)

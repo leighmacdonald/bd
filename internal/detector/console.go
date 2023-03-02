@@ -1,9 +1,9 @@
-package main
+package detector
 
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"

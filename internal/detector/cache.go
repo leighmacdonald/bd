@@ -1,6 +1,7 @@
-package main
+package detector
 
 import (
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/pkg/errors"
 	"io"
 	"log"
@@ -18,7 +19,7 @@ type localCache interface {
 	Get(ct cacheType, key string, receiver io.Writer) error
 }
 
-type fsCache struct {
+type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
 }
@@ -29,13 +30,13 @@ const (
 	cacheTypeLists
 )
 
-func newFsCache(rootDir string, maxAge time.Duration) fsCache {
-	cache := fsCache{rootPath: rootDir, maxAge: maxAge}
+func NewFsCache(rootDir string, maxAge time.Duration) FsCache {
+	cache := FsCache{rootPath: rootDir, maxAge: maxAge}
 	cache.init()
 	return cache
 }
 
-func (cache fsCache) init() {
+func (cache FsCache) init() {
 	for _, p := range []cacheType{cacheTypeAvatar, cacheTypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0770); errMkDir != nil {
 			log.Panicf("Failed to setup cache dirs: %v\n", errMkDir)
@@ -43,7 +44,7 @@ func (cache fsCache) init() {
 	}
 }
 
-func (cache fsCache) getPath(ct cacheType, key string) string {
+func (cache FsCache) getPath(ct cacheType, key string) string {
 	switch ct {
 	case cacheTypeAvatar:
 		return filepath.Join(cache.rootPath, "avatars", key)
@@ -55,24 +56,24 @@ func (cache fsCache) getPath(ct cacheType, key string) string {
 	}
 }
 
-func (cache fsCache) Set(ct cacheType, key string, value io.Reader) error {
+func (cache FsCache) Set(ct cacheType, key string, value io.Reader) error {
 	of, errOf := os.OpenFile(cache.getPath(ct, key), os.O_WRONLY|os.O_CREATE, 0660)
 	if errOf != nil {
 		return errOf
 	}
-	defer logClose(of)
+	defer store.LogClose(of)
 	if _, errWrite := io.Copy(of, value); errWrite != nil {
 		return errWrite
 	}
 	return nil
 }
 
-func (cache fsCache) Get(ct cacheType, key string, receiver io.Writer) error {
+func (cache FsCache) Get(ct cacheType, key string, receiver io.Writer) error {
 	of, errOf := os.Open(cache.getPath(ct, key))
 	if errOf != nil {
 		return errCacheExpired
 	}
-	defer logClose(of)
+	defer store.LogClose(of)
 
 	stat, errStat := of.Stat()
 	if errStat != nil {

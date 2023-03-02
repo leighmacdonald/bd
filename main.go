@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/internal/ui"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/ui"
 	"github.com/leighmacdonald/steamweb"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -34,7 +36,7 @@ func main() {
 		log.Println(errReadSettings)
 	}
 	// Try and load our existing custom players/rules
-	if exists(settings.LocalPlayerListPath()) {
+	if detector.Exists(settings.LocalPlayerListPath()) {
 		input, errInput := os.Open(settings.LocalPlayerListPath())
 		if errInput != nil {
 			log.Printf("Failed to open local player list\n")
@@ -42,10 +44,10 @@ func main() {
 			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
 				log.Printf("Failed to parse local player list: %v\n", errRead)
 			}
-			logClose(input)
+			store.LogClose(input)
 		}
 	}
-	if exists(settings.LocalRulesListPath()) {
+	if detector.Exists(settings.LocalRulesListPath()) {
 		input, errInput := os.Open(settings.LocalRulesListPath())
 		if errInput != nil {
 			log.Printf("Failed to open local rules list\n")
@@ -53,10 +55,10 @@ func main() {
 			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
 				log.Printf("Failed to parse local rules list: %v\n", errRead)
 			}
-			logClose(input)
+			store.LogClose(input)
 		}
 	}
-	engine, ruleEngineErr := rules.NewEngine(&localRules, &localPlayersList)
+	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
 	if ruleEngineErr != nil {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
@@ -65,17 +67,17 @@ func main() {
 			log.Printf("Failed to set steam api key: %v\n", errAPIKey)
 		}
 	}
-	store := newSqliteStore(settings.DBPath())
-	if errMigrate := store.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
+	dataStore := store.New(settings.DBPath())
+	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
 		log.Printf("Failed to migrate database: %v\n", errMigrate)
 		os.Exit(1)
 	}
-	defer logClose(store)
-	cache := newFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
-	bd := New(settings, store, engine, cache)
+	defer store.LogClose(dataStore)
+	cache := detector.NewFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
+	bd := detector.New(settings, dataStore, engine, cache)
 	defer bd.Shutdown()
-	gui := ui.New(ctx, settings, bd.onMark, store.FetchNames, store.FetchMessages, bd.launchGameAndWait, bd.callVote, bd.onWhitelist)
-	bd.AttachGui(gui)
-	go bd.start(ctx)
+	gui := ui.New(ctx, &bd, settings, dataStore)
+	bd.AttachGui(gui, version, commit, date, builtBy)
+	go bd.Start(ctx)
 	gui.Start()
 }

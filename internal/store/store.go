@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"io"
@@ -18,7 +18,7 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-type dataStore interface {
+type DataStore interface {
 	Close() error
 	Connect() error
 	Init() error
@@ -30,16 +30,16 @@ type dataStore interface {
 	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
 }
 
-type sqliteStore struct {
+type SqliteStore struct {
 	db  *sql.DB
 	dsn string
 }
 
-func newSqliteStore(dsn string) *sqliteStore {
-	return &sqliteStore{dsn: dsn}
+func New(dsn string) *SqliteStore {
+	return &SqliteStore{dsn: dsn}
 }
 
-func (store *sqliteStore) Close() error {
+func (store *SqliteStore) Close() error {
 	if store.db == nil {
 		return nil
 	}
@@ -49,7 +49,7 @@ func (store *sqliteStore) Close() error {
 	return nil
 }
 
-func (store *sqliteStore) Connect() error {
+func (store *SqliteStore) Connect() error {
 	database, errOpen := sql.Open("sqlite", store.dsn)
 	if errOpen != nil {
 		return errors.Wrap(errOpen, "Failed to open database")
@@ -64,7 +64,7 @@ func (store *sqliteStore) Connect() error {
 	return nil
 }
 
-func (store *sqliteStore) Init() error {
+func (store *SqliteStore) Init() error {
 	if store.db == nil {
 		if errConn := store.Connect(); errConn != nil {
 			return errConn
@@ -96,7 +96,7 @@ func (store *sqliteStore) Init() error {
 	return store.Connect()
 }
 
-func (store *sqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
+func (store *SqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
 	const query = `INSERT INTO player_names (steam_id, name, created_on) VALUES (?, ?, ?)`
 	if _, errExec := store.db.ExecContext(ctx, query, steamID.Int64(), name, time.Now()); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
@@ -104,7 +104,7 @@ func (store *sqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, n
 	return nil
 }
 
-func (store *sqliteStore) SaveMessage(ctx context.Context, message *model.UserMessage) error {
+func (store *SqliteStore) SaveMessage(ctx context.Context, message *model.UserMessage) error {
 	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?) RETURNING message_id`
 	if errExec := store.db.QueryRowContext(ctx, query, message.PlayerSID, message.Message, time.Now()).Scan(&message.MessageId); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save message")
@@ -112,7 +112,7 @@ func (store *sqliteStore) SaveMessage(ctx context.Context, message *model.UserMe
 	return nil
 }
 
-func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) insertPlayer(ctx context.Context, state *model.Player) error {
 	const insertQuery = `
 		INSERT INTO player (
                     steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, 
@@ -145,7 +145,7 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.Player)
 	return nil
 }
 
-func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) updatePlayer(ctx context.Context, state *model.Player) error {
 	const updateQuery = `
 		UPDATE player 
 		SET visibility = ?, 
@@ -191,7 +191,7 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.Player)
 	return nil
 }
 
-func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) SavePlayer(ctx context.Context, state *model.Player) error {
 	if !state.SteamId.Valid() {
 		return errors.New("Invalid steam id")
 	}
@@ -201,7 +201,7 @@ func (store *sqliteStore) SavePlayer(ctx context.Context, state *model.Player) e
 	return store.updatePlayer(ctx, state)
 }
 
-func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
+func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
 	const query = `
 		SELECT 
 		    p.visibility, 
@@ -250,13 +250,13 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 	return nil
 }
 
-func logClose(closer io.Closer) {
+func LogClose(closer io.Closer) {
 	if errClose := closer.Close(); errClose != nil {
 		log.Printf("Error trying to close: %v\n", errClose)
 	}
 }
 
-func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
+func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
 	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
@@ -265,7 +265,7 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		}
 		return nil, errQuery
 	}
-	defer logClose(rows)
+	defer LogClose(rows)
 	var hist model.UserNameHistoryCollection
 	for rows.Next() {
 		var h model.UserNameHistory
@@ -276,7 +276,8 @@ func (store *sqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	}
 	return hist, nil
 }
-func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (model.UserMessageCollection, error) {
+
+func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (model.UserMessageCollection, error) {
 	const query = `SELECT message_id, message, created_on FROM player_messages WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
 	if errQuery != nil {
@@ -285,7 +286,7 @@ func (store *sqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		return nil, errQuery
 	}
-	defer logClose(rows)
+	defer LogClose(rows)
 	var messages model.UserMessageCollection
 	for rows.Next() {
 		var m model.UserMessage

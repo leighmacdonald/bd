@@ -7,8 +7,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/model"
-	"github.com/leighmacdonald/bd/translations"
+	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/translations"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
 )

@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/kirsle/configdir"
+	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
@@ -62,7 +62,7 @@ type LinkConfig struct {
 
 type Settings struct {
 	*sync.RWMutex `yaml:"-"`
-	// Path to config used when reading settings
+	// Path to config used when reading Settings
 	configPath string `yaml:"-"`
 	SteamID    string `yaml:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
@@ -222,7 +222,7 @@ func NewSettings() (*Settings, error) {
 	}
 	if !golib.Exists(settings.ListRoot()) {
 		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
-			return nil, errors.Wrap(err, "Failed to initialize settings directory")
+			return nil, errors.Wrap(err, "Failed to initialize Settings directory")
 		}
 	}
 	return &settings, nil

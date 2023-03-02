@@ -1,4 +1,4 @@
-package main
+package detector
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func exists(filePath string) bool {
+func Exists(filePath string) bool {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return false
 	}
@@ -19,7 +19,7 @@ func exists(filePath string) bool {
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
 	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamID)), "config", "localconfig.vdf")
-	if !exists(fp) {
+	if !Exists(fp) {
 		return "", errors.New("Path does not exist")
 	}
 	return fp, nil

@@ -7,19 +7,19 @@ deps:
 	# go install github.com/goreleaser/goreleaser@latest
 	# for pro install frpm: https://github.com/goreleaser/goreleaser-pro/releases
 
-extract: fonts translations
+extract: fonts internal/translations
 
 fmt:
 	gofmt -s -w .
 
 fonts:
-	fyne bundle --pkg ui    -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Regular.ttf
-	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Bold.ttf
-	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Italic.ttf
-	fyne bundle --pkg ui -a -o ./ui/embed_font.go ./ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-BoldItalic.ttf
-	fyne bundle --pkg ui    -o ./ui/embed_img.go ./ui/resources/default_avatar.jpg
-	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/Icon.png
-	fyne bundle --pkg ui -a -o ./ui/embed_img.go ./ui/resources/tf2.png
+	fyne bundle --pkg ui    -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Regular.ttf
+	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Bold.ttf
+	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Italic.ttf
+	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-BoldItalic.ttf
+	fyne bundle --pkg ui    -o ./internal/ui/embed_img.go ./internal/ui/resources/default_avatar.jpg
+	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/Icon.png
+	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/tf2.png
 
 check: link_golangci lint_vet lint_imports lint_cyclo lint_golint static
 

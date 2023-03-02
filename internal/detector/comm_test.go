@@ -1,4 +1,4 @@
-package main
+package detector
 
 import (
 	"github.com/stretchr/testify/require"

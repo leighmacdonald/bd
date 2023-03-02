@@ -1,8 +1,8 @@
-package main
+package detector
 
 import (
 	"context"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/pkg/errors"
 	"log"

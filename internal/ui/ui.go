@@ -11,9 +11,11 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
-	"github.com/leighmacdonald/bd/model"
-	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/bd/translations"
+	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/platform"
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/internal/translations"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -38,17 +40,6 @@ func defaultApp() fyne.App {
 	return application
 }
 
-type UserInterface interface {
-	Refresh()
-	Start()
-	SetBuildInfo(version string, commit string, date string, builtBy string)
-	UpdateServerState(state model.Server)
-	UpdatePlayerState(collection model.PlayerCollection)
-	AddUserMessage(message model.UserMessage)
-	UpdateAttributes([]string)
-	SetAvatar(sid64 steamid.SID64, avatar []byte)
-}
-
 type windows struct {
 	player      *playerWindow
 	chat        *gameChatWindow
@@ -71,6 +62,7 @@ type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *
 
 type Ui struct {
 	ctx             context.Context
+	bd              *detector.BD
 	application     fyne.App
 	boundSettings   boundSettings
 	settings        *model.Settings
@@ -88,10 +80,10 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 	ui.windows.player.updatePlayerState(collection)
 }
 
-func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc, namesFunc model.QueryNamesFunc,
-	messagesFunc model.QueryUserMessagesFunc, gameLaunchFunc func(), kickFunc model.KickFunc, whitelistFn model.SteamIDErrFunc) UserInterface {
+func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store store.DataStore) model.UserInterface {
 	ui := Ui{
 		ctx:             ctx,
+		bd:              bd,
 		application:     defaultApp(),
 		boundSettings:   boundSettings{binding.BindStruct(settings)},
 		settings:        settings,
@@ -105,12 +97,12 @@ func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc,
 			userAvatar: make(map[steamid.SID64]fyne.Resource),
 		},
 		callBacks: callBacks{
-			queryNamesFunc:        namesFunc,
-			queryUserMessagesFunc: messagesFunc,
-			kickFunc:              kickFunc,
-			markFn:                markFunc,
-			gameLauncherFunc:      gameLaunchFunc,
-			whitelistFn:           whitelistFn,
+			queryNamesFunc:        store.FetchNames,
+			queryUserMessagesFunc: store.FetchMessages,
+			kickFunc:              bd.CallVote,
+			markFn:                bd.OnMark,
+			gameLauncherFunc:      bd.LaunchGameAndWait,
+			whitelistFn:           bd.OnWhitelist,
 		},
 	}
 	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {

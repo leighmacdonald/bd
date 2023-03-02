@@ -1,9 +1,10 @@
-package main
+package store
 
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/model"
+	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
@@ -16,9 +17,9 @@ import (
 
 func TestStore(t *testing.T) {
 	tempDbPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-db-%d.sqlite", time.Now().Unix()))
-	impl := newSqliteStore(tempDbPath)
-	defer func(store dataStore) {
-		if exists(tempDbPath) {
+	impl := New(tempDbPath)
+	defer func(store DataStore) {
+		if detector.Exists(tempDbPath) {
 			_ = store.Close()
 			if errRemove := os.Remove(tempDbPath); errRemove != nil {
 				log.Printf("Failed to remove test database: %v\n", errRemove)
@@ -28,7 +29,7 @@ func TestStore(t *testing.T) {
 	testStoreImpl(t, impl)
 }
 
-func testStoreImpl(t *testing.T, ds dataStore) {
+func testStoreImpl(t *testing.T, ds DataStore) {
 	require.NoError(t, ds.Init(), "Failed to migrate default schema")
 	player1 := model.NewPlayer(steamid.SID64(76561197961279983), golib.RandomString(10))
 
