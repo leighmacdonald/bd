@@ -10,6 +10,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
@@ -199,7 +200,7 @@ func fetchAvatar(ctx context.Context, cache localCache, hash string) ([]byte, er
 	if bodyErr != nil {
 		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
 	}
-	defer store.LogClose(resp.Body)
+	defer util.LogClose(resp.Body)
 
 	if errSet := cache.Set(cacheTypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
@@ -791,7 +792,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		log.Printf("Failed to export player list: %v\n", errExport)
 	}
-	store.LogClose(of)
+	util.LogClose(of)
 	return nil
 }
 
@@ -890,7 +891,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 
 func (bd *BD) connectRcon(ctx context.Context) error {
 	if bd.rconConnection != nil {
-		store.LogClose(bd.rconConnection)
+		util.LogClose(bd.rconConnection)
 	}
 	conn, errConn := rcon.Dial(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password(), time.Second*5)
 	if errConn != nil {
@@ -925,12 +926,12 @@ func (bd *BD) CallVote(ctx context.Context, userID int64, reason model.KickReaso
 // Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
-		store.LogClose(bd.rconConnection)
+		util.LogClose(bd.rconConnection)
 	}
 	if bd.settings.DiscordPresenceEnabled {
 		client.Logout()
 	}
-	store.LogClose(bd.store)
+	util.LogClose(bd.store)
 	log.Printf("Goodbye\n")
 }
 

@@ -3,6 +3,7 @@ package detector
 import (
 	"fmt"
 	"github.com/andygrunwald/vdf"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"os"
@@ -10,16 +11,9 @@ import (
 	"strings"
 )
 
-func Exists(filePath string) bool {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
 	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamID)), "config", "localconfig.vdf")
-	if !Exists(fp) {
+	if !util.Exists(fp) {
 		return "", errors.New("Path does not exist")
 	}
 	return fp, nil

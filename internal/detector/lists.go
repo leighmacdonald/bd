@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"io"
 	"log"
@@ -30,7 +30,7 @@ func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rul
 		if errBody != nil {
 			return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
 		}
-		defer store.LogClose(resp.Body)
+		defer util.LogClose(resp.Body)
 		return body, nil
 	}
 	var playerLists []rules.PlayerListSchema

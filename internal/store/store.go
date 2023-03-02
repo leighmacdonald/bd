@@ -8,10 +8,9 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"io"
-	"log"
 	"time"
 )
 
@@ -250,12 +249,6 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 	return nil
 }
 
-func LogClose(closer io.Closer) {
-	if errClose := closer.Close(); errClose != nil {
-		log.Printf("Error trying to close: %v\n", errClose)
-	}
-}
-
 func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
 	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
 	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
@@ -265,7 +258,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		}
 		return nil, errQuery
 	}
-	defer LogClose(rows)
+	defer util.LogClose(rows)
 	var hist model.UserNameHistoryCollection
 	for rows.Next() {
 		var h model.UserNameHistory
@@ -286,7 +279,7 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		return nil, errQuery
 	}
-	defer LogClose(rows)
+	defer util.LogClose(rows)
 	var messages model.UserMessageCollection
 	for rows.Next() {
 		var m model.UserMessage

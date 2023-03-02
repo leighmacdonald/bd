@@ -1,7 +1,7 @@
 package detector
 
 import (
-	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"io"
 	"log"
@@ -61,7 +61,7 @@ func (cache FsCache) Set(ct cacheType, key string, value io.Reader) error {
 	if errOf != nil {
 		return errOf
 	}
-	defer store.LogClose(of)
+	defer util.LogClose(of)
 	if _, errWrite := io.Copy(of, value); errWrite != nil {
 		return errWrite
 	}
@@ -73,7 +73,7 @@ func (cache FsCache) Get(ct cacheType, key string, receiver io.Writer) error {
 	if errOf != nil {
 		return errCacheExpired
 	}
-	defer store.LogClose(of)
+	defer util.LogClose(of)
 
 	stat, errStat := of.Stat()
 	if errStat != nil {

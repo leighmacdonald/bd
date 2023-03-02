@@ -3,8 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ func TestStore(t *testing.T) {
 	tempDbPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-db-%d.sqlite", time.Now().Unix()))
 	impl := New(tempDbPath)
 	defer func(store DataStore) {
-		if detector.Exists(tempDbPath) {
+		if util.Exists(tempDbPath) {
 			_ = store.Close()
 			if errRemove := os.Remove(tempDbPath); errRemove != nil {
 				log.Printf("Failed to remove test database: %v\n", errRemove)

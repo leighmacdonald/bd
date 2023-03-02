@@ -9,6 +9,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/ui"
 	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamweb"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
@@ -36,7 +37,7 @@ func main() {
 		log.Println(errReadSettings)
 	}
 	// Try and load our existing custom players/rules
-	if detector.Exists(settings.LocalPlayerListPath()) {
+	if util.Exists(settings.LocalPlayerListPath()) {
 		input, errInput := os.Open(settings.LocalPlayerListPath())
 		if errInput != nil {
 			log.Printf("Failed to open local player list\n")
@@ -44,10 +45,10 @@ func main() {
 			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
 				log.Printf("Failed to parse local player list: %v\n", errRead)
 			}
-			store.LogClose(input)
+			util.LogClose(input)
 		}
 	}
-	if detector.Exists(settings.LocalRulesListPath()) {
+	if util.Exists(settings.LocalRulesListPath()) {
 		input, errInput := os.Open(settings.LocalRulesListPath())
 		if errInput != nil {
 			log.Printf("Failed to open local rules list\n")
@@ -55,7 +56,7 @@ func main() {
 			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
 				log.Printf("Failed to parse local rules list: %v\n", errRead)
 			}
-			store.LogClose(input)
+			util.LogClose(input)
 		}
 	}
 	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
@@ -72,7 +73,7 @@ func main() {
 		log.Printf("Failed to migrate database: %v\n", errMigrate)
 		os.Exit(1)
 	}
-	defer store.LogClose(dataStore)
+	defer util.LogClose(dataStore)
 	cache := detector.NewFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
 	bd := detector.New(settings, dataStore, engine, cache)
 	defer bd.Shutdown()
