@@ -41,7 +41,7 @@ type BD struct {
 	// - colourise messages that trigger
 	// - auto launch tf2 upon open
 	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
-
+	// - Save custom notes on users
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             model.Server
@@ -306,6 +306,17 @@ func (bd *BD) onMark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
+func (bd *BD) onWhitelist(sid64 steamid.SID64) error {
+	bd.gameStateUpdate <- updateGameStateEvent{
+		kind:   updateWhitelist,
+		source: bd.settings.GetSteamId(),
+		data: updateWhitelistEvent{
+			target: sid64,
+		},
+	}
+	return nil
+}
+
 type updateType int
 
 const (
@@ -320,6 +331,7 @@ const (
 	updateHostname
 	updateTags
 	updateAddress
+	updateWhitelist
 )
 
 type killEvent struct {
@@ -348,6 +360,10 @@ type updateGameStateEvent struct {
 type updateMarkEvent struct {
 	target steamid.SID64
 	attrs  []string
+}
+
+type updateWhitelistEvent struct {
+	target steamid.SID64
 }
 
 type messageEvent struct {
@@ -577,6 +593,10 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				if errUpdate := bd.onUpdateMark(update.data.(updateMarkEvent)); errUpdate != nil {
 					log.Printf("updateMark error: %v\n", errUpdate)
 				}
+			case updateWhitelist:
+				if errUpdate := bd.onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
+					log.Printf("updateWhitelist error: %v\n", errUpdate)
+				}
 			case updateLobby:
 				bd.onUpdateLobby(update.source, update.data.(lobbyEvent))
 			case updateTags:
@@ -599,11 +619,13 @@ func (bd *BD) onUpdateTags(event tagsEvent) {
 	bd.gui.UpdateServerState(bd.server)
 	bd.serverMu.RUnlock()
 }
+
 func (bd *BD) onUpdateMap(event mapEvent) {
 	bd.serverMu.Lock()
 	bd.server.CurrentMap = event.mapName
 	bd.serverMu.Unlock()
 }
+
 func (bd *BD) onUpdateHostname(event hostnameEvent) {
 	bd.serverMu.Lock()
 	bd.server.ServerName = event.hostname
@@ -620,6 +642,7 @@ func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID
 	}
 	return 0
 }
+
 func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	player := bd.getPlayer(steamID)
 	if player != nil {
@@ -735,6 +758,19 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store dataStore, steamID steam
 	return nil
 }
 
+func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
+	player := bd.getPlayer(event.target)
+	if player == nil {
+		return errors.New("Unknown player, cannot whitelist")
+	}
+	bd.playersMu.Lock()
+	player.Whitelisted = true
+	player.Touch()
+	bd.playersMu.Unlock()
+	log.Printf("whitelisted player: %d", player.SteamId)
+	return nil
+}
+
 func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	player := bd.getPlayer(status.target)
 	if errMark := bd.rules.Mark(rules.MarkOpts{
@@ -802,7 +838,6 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 				log.Printf("Failed to save player state: %v\n", errSave)
 				continue
 			}
-
 			ps.Dirty = false
 		}
 	}
@@ -810,7 +845,12 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 }
 
 func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
-	log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
+	if ps.Whitelisted {
+		log.Printf("Matched (%s):  %d %s %s [whitelisted]", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
+		return
+	} else {
+		log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
+	}
 	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
@@ -820,7 +860,6 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 		bd.playersMu.Lock()
 		ps.AnnouncedLast = time.Now()
 		bd.playersMu.Unlock()
-
 	}
 	if bd.settings.KickerEnabled {
 		kickTag := false

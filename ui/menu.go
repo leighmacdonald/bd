@@ -207,6 +207,14 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 				cb.createNameHistory(steamId)
 			},
 			Label: translations.One(translations.MenuNameHistory)},
+		&fyne.MenuItem{
+			Icon: theme.VisibilityOffIcon(),
+			Action: func() {
+				if err := cb.whitelistFn(steamId); err != nil {
+					showUserError(err, window)
+				}
+			},
+			Label: translations.One(translations.MenuWhitelist)},
 	)
 	return menu
 }

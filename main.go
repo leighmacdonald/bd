@@ -74,7 +74,7 @@ func main() {
 	cache := newFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
 	bd := New(settings, store, engine, cache)
 	defer bd.Shutdown()
-	gui := ui.New(ctx, settings, bd.onMark, store.FetchNames, store.FetchMessages, bd.launchGameAndWait, bd.callVote)
+	gui := ui.New(ctx, settings, bd.onMark, store.FetchNames, store.FetchMessages, bd.launchGameAndWait, bd.callVote, bd.onWhitelist)
 	bd.AttachGui(gui)
 	go bd.start(ctx)
 	gui.Start()

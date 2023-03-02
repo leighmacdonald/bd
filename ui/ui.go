@@ -58,6 +58,7 @@ type windows struct {
 
 type callBacks struct {
 	markFn                model.MarkFunc
+	whitelistFn           model.SteamIDErrFunc
 	kickFunc              model.KickFunc
 	queryNamesFunc        model.QueryNamesFunc
 	queryUserMessagesFunc model.QueryUserMessagesFunc
@@ -88,7 +89,7 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 }
 
 func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc, namesFunc model.QueryNamesFunc,
-	messagesFunc model.QueryUserMessagesFunc, gameLaunchFunc func(), kickFunc model.KickFunc) UserInterface {
+	messagesFunc model.QueryUserMessagesFunc, gameLaunchFunc func(), kickFunc model.KickFunc, whitelistFn model.SteamIDErrFunc) UserInterface {
 	ui := Ui{
 		ctx:             ctx,
 		application:     defaultApp(),
@@ -109,6 +110,7 @@ func New(ctx context.Context, settings *model.Settings, markFunc model.MarkFunc,
 			kickFunc:              kickFunc,
 			markFn:                markFunc,
 			gameLauncherFunc:      gameLaunchFunc,
+			whitelistFn:           whitelistFn,
 		},
 	}
 	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {

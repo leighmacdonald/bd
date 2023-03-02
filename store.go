@@ -116,8 +116,8 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.Player)
 	const insertQuery = `
 		INSERT INTO player (
                     steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, 
-                    last_vac_ban_on, kills_on, deaths_by, rage_quits, created_on, updated_on, profile_updated_on) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    last_vac_ban_on, kills_on, deaths_by, rage_quits, notes, whitelist, created_on, updated_on, profile_updated_on) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, errExec := store.db.ExecContext(
 		ctx,
 		insertQuery,
@@ -133,6 +133,8 @@ func (store *sqliteStore) insertPlayer(ctx context.Context, state *model.Player)
 		state.KillsOn,
 		state.DeathsBy,
 		state.RageQuits,
+		state.Notes,
+		state.Whitelisted,
 		state.CreatedOn,
 		state.UpdatedOn,
 		state.ProfileUpdatedOn,
@@ -157,6 +159,8 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.Player)
             kills_on = ?, 
             deaths_by = ?, 
             rage_quits = ?, 
+            notes = ?,
+            whitelist = ?,
             updated_on = ?,
             profile_updated_on = ?
 		WHERE steam_id = ?`
@@ -176,6 +180,8 @@ func (store *sqliteStore) updatePlayer(ctx context.Context, state *model.Player)
 		state.KillsOn,
 		state.DeathsBy,
 		state.RageQuits,
+		state.Notes,
+		state.Whitelisted,
 		state.UpdatedOn,
 		state.ProfileUpdatedOn,
 		state.SteamId.Int64())
@@ -209,6 +215,8 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		    p.kills_on, 
 		    p.deaths_by, 
 		    p.rage_quits,
+		    p.notes,
+		    p.whitelist,
 		    p.created_on,
 		    p.updated_on, 
 		    p.profile_updated_on,
@@ -223,10 +231,10 @@ func (store *sqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 	rowErr := store.db.
 		QueryRow(query, steamID).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
-			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans, &player.LastVACBanOn, &player.KillsOn, &player.DeathsBy,
-			&player.RageQuits,
-			&player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn,
-			&prevName)
+			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
+			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
+			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
+		)
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr

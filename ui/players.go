@@ -418,9 +418,16 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		lc := upperContainer.Objects[2].(*fyne.Container)
 		matchLabel := lc.Objects[0].(*widget.RichText)
 		if ps.IsMatched() {
-			matchLabel.Segments = []widget.RichTextSegment{
-				&widget.TextSegment{Text: fmt.Sprintf("%s [%s]", ps.Match.Origin, ps.Match.MatcherType),
-					Style: vacStyle},
+			if ps.Whitelisted {
+				matchLabel.Segments = []widget.RichTextSegment{
+					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] (WL)", ps.Match.Origin, ps.Match.MatcherType),
+						Style: stlOk},
+				}
+			} else {
+				matchLabel.Segments = []widget.RichTextSegment{
+					&widget.TextSegment{Text: fmt.Sprintf("%s [%s]", ps.Match.Origin, ps.Match.MatcherType),
+						Style: vacStyle},
+				}
 			}
 		} else {
 			matchLabel.Segments = nil
@@ -468,7 +475,8 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
-			if !settings.GetSteamId().Valid() {
+			sid := settings.GetSteamId()
+			if !sid.Valid() {
 				showUserError(errors.New(translations.One(translations.ErrorSteamIdMisconfigured)), parent)
 			} else {
 				launchFunc()

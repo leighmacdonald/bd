@@ -84,6 +84,7 @@ const (
 	MenuOpenExternal                 Key = "menu_open_external"
 	MenuCopySteamId                  Key = "menu_copy_steamid"
 	MenuChatHistory                  Key = "menu_chat_history"
+	MenuWhitelist                    Key = "menu_whitelist"
 	MenuNameHistory                  Key = "menu_name_history"
 	WindowNameHistory                Key = "window_name_history"
 	WindowChatHistoryUser            Key = "window_chat_history_user"

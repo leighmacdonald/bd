@@ -47,6 +47,10 @@ type Player struct {
 	KillsOn   int
 	RageQuits int
 	DeathsBy  int
+
+	Notes       string
+	Whitelisted bool
+
 	// PlayerSummary
 	RealName         string
 	NamePrevious     string
@@ -163,24 +167,9 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	t0 := time.Now()
 	return &Player{
 		Name:             name,
-		RealName:         "",
-		NamePrevious:     "",
 		AccountCreatedOn: time.Time{},
-		AvatarHash:       "",
-		CommunityBanned:  false,
 		Visibility:       ProfileVisibilityPublic,
-		NumberOfVACBans:  0,
-		LastVACBanOn:     nil,
-		NumberOfGameBans: 0,
-		EconomyBan:       false,
 		SteamId:          sid64,
-		Connected:        0,
-		Team:             0,
-		UserId:           0,
-		KillsOn:          0,
-		DeathsBy:         0,
-		Ping:             0,
-		KickAttemptCount: 0,
 		CreatedOn:        t0,
 		UpdatedOn:        t0,
 		Dangling:         true,

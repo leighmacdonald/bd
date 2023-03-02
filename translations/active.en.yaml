@@ -163,6 +163,9 @@ title_list_config:
 title_settings:
     one: "Settings"
 
+menu_whitelist:
+  one: "Whitelist"
+
 menu_vote_cheating:
   one: "Cheating"
 

@@ -42,6 +42,8 @@ const (
 
 type SteamIDFunc func(sid64 steamid.SID64)
 
+type SteamIDErrFunc func(sid64 steamid.SID64) error
+
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
 
 type KickReason string
