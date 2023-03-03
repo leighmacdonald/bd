@@ -21,7 +21,7 @@ const (
 	exportIndentSize = 4
 )
 
-func NewEngine(localRules *RuleSchema, localPlayers *PlayerListSchema) (*Engine, error) {
+func New(localRules *RuleSchema, localPlayers *PlayerListSchema) (*Engine, error) {
 	re := Engine{
 		RWMutex:        &sync.RWMutex{},
 		matchersSteam:  nil,

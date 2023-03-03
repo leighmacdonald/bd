@@ -94,7 +94,7 @@ const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
 	const testSteamID = 76561197961279983
-	re, _ := NewEngine(nil, nil)
+	re, _ := New(nil, nil)
 	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
 	steamMatch := re.MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
@@ -103,7 +103,7 @@ func TestSteamRules(t *testing.T) {
 }
 
 func TestTextRules(t *testing.T) {
-	re, reErr := NewEngine(nil, nil)
+	re, reErr := New(nil, nil)
 	require.NoError(t, reErr)
 	tr := genTestRules()
 	require.NoError(t, re.ImportRules(&tr))
@@ -148,7 +148,7 @@ func TestAvatarRules(t *testing.T) {
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-	re, reErr := NewEngine(nil, nil)
+	re, reErr := New(nil, nil)
 	require.NoError(t, reErr)
 	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
 	result := re.matchAvatar(buf.Bytes())
