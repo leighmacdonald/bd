@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/pkg/errors"
 	"sync"
 	"time"
 )
@@ -19,7 +20,7 @@ type searchWindow struct {
 	ctx         context.Context
 	app         fyne.App
 	list        *widget.List
-	boundList   binding.UntypedList
+	boundList   binding.ExternalUntypedList
 	queryString binding.String
 	objectMu    *sync.RWMutex
 	boundListMu *sync.RWMutex
@@ -27,6 +28,23 @@ type searchWindow struct {
 	avatarCache *avatarCache
 	queryEntry  *widget.Entry
 	cb          callBacks
+}
+
+func (screen *searchWindow) Reload(results model.PlayerCollection) error {
+	bl := results.AsAny()
+	screen.boundListMu.Lock()
+	if errSet := screen.boundList.Set(bl); errSet != nil {
+		return errors.Wrapf(errSet, "failed to set player results")
+	}
+	if errReload := screen.boundList.Reload(); errReload != nil {
+		return errors.Wrap(errReload, "Failed to reload results")
+	}
+	if errSet := screen.resultCount.Set(len(bl)); errSet != nil {
+		return errors.Wrap(errSet, "Failed to set result count")
+	}
+	screen.boundListMu.Unlock()
+	screen.list.Refresh()
+	return nil
 }
 
 func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs binding.StringList, settings *model.Settings, cache *avatarCache) *searchWindow {
@@ -94,18 +112,9 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 			showUserError(errSearch, window)
 			return
 		}
-		sw.boundListMu.Lock()
-		if errSet := sw.boundList.Set(results.AsAny()); errSet != nil {
-			showUserError(errSet, window)
-			return
+		if errReload := sw.Reload(results); errReload != nil {
+			showUserError(errReload, sw.Window)
 		}
-		if errSet := sw.resultCount.Set(len(results)); errSet != nil {
-			showUserError(errSet, window)
-			return
-		}
-		sw.boundListMu.Unlock()
-		sw.list.Refresh()
-		window.Content().Refresh()
 	}
 	sw.SetContent(container.NewBorder(
 		container.NewBorder(

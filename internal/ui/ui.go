@@ -66,7 +66,6 @@ type callBacks struct {
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
 
 type Ui struct {
-	ctx             context.Context
 	bd              *detector.BD
 	application     fyne.App
 	boundSettings   boundSettings
@@ -88,7 +87,6 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 
 func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store store.DataStore, version model.Version) model.UserInterface {
 	ui := Ui{
-		ctx:             ctx,
 		bd:              bd,
 		version:         version,
 		application:     defaultApp(),
@@ -117,15 +115,15 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 		},
 	}
 	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {
-		ui.createChatHistoryWindow(sid64)
+		ui.createChatHistoryWindow(ctx, sid64)
 	}
 	ui.callBacks.createNameHistory = func(sid64 steamid.SID64) {
-		ui.createNameHistoryWindow(sid64)
+		ui.createNameHistoryWindow(ctx, sid64)
 	}
 
-	ui.windows.chat = newGameChatWindow(ui.ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
+	ui.windows.chat = newGameChatWindow(ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
 
-	ui.windows.search = newSearchWindow(ui.ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
+	ui.windows.search = newSearchWindow(ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
 
 	ui.windows.player = newPlayerWindow(
 		ui.application,
@@ -139,7 +137,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 		},
 		ui.callBacks,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
-			return generateUserMenu(ui.ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.Links)
+			return generateUserMenu(ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.Links)
 		}, ui.avatarCache, version)
 
 	return &ui
@@ -190,18 +188,18 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	}
 }
 
-func (ui *Ui) createChatHistoryWindow(sid64 steamid.SID64) {
+func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.chatHistory[sid64]
 	if !found {
-		ui.windows.chatHistory[sid64] = newUserChatWindow(ui.ctx, ui.application, ui.callBacks.queryUserMessagesFunc, sid64)
+		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.application, ui.callBacks.queryUserMessagesFunc, sid64)
 	}
 	ui.windows.chatHistory[sid64].Show()
 }
 
-func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) {
+func (ui *Ui) createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.nameHistory[sid64]
 	if !found {
-		ui.windows.nameHistory[sid64] = newUserNameWindow(ui.ctx, ui.application, ui.callBacks.queryNamesFunc, sid64)
+		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.application, ui.callBacks.queryNamesFunc, sid64)
 	}
 	ui.windows.nameHistory[sid64].Show()
 }
