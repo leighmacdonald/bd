@@ -43,6 +43,7 @@ func defaultApp() fyne.App {
 type windows struct {
 	player      *playerWindow
 	chat        *gameChatWindow
+	search      *searchWindow
 	chatHistory map[steamid.SID64]*userChatWindow
 	nameHistory map[steamid.SID64]*userNameWindow
 }
@@ -57,6 +58,9 @@ type callBacks struct {
 	createUserChat        model.SteamIDFunc
 	createNameHistory     model.SteamIDFunc
 	getPlayer             model.GetPlayer
+	getPlayerOffline      model.GetPlayerOffline
+	searchPlayer          model.SearchPlayers
+	savePlayer            model.SavePlayer
 }
 
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
@@ -100,6 +104,9 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 			userAvatar: make(map[steamid.SID64]fyne.Resource),
 		},
 		callBacks: callBacks{
+			savePlayer:            store.SavePlayer,
+			getPlayerOffline:      store.GetPlayer,
+			searchPlayer:          store.SearchPlayers,
 			queryNamesFunc:        store.FetchNames,
 			queryUserMessagesFunc: store.FetchMessages,
 			kickFunc:              bd.CallVote,
@@ -118,12 +125,17 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 
 	ui.windows.chat = newGameChatWindow(ui.ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
 
+	ui.windows.search = newSearchWindow(ui.ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
+
 	ui.windows.player = newPlayerWindow(
 		ui.application,
 		settings,
 		ui.boundSettings,
 		func() {
 			ui.windows.chat.window.Show()
+		},
+		func() {
+			ui.windows.search.Show()
 		},
 		ui.callBacks,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
