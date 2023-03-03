@@ -118,6 +118,19 @@ label_settings_discord_presence:
 label_settings_discord_presence_hint:
   one: "Enables discord rich presence if discord is running"
 
+label_auto_close_on_game_exit:
+  one: "Auto Close"
+
+label_auto_close_on_game_exit_hint:
+  one: "When TF2 exits, close bd as well"
+
+label_auto_launch_game:
+  one: "Auto Launch TF2"
+
+label_auto_launch_game_hint:
+  one: "When launching bd, also automatically launch tf2"
+
+
 label_settings_steam_api_key:
   one: "Steam API Key"
 

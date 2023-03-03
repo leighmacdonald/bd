@@ -118,6 +118,11 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		}
 		return nil
 	}
+	autoCloseOnGameExit := boundSettings.getBoundBoolDefault("AutoCloseOnGameExit", true)
+	autoCloseOnGameExitEntry := widget.NewCheckWithData("", autoCloseOnGameExit)
+
+	autoLaunchGame := boundSettings.getBoundBoolDefault("AutoLaunchGame", true)
+	autoLaunchGameEntry := widget.NewCheckWithData("", autoLaunchGame)
 
 	kickerEnabled := boundSettings.getBoundBoolDefault("KickerEnabled", true)
 	kickerEnabledEntry := widget.NewCheckWithData("", kickerEnabled)
@@ -155,6 +160,10 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 				HintText: translations.One(translations.LabelSettingsPartyWarningsHint)},
 			{Text: translations.One(translations.LabelSettingsDiscordPresence), Widget: discordPresenceEnabledEntry,
 				HintText: translations.One(translations.LabelSettingsDiscordPresenceHint)},
+			{Text: translations.One(translations.LabelAutoLaunchGame), Widget: autoLaunchGameEntry,
+				HintText: translations.One(translations.LabelAutoLaunchGameHint)},
+			{Text: translations.One(translations.LabelAutoCloseOnGameExit), Widget: autoCloseOnGameExitEntry,
+				HintText: translations.One(translations.LabelAutoCloseOnGameExitHint)},
 			{Text: translations.One(translations.LabelSettingsSteamApiKey), Widget: apiKeyEntry,
 				HintText: translations.One(translations.LabelSettingsSteamApiKeyHint)},
 			{Text: translations.One(translations.LabelSettingsSteamId), Widget: steamIdEntry,
@@ -206,6 +215,8 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		settings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
 		settings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
 		settings.RconStatic = rconModeStaticEntry.Checked
+		settings.AutoCloseOnGameExit = autoCloseOnGameExitEntry.Checked
+		settings.AutoLaunchGame = autoLaunchGameEntry.Checked
 		settings.Unlock()
 		if apiKeyOriginal != apiKeyEntry.Text {
 			if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {

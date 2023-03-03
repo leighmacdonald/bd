@@ -12,6 +12,7 @@ import (
 var (
 	DefaultSteamRoot      = "~/.local/share/steam/Steam"
 	DefaultTF2Root        = "~/.local/share/steam/Steam/steamapps/common/Team Fortress 2/tf"
+	BinaryName            = "hl2"
 	TF2RootValidationFile = "bin/client.so"
 )
 
@@ -33,6 +34,20 @@ func OpenFolder(dir string) {
 		log.Printf("Failed to start process: %v\n", errRun)
 		return
 	}
+}
+
+func IsGameRunning() bool {
+	processes, errPs := ps.Processes()
+	if errPs != nil {
+		log.Printf("Failed to get process list: %v\n", errPs)
+		return false
+	}
+	for _, process := range processes {
+		if process.Executable() == BinaryName {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

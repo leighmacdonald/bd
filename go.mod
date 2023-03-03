@@ -15,6 +15,7 @@ require (
 	github.com/leighmacdonald/steamweb v0.0.4
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/nxadm/tail v1.4.8
 	github.com/pkg/errors v0.9.1
