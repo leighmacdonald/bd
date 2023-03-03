@@ -4,6 +4,7 @@ package platform
 
 import (
 	"github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-ps"
 	"log"
 	"os/exec"
 	"strings"

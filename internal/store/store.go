@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -24,9 +25,11 @@ type DataStore interface {
 	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
 	SaveMessage(ctx context.Context, message *model.UserMessage) error
 	SavePlayer(ctx context.Context, state *model.Player) error
+	SearchPlayers(ctx context.Context, opts model.SearchOpts) (model.PlayerCollection, error)
 	FetchNames(ctx context.Context, sid64 steamid.SID64) (model.UserNameHistoryCollection, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) (model.UserMessageCollection, error)
 	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
+	GetPlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
 }
 
 type SqliteStore struct {
@@ -200,6 +203,116 @@ func (store *SqliteStore) SavePlayer(ctx context.Context, state *model.Player) e
 	return store.updatePlayer(ctx, state)
 }
 
+func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOpts) (model.PlayerCollection, error) {
+	sid64, errSid := steamid.StringToSID64(opts.Query)
+	if errSid == nil && sid64.Valid() {
+		var player model.Player
+		if errPlayer := store.LoadOrCreatePlayer(ctx, sid64, &player); errPlayer != nil {
+			return nil, errPlayer
+		}
+		player.SteamId = sid64
+		return model.PlayerCollection{&player}, nil
+	}
+	const query = `
+		SELECT 
+		    p.steam_id,
+		    p.visibility, 
+		    p.real_name, 
+		    p.account_created_on, 
+		    p.avatar_hash, 
+		    p.community_banned,
+		    p.game_bans,
+		    p.vac_bans, 
+		    p.last_vac_ban_on,
+		    p.kills_on, 
+		    p.deaths_by, 
+		    p.rage_quits,
+		    p.notes,
+		    p.whitelist,
+		    p.created_on,
+		    p.updated_on, 
+		    p.profile_updated_on,
+			pn.name
+		FROM player p
+		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
+		WHERE pn.name LIKE '%%%s%%' 
+		ORDER BY p.updated_on DESC
+		LIMIT 1000`
+
+	rows, rowErr := store.db.Query(fmt.Sprintf(query, opts.Query))
+	if rowErr != nil {
+		return nil, rowErr
+	}
+	defer util.LogClose(rows)
+	var col model.PlayerCollection
+	for rows.Next() {
+		var prevName *string
+		var player model.Player
+		if errScan := rows.Scan(&player.SteamId, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
+			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
+			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
+			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
+		); errScan != nil {
+			return nil, errScan
+		}
+		if prevName != nil {
+			player.Name = *prevName
+			player.NamePrevious = *prevName
+		}
+		col = append(col, &player)
+
+	}
+	return col, nil
+}
+
+func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
+	const query = `
+		SELECT 
+		    p.visibility, 
+		    p.real_name, 
+		    p.account_created_on, 
+		    p.avatar_hash, 
+		    p.community_banned,
+		    p.game_bans,
+		    p.vac_bans, 
+		    p.last_vac_ban_on,
+		    p.kills_on, 
+		    p.deaths_by, 
+		    p.rage_quits,
+		    p.notes,
+		    p.whitelist,
+		    p.created_on,
+		    p.updated_on, 
+		    p.profile_updated_on,
+			pn.name
+		FROM player p
+		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
+		WHERE p.steam_id = ? 
+		ORDER BY pn.created_on DESC
+		LIMIT 1`
+
+	var prevName *string
+	rowErr := store.db.
+		QueryRowContext(ctx, query, steamID).
+		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
+			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
+			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
+			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
+		)
+	if rowErr != nil {
+		if rowErr != sql.ErrNoRows {
+			return rowErr
+		}
+		player.Dangling = true
+	}
+	player.SteamId = steamID
+	player.Dangling = false
+	if prevName != nil {
+		player.NamePrevious = *prevName
+	}
+	return nil
+}
+
 func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
 	const query = `
 		SELECT 
@@ -228,18 +341,18 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 
 	var prevName *string
 	rowErr := store.db.
-		QueryRow(query, steamID).
+		QueryRowContext(ctx, query, steamID).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
+	player.SteamId = steamID
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr
 		}
 		player.Dangling = true
-		player.SteamId = steamID
 		return store.SavePlayer(ctx, player)
 	}
 	player.Dangling = false

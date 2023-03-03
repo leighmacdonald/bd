@@ -577,7 +577,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			var sourcePlayer *model.Player
 			if update.source.Valid() {
 				sourcePlayer = bd.GetPlayer(update.source)
-				if sourcePlayer == nil && update.kind != updateStatus {
+				if sourcePlayer == nil && update.kind != updateStatus && update.kind != updateMark {
 					// Only register a new user to track once we received a status line
 					continue
 				}
@@ -600,7 +600,8 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 					log.Printf("updateStatus error: %v\n", errUpdate)
 				}
 			case updateMark:
-				if errUpdate := bd.onUpdateMark(update.data.(updateMarkEvent)); errUpdate != nil {
+				d := update.data.(updateMarkEvent)
+				if errUpdate := bd.onUpdateMark(d); errUpdate != nil {
 					log.Printf("updateMark error: %v\n", errUpdate)
 				}
 			case updateWhitelist:
@@ -783,10 +784,20 @@ func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 
 func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	player := bd.GetPlayer(status.target)
+	if player == nil {
+		player = model.NewPlayer(status.target, "")
+		if err := bd.store.GetPlayer(context.Background(), status.target, player); err != nil {
+			return err
+		}
+	}
+	name := player.Name
+	if name == "" {
+		name = player.NamePrevious
+	}
 	if errMark := bd.rules.Mark(rules.MarkOpts{
 		SteamID:    status.target,
 		Attributes: status.attrs,
-		Name:       player.Name,
+		Name:       name,
 	}); errMark != nil {
 		return errors.Wrap(errMark, "Failed to add mark")
 	}

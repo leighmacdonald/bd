@@ -47,6 +47,16 @@ type SteamIDErrFunc func(sid64 steamid.SID64) error
 
 type GetPlayer func(sid64 steamid.SID64) *Player
 
+type GetPlayerOffline func(ctx context.Context, sid64 steamid.SID64, player *Player) error
+
+type SearchOpts struct {
+	Query string
+}
+
+type SavePlayer func(ctx context.Context, state *Player) error
+
+type SearchPlayers func(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
+
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
 
 type NoteFunc func(sid64 steamid.SID64, note string) error

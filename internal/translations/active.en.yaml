@@ -212,6 +212,9 @@ menu_name_history:
 label_message_count:
   one: "Message Count: "
 
+label_result_count:
+  one: "Results: "
+
 window_name_history:
   one: "Name History: {{ .SteamId }}"
 
@@ -220,6 +223,9 @@ window_chat_history_user:
 
 window_chat_history_game:
   one: "Chat History"
+
+window_player_search:
+  one: "Player Search"
 
 window_mark_custom:
   one: "Mark with custom attribute"

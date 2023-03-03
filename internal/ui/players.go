@@ -47,7 +47,8 @@ type playerWindow struct {
 	containerHeading   *fyne.Container
 	containerStatPanel *fyne.Container
 
-	onShowChat func()
+	onShowChat   func()
+	onShowSearch func()
 
 	menuCreator MenuCreator
 	onReload    func(count int)
@@ -262,7 +263,7 @@ const symbolBad = "✗"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(),
+func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(), showSearchWindowFunc func(),
 	callbacks callBacks, menuCreator MenuCreator, cache *avatarCache, version model.Version) *playerWindow {
 	screen := &playerWindow{
 		app:                app,
@@ -270,6 +271,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		boundList:          binding.BindUntypedList(&[]interface{}{}),
 		bindingPlayerCount: binding.NewInt(),
 		onShowChat:         showChatWindowFunc,
+		onShowSearch:       showSearchWindowFunc,
 		callBacks:          callbacks,
 		menuCreator:        menuCreator,
 		avatarCache:        cache,
@@ -313,6 +315,9 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		},
 		func() {
 			screen.listsDialog.Show()
+		},
+		func() {
+			screen.onShowSearch()
 		})
 
 	var dirNames []string
@@ -472,7 +477,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 	return screen
 }
 
-func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showListsFunc func()) *widget.Toolbar {
+func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showListsFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
@@ -484,6 +489,7 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 			}
 		}),
 		widget.NewToolbarAction(theme.MailComposeIcon(), chatFunc),
+		widget.NewToolbarAction(theme.SearchIcon(), showSearchFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.StorageIcon(), func() {
