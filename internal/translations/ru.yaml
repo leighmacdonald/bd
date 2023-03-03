@@ -118,6 +118,19 @@ label_settings_discord_presence:
 label_settings_discord_presence_hint:
   one: "Включает discord rich presence если discord запушен"
 
+label_auto_close_on_game_exit:
+  one: "Автоматическое закрытие"
+
+label_auto_close_on_game_exit_hint:
+  one: "При выходе из TF2, так же закрывать bd"
+
+label_auto_launch_game:
+  one: "Автозапуск TF2"
+
+label_auto_launch_game_hint:
+  one: "При запуске bd, так же запускать TF@"
+
+
 label_settings_steam_api_key:
   one: "Steam API Ключ"
 
@@ -163,6 +176,9 @@ title_list_config:
 title_settings:
   one: "Настройки"
 
+menu_whitelist:
+  one: "Белый список"
+
 menu_vote_cheating:
   one: "Игрок Использует Читы"
 
@@ -196,6 +212,9 @@ menu_name_history:
 label_message_count:
   one: "Счётчик Сообщений: "
 
+label_result_count:
+  one: "Результаты: "
+
 window_name_history:
   one: "История Имён: {{ .SteamId }}"
 
@@ -204,6 +223,9 @@ window_chat_history_user:
 
 window_chat_history_game:
   one: "История Чата"
+
+window_player_search:
+  one: "Поиск Игрока"
 
 window_mark_custom:
   one: "Отметить кастомным атрибутом"
