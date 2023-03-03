@@ -8,6 +8,7 @@ import (
 type UserInterface interface {
 	Refresh()
 	Start(ctx context.Context)
+	Quit()
 	UpdateServerState(state Server)
 	UpdatePlayerState(collection PlayerCollection)
 	AddUserMessage(message UserMessage)

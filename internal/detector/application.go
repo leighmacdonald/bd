@@ -61,6 +61,7 @@ type BD struct {
 	gameStateUpdate    chan updateGameStateEvent
 	cache              cache.FsCache
 	startupTime        time.Time
+	gameHasStartedOnce bool
 	richPresenceActive bool
 }
 
@@ -69,19 +70,20 @@ func New(settings *model.Settings, store store.DataStore, rules *rules.Engine, c
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
-		store:             store,
-		rules:             rules,
-		settings:          settings,
-		logChan:           logChan,
-		incomingLogEvents: eventChan,
-		serverMu:          &sync.RWMutex{},
-		players:           model.PlayerCollection{},
-		playersMu:         &sync.RWMutex{},
-		triggerUpdate:     make(chan any),
-		gameStateUpdate:   make(chan updateGameStateEvent, 50),
-		cache:             cache,
-		logParser:         newLogParser(logChan, eventChan),
-		startupTime:       time.Now(),
+		store:              store,
+		rules:              rules,
+		settings:           settings,
+		logChan:            logChan,
+		incomingLogEvents:  eventChan,
+		serverMu:           &sync.RWMutex{},
+		players:            model.PlayerCollection{},
+		playersMu:          &sync.RWMutex{},
+		triggerUpdate:      make(chan any),
+		gameStateUpdate:    make(chan updateGameStateEvent, 50),
+		cache:              cache,
+		logParser:          newLogParser(logChan, eventChan),
+		startupTime:        time.Now(),
+		gameHasStartedOnce: platform.IsGameRunning(),
 	}
 
 	rootApp.createLogReader()
@@ -295,6 +297,7 @@ func (bd *BD) LaunchGameAndWait() {
 		log.Println(errArgs)
 		return
 	}
+	bd.gameHasStartedOnce = true
 	if errLaunch := platform.LaunchTF2(bd.settings.TF2Dir, args); errLaunch != nil {
 		log.Printf("Failed to launch game: %v\n", errLaunch)
 	}
@@ -924,6 +927,24 @@ func (bd *BD) CallVote(ctx context.Context, userID int64, reason model.KickReaso
 	return nil
 }
 
+func (bd *BD) processChecker(ctx context.Context) {
+	ticker := time.NewTicker(model.DurationProcessTimeout)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !bd.gameHasStartedOnce || !bd.settings.AutoCloseOnGameExit {
+				continue
+			}
+			if !platform.IsGameRunning() {
+				log.Printf("Auto-closing on game exit\n")
+				bd.gui.Quit()
+			}
+		}
+	}
+}
+
 // Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
@@ -944,5 +965,9 @@ func (bd *BD) Start(ctx context.Context) {
 	go bd.eventHandler()
 	go bd.gameStateTracker(ctx)
 	go bd.statusUpdater(ctx)
+	go bd.processChecker(ctx)
+	if !bd.gameHasStartedOnce && bd.settings.AutoLaunchGame && !platform.IsGameRunning() {
+		go bd.LaunchGameAndWait()
+	}
 	<-ctx.Done()
 }

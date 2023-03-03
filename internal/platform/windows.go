@@ -5,6 +5,7 @@ package platform
 import (
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/golib"
+	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
 	"log"
@@ -96,6 +97,20 @@ func OpenFolder(dir string) {
 		log.Printf("Failed to start process: %v\n", errRun)
 		return
 	}
+}
+
+func IsGameRunning() bool {
+	processes, errPs := ps.Processes()
+	if errPs != nil {
+		log.Printf("Failed to get process list: %v\n", errPs)
+		return false
+	}
+	for _, process := range processes {
+		if process.Executable() == BinaryName {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

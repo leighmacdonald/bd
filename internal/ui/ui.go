@@ -203,6 +203,10 @@ func (ui *Ui) Start(ctx context.Context) {
 	ctx.Done()
 }
 
+func (ui *Ui) Quit() {
+	ui.application.Quit()
+}
+
 func showUserError(msg error, parent fyne.Window) {
 	d := dialog.NewError(msg, parent)
 	d.Show()

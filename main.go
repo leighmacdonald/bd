@@ -32,6 +32,7 @@ func main() {
 	if errSettings != nil {
 		log.Panicf("Failed to initialize settings: %v", errSettings)
 	}
+
 	localRules := rules.NewRuleSchema()
 	localPlayersList := rules.NewPlayerListSchema()
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {

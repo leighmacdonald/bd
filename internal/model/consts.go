@@ -16,6 +16,7 @@ const (
 	DurationCacheTimeout         = time.Hour * 12
 	DurationWebRequestTimeout    = time.Second * 5
 	DurationRCONRequestTimeout   = time.Second
+	DurationProcessTimeout       = time.Second * 3
 )
 
 type Team int

@@ -70,13 +70,15 @@ type Settings struct {
 	SteamDir string `yaml:"steam_dir"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
 	TF2Dir                 string               `yaml:"tf2_dir"`
+	AutoLaunchGame         bool                 `yaml:"auto_launch_game_auto"`
+	AutoCloseOnGameExit    bool                 `yaml:"auto_close_on_game_exit"`
 	ApiKey                 string               `yaml:"api_key"`
 	DisconnectedTimeout    string               `yaml:"disconnected_timeout"`
 	DiscordPresenceEnabled bool                 `yaml:"discord_presence_enabled"`
 	KickerEnabled          bool                 `yaml:"kicker_enabled"`
 	ChatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
 	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
-	KickTags               []string             `json:"kick_tags"`
+	KickTags               []string             `yaml:"kick_tags"`
 	Lists                  ListConfigCollection `yaml:"lists"`
 	Links                  []LinkConfig         `yaml:"links"`
 	RconStatic             bool                 `yaml:"rcon_static"`
@@ -131,6 +133,8 @@ func NewSettings() (*Settings, error) {
 		DisconnectedTimeout:    "60s",
 		DiscordPresenceEnabled: true,
 		KickerEnabled:          false,
+		AutoCloseOnGameExit:    false,
+		AutoLaunchGame:         false,
 		KickTags:               []string{"cheater", "bot", "trigger_name", "trigger_msg"},
 		ChatWarningsEnabled:    false,
 		PartyWarningsEnabled:   true,
