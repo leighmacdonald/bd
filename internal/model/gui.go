@@ -1,11 +1,13 @@
 package model
 
-import "github.com/leighmacdonald/steamid/v2/steamid"
+import (
+	"context"
+	"github.com/leighmacdonald/steamid/v2/steamid"
+)
 
 type UserInterface interface {
 	Refresh()
-	Start()
-	SetBuildInfo(version string, commit string, date string, builtBy string)
+	Start(ctx context.Context)
 	UpdateServerState(state Server)
 	UpdatePlayerState(collection PlayerCollection)
 	AddUserMessage(message UserMessage)

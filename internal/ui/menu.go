@@ -215,6 +215,35 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 				}
 			},
 			Label: translations.One(translations.MenuWhitelist)},
+		&fyne.MenuItem{
+			Icon: theme.DocumentCreateIcon(),
+			Action: func() {
+				player := cb.getPlayer(steamId)
+				if player == nil {
+					return
+				}
+				entry := widget.NewMultiLineEntry()
+				entry.SetMinRowsVisible(30)
+				player.RLock()
+				entry.SetText(player.Notes)
+				player.RUnlock()
+				item := widget.NewFormItem("", entry)
+				sz := item.Widget.Size()
+				sz.Height = 500
+				item.Widget.Resize(sz)
+				d := dialog.NewForm("Edit Player Notes", "Save", "Cancel", []*widget.FormItem{item}, func(b bool) {
+					if !b {
+						return
+					}
+					player.Lock()
+					player.Notes = entry.Text
+					player.Touch()
+					player.Unlock()
+				}, window)
+				d.Resize(fyne.NewSize(700, 600))
+				d.Show()
+			},
+			Label: "Edit Notes"},
 	)
 	return menu
 }

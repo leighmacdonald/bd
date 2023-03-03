@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/hugolgst/rich-go/client"
 	"github.com/leighmacdonald/bd/internal/addons"
+	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -58,13 +59,13 @@ type BD struct {
 	gui                model.UserInterface
 	triggerUpdate      chan any
 	gameStateUpdate    chan updateGameStateEvent
-	cache              localCache
+	cache              cache.FsCache
 	startupTime        time.Time
 	richPresenceActive bool
 }
 
 // New allocates a new bot detector application instance
-func New(settings *model.Settings, store store.DataStore, rules *rules.Engine, cache FsCache) BD {
+func New(settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	rootApp := BD{
@@ -173,14 +174,14 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 	}
 }
 
-func fetchAvatar(ctx context.Context, cache localCache, hash string) ([]byte, error) {
+func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
 	buf := bytes.NewBuffer(nil)
-	errCache := cache.Get(cacheTypeAvatar, hash, buf)
+	errCache := c.Get(cache.TypeAvatar, hash, buf)
 	if errCache == nil {
 		return buf.Bytes(), nil
 	}
-	if errCache != nil && !errors.Is(errCache, errCacheExpired) {
+	if errCache != nil && !errors.Is(errCache, cache.ErrCacheExpired) {
 		return nil, errors.Wrap(errCache, "unexpected cache error")
 	}
 	localCtx, cancel := context.WithTimeout(ctx, model.DurationWebRequestTimeout)
@@ -202,7 +203,7 @@ func fetchAvatar(ctx context.Context, cache localCache, hash string) ([]byte, er
 	}
 	defer util.LogClose(resp.Body)
 
-	if errSet := cache.Set(cacheTypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
+	if errSet := c.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
 	}
 
@@ -452,7 +453,7 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 	}
 }
 
-func (bd *BD) getPlayer(sid64 steamid.SID64) *model.Player {
+func (bd *BD) GetPlayer(sid64 steamid.SID64) *model.Player {
 	bd.playersMu.RLock()
 	defer bd.playersMu.RUnlock()
 	for _, player := range bd.players {
@@ -462,6 +463,7 @@ func (bd *BD) getPlayer(sid64 steamid.SID64) *model.Player {
 	}
 	return nil
 }
+
 func (bd *BD) getPlayerByName(name string) *model.Player {
 	bd.playersMu.RLock()
 	defer bd.playersMu.RUnlock()
@@ -527,7 +529,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			}
 			queuedUpdates = nil
 		case <-checkTimer.C:
-			p := bd.getPlayer(bd.settings.GetSteamId())
+			p := bd.GetPlayer(bd.settings.GetSteamId())
 			if p == nil {
 				// We have not connected yet.
 				continue
@@ -557,7 +559,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			bd.discordUpdateActivity(len(valid))
 			bd.gui.UpdatePlayerState(bd.players)
 		case sid64 := <-queueAvatars:
-			p := bd.getPlayer(sid64)
+			p := bd.GetPlayer(sid64)
 			if p == nil || p.AvatarHash == "" {
 				continue
 			}
@@ -571,7 +573,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 		case update := <-bd.gameStateUpdate:
 			var sourcePlayer *model.Player
 			if update.source.Valid() {
-				sourcePlayer = bd.getPlayer(update.source)
+				sourcePlayer = bd.GetPlayer(update.source)
 				if sourcePlayer == nil && update.kind != updateStatus {
 					// Only register a new user to track once we received a status line
 					continue
@@ -649,7 +651,7 @@ func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID
 }
 
 func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
-	player := bd.getPlayer(steamID)
+	player := bd.GetPlayer(steamID)
 	if player != nil {
 		bd.playersMu.Lock()
 		player.Team = evt.team
@@ -692,13 +694,13 @@ func (bd *BD) onUpdateKill(kill killEvent) {
 	if !source.Valid() || !target.Valid() {
 		return
 	}
-	sourcePlayer := bd.getPlayer(source)
+	sourcePlayer := bd.GetPlayer(source)
 	bd.playersMu.Lock()
 	sourcePlayer.Kills++
 	sourcePlayer.Touch()
 	bd.playersMu.Unlock()
 
-	targetPlayer := bd.getPlayer(source)
+	targetPlayer := bd.GetPlayer(source)
 	bd.playersMu.Lock()
 	targetPlayer.Kills++
 	targetPlayer.Touch()
@@ -707,7 +709,7 @@ func (bd *BD) onUpdateKill(kill killEvent) {
 }
 
 func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
-	player := bd.getPlayer(steamID)
+	player := bd.GetPlayer(steamID)
 	bd.playersMu.Lock()
 	defer bd.playersMu.Unlock()
 	player.NumberOfVACBans = ban.NumberOfVACBans
@@ -723,7 +725,7 @@ func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 }
 
 func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
-	player := bd.getPlayer(steamID)
+	player := bd.GetPlayer(steamID)
 	bd.playersMu.Lock()
 	defer bd.playersMu.Unlock()
 	player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
@@ -735,7 +737,7 @@ func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSumm
 }
 
 func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
-	player := bd.getPlayer(steamID)
+	player := bd.GetPlayer(steamID)
 	if player == nil {
 		player = model.NewPlayer(steamID, update.name)
 		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
@@ -764,7 +766,7 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 }
 
 func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
-	player := bd.getPlayer(event.target)
+	player := bd.GetPlayer(event.target)
 	if player == nil {
 		return errors.New("Unknown player, cannot whitelist")
 	}
@@ -777,7 +779,7 @@ func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 }
 
 func (bd *BD) onUpdateMark(status updateMarkEvent) error {
-	player := bd.getPlayer(status.target)
+	player := bd.GetPlayer(status.target)
 	if errMark := bd.rules.Mark(rules.MarkOpts{
 		SteamID:    status.target,
 		Attributes: status.attrs,
@@ -798,8 +800,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 
 // AttachGui connects the backend functions to the frontend gui
 // TODO Use channels for communicating instead
-func (bd *BD) AttachGui(gui model.UserInterface, version string, commit string, date string, builtBy string) {
-	gui.SetBuildInfo(version, commit, date, builtBy)
+func (bd *BD) AttachGui(gui model.UserInterface) {
 	gui.UpdateAttributes(bd.rules.UniqueTags())
 	bd.gui = gui
 }

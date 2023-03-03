@@ -56,6 +56,7 @@ type callBacks struct {
 	gameLauncherFunc      model.LaunchFunc
 	createUserChat        model.SteamIDFunc
 	createNameHistory     model.SteamIDFunc
+	getPlayer             model.GetPlayer
 }
 
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
@@ -70,6 +71,7 @@ type Ui struct {
 	callBacks       callBacks
 	knownAttributes binding.StringList
 	avatarCache     *avatarCache
+	version         model.Version
 }
 
 func (ui *Ui) UpdateServerState(state model.Server) {
@@ -80,10 +82,11 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 	ui.windows.player.updatePlayerState(collection)
 }
 
-func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store store.DataStore) model.UserInterface {
+func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store store.DataStore, version model.Version) model.UserInterface {
 	ui := Ui{
 		ctx:             ctx,
 		bd:              bd,
+		version:         version,
 		application:     defaultApp(),
 		boundSettings:   boundSettings{binding.BindStruct(settings)},
 		settings:        settings,
@@ -103,6 +106,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 			markFn:                bd.OnMark,
 			gameLauncherFunc:      bd.LaunchGameAndWait,
 			whitelistFn:           bd.OnWhitelist,
+			getPlayer:             bd.GetPlayer,
 		},
 	}
 	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {
@@ -124,7 +128,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 		ui.callBacks,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
 			return generateUserMenu(ui.ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.Links)
-		}, ui.avatarCache)
+		}, ui.avatarCache, version)
 
 	return &ui
 }
@@ -134,10 +138,6 @@ func (ui *Ui) SetAvatar(sid64 steamid.SID64, data []byte) {
 		return
 	}
 	ui.avatarCache.SetAvatar(sid64, data)
-}
-
-func (ui *Ui) SetBuildInfo(version string, commit string, date string, builtBy string) {
-	ui.windows.player.aboutDialog.SetBuildInfo(version, commit, date, builtBy)
 }
 
 func (ui *Ui) Refresh() {
@@ -194,9 +194,13 @@ func (ui *Ui) createNameHistoryWindow(sid64 steamid.SID64) {
 	ui.windows.nameHistory[sid64].Show()
 }
 
-func (ui *Ui) Start() {
+func (ui *Ui) Start(ctx context.Context) {
+	defer ui.bd.Shutdown()
+	ui.bd.AttachGui(ui)
+	go ui.bd.Start(ctx)
 	ui.windows.player.window.Show()
 	ui.application.Run()
+	ctx.Done()
 }
 
 func showUserError(msg error, parent fyne.Window) {

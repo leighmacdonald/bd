@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/translations"
 	"net/url"
 	"runtime"
@@ -19,38 +20,7 @@ type aboutDialog struct {
 	labelGo      *widget.RichText
 }
 
-func (aboutDialog *aboutDialog) SetBuildInfo(version string, commit string, date string, builtBy string) {
-	if len(aboutDialog.labelVersion.Segments) == 1 {
-		aboutDialog.labelVersion.Segments = append(aboutDialog.labelVersion.Segments, &widget.TextSegment{
-			Style: widget.RichTextStyleStrong,
-			Text:  version,
-		})
-		aboutDialog.labelVersion.Refresh()
-	}
-	if len(aboutDialog.labelCommit.Segments) == 1 {
-		aboutDialog.labelCommit.Segments = append(aboutDialog.labelCommit.Segments, &widget.TextSegment{
-			Style: widget.RichTextStyleStrong,
-			Text:  commit,
-		})
-		aboutDialog.labelCommit.Refresh()
-	}
-	if len(aboutDialog.labelDate.Segments) == 1 {
-		aboutDialog.labelDate.Segments = append(aboutDialog.labelDate.Segments, &widget.TextSegment{
-			Style: widget.RichTextStyleStrong,
-			Text:  date,
-		})
-		aboutDialog.labelDate.Refresh()
-	}
-	if len(aboutDialog.labelBuiltBy.Segments) == 1 {
-		aboutDialog.labelBuiltBy.Segments = append(aboutDialog.labelBuiltBy.Segments, &widget.TextSegment{
-			Style: widget.RichTextStyleStrong,
-			Text:  builtBy,
-		})
-		aboutDialog.labelBuiltBy.Refresh()
-	}
-}
-
-func newAboutDialog(parent fyne.Window) *aboutDialog {
+func newAboutDialog(parent fyne.Window, version model.Version) *aboutDialog {
 	u, _ := url.Parse(urlHome)
 	about := aboutDialog{
 		labelBuiltBy: widget.NewRichTextWithText(translations.One(translations.LabelAboutBuiltBy)),
@@ -75,5 +45,25 @@ func newAboutDialog(parent fyne.Window) *aboutDialog {
 		),
 		parent,
 	)
+	about.labelVersion.Segments = append(about.labelVersion.Segments, &widget.TextSegment{
+		Style: widget.RichTextStyleStrong,
+		Text:  version.Version,
+	})
+
+	about.labelCommit.Segments = append(about.labelCommit.Segments, &widget.TextSegment{
+		Style: widget.RichTextStyleStrong,
+		Text:  version.Commit,
+	})
+
+	about.labelDate.Segments = append(about.labelDate.Segments, &widget.TextSegment{
+		Style: widget.RichTextStyleStrong,
+		Text:  version.Date,
+	})
+
+	about.labelBuiltBy.Segments = append(about.labelBuiltBy.Segments, &widget.TextSegment{
+		Style: widget.RichTextStyleStrong,
+		Text:  version.BuiltBy,
+	})
+	about.Refresh()
 	return &about
 }

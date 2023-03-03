@@ -1,4 +1,4 @@
-package detector
+package cache
 
 import (
 	"github.com/leighmacdonald/bd/pkg/util"
@@ -11,52 +11,52 @@ import (
 )
 
 var (
-	errCacheExpired = errors.New("cached value expired")
+	ErrCacheExpired = errors.New("cached value expired")
 )
 
-type localCache interface {
-	Set(ct cacheType, key string, value io.Reader) error
-	Get(ct cacheType, key string, receiver io.Writer) error
+type Cache interface {
+	Set(ct Type, key string, value io.Reader) error
+	Get(ct Type, key string, receiver io.Writer) error
 }
 
 type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
 }
-type cacheType int
+type Type int
 
 const (
-	cacheTypeAvatar cacheType = iota
-	cacheTypeLists
+	TypeAvatar Type = iota
+	TypeLists
 )
 
-func NewFsCache(rootDir string, maxAge time.Duration) FsCache {
+func New(rootDir string, maxAge time.Duration) FsCache {
 	cache := FsCache{rootPath: rootDir, maxAge: maxAge}
 	cache.init()
 	return cache
 }
 
 func (cache FsCache) init() {
-	for _, p := range []cacheType{cacheTypeAvatar, cacheTypeLists} {
+	for _, p := range []Type{TypeAvatar, TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0770); errMkDir != nil {
 			log.Panicf("Failed to setup cache dirs: %v\n", errMkDir)
 		}
 	}
 }
 
-func (cache FsCache) getPath(ct cacheType, key string) string {
+func (cache FsCache) getPath(ct Type, key string) string {
 	switch ct {
-	case cacheTypeAvatar:
+	case TypeAvatar:
 		return filepath.Join(cache.rootPath, "avatars", key)
-	case cacheTypeLists:
+	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:
-		log.Panicf("Got unknown cacheType: %v\n", ct)
+		log.Panicf("Got unknown Type: %v\n", ct)
 		return ""
 	}
 }
 
-func (cache FsCache) Set(ct cacheType, key string, value io.Reader) error {
+func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 	of, errOf := os.OpenFile(cache.getPath(ct, key), os.O_WRONLY|os.O_CREATE, 0660)
 	if errOf != nil {
 		return errOf
@@ -68,19 +68,19 @@ func (cache FsCache) Set(ct cacheType, key string, value io.Reader) error {
 	return nil
 }
 
-func (cache FsCache) Get(ct cacheType, key string, receiver io.Writer) error {
+func (cache FsCache) Get(ct Type, key string, receiver io.Writer) error {
 	of, errOf := os.Open(cache.getPath(ct, key))
 	if errOf != nil {
-		return errCacheExpired
+		return ErrCacheExpired
 	}
 	defer util.LogClose(of)
 
 	stat, errStat := of.Stat()
 	if errStat != nil {
-		return errCacheExpired
+		return ErrCacheExpired
 	}
 	if time.Since(stat.ModTime()) > cache.maxAge {
-		return errCacheExpired
+		return ErrCacheExpired
 	}
 	_, errCopy := io.Copy(receiver, of)
 	return errCopy

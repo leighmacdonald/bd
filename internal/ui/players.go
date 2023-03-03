@@ -262,7 +262,8 @@ const symbolBad = "✗"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(), callbacks callBacks, menuCreator MenuCreator, cache *avatarCache) *playerWindow {
+func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(),
+	callbacks callBacks, menuCreator MenuCreator, cache *avatarCache, version model.Version) *playerWindow {
 	screen := &playerWindow{
 		app:                app,
 		window:             app.NewWindow("Bot Detector"),
@@ -290,7 +291,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
 	screen.settingsDialog = newSettingsDialog(screen.window, boundSettings, settings)
 	screen.listsDialog = newRuleListConfigDialog(screen.window, settings.Save, settings)
-	screen.aboutDialog = newAboutDialog(screen.window)
+	screen.aboutDialog = newAboutDialog(screen.window, version)
 	screen.onReload = func(count int) {
 		if errSet := screen.bindingPlayerCount.Set(count); errSet != nil {
 			log.Printf("Failed to update player count: %v\n", errSet)

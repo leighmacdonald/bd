@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -74,11 +75,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer util.LogClose(dataStore)
-	cache := detector.NewFsCache(settings.ConfigRoot(), model.DurationCacheTimeout)
-	bd := detector.New(settings, dataStore, engine, cache)
-	defer bd.Shutdown()
-	gui := ui.New(ctx, &bd, settings, dataStore)
-	bd.AttachGui(gui, version, commit, date, builtBy)
-	go bd.Start(ctx)
-	gui.Start()
+	bd := detector.New(settings, dataStore, engine, cache.New(settings.ConfigRoot(), model.DurationCacheTimeout))
+	gui := ui.New(ctx, &bd, settings, dataStore, model.Version{
+		Version: version,
+		Commit:  commit,
+		Date:    date,
+		BuiltBy: builtBy,
+	})
+	gui.Start(ctx)
 }

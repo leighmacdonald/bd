@@ -44,7 +44,11 @@ type SteamIDFunc func(sid64 steamid.SID64)
 
 type SteamIDErrFunc func(sid64 steamid.SID64) error
 
+type GetPlayer func(sid64 steamid.SID64) *Player
+
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
+
+type NoteFunc func(sid64 steamid.SID64, note string) error
 
 type KickReason string
 
@@ -62,3 +66,10 @@ type LaunchFunc func()
 type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
 
 type QueryUserMessagesFunc func(ctx context.Context, sid64 steamid.SID64) (UserMessageCollection, error)
+
+type Version struct {
+	Version string
+	Commit  string
+	Date    string
+	BuiltBy string
+}
