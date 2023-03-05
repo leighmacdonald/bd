@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	fyne.io/fyne/v2 v2.3.1
+	github.com/Masterminds/squirrel v1.5.3
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/hugolgst/rich-go v0.0.0-20210925091458-d59fb695d9c0
@@ -50,6 +51,8 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.22 // indirect

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -99,48 +100,48 @@ func (store *SqliteStore) Init() error {
 }
 
 func (store *SqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
-	const query = `INSERT INTO player_names (steam_id, name, created_on) VALUES (?, ?, ?)`
-	if _, errExec := store.db.ExecContext(ctx, query, steamID.Int64(), name, time.Now()); errExec != nil {
+	query, args, err := sq.
+		Insert("player_names").
+		Columns("steam_id", "name", "created_on").
+		Values(steamID, name, time.Now()).
+		ToSql()
+	if err != nil {
+		return err
+	}
+	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
 	return nil
 }
 
 func (store *SqliteStore) SaveMessage(ctx context.Context, message *model.UserMessage) error {
-	const query = `INSERT INTO player_messages (steam_id, message, created_on) VALUES (?, ?, ?) RETURNING message_id`
-	if errExec := store.db.QueryRowContext(ctx, query, message.PlayerSID, message.Message, time.Now()).Scan(&message.MessageId); errExec != nil {
+	query := sq.
+		Insert("player_messages").
+		Columns("steam_id", "message", "created_on").
+		Values(message.PlayerSID, message.Message, time.Now()).
+		Suffix("RETURNING \"message_id\"").
+		RunWith(store.db)
+	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageId); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save message")
 	}
 	return nil
 }
 
 func (store *SqliteStore) insertPlayer(ctx context.Context, state *model.Player) error {
-	const insertQuery = `
-		INSERT INTO player (
-                    steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, 
-                    last_vac_ban_on, kills_on, deaths_by, rage_quits, notes, whitelist, created_on, updated_on, profile_updated_on) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, errExec := store.db.ExecContext(
-		ctx,
-		insertQuery,
-		state.SteamId.Int64(),
-		state.Visibility,
-		state.RealName,
-		state.AccountCreatedOn,
-		state.AvatarHash,
-		state.CommunityBanned,
-		state.NumberOfGameBans,
-		state.NumberOfVACBans,
-		state.LastVACBanOn,
-		state.KillsOn,
-		state.DeathsBy,
-		state.RageQuits,
-		state.Notes,
-		state.Whitelisted,
-		state.CreatedOn,
-		state.UpdatedOn,
-		state.ProfileUpdatedOn,
-	); errExec != nil {
+	query, args, errSql := sq.
+		Insert("player").
+		Columns("steam_id", "visibility", "real_name", "account_created_on", "avatar_hash",
+			"community_banned", "game_bans", "vac_bans", "last_vac_ban_on", "kills_on", "deaths_by",
+			"rage_quits", "notes", "whitelist", "created_on", "updated_on", "profile_updated_on").
+		Values(state.SteamId.Int64(), state.Visibility, state.RealName, state.AccountCreatedOn, state.AvatarHash,
+			state.CommunityBanned, state.NumberOfGameBans, state.NumberOfVACBans, state.LastVACBanOn, state.KillsOn,
+			state.DeathsBy, state.RageQuits, state.Notes, state.Whitelisted, state.CreatedOn,
+			state.UpdatedOn, state.ProfileUpdatedOn).
+		ToSql()
+	if errSql != nil {
+		return errSql
+	}
+	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
 	state.Dangling = false
@@ -148,45 +149,29 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *model.Player)
 }
 
 func (store *SqliteStore) updatePlayer(ctx context.Context, state *model.Player) error {
-	const updateQuery = `
-		UPDATE player 
-		SET visibility = ?, 
-		    real_name = ?, 
-		    account_created_on = ?, 
-		    avatar_hash = ?, 
-		    community_banned = ?,
-		    game_bans = ?,
-            vac_bans = ?,
-            last_vac_ban_on = ?,
-            kills_on = ?, 
-            deaths_by = ?, 
-            rage_quits = ?, 
-            notes = ?,
-            whitelist = ?,
-            updated_on = ?,
-            profile_updated_on = ?
-		WHERE steam_id = ?`
-
 	state.UpdatedOn = time.Now()
-	_, errExec := store.db.ExecContext(
-		ctx,
-		updateQuery,
-		state.Visibility,
-		state.RealName,
-		state.AccountCreatedOn,
-		state.AvatarHash,
-		state.CommunityBanned,
-		state.NumberOfGameBans,
-		state.NumberOfVACBans,
-		state.LastVACBanOn,
-		state.KillsOn,
-		state.DeathsBy,
-		state.RageQuits,
-		state.Notes,
-		state.Whitelisted,
-		state.UpdatedOn,
-		state.ProfileUpdatedOn,
-		state.SteamId.Int64())
+	query, args, errSql := sq.
+		Update("player").
+		Set("visibility", state.Visibility).
+		Set("real_name", state.RealName).
+		Set("account_created_on", state.AccountCreatedOn).
+		Set("avatar_hash", state.AvatarHash).
+		Set("community_banned", state.CommunityBanned).
+		Set("game_bans", state.NumberOfGameBans).
+		Set("vac_bans", state.NumberOfVACBans).
+		Set("last_vac_ban_on", state.LastVACBanOn).
+		Set("kills_on", state.KillsOn).
+		Set("deaths_by", state.DeathsBy).
+		Set("rage_quits", state.RageQuits).
+		Set("notes", state.Notes).
+		Set("whitelist", state.Whitelisted).
+		Set("updated_on", state.UpdatedOn).
+		Set("profile_updated_on", state.ProfileUpdatedOn).
+		Where(sq.Eq{"steam_id": state.SteamId}).ToSql()
+	if errSql != nil {
+		return errSql
+	}
+	_, errExec := store.db.ExecContext(ctx, query, args...)
 	if errExec != nil {
 		return errors.Wrap(errExec, "Could not update player state")
 	}
@@ -213,33 +198,23 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 		player.SteamId = sid64
 		return model.PlayerCollection{&player}, nil
 	}
-	const query = `
-		SELECT 
-		    p.steam_id,
-		    p.visibility, 
-		    p.real_name, 
-		    p.account_created_on, 
-		    p.avatar_hash, 
-		    p.community_banned,
-		    p.game_bans,
-		    p.vac_bans, 
-		    p.last_vac_ban_on,
-		    p.kills_on, 
-		    p.deaths_by, 
-		    p.rage_quits,
-		    p.notes,
-		    p.whitelist,
-		    p.created_on,
-		    p.updated_on, 
-		    p.profile_updated_on,
-			pn.name
-		FROM player p
-		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
-		WHERE pn.name LIKE '%%%s%%' 
-		ORDER BY p.updated_on DESC
-		LIMIT 1000`
 
-	rows, rowErr := store.db.Query(fmt.Sprintf(query, opts.Query))
+	qb := sq.
+		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
+			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
+			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
+		From("player p").
+		LeftJoin("player_names pn ON p.steam_id = pn.steam_id ").
+		OrderBy("p.updated_on DESC").
+		Limit(1000)
+	if opts.Query != "" {
+		qb = qb.Where(sq.Like{"pn.name": fmt.Sprintf("%%%s%%", opts.Query)})
+	}
+	query, args, errSql := qb.ToSql()
+	if errSql != nil {
+		return nil, errSql
+	}
+	rows, rowErr := store.db.QueryContext(ctx, query, args...)
 	if rowErr != nil {
 		return nil, rowErr
 	}
@@ -266,34 +241,22 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 }
 
 func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
-	const query = `
-		SELECT 
-		    p.visibility, 
-		    p.real_name, 
-		    p.account_created_on, 
-		    p.avatar_hash, 
-		    p.community_banned,
-		    p.game_bans,
-		    p.vac_bans, 
-		    p.last_vac_ban_on,
-		    p.kills_on, 
-		    p.deaths_by, 
-		    p.rage_quits,
-		    p.notes,
-		    p.whitelist,
-		    p.created_on,
-		    p.updated_on, 
-		    p.profile_updated_on,
-			pn.name
-		FROM player p
-		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
-		WHERE p.steam_id = ? 
-		ORDER BY pn.created_on DESC
-		LIMIT 1`
-
+	query, args, errSql := sq.
+		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
+			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
+			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
+		From("player p").
+		LeftJoin("player_names pn ON p.steam_id = pn.steam_id ").
+		Where(sq.Eq{"p.steam_id": steamID}).
+		OrderBy("pn.created_on DESC").
+		Limit(1).
+		ToSql()
+	if errSql != nil {
+		return errSql
+	}
 	var prevName *string
 	rowErr := store.db.
-		QueryRowContext(ctx, query, steamID).
+		QueryRowContext(ctx, query, args...).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
@@ -314,34 +277,22 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 }
 
 func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
-	const query = `
-		SELECT 
-		    p.visibility, 
-		    p.real_name, 
-		    p.account_created_on, 
-		    p.avatar_hash, 
-		    p.community_banned,
-		    p.game_bans,
-		    p.vac_bans, 
-		    p.last_vac_ban_on,
-		    p.kills_on, 
-		    p.deaths_by, 
-		    p.rage_quits,
-		    p.notes,
-		    p.whitelist,
-		    p.created_on,
-		    p.updated_on, 
-		    p.profile_updated_on,
-			pn.name
-		FROM player p
-		LEFT JOIN player_names pn ON p.steam_id = pn.steam_id 
-		WHERE p.steam_id = ? 
-		ORDER BY pn.created_on DESC
-		LIMIT 1`
-
+	query, args, errSql := sq.
+		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
+			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
+			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
+		From("player p").
+		LeftJoin("player_names pn ON p.steam_id = pn.steam_id").
+		Where(sq.Eq{"p.steam_id": steamID}).
+		OrderBy("pn.created_on DESC").
+		Limit(1).
+		ToSql()
+	if errSql != nil {
+		return errSql
+	}
 	var prevName *string
 	rowErr := store.db.
-		QueryRowContext(ctx, query, steamID).
+		QueryRowContext(ctx, query, args...).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
@@ -363,8 +314,15 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 }
 
 func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
-	const query = `SELECT name_id, name, created_on FROM player_names WHERE steam_id = ?`
-	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
+	query, args, errSql := sq.
+		Select("name_id", "name", "created_on").
+		From("player_names").
+		Where(sq.Eq{"steam_id": steamID}).
+		ToSql()
+	if errSql != nil {
+		return nil, errSql
+	}
+	rows, errQuery := store.db.QueryContext(ctx, query, args...)
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
@@ -384,8 +342,15 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 }
 
 func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (model.UserMessageCollection, error) {
-	const query = `SELECT message_id, message, created_on FROM player_messages WHERE steam_id = ?`
-	rows, errQuery := store.db.QueryContext(ctx, query, steamID.Int64())
+	query, args, errSql := sq.
+		Select("message_id", "message", "created_on").
+		From("player_messages").
+		Where(sq.Eq{"steam_id": steamID}).
+		ToSql()
+	if errSql != nil {
+		return nil, errSql
+	}
+	rows, errQuery := store.db.QueryContext(ctx, query, args...)
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
