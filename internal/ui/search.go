@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/translations"
@@ -19,7 +20,7 @@ type searchWindow struct {
 	fyne.Window
 	ctx         context.Context
 	app         fyne.App
-	list        *widget.List
+	list        *widget.Table
 	boundList   binding.ExternalUntypedList
 	queryString binding.String
 	objectMu    *sync.RWMutex
@@ -43,7 +44,7 @@ func (screen *searchWindow) Reload(results model.PlayerCollection) error {
 		return errors.Wrap(errSet, "Failed to set result count")
 	}
 	screen.boundListMu.Unlock()
-	screen.list.Refresh()
+	screen.Content().Refresh()
 	return nil
 }
 
@@ -72,38 +73,94 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		resultCount: binding.NewInt(),
 	}
 
-	sw.list = widget.NewListWithData(sw.boundList, func() fyne.CanvasObject {
-		return container.NewBorder(
-			nil,
-			nil,
-			widget.NewLabel("Timestamp"),
-			nil,
-			newContextMenuRichText(nil))
-	}, func(i binding.DataItem, o fyne.CanvasObject) {
-		value := i.(binding.Untyped)
-		obj, _ := value.Get()
-		pl := obj.(*model.Player)
+	sw.list = widget.NewTable(func() (int, int) {
+		return sw.boundList.Length() + 1, 4
+	}, func() fyne.CanvasObject {
+		return container.NewMax(
+			widget.NewLabel(""),
+			widget.NewIcon(theme.ContentClearIcon()),
+			widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			newContextMenuIcon())
+	}, func(i widget.TableCellID, o fyne.CanvasObject) {
 		sw.objectMu.Lock()
-
-		rootContainer := o.(*fyne.Container)
-		timeStamp := rootContainer.Objects[1].(*widget.Label)
-		timeStamp.SetText(pl.UpdatedOn.Format(time.RFC822))
-
-		profileButton := rootContainer.Objects[0].(*contextMenuRichText)
-		profileButton.Alignment = widget.ButtonAlignLeading
-		if pl.Name != "" {
-			profileButton.SetText(pl.Name)
-		} else {
-			profileButton.SetText(pl.NamePrevious)
+		defer sw.objectMu.Unlock()
+		labelDate := o.(*fyne.Container).Objects[0].(*widget.Label)
+		labelPFP := o.(*fyne.Container).Objects[1].(*widget.Icon)
+		labelName := o.(*fyne.Container).Objects[2].(*widget.Label)
+		labelIcon := o.(*fyne.Container).Objects[3].(*contextMenuIcon)
+		if i.Row == 0 {
+			switch i.Col {
+			case 0:
+				labelDate.Show()
+				labelIcon.Hide()
+				labelName.Hide()
+				labelPFP.Hide()
+				labelDate.TextStyle.Bold = true
+				labelDate.SetText("Last Seen")
+			case 1:
+				labelDate.Hide()
+				labelIcon.Hide()
+				labelName.Hide()
+				labelPFP.Hide()
+			case 2:
+				labelDate.Hide()
+				labelIcon.Hide()
+				labelName.Show()
+				labelPFP.Hide()
+				labelName.TextStyle.Bold = true
+				labelName.SetText("Profile Name")
+			case 3:
+				labelDate.Hide()
+				labelIcon.Hide()
+				labelName.Hide()
+				labelPFP.Hide()
+			}
+			return
 		}
-		profileButton.SetIcon(sw.avatarCache.GetAvatar(pl.SteamId))
-		profileButton.menu = generateUserMenu(sw.ctx, app, window, pl.SteamId, pl.UserId, cb, attrs, settings.Links)
-		//profileButton.menu.Refresh()
-		profileButton.Refresh()
-
-		sw.objectMu.Unlock()
+		value, valueErr := sw.boundList.GetValue(i.Row - 1)
+		if valueErr != nil {
+			return
+		}
+		ps := value.(*model.Player)
+		labelPFP.Hide()
+		labelDate.Show()
+		labelIcon.Hide()
+		labelName.Show()
+		switch i.Col {
+		case 0:
+			labelDate.Show()
+			labelPFP.Hide()
+			labelIcon.Hide()
+			labelName.Hide()
+			update := ps.UpdatedOn.Format(time.RFC822)
+			labelDate.Bind(binding.BindString(&update))
+		case 1:
+			labelDate.Hide()
+			labelPFP.SetResource(sw.avatarCache.GetAvatar(ps.SteamId))
+			labelPFP.Show()
+			labelName.Hide()
+			labelIcon.Hide()
+		case 2:
+			labelDate.Hide()
+			labelPFP.Hide()
+			labelName.Bind(binding.BindString(&ps.Name))
+			labelName.Show()
+			labelIcon.Hide()
+		case 3:
+			labelDate.Hide()
+			labelPFP.Hide()
+			labelName.Hide()
+			labelIcon.menu = generateUserMenu(sw.ctx, app, window, ps.SteamId, ps.UserId, cb, attrs, settings.Links)
+			labelIcon.Show()
+			//labelIcon.Refresh()
+		}
 	})
 
+	sw.list.SetColumnWidth(0, 150)
+	sw.list.SetColumnWidth(1, 40)
+	sw.list.SetColumnWidth(2, 400)
+	sw.list.SetColumnWidth(3, 40)
+	//sw.list.SetColumnWidth(2, 200)
 	sw.queryEntry = widget.NewEntryWithData(sw.queryString)
 	sw.queryEntry.PlaceHolder = "SteamID or Name"
 	sw.queryEntry.OnSubmitted = func(s string) {
@@ -115,7 +172,9 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		if errReload := sw.Reload(results); errReload != nil {
 			showUserError(errReload, sw.Window)
 		}
+
 	}
+	//sw.list.Resize(fyne.NewSize(600, 500))
 	sw.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
@@ -128,7 +187,7 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		),
 		nil, nil, nil,
 		container.NewMax(sw.list)))
-	sw.Window.Resize(fyne.NewSize(500, 700))
+	sw.Window.Resize(fyne.NewSize(650, 700))
 
 	return &sw
 }

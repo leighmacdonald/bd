@@ -25,3 +25,19 @@ func newContextMenuRichText(menu *fyne.Menu) *contextMenuRichText {
 		menu: menu,
 	}
 }
+
+type contextMenuIcon struct {
+	*widget.Icon
+	menu *fyne.Menu
+}
+
+func (b *contextMenuIcon) Tapped(e *fyne.PointEvent) {
+	widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), e.AbsolutePosition)
+}
+
+func newContextMenuIcon() *contextMenuIcon {
+	return &contextMenuIcon{
+		Icon: widget.NewIcon(theme.SettingsIcon()),
+		menu: fyne.NewMenu(""),
+	}
+}
