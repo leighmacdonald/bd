@@ -189,16 +189,6 @@ func (store *SqliteStore) SavePlayer(ctx context.Context, state *model.Player) e
 }
 
 func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOpts) (model.PlayerCollection, error) {
-	sid64, errSid := steamid.StringToSID64(opts.Query)
-	if errSid == nil && sid64.Valid() {
-		var player model.Player
-		if errPlayer := store.LoadOrCreatePlayer(ctx, sid64, &player); errPlayer != nil {
-			return nil, errPlayer
-		}
-		player.SteamId = sid64
-		return model.PlayerCollection{&player}, nil
-	}
-
 	qb := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -207,7 +197,11 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 		LeftJoin("player_names pn ON p.steam_id = pn.steam_id ").
 		OrderBy("p.updated_on DESC").
 		Limit(1000)
-	if opts.Query != "" {
+
+	sid64, errSid := steamid.StringToSID64(opts.Query)
+	if errSid == nil && sid64.Valid() {
+		qb = qb.Where(sq.Like{"p.steam_id": sid64})
+	} else if opts.Query != "" {
 		qb = qb.Where(sq.Like{"pn.name": fmt.Sprintf("%%%s%%", opts.Query)})
 	}
 	query, args, errSql := qb.ToSql()
