@@ -84,36 +84,31 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 	}, func(i widget.TableCellID, o fyne.CanvasObject) {
 		sw.objectMu.Lock()
 		defer sw.objectMu.Unlock()
-		labelDate := o.(*fyne.Container).Objects[0].(*widget.Label)
-		labelPFP := o.(*fyne.Container).Objects[1].(*widget.Icon)
-		labelName := o.(*fyne.Container).Objects[2].(*widget.Label)
-		labelIcon := o.(*fyne.Container).Objects[3].(*contextMenuIcon)
+		label := o.(*fyne.Container).Objects[0].(*widget.Label)
+		icon := o.(*fyne.Container).Objects[1].(*widget.Icon)
+		ctxMenu := o.(*fyne.Container).Objects[3].(*contextMenuIcon)
 		if i.Row == 0 {
 			switch i.Col {
 			case 0:
-				labelDate.Show()
-				labelIcon.Hide()
-				labelName.Hide()
-				labelPFP.Hide()
-				labelDate.TextStyle.Bold = true
-				labelDate.SetText("Last Seen")
+				label.Show()
+				icon.Hide()
+				ctxMenu.Hide()
+				label.TextStyle.Bold = true
+				label.SetText("Last Seen")
 			case 1:
-				labelDate.Hide()
-				labelIcon.Hide()
-				labelName.Hide()
-				labelPFP.Hide()
+				label.Hide()
+				icon.Hide()
+				ctxMenu.Hide()
 			case 2:
-				labelDate.Hide()
-				labelIcon.Hide()
-				labelName.Show()
-				labelPFP.Hide()
-				labelName.TextStyle.Bold = true
-				labelName.SetText("Profile Name")
+				icon.Hide()
+				ctxMenu.Hide()
+				label.TextStyle.Bold = true
+				label.SetText("Profile Name")
+				label.Show()
 			case 3:
-				labelDate.Hide()
-				labelIcon.Hide()
-				labelName.Hide()
-				labelPFP.Hide()
+				label.Hide()
+				icon.Hide()
+				ctxMenu.Hide()
 			}
 			return
 		}
@@ -122,36 +117,23 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 			return
 		}
 		ps := value.(*model.Player)
-		labelPFP.Hide()
-		labelDate.Show()
-		labelIcon.Hide()
-		labelName.Show()
+		label.Hide()
+		icon.Hide()
+		ctxMenu.Hide()
 		switch i.Col {
 		case 0:
-			labelDate.Show()
-			labelPFP.Hide()
-			labelIcon.Hide()
-			labelName.Hide()
 			update := ps.UpdatedOn.Format(time.RFC822)
-			labelDate.Bind(binding.BindString(&update))
+			label.Bind(binding.BindString(&update))
+			label.Show()
 		case 1:
-			labelDate.Hide()
-			labelPFP.SetResource(sw.avatarCache.GetAvatar(ps.SteamId))
-			labelPFP.Show()
-			labelName.Hide()
-			labelIcon.Hide()
+			icon.Show()
+			icon.SetResource(sw.avatarCache.GetAvatar(ps.SteamId))
 		case 2:
-			labelDate.Hide()
-			labelPFP.Hide()
-			labelName.Bind(binding.BindString(&ps.Name))
-			labelName.Show()
-			labelIcon.Hide()
+			label.Bind(binding.BindString(&ps.Name))
+			label.Show()
 		case 3:
-			labelDate.Hide()
-			labelPFP.Hide()
-			labelName.Hide()
-			labelIcon.menu = generateUserMenu(sw.ctx, app, window, ps.SteamId, ps.UserId, cb, attrs, settings.Links)
-			labelIcon.Show()
+			ctxMenu.menu = generateUserMenu(sw.ctx, app, window, ps.SteamId, ps.UserId, cb, attrs, settings.GetLinks())
+			ctxMenu.Show()
 			//labelIcon.Refresh()
 		}
 	})

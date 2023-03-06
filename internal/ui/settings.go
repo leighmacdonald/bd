@@ -59,7 +59,7 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		return fileInputContainer
 	}
 
-	apiKey := boundSettings.getBoundStringDefault("ApiKey", "")
+	apiKey := boundSettings.getBoundStringDefault("APIKey", "")
 	apiKeyOriginal, _ := apiKey.Get()
 	apiKeyEntry := widget.NewPasswordEntry()
 	apiKeyEntry.Bind(apiKey)
@@ -141,7 +141,7 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
-	if errSet := boundTags.Set(strings.Join(settings.KickTags, ",")); errSet != nil {
+	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
 		log.Printf("Failed to set tags: %v\n", errSet)
 	}
 
@@ -189,7 +189,6 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 	)
 
 	settingsForm.OnSubmit = func() {
-		settings.Lock()
 		// Update it to our preferred format
 		if steamIdEntry.Text != "" {
 			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
@@ -197,7 +196,7 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 				// Should never happen? was validated previously.
 				log.Panicf("Steamid state invalid?: %v\n", errSid)
 			}
-			settings.SteamID = newSid.String()
+			settings.SetSteamID(newSid.String())
 			steamIdEntry.SetText(newSid.String())
 		}
 		var newTags []string
@@ -207,17 +206,17 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 			}
 			newTags = append(newTags, strings.Trim(t, " "))
 		}
-		settings.KickTags = newTags
-		settings.ApiKey = apiKeyEntry.Text
-		settings.SteamDir = steamDirEntry.Text
-		settings.TF2Dir = tf2RootEntry.Text
-		settings.KickerEnabled = kickerEnabledEntry.Checked
-		settings.ChatWarningsEnabled = chatWarningsEnabledEntry.Checked
-		settings.PartyWarningsEnabled = partyWarningsEnabledEntry.Checked
-		settings.RconStatic = rconModeStaticEntry.Checked
-		settings.AutoCloseOnGameExit = autoCloseOnGameExitEntry.Checked
-		settings.AutoLaunchGame = autoLaunchGameEntry.Checked
-		settings.Unlock()
+		settings.SetKickTags(newTags)
+		settings.SetAPIKey(apiKeyEntry.Text)
+		settings.SetSteamDir(steamDirEntry.Text)
+		settings.SetTF2Dir(tf2RootEntry.Text)
+		settings.SetKickerEnabled(kickerEnabledEntry.Checked)
+		settings.SetChatWarningsEnabled(chatWarningsEnabledEntry.Checked)
+		settings.SetPartyWarningsEnabled(partyWarningsEnabledEntry.Checked)
+		settings.SetRconStatic(rconModeStaticEntry.Checked)
+		settings.SetAutoCloseOnGameExit(autoCloseOnGameExitEntry.Checked)
+		settings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
+
 		if apiKeyOriginal != apiKeyEntry.Text {
 			if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
 				log.Printf("Failed to set new steam key: %v\n", errSetKey)

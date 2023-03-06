@@ -137,7 +137,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 		},
 		ui.callBacks,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
-			return generateUserMenu(ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.Links)
+			return generateUserMenu(ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.GetLinks())
 		}, ui.avatarCache, version)
 
 	return &ui

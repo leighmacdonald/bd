@@ -84,7 +84,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
 		profileButton.SetText(um.Player)
 		profileButton.SetIcon(gcw.avatarCache.GetAvatar(um.PlayerSID))
-		profileButton.menu = generateUserMenu(gcw.ctx, app, gcw.window, um.PlayerSID, um.UserId, cb, attrs, settings.Links)
+		profileButton.menu = generateUserMenu(gcw.ctx, app, gcw.window, um.PlayerSID, um.UserId, cb, attrs, settings.GetLinks())
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline

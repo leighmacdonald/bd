@@ -98,7 +98,7 @@ func (bd *BD) Settings() *model.Settings {
 }
 
 func (bd *BD) reload() {
-	if bd.settings.DiscordPresenceEnabled {
+	if bd.settings.GetDiscordPresenceEnabled() {
 		if errLogin := bd.discordLogin(); errLogin != nil {
 			log.Printf("Failed to login for discord rich presence\n")
 		}
@@ -127,7 +127,7 @@ func (bd *BD) discordLogout() {
 }
 
 func (bd *BD) discordUpdateActivity(cnt int) {
-	if !bd.settings.DiscordPresenceEnabled {
+	if !bd.settings.GetDiscordPresenceEnabled() {
 		return
 	}
 	bd.serverMu.RLock()
@@ -213,7 +213,7 @@ func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error
 }
 
 func (bd *BD) createLogReader() {
-	consoleLogPath := filepath.Join(bd.settings.TF2Dir, "console.log")
+	consoleLogPath := filepath.Join(bd.settings.GetTF2Dir(), "console.log")
 	reader, errLogReader := newLogReader(consoleLogPath, bd.logChan, true)
 	if errLogReader != nil {
 		panic(errLogReader)
@@ -285,20 +285,21 @@ func (bd *BD) eventHandler() {
 }
 
 func (bd *BD) LaunchGameAndWait() {
-	if errInstall := addons.Install(bd.settings.TF2Dir); errInstall != nil {
+	if errInstall := addons.Install(bd.settings.GetTF2Dir()); errInstall != nil {
 		log.Printf("Error trying to install addons: %v", errInstall)
 	}
+	rconConfig := bd.settings.GetRcon()
 	args, errArgs := getLaunchArgs(
-		bd.settings.Rcon.Password(),
-		bd.settings.Rcon.Port(),
-		bd.settings.SteamDir,
+		rconConfig.Password(),
+		rconConfig.Port(),
+		bd.settings.GetSteamDir(),
 		bd.settings.GetSteamId())
 	if errArgs != nil {
 		log.Println(errArgs)
 		return
 	}
 	bd.gameHasStartedOnce = true
-	if errLaunch := platform.LaunchTF2(bd.settings.TF2Dir, args); errLaunch != nil {
+	if errLaunch := platform.LaunchTF2(bd.settings.GetTF2Dir(), args); errLaunch != nil {
 		log.Printf("Failed to launch game: %v\n", errLaunch)
 	}
 }
@@ -442,7 +443,8 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 	for {
 		select {
 		case <-statusTimer.C:
-			lobbyStatus, errUpdate := updatePlayerState(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password())
+			rconConfig := bd.settings.GetRcon()
+			lobbyStatus, errUpdate := updatePlayerState(ctx, rconConfig.String(), rconConfig.Password())
 			if errUpdate != nil {
 				log.Printf("Failed to query state: %v\n", errUpdate)
 				continue
@@ -507,7 +509,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				// TODO not necessary?
 				updateUI()
 			}
-			if len(queuedUpdates) == 0 || bd.settings.ApiKey == "" {
+			if len(queuedUpdates) == 0 || bd.settings.GetAPIKey() == "" {
 				continue
 			}
 			if len(queuedUpdates) > 100 {
@@ -820,7 +822,7 @@ func (bd *BD) AttachGui(gui model.UserInterface) {
 }
 
 func (bd *BD) refreshLists(ctx context.Context) {
-	playerLists, ruleLists := downloadLists(ctx, bd.settings.Lists)
+	playerLists, ruleLists := downloadLists(ctx, bd.settings.GetLists())
 	for _, list := range playerLists {
 		if errImport := bd.rules.ImportPlayers(&list); errImport != nil {
 			log.Printf("Failed to import player list (%s): %v\n", list.FileInfo.Title, errImport)
@@ -871,7 +873,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 	} else {
 		log.Printf("Matched (%s):  %d %s %s", match.MatcherType, ps.SteamId, ps.Name, match.Origin)
 	}
-	if bd.settings.PartyWarningsEnabled && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
+	if bd.settings.GetPartyWarningsEnabled() && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
 			log.Printf("Failed to send party log message: %s\n", errLog)
@@ -881,10 +883,10 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 		ps.AnnouncedLast = time.Now()
 		bd.playersMu.Unlock()
 	}
-	if bd.settings.KickerEnabled {
+	if bd.settings.GetKickerEnabled() {
 		kickTag := false
 		for _, tag := range match.Attributes {
-			for _, allowedTag := range bd.settings.KickTags {
+			for _, allowedTag := range bd.settings.GetKickTags() {
 				if strings.EqualFold(tag, allowedTag) {
 					kickTag = true
 					break
@@ -908,7 +910,8 @@ func (bd *BD) connectRcon(ctx context.Context) error {
 	if bd.rconConnection != nil {
 		util.LogClose(bd.rconConnection)
 	}
-	conn, errConn := rcon.Dial(ctx, bd.settings.Rcon.String(), bd.settings.Rcon.Password(), time.Second*5)
+	rconConfig := bd.settings.GetRcon()
+	conn, errConn := rcon.Dial(ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
 	if errConn != nil {
 		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
 	}
@@ -945,7 +948,7 @@ func (bd *BD) processChecker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if !bd.gameHasStartedOnce || !bd.settings.AutoCloseOnGameExit {
+			if !bd.gameHasStartedOnce || !bd.settings.GetAutoCloseOnGameExit() {
 				continue
 			}
 			if !platform.IsGameRunning() {
@@ -961,7 +964,7 @@ func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
 		util.LogClose(bd.rconConnection)
 	}
-	if bd.settings.DiscordPresenceEnabled {
+	if bd.settings.GetDiscordPresenceEnabled() {
 		client.Logout()
 	}
 	util.LogClose(bd.store)
@@ -977,7 +980,7 @@ func (bd *BD) Start(ctx context.Context) {
 	go bd.gameStateTracker(ctx)
 	go bd.statusUpdater(ctx)
 	go bd.processChecker(ctx)
-	if !bd.gameHasStartedOnce && bd.settings.AutoLaunchGame && !platform.IsGameRunning() {
+	if !bd.gameHasStartedOnce && bd.settings.GetAutoLaunchGame() && !platform.IsGameRunning() {
 		go bd.LaunchGameAndWait()
 	}
 	<-ctx.Done()

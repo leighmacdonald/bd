@@ -60,31 +60,6 @@ type LinkConfig struct {
 	IdFormat SteamIdFormat `yaml:"id_format"`
 }
 
-type Settings struct {
-	*sync.RWMutex `yaml:"-"`
-	// Path to config used when reading Settings
-	configPath string `yaml:"-"`
-	SteamID    string `yaml:"steam_id"`
-	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
-	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
-	SteamDir string `yaml:"steam_dir"`
-	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	TF2Dir                 string               `yaml:"tf2_dir"`
-	AutoLaunchGame         bool                 `yaml:"auto_launch_game_auto"`
-	AutoCloseOnGameExit    bool                 `yaml:"auto_close_on_game_exit"`
-	ApiKey                 string               `yaml:"api_key"`
-	DisconnectedTimeout    string               `yaml:"disconnected_timeout"`
-	DiscordPresenceEnabled bool                 `yaml:"discord_presence_enabled"`
-	KickerEnabled          bool                 `yaml:"kicker_enabled"`
-	ChatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
-	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
-	KickTags               []string             `yaml:"kick_tags"`
-	Lists                  ListConfigCollection `yaml:"lists"`
-	Links                  []LinkConfig         `yaml:"links"`
-	RconStatic             bool                 `yaml:"rcon_static"`
-	Rcon                   RCONConfigProvider   `yaml:"-"`
-}
-
 type ListConfigCollection []*ListConfig
 
 func (list ListConfigCollection) AsAny() []any {
@@ -93,6 +68,177 @@ func (list ListConfigCollection) AsAny() []any {
 		bl[i] = r
 	}
 	return bl
+}
+
+type Settings struct {
+	*sync.RWMutex `yaml:"-"`
+	// Path to config used when reading Settings
+	ConfigPath string `yaml:"-"`
+	SteamID    string `yaml:"steam_id"`
+	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
+	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
+	SteamDir string `yaml:"steam_dir"`
+	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
+	TF2Dir                 string               `yaml:"tf2_dir"`
+	AutoLaunchGame         bool                 `yaml:"auto_launch_game_auto"`
+	AutoCloseOnGameExit    bool                 `yaml:"auto_close_on_game_exit"`
+	APIKey                 string               `yaml:"api_key"`
+	DisconnectedTimeout    string               `yaml:"disconnected_timeout"`
+	DiscordPresenceEnabled bool                 `yaml:"discord_presence_enabled"`
+	KickerEnabled          bool                 `yaml:"kicker_enabled"`
+	ChatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
+	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
+	KickTags               []string             `yaml:"kick_tags"`
+	Lists                  ListConfigCollection `yaml:"lists"`
+	Links                  []LinkConfig         `yaml:"links"`
+	RCONStatic             bool                 `yaml:"rcon_static"`
+	rcon                   RCONConfigProvider   `yaml:"-"`
+}
+
+func (s *Settings) GetRcon() RCONConfigProvider {
+	s.RLock()
+	defer s.RUnlock()
+	return s.rcon
+}
+
+func (s *Settings) GetRCONStatic() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.RCONStatic
+}
+
+func (s *Settings) GetKickerEnabled() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.KickerEnabled
+}
+
+func (s *Settings) GetAutoCloseOnGameExit() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.AutoCloseOnGameExit
+}
+
+func (s *Settings) SetSteamID(steamID string) {
+	s.Lock()
+	defer s.Unlock()
+	s.SteamID = steamID
+}
+func (s *Settings) SetAutoCloseOnGameExit(autoClose bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.AutoCloseOnGameExit = autoClose
+}
+
+func (s *Settings) SetAutoLaunchGame(autoLaunch bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.AutoLaunchGame = autoLaunch
+}
+
+func (s *Settings) SetRconStatic(static bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.RCONStatic = static
+}
+
+func (s *Settings) SetChatWarningsEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.ChatWarningsEnabled = enabled
+}
+
+func (s *Settings) SetPartyWarningsEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.PartyWarningsEnabled = enabled
+}
+
+func (s *Settings) SetKickerEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.KickerEnabled = enabled
+}
+
+func (s *Settings) SetTF2Dir(dir string) {
+	s.Lock()
+	defer s.Unlock()
+	s.TF2Dir = dir
+}
+
+func (s *Settings) SetSteamDir(dir string) {
+	s.Lock()
+	defer s.Unlock()
+	s.SteamDir = dir
+}
+
+func (s *Settings) SetKickTags(tags []string) {
+	s.Lock()
+	defer s.Unlock()
+	s.KickTags = tags
+}
+
+func (s *Settings) SetAPIKey(key string) {
+	s.Lock()
+	defer s.Unlock()
+	s.APIKey = key
+}
+
+func (s *Settings) SetLists(lists ListConfigCollection) {
+	s.Lock()
+	defer s.Unlock()
+	s.Lists = lists
+}
+func (s *Settings) GetAutoLaunchGame() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.AutoLaunchGame
+}
+
+func (s *Settings) GetDiscordPresenceEnabled() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.DiscordPresenceEnabled
+}
+
+func (s *Settings) GetPartyWarningsEnabled() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.PartyWarningsEnabled
+}
+
+func (s *Settings) GetAPIKey() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.APIKey
+}
+func (s *Settings) GetConfigPath() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.ConfigPath
+}
+func (s *Settings) GetTF2Dir() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.TF2Dir
+}
+
+func (s *Settings) GetSteamDir() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.SteamDir
+}
+
+func (s *Settings) GetLists() ListConfigCollection {
+	s.RLock()
+	defer s.RUnlock()
+	return s.Lists
+}
+
+func (s *Settings) GetKickTags() []string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.KickTags
 }
 
 func (s *Settings) GetSteamId() steamid.SID64 {
@@ -126,10 +272,10 @@ func (s *Settings) GetLinks() []LinkConfig {
 func NewSettings() (*Settings, error) {
 	settings := Settings{
 		RWMutex:                &sync.RWMutex{},
-		configPath:             "",
+		ConfigPath:             "",
 		SteamDir:               platform.DefaultSteamRoot,
 		TF2Dir:                 platform.DefaultTF2Root,
-		ApiKey:                 "",
+		APIKey:                 "",
 		DisconnectedTimeout:    "60s",
 		DiscordPresenceEnabled: true,
 		KickerEnabled:          false,
@@ -221,8 +367,8 @@ func NewSettings() (*Settings, error) {
 			},
 		},
 		SteamID:    "",
-		RconStatic: false,
-		Rcon:       NewRconConfig(false),
+		RCONStatic: false,
+		rcon:       NewRconConfig(false),
 	}
 	if !golib.Exists(settings.ListRoot()) {
 		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
@@ -242,7 +388,7 @@ func (s *Settings) ReadDefaultOrCreate() error {
 		log.Printf("Creating new config file with defaults")
 		return s.Save()
 	}
-	s.Rcon = NewRconConfig(s.RconStatic)
+	s.rcon = NewRconConfig(s.GetRCONStatic())
 	return errRead
 }
 
@@ -273,7 +419,7 @@ func (s *Settings) LocalRulesListPath() string {
 func (s *Settings) ReadFilePath(filePath string) error {
 	if !golib.Exists(filePath) {
 		// Use defaults
-		s.configPath = filePath
+		s.ConfigPath = filePath
 		return errConfigNotFound
 	}
 	settingsFile, errOpen := os.Open(filePath)
@@ -288,7 +434,7 @@ func (s *Settings) ReadFilePath(filePath string) error {
 	if errRead := s.Read(settingsFile); errRead != nil {
 		return errRead
 	}
-	s.configPath = filePath
+	s.ConfigPath = filePath
 	return nil
 }
 
@@ -299,7 +445,7 @@ func (s *Settings) Read(inputFile io.Reader) error {
 }
 
 func (s *Settings) Save() error {
-	return s.WriteFilePath(s.configPath)
+	return s.WriteFilePath(s.GetConfigPath())
 }
 
 func (s *Settings) WriteFilePath(filePath string) error {

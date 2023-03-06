@@ -82,17 +82,15 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 				if !b {
 					return
 				}
-				settings.Lock()
 				var lists model.ListConfigCollection
-				for _, list := range settings.Lists {
+				for _, list := range settings.GetLists() {
 					if list == lc {
 						continue
 					}
 					lists = append(lists, list)
 				}
-				settings.Lists = lists
-				settings.Unlock()
-				if errReload := boundList.Set(settings.Lists.AsAny()); errReload != nil {
+				settings.SetLists(lists)
+				if errReload := boundList.Set(settings.GetLists().AsAny()); errReload != nil {
 					log.Printf("Failed to reload: %v\n", errReload)
 				}
 				if errSave := saveFn(); errSave != nil {
@@ -133,9 +131,8 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 							Enabled:  newEnabledEntry.Checked,
 							URL:      newUrlEntry.Text,
 						}
-						settings.Lock()
-						settings.Lists = append(settings.Lists, lc)
-						settings.Unlock()
+						settings.SetLists(append(settings.GetLists(), lc))
+
 						if errAppend := boundList.Append(lc); errAppend != nil {
 							log.Printf("Failed to update config list: %v", errAppend)
 						}
@@ -150,7 +147,7 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 			})),
 		container.NewHBox())
 
-	if errSet := boundList.Set(settings.Lists.AsAny()); errSet != nil {
+	if errSet := boundList.Set(settings.GetLists().AsAny()); errSet != nil {
 		log.Printf("failed to load lists")
 	}
 

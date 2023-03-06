@@ -65,8 +65,8 @@ func main() {
 	if ruleEngineErr != nil {
 		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
 	}
-	if settings.ApiKey != "" {
-		if errAPIKey := steamweb.SetKey(settings.ApiKey); errAPIKey != nil {
+	if settings.GetAPIKey() != "" {
+		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
 			log.Printf("Failed to set steam api key: %v\n", errAPIKey)
 		}
 	}
