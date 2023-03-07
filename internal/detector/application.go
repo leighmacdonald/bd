@@ -875,7 +875,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 	}
 	if bd.settings.GetPartyWarningsEnabled() && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := bd.partyLog(ctx, "Bot: (%d) [%s] %s ", ps.UserId, match.Origin, ps.Name); errLog != nil {
+		if errLog := bd.SendChat(ctx, model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
 			log.Printf("Failed to send party log message: %s\n", errLog)
 			return
 		}
@@ -918,14 +918,24 @@ func (bd *BD) connectRcon(ctx context.Context) error {
 	bd.rconConnection = conn
 	return nil
 }
-
-func (bd *BD) partyLog(ctx context.Context, fmtStr string, args ...any) error {
+func (bd *BD) SendChat(ctx context.Context, destination model.ChatDest, format string, args ...any) error {
 	if errConn := bd.connectRcon(ctx); errConn != nil {
 		return errConn
 	}
-	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("say_party %s", fmt.Sprintf(fmtStr, args...)))
+	cmd := ""
+	switch destination {
+	case model.ChatDestAll:
+		cmd = fmt.Sprintf("say %s", fmt.Sprintf(format, args...))
+	case model.ChatDestTeam:
+		cmd = fmt.Sprintf("say_team %s", fmt.Sprintf(format, args...))
+	case model.ChatDestParty:
+		cmd = fmt.Sprintf("say_party %s", fmt.Sprintf(format, args...))
+	default:
+		return errors.Errorf("Invalid destination: %s", destination)
+	}
+	_, errExec := bd.rconConnection.Exec(cmd)
 	if errExec != nil {
-		return errors.Wrap(errExec, "Failed to send rcon say_party")
+		return errors.Wrap(errExec, "Failed to send rcon chat message")
 	}
 	return nil
 }

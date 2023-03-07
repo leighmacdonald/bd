@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
@@ -9,6 +10,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"log"
 	"sync"
 )
 
@@ -33,15 +36,15 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		boundList:   binding.NewUntypedList(),
 		selectOpts:  []string{"steam64", "steam32", "steam3", "steam"},
 	}
+	var selectedId widget.ListItemID
 	_ = lcd.boundList.Set(links)
 	lcd.list = widget.NewListWithData(lcd.boundList, func() fyne.CanvasObject {
 		return container.NewBorder(
 			nil,
 			nil,
+			widget.NewCheck("", func(b bool) {}),
 			container.NewHBox(
-				widget.NewButtonWithIcon("Edit", theme.FolderNewIcon(), func() {}),
-				widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {})),
-			nil,
+				widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {})),
 			widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: false}),
 		)
 	}, func(i binding.DataItem, object fyne.CanvasObject) {
@@ -53,9 +56,13 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 
 		rootContainer := object.(*fyne.Container)
 		labelName := rootContainer.Objects[0].(*widget.Label)
-		btnContainer := rootContainer.Objects[1].(*fyne.Container)
+		btnContainer := rootContainer.Objects[2].(*fyne.Container)
 		editButton := btnContainer.Objects[0].(*widget.Button)
-		//	deleteButton := btnContainer.Objects[1].(*widget.Button)
+
+		enabledCheck := rootContainer.Objects[1].(*widget.Check)
+
+		enabledBinding := binding.BindBool(&linkConfig.Enabled)
+		enabledCheck.Bind(enabledBinding)
 
 		urlEntry := widget.NewEntryWithData(binding.BindString(&linkConfig.URL))
 
@@ -63,8 +70,7 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		labelName.Bind(nameBinding)
 		nameEntry := widget.NewEntryWithData(nameBinding)
 		editButton.OnTapped = func() {
-
-			enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), binding.BindBool(&linkConfig.Enabled))
+			enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), enabledBinding)
 			formatEntry := widget.NewSelectEntry(lcd.selectOpts)
 			formatEntry.Bind(binding.BindString(&linkConfig.IdFormat))
 
@@ -83,32 +89,62 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		}
 		editButton.Refresh()
 	})
+	count := 1
+	delButton := widget.NewButtonWithIcon(translations.One(translations.LabelDelete), theme.ContentRemoveIcon(), func() {})
 
-	lcd.Dialog = dialog.NewCustom("Edit Links", "Dismiss",
-		container.NewBorder(widget.NewToolbar(widget.NewToolbarAction(theme.ContentAddIcon(), func() {
-			showUserError(lcd.boundList.Append(&model.LinkConfig{IdFormat: string(model.Steam64), Enabled: true}), parent)
+	lcd.list.OnSelected = func(id widget.ListItemID) {
+		selectedId = id
+		delButton.Enable()
+	}
+	lcd.list.OnUnselected = func(id widget.ListItemID) {
+		delButton.Disable()
+		selectedId = -1
+	}
+
+	addButton := widget.NewButtonWithIcon(translations.One(translations.LabelAdd), theme.ContentAddIcon(), func() {
+		lcd.boundListMu.Lock()
+		newLinks := settings.GetLinks()
+		newLinks = append(newLinks, &model.LinkConfig{
+			IdFormat: string(model.Steam64),
+			Enabled:  true,
+			Name:     fmt.Sprintf("New Link %d", count)})
+		settings.SetLinks(newLinks)
+		showUserError(lcd.boundList.Set(settings.GetLinks().AsAny()),
+			parent)
+		lcd.boundListMu.Unlock()
+		lcd.list.Refresh()
+		count++
+	})
+
+	delButton.OnTapped = func() {
+		msg := translations.Tr(&i18n.Message{ID: string(translations.LabelConfirmDeleteList)},
+			1, map[string]interface{}{"Name": ""})
+		confirm := dialog.NewConfirm(translations.One(translations.TitleDeleteConfirm), msg, func(b bool) {
+			if !b {
+				return
+			}
+			var updatedLinks model.LinkConfigCollection
+			for idx, link := range settings.GetLinks() {
+				if idx == selectedId {
+					continue
+				}
+				updatedLinks = append(updatedLinks, link)
+			}
+			settings.SetLinks(updatedLinks)
+			lcd.boundListMu.Lock()
+			if errReload := lcd.boundList.Set(settings.GetLinks().AsAny()); errReload != nil {
+				log.Printf("Failed to reload: %v\n", errReload)
+			}
+			lcd.boundListMu.Unlock()
 			lcd.list.Refresh()
-		})), nil, nil, nil, lcd.list), parent)
 
-	// func(b bool) {
-	//			if !b {
-	//				return
-	//			}
-	//			utLinks, errGet := lcd.boundList.Get()
-	//			if errGet != nil {
-	//				showUserError(errGet, parent)
-	//				return
-	//			}
-	//			var linkConfigs []*model.LinkConfig
-	//			for _, ut := range utLinks {
-	//				link := ut.(*model.LinkConfig)
-	//				if !link.Deleted {
-	//					linkConfigs = append(linkConfigs, link)
-	//				}
-	//			}
-	//			lcd.newLinkConfigSuccess = true
-	//			lcd.newLinkConfig = linkConfigs
-	//		}
-	lcd.Resize(fyne.NewSize(800, 800))
+		}, parent)
+		confirm.Show()
+	}
+	delButton.Refresh()
+	lcd.Dialog = dialog.NewCustom("Edit Links", translations.One(translations.LabelClose),
+		container.NewBorder(container.NewHBox(addButton, delButton), nil, nil, nil, lcd.list), parent)
+
+	lcd.Resize(fyne.NewSize(defaultDialogueWidth, 500))
 	return &lcd
 }

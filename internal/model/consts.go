@@ -72,6 +72,16 @@ const (
 
 type KickFunc func(ctx context.Context, userId int64, reason KickReason) error
 
+type ChatDest string
+
+const (
+	ChatDestAll   ChatDest = "all"
+	ChatDestTeam  ChatDest = "team"
+	ChatDestParty ChatDest = "party"
+)
+
+type ChatFunc func(ctx context.Context, destination ChatDest, format string, args ...any) error
+
 type LaunchFunc func()
 
 type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)

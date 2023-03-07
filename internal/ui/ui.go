@@ -52,6 +52,7 @@ type callBacks struct {
 	markFn                model.MarkFunc
 	whitelistFn           model.SteamIDErrFunc
 	kickFunc              model.KickFunc
+	chatFunc              model.ChatFunc
 	queryNamesFunc        model.QueryNamesFunc
 	queryUserMessagesFunc model.QueryUserMessagesFunc
 	gameLauncherFunc      model.LaunchFunc
@@ -105,6 +106,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 			searchPlayer:          store.SearchPlayers,
 			queryNamesFunc:        store.FetchNames,
 			queryUserMessagesFunc: store.FetchMessages,
+			chatFunc:              bd.SendChat,
 			kickFunc:              bd.CallVote,
 			markFn:                bd.OnMark,
 			gameLauncherFunc:      bd.LaunchGameAndWait,
@@ -233,12 +235,12 @@ func validateUrl(urlString string) error {
 	return nil
 }
 
-func validateName(name string) error {
-	if len(name) == 0 {
-		return errors.New(translations.One(translations.ErrorNameEmpty))
-	}
-	return nil
-}
+//func validateName(name string) error {
+//	if len(name) == 0 {
+//		return errors.New(translations.One(translations.ErrorNameEmpty))
+//	}
+//	return nil
+//}
 
 func validateSteamId(steamId string) error {
 	if len(steamId) > 0 {

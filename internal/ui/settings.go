@@ -167,7 +167,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 				// Should never happen? was validated previously.
 				log.Panicf("Steamid state invalid?: %v\n", errSid)
 			}
-			settings.SetSteamID(newSid.String())
+			origSettings.SetSteamID(newSid.String())
 			steamIdEntry.SetText(newSid.String())
 		}
 		var newTags []string

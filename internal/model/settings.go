@@ -61,6 +61,15 @@ type LinkConfig struct {
 	Deleted  bool   `yaml:"-"`
 }
 type LinkConfigCollection []*LinkConfig
+
+func (list LinkConfigCollection) AsAny() []any {
+	bl := make([]any, len(list))
+	for i, r := range list {
+		bl[i] = r
+	}
+	return bl
+}
+
 type ListConfigCollection []*ListConfig
 
 func (list ListConfigCollection) AsAny() []any {
@@ -273,7 +282,7 @@ func (s *Settings) AddList(config *ListConfig) error {
 	return nil
 }
 
-func (s *Settings) GetLinks() []*LinkConfig {
+func (s *Settings) GetLinks() LinkConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
 	return s.Links

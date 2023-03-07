@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
@@ -27,15 +28,15 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		return container.NewBorder(
 			nil,
 			nil,
-			nil,
+			widget.NewCheck("", func(b bool) {
+
+			}),
 			container.NewHBox(
 				widget.NewButtonWithIcon(translations.One(translations.LabelEdit),
 					theme.DocumentCreateIcon(), func() {}),
 				widget.NewButtonWithIcon(translations.One(translations.LabelDelete),
 					theme.DeleteIcon(), func() {}),
-				widget.NewCheck("", func(b bool) {
-
-				})),
+			),
 			widget.NewLabel(""),
 		)
 	}, func(i binding.DataItem, o fyne.CanvasObject) {
@@ -50,10 +51,10 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		urlEntry := widget.NewEntryWithData(binding.BindString(&lc.URL))
 		urlEntry.Validator = validateUrl
 
-		btnContainer := rootContainer.Objects[1].(*fyne.Container)
+		btnContainer := rootContainer.Objects[2].(*fyne.Container)
 		editButton := btnContainer.Objects[0].(*widget.Button)
 		deleteButton := btnContainer.Objects[1].(*widget.Button)
-		enabledCheck := btnContainer.Objects[2].(*widget.Check)
+		enabledCheck := rootContainer.Objects[1].(*widget.Check)
 
 		enabledCheck.Bind(binding.BindBool(&lc.Enabled))
 		editButton.OnTapped = func() {
@@ -101,45 +102,22 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		}
 
 	})
-
+	listCount := 1
 	toolBar := container.NewBorder(
 		nil,
-		nil, nil, container.NewHBox(
+		nil, container.NewHBox(
 			widget.NewButtonWithIcon(translations.One(translations.LabelAdd), theme.ContentAddIcon(), func() {
-				newNameEntry := widget.NewEntryWithData(binding.NewString())
-				newNameEntry.Validator = validateName
-				newNameFormItem := widget.NewFormItem(translations.One(translations.LabelName), newNameEntry)
-				newUrlEntry := widget.NewEntryWithData(binding.NewString())
-				newUrlEntry.Validator = validateUrl
-
-				newUrl := widget.NewFormItem(translations.One(translations.LabelURL), newUrlEntry)
-				newEnabledEntry := widget.NewCheckWithData("", binding.NewBool())
-				newEnabled := widget.NewFormItem(translations.One(translations.LabelEnabled), newEnabledEntry)
-				inputForm := dialog.NewForm(
-					translations.One(translations.TitleImportUrl),
-					translations.One(translations.LabelApply),
-					translations.One(translations.LabelClose),
-					[]*widget.FormItem{
-						newNameFormItem, newUrl, newEnabled,
-					}, func(valid bool) {
-						if !valid {
-							return
-						}
-						lc := &model.ListConfig{
-							ListType: "",
-							Name:     newNameEntry.Text,
-							Enabled:  newEnabledEntry.Checked,
-							URL:      newUrlEntry.Text,
-						}
-						settings.SetLists(append(settings.GetLists(), lc))
-
-						if errAppend := boundList.Append(lc); errAppend != nil {
-							log.Printf("Failed to update config list: %v", errAppend)
-						}
-
-					}, parent)
-				inputForm.Show()
-			})),
+				lc := &model.ListConfig{
+					ListType: model.ListTypeTF2BDPlayerList,
+					Name:     fmt.Sprintf("New List %d", listCount),
+					Enabled:  false,
+					URL:      "",
+				}
+				listCount++
+				if errAppend := boundList.Append(lc); errAppend != nil {
+					log.Printf("Failed to update config list: %v", errAppend)
+				}
+			})), nil,
 		container.NewHBox())
 
 	if errSet := boundList.Set(settings.GetLists().AsAny()); errSet != nil {
@@ -158,10 +136,7 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		settings:  settings,
 	}
 
-	sz := configDialog.MinSize()
-	sz.Width = defaultDialogueWidth
-	sz.Height = 500
-	configDialog.Resize(sz)
+	configDialog.Resize(fyne.NewSize(defaultDialogueWidth, 500))
 	//settingsWindow.Resize(fyne.NewSize(5050, 700))
 	return &configDialog
 }

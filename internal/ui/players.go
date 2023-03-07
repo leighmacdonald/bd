@@ -416,12 +416,12 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		if ps.IsMatched() {
 			if ps.Whitelisted {
 				matchLabel.Segments = []widget.RichTextSegment{
-					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] (WL)", ps.Match.Origin, ps.Match.MatcherType),
+					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s] (WL)", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ",")),
 						Style: stlOk},
 				}
 			} else {
 				matchLabel.Segments = []widget.RichTextSegment{
-					&widget.TextSegment{Text: fmt.Sprintf("%s [%s]", ps.Match.Origin, ps.Match.MatcherType),
+					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s]", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ",")),
 						Style: vacStyle},
 				}
 			}

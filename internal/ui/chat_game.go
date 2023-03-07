@@ -102,6 +102,42 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		gcw.objectMu.Unlock()
 	}
 	gcw.list = widget.NewListWithData(gcw.boundList, createFunc, updateFunc)
+	selected := "all"
+	chatTypeEntry := widget.NewSelect([]string{
+		string(model.ChatDestAll),
+		string(model.ChatDestTeam),
+		string(model.ChatDestParty),
+	}, func(s string) {
+		selected = s
+	})
+	chatTypeEntry.PlaceHolder = "Message..."
+	chatTypeEntry.SetSelectedIndex(0)
+	chatTypeEntry.Refresh()
+	sz := chatTypeEntry.Size()
+	sz.Width = 150
+	chatTypeEntry.Resize(sz)
+	chatEntryData := binding.NewString()
+	messageEntry := widget.NewEntryWithData(chatEntryData)
+	messageEntry.OnSubmitted = func(s string) {
+		showUserError(gcw.cb.chatFunc(ctx, model.ChatDest(selected), s), gcw.window)
+		_ = chatEntryData.Set("")
+	}
+	bottomContainer := container.NewBorder(
+		nil,
+		nil,
+		nil,
+		container.NewHBox(
+			chatTypeEntry,
+			widget.NewButtonWithIcon("Send", theme.MailSendIcon(), func() {
+				msg, err := chatEntryData.Get()
+				if err != nil {
+					return
+				}
+				showUserError(gcw.cb.chatFunc(ctx, model.ChatDest(selected), msg), gcw.window)
+				_ = chatEntryData.Set("")
+			})),
+		messageEntry)
+
 	gcw.window.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
@@ -118,7 +154,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 			widget.NewLabelWithData(binding.IntToStringWithFormat(gcw.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
 			widget.NewLabel(""),
 		),
-		nil,
+		bottomContainer,
 		nil,
 		nil,
 		container.NewVScroll(gcw.list)))

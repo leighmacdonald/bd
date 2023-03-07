@@ -86,7 +86,7 @@ label_add:
   one: "Добавить"
 
 label_confirm_delete_list:
-  one: "Вы уверены что хотите удалить этот список?: {{ .Name }}"
+  one: "Вы уверены что хотите удалить этот список?"
 
 label_settings_vote_kicker:
   one: "Vote Kicker"

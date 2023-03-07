@@ -86,7 +86,7 @@ label_add:
   one: "Add"
 
 label_confirm_delete_list:
-  one: "Are you are you want to delete the list?: {{ .Name }}"
+  one: "Are you are you want to delete the list?"
 
 label_settings_vote_kicker:
   one: "Vote Kicker"
