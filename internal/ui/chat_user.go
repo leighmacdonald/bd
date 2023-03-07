@@ -64,10 +64,11 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 			nil,
 			widget.NewRichTextWithText(""))
 	}, func(i binding.DataItem, o fyne.CanvasObject) {
+		window.objectMu.Lock()
+		defer window.objectMu.Unlock()
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
 		um := obj.(model.UserMessage)
-		window.objectMu.Lock()
 		rootContainer := o.(*fyne.Container)
 		timeStamp := rootContainer.Objects[1].(*widget.Label)
 		timeStamp.SetText(um.Created.Format(time.RFC822))
@@ -77,7 +78,6 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 			Text:  um.Message,
 		}
 		messageRichText.Refresh()
-		window.objectMu.Unlock()
 	})
 	window.SetContent(container.NewBorder(
 		container.NewBorder(
@@ -117,6 +117,10 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 	if errSet := window.boundList.Set(messages.AsAny()); errSet != nil {
 		log.Printf("Failed to set messages: %v\n", errSet)
 	}
-	window.Resize(fyne.NewSize(600, 600))
+	_ = window.messageCount.Set(window.boundList.Length())
+	if ase, errASE := window.autoScrollEnabled.Get(); errASE == nil && ase {
+		window.list.ScrollToBottom()
+	}
+	window.Resize(fyne.NewSize(sizeWindowChatWidth, sizeWindowChatHeight))
 	return &window
 }

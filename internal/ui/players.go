@@ -382,7 +382,27 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		} else {
 			nameStyle.ColorName = theme.ColorNamePrimary
 		}
-		profileLabel.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: ps.Name, Style: nameStyle}}
+		stlKD := widget.RichTextStyleInline
+		if ps.Kills > ps.Deaths {
+			stlKD.ColorName = theme.ColorNameSuccess
+		} else if ps.Deaths > ps.Kills {
+			stlKD.ColorName = theme.ColorNameError
+		}
+		stlPing := widget.RichTextStyleInline
+		if ps.Ping > 150 {
+			stlPing.ColorName = theme.ColorNameError
+		} else if ps.Ping > 100 {
+			stlPing.ColorName = theme.ColorNameWarning
+		} else {
+			stlPing.ColorName = theme.ColorNameSuccess
+		}
+		profileLabel.Segments = []widget.RichTextSegment{
+			&widget.TextSegment{Text: ps.Name, Style: nameStyle},
+			&widget.TextSegment{Text: fmt.Sprintf(" %d", ps.Kills), Style: stlKD},
+			&widget.TextSegment{Text: ":", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.Deaths), Style: stlKD},
+			&widget.TextSegment{Text: fmt.Sprintf(" %dms", ps.Ping), Style: stlPing},
+		}
 		profileLabel.Refresh()
 		var vacState []string
 		if ps.NumberOfVACBans > 0 {
@@ -430,13 +450,14 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		}
 		matchLabel.Refresh()
 		vacLabel := lc.Objects[1].(*widget.RichText)
-		vacLabel.Segments = []widget.RichTextSegment{
-			&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
+		vacLabel.Segments = []widget.RichTextSegment{}
+		if vacMsg != "" {
+			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: vacMsgFull, Style: vacStyle})
 		}
 		if ps.Notes != "" {
 			notesStyle := stlOk
 			notesStyle.ColorName = theme.ColorNameWarning
-			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: " [note] ", Style: notesStyle})
+			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: "[note]", Style: notesStyle})
 		}
 		lc.Refresh()
 		vacLabel.Refresh()
@@ -456,7 +477,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		screen.labelHostname,
 	)
 	screen.createMainMenu()
-	screen.window.Resize(fyne.NewSize(800, 990))
+	screen.window.Resize(fyne.NewSize(sizeWindowMainWidth, sizeWindowMainHeight))
 	screen.window.SetCloseIntercept(func() {
 		screen.app.Quit()
 	})

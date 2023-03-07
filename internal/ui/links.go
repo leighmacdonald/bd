@@ -83,7 +83,7 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 
 			d := dialog.NewCustom("Edit Entry", "Close", container.NewMax(form), parent)
 			sz := d.MinSize()
-			sz.Width = defaultDialogueWidth
+			sz.Width = sizeDialogueWidth
 			d.Resize(sz)
 			d.Show()
 		}
@@ -145,6 +145,6 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 	lcd.Dialog = dialog.NewCustom("Edit Links", translations.One(translations.LabelClose),
 		container.NewBorder(container.NewHBox(addButton, delButton), nil, nil, nil, lcd.list), parent)
 
-	lcd.Resize(fyne.NewSize(defaultDialogueWidth, 500))
+	lcd.Resize(fyne.NewSize(sizeDialogueWidth, sizeDialogueHeight))
 	return &lcd
 }

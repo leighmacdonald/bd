@@ -209,6 +209,6 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	)
 
 	settingsForm.Refresh()
-	settingsWindow.Resize(fyne.NewSize(800, 800))
+	settingsWindow.Resize(fyne.NewSize(sizeDialogueWidth, sizeWindowMainHeight))
 	return settingsWindow
 }

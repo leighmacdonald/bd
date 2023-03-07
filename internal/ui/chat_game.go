@@ -158,7 +158,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		nil,
 		nil,
 		container.NewVScroll(gcw.list)))
-	gcw.window.Resize(fyne.NewSize(1000, 500))
+	gcw.window.Resize(fyne.NewSize(sizeWindowChatWidth, sizeWindowChatHeight))
 	return &gcw
 }
 

@@ -239,7 +239,7 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 				player.RUnlock()
 				item := widget.NewFormItem("", entry)
 				sz := item.Widget.Size()
-				sz.Height = 450
+				sz.Height = sizeDialogueHeight
 				item.Widget.Resize(sz)
 				d := dialog.NewForm("Edit Player Notes", "Save", "Cancel", []*widget.FormItem{item}, func(b bool) {
 					if !b {

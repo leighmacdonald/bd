@@ -33,6 +33,17 @@ const (
 	urlHelp = "https://github.com/leighmacdonald/bd/wiki"
 )
 
+const (
+	sizeWindowMainWidth  = 800
+	sizeWindowMainHeight = 1000
+
+	sizeDialogueWidth  = 700
+	sizeDialogueHeight = 500
+
+	sizeWindowChatWidth  = 1000
+	sizeWindowChatHeight = 500
+)
+
 func defaultApp() fyne.App {
 	application := app.NewWithID(AppId)
 	application.Settings().SetTheme(&bdTheme{})

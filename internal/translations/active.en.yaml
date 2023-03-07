@@ -210,7 +210,7 @@ menu_name_history:
   one: "View Name History"
 
 label_message_count:
-  one: "Message Count: "
+  one: "Messages: "
 
 label_result_count:
   one: "Results: "

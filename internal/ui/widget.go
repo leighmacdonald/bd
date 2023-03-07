@@ -6,8 +6,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const defaultDialogueWidth = 600
-
 type contextMenuRichText struct {
 	*widget.Button
 	menu *fyne.Menu

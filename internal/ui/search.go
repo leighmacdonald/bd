@@ -169,7 +169,7 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		),
 		nil, nil, nil,
 		container.NewMax(sw.list)))
-	sw.Window.Resize(fyne.NewSize(650, 700))
+	sw.Window.Resize(fyne.NewSize(sizeDialogueWidth, sizeDialogueHeight))
 
 	return &sw
 }

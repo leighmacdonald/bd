@@ -126,7 +126,7 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 		nil,
 		nil,
 		container.NewVScroll(unl.list)))
-	unl.Resize(fyne.NewSize(600, 600))
+	unl.Resize(fyne.NewSize(sizeDialogueWidth, sizeDialogueHeight))
 	unl.Show()
 	return unl
 }

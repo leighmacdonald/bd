@@ -72,7 +72,7 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 				container.NewVScroll(container.NewMax(form)),
 				parent)
 			sz := d.MinSize()
-			sz.Width = defaultDialogueWidth
+			sz.Width = sizeDialogueWidth
 			sz.Height *= 3
 			d.Resize(sz)
 			d.Show()
@@ -107,16 +107,18 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		nil,
 		nil, container.NewHBox(
 			widget.NewButtonWithIcon(translations.One(translations.LabelAdd), theme.ContentAddIcon(), func() {
-				lc := &model.ListConfig{
+				newLists := settings.GetLists()
+				newLists = append(newLists, &model.ListConfig{
 					ListType: model.ListTypeTF2BDPlayerList,
 					Name:     fmt.Sprintf("New List %d", listCount),
 					Enabled:  false,
 					URL:      "",
-				}
-				listCount++
-				if errAppend := boundList.Append(lc); errAppend != nil {
+				})
+				settings.SetLists(newLists)
+				if errAppend := boundList.Set(settings.GetLists().AsAny()); errAppend != nil {
 					log.Printf("Failed to update config list: %v", errAppend)
 				}
+				list.Refresh()
 			})), nil,
 		container.NewHBox())
 
@@ -136,7 +138,6 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		settings:  settings,
 	}
 
-	configDialog.Resize(fyne.NewSize(defaultDialogueWidth, 500))
-	//settingsWindow.Resize(fyne.NewSize(5050, 700))
+	configDialog.Resize(fyne.NewSize(sizeDialogueWidth, sizeDialogueWidth))
 	return &configDialog
 }
