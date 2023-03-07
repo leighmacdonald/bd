@@ -9,19 +9,7 @@ import (
 type bdTheme struct{}
 
 func (bdTheme) Font(s fyne.TextStyle) fyne.Resource {
-	if s.Monospace {
-		return resourceJetBrainsMonoRegularTtf
-	}
-	if s.Bold {
-		if s.Italic {
-			return resourceJetBrainsMonoBoldItalicTtf
-		}
-		return resourceJetBrainsMonoBoldTtf
-	}
-	if s.Italic {
-		return resourceJetBrainsMonoItalicTtf
-	}
-	return resourceJetBrainsMonoRegularTtf
+	return theme.DefaultTheme().Font(s)
 }
 
 func (bdTheme) Color(c fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {

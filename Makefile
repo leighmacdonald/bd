@@ -13,10 +13,6 @@ fmt:
 	gofmt -s -w .
 
 fonts:
-	fyne bundle --pkg ui    -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Regular.ttf
-	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Bold.ttf
-	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-Italic.ttf
-	fyne bundle --pkg ui -a -o ./internal/ui/embed_font.go ./internal/ui/resources/JetBrainsMono/fonts/ttf/JetBrainsMono-BoldItalic.ttf
 	fyne bundle --pkg ui    -o ./internal/ui/embed_img.go ./internal/ui/resources/default_avatar.jpg
 	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/Icon.png
 	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/tf2.png
