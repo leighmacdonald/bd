@@ -433,6 +433,11 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		vacLabel.Segments = []widget.RichTextSegment{
 			&widget.TextSegment{Text: vacMsgFull, Style: vacStyle},
 		}
+		if ps.Notes != "" {
+			notesStyle := stlOk
+			notesStyle.ColorName = theme.ColorNameWarning
+			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: " [note] ", Style: notesStyle})
+		}
 		lc.Refresh()
 		vacLabel.Refresh()
 		rootContainer.Refresh()
