@@ -99,13 +99,13 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 	return attrMenu
 }
 
-func generateExternalLinksMenu(steamId steamid.SID64, links []model.LinkConfig, urlOpener func(url *url.URL) error) *fyne.Menu {
-	lk := func(link model.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
+func generateExternalLinksMenu(steamId steamid.SID64, links model.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
+	lk := func(link *model.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
 		clsLinkValue := link
 		clsSteamId := sid64
 		return func() {
 			u := clsLinkValue.URL
-			switch clsLinkValue.IdFormat {
+			switch model.SteamIdFormat(clsLinkValue.IdFormat) {
 			case model.Steam:
 				u = fmt.Sprintf(u, steamid.SID64ToSID(clsSteamId))
 			case model.Steam3:
@@ -177,7 +177,7 @@ func generateKickMenu(ctx context.Context, userId int64, kickFunc model.KickFunc
 }
 
 func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, steamId steamid.SID64, userId int64, cb callBacks,
-	knownAttributes binding.StringList, links []model.LinkConfig) *fyne.Menu {
+	knownAttributes binding.StringList, links model.LinkConfigCollection) *fyne.Menu {
 
 	var items []*fyne.MenuItem
 	if userId > 0 {

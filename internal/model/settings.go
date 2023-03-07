@@ -54,12 +54,13 @@ const (
 )
 
 type LinkConfig struct {
-	Enabled  bool          `yaml:"enabled"`
-	Name     string        `yaml:"name"`
-	URL      string        `yaml:"url"`
-	IdFormat SteamIdFormat `yaml:"id_format"`
+	Enabled  bool   `yaml:"enabled"`
+	Name     string `yaml:"name"`
+	URL      string `yaml:"url"`
+	IdFormat string `yaml:"id_format"`
+	Deleted  bool   `yaml:"-"`
 }
-
+type LinkConfigCollection []*LinkConfig
 type ListConfigCollection []*ListConfig
 
 func (list ListConfigCollection) AsAny() []any {
@@ -90,7 +91,7 @@ type Settings struct {
 	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
 	KickTags               []string             `yaml:"kick_tags"`
 	Lists                  ListConfigCollection `yaml:"lists"`
-	Links                  []LinkConfig         `yaml:"links"`
+	Links                  []*LinkConfig        `yaml:"links"`
 	RCONStatic             bool                 `yaml:"rcon_static"`
 	rcon                   RCONConfigProvider   `yaml:"-"`
 }
@@ -189,6 +190,13 @@ func (s *Settings) SetLists(lists ListConfigCollection) {
 	defer s.Unlock()
 	s.Lists = lists
 }
+
+func (s *Settings) SetLinks(links []*LinkConfig) {
+	s.Lock()
+	defer s.Unlock()
+	s.Links = links
+}
+
 func (s *Settings) GetAutoLaunchGame() bool {
 	s.RLock()
 	defer s.RUnlock()
@@ -244,7 +252,9 @@ func (s *Settings) GetKickTags() []string {
 func (s *Settings) GetSteamId() steamid.SID64 {
 	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
-		log.Printf("Failed to parse stored steam id: %v\n", err)
+		if s.SteamID != "" {
+			log.Printf("Failed to parse stored steam id: %v\n", err)
+		}
 		return 0
 	}
 	return value
@@ -263,7 +273,7 @@ func (s *Settings) AddList(config *ListConfig) error {
 	return nil
 }
 
-func (s *Settings) GetLinks() []LinkConfig {
+func (s *Settings) GetLinks() []*LinkConfig {
 	s.RLock()
 	defer s.RUnlock()
 	return s.Links
@@ -310,7 +320,7 @@ func NewSettings() (*Settings, error) {
 				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/rules.official.json",
 			},
 		},
-		Links: []LinkConfig{
+		Links: []*LinkConfig{
 			{
 				Enabled:  true,
 				Name:     "RGL",
@@ -388,7 +398,7 @@ func (s *Settings) ReadDefaultOrCreate() error {
 		log.Printf("Creating new config file with defaults")
 		return s.Save()
 	}
-	s.rcon = NewRconConfig(s.GetRCONStatic())
+	s.reload()
 	return errRead
 }
 
@@ -440,12 +450,25 @@ func (s *Settings) ReadFilePath(filePath string) error {
 
 func (s *Settings) Read(inputFile io.Reader) error {
 	s.Lock()
-	defer s.Unlock()
-	return yaml.NewDecoder(inputFile).Decode(&s)
+	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
+		s.Unlock()
+		return errDecode
+	}
+	s.Unlock()
+	s.reload()
+	return nil
 }
 
 func (s *Settings) Save() error {
-	return s.WriteFilePath(s.GetConfigPath())
+	if errWrite := s.WriteFilePath(s.GetConfigPath()); errWrite != nil {
+		return errWrite
+	}
+	s.reload()
+	return nil
+}
+
+func (s *Settings) reload() {
+	s.rcon = NewRconConfig(s.GetRCONStatic())
 }
 
 func (s *Settings) WriteFilePath(filePath string) error {

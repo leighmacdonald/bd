@@ -7,6 +7,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
+	github.com/huandu/go-clone/generic v1.5.1
 	github.com/hugolgst/rich-go v0.0.0-20210925091458-d59fb695d9c0
 	github.com/jeandeaual/go-locale v0.0.0-20220711133428-7de61946b173
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
@@ -49,6 +50,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/huandu/go-clone v1.5.1 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect

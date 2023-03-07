@@ -21,7 +21,7 @@ type ruleListConfigDialog struct {
 	settings  *model.Settings
 }
 
-func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *model.Settings) dialog.Dialog {
+func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialog.Dialog {
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	list := widget.NewListWithData(boundList, func() fyne.CanvasObject {
 		return container.NewBorder(
@@ -32,7 +32,10 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 				widget.NewButtonWithIcon(translations.One(translations.LabelEdit),
 					theme.DocumentCreateIcon(), func() {}),
 				widget.NewButtonWithIcon(translations.One(translations.LabelDelete),
-					theme.DeleteIcon(), func() {})),
+					theme.DeleteIcon(), func() {}),
+				widget.NewCheck("", func(b bool) {
+
+				})),
 			widget.NewLabel(""),
 		)
 	}, func(i binding.DataItem, o fyne.CanvasObject) {
@@ -49,32 +52,31 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 
 		btnContainer := rootContainer.Objects[1].(*fyne.Container)
 		editButton := btnContainer.Objects[0].(*widget.Button)
+		deleteButton := btnContainer.Objects[1].(*widget.Button)
+		enabledCheck := btnContainer.Objects[2].(*widget.Check)
+
+		enabledCheck.Bind(binding.BindBool(&lc.Enabled))
 		editButton.OnTapped = func() {
 			nameEntry := widget.NewEntryWithData(binding.BindString(&lc.Name))
-			enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), binding.BindBool(&lc.Enabled))
-			d := dialog.NewForm(
+			//enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), binding.BindBool(&lc.Enabled))
+			form := widget.NewForm([]*widget.FormItem{
+				{Text: translations.One(translations.LabelName), Widget: nameEntry},
+				{Text: translations.One(translations.LabelURL), Widget: urlEntry},
+				{Text: translations.One(translations.LabelEnabled), Widget: enabledCheck},
+			}...)
+
+			d := dialog.NewCustom(
 				translations.One(translations.LabelEdit),
-				translations.One(translations.LabelApply),
 				translations.One(translations.LabelClose),
-				[]*widget.FormItem{
-					{Text: translations.One(translations.LabelName), Widget: nameEntry},
-					{Text: translations.One(translations.LabelURL), Widget: urlEntry},
-					{Text: translations.One(translations.LabelEnabled), Widget: enabledEntry},
-				}, func(valid bool) {
-					if !valid {
-						return
-					}
-					if errSave := saveFn(); errSave != nil {
-						log.Printf("Failed to save list settings")
-					}
-					name.SetText(nameEntry.Text)
-				}, parent)
+				container.NewVScroll(container.NewMax(form)),
+				parent)
 			sz := d.MinSize()
 			sz.Width = defaultDialogueWidth
+			sz.Height *= 3
 			d.Resize(sz)
 			d.Show()
 		}
-		deleteButton := btnContainer.Objects[1].(*widget.Button)
+
 		deleteButton.OnTapped = func() {
 			msg := translations.Tr(&i18n.Message{ID: string(translations.LabelConfirmDeleteList)},
 				1, map[string]interface{}{"Name": lc.Name})
@@ -93,9 +95,7 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 				if errReload := boundList.Set(settings.GetLists().AsAny()); errReload != nil {
 					log.Printf("Failed to reload: %v\n", errReload)
 				}
-				if errSave := saveFn(); errSave != nil {
-					log.Printf("Failed to save list settings")
-				}
+
 			}, parent)
 			confirm.Show()
 		}
@@ -136,13 +136,8 @@ func newRuleListConfigDialog(parent fyne.Window, saveFn func() error, settings *
 						if errAppend := boundList.Append(lc); errAppend != nil {
 							log.Printf("Failed to update config list: %v", errAppend)
 						}
-						if errSave := saveFn(); errSave != nil {
-							log.Printf("Failed to save list settings")
-						}
+
 					}, parent)
-				sz := inputForm.MinSize()
-				sz.Width = defaultDialogueWidth
-				inputForm.Resize(sz)
 				inputForm.Show()
 			})),
 		container.NewHBox())

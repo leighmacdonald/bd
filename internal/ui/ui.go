@@ -68,7 +68,6 @@ type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *
 type Ui struct {
 	bd              *detector.BD
 	application     fyne.App
-	boundSettings   boundSettings
 	settings        *model.Settings
 	windows         *windows
 	callBacks       callBacks
@@ -90,7 +89,6 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 		bd:              bd,
 		version:         version,
 		application:     defaultApp(),
-		boundSettings:   boundSettings{binding.BindStruct(settings)},
 		settings:        settings,
 		knownAttributes: binding.NewStringList(),
 		windows: &windows{
@@ -128,7 +126,6 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 	ui.windows.player = newPlayerWindow(
 		ui.application,
 		settings,
-		ui.boundSettings,
 		func() {
 			ui.windows.chat.window.Show()
 		},
@@ -217,12 +214,18 @@ func (ui *Ui) Quit() {
 	ui.application.Quit()
 }
 
-func showUserError(msg error, parent fyne.Window) {
-	d := dialog.NewError(msg, parent)
+func showUserError(err error, parent fyne.Window) {
+	if err == nil {
+		return
+	}
+	d := dialog.NewError(err, parent)
 	d.Show()
 }
 
 func validateUrl(urlString string) error {
+	if urlString == "" {
+		return nil
+	}
 	_, errParse := url.Parse(urlString)
 	if errParse != nil {
 		return errors.New(translations.One(translations.ErrorInvalidURL))

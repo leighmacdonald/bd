@@ -7,8 +7,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	clone "github.com/huandu/go-clone/generic"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/translations"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -20,30 +20,10 @@ import (
 	"strings"
 )
 
-type boundSettings struct {
-	binding.Struct
-}
-
-func (s *boundSettings) getBoundStringDefault(key string, def string) binding.String {
-	value, apiKeyErr := s.GetValue(key)
-	if apiKeyErr != nil {
-		value = def
-	}
-	v := value.(string)
-	return binding.BindString(&v)
-}
-
-func (s *boundSettings) getBoundBoolDefault(key string, def bool) binding.Bool {
-	value, apiKeyErr := s.GetValue(key)
-	if apiKeyErr != nil {
-		value = def
-	}
-	v := value.(bool)
-	return binding.BindBool(&v)
-}
-
-func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings *model.Settings) dialog.Dialog {
+func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.Dialog {
 	const testSteamId = 76561197961279983
+
+	settings := clone.Clone[*model.Settings](origSettings)
 
 	var createSelectorRow = func(label string, icon fyne.Resource, entry *widget.Entry, defaultPath string) *container.Split {
 		fileInputContainer := container.NewHSplit(widget.NewButtonWithIcon("Edit", icon, func() {
@@ -58,11 +38,9 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		fileInputContainer.SetOffset(0.0)
 		return fileInputContainer
 	}
-
-	apiKey := boundSettings.getBoundStringDefault("APIKey", "")
-	apiKeyOriginal, _ := apiKey.Get()
+	apiKeyOriginal := settings.APIKey
 	apiKeyEntry := widget.NewPasswordEntry()
-	apiKeyEntry.Bind(apiKey)
+	apiKeyEntry.Bind(binding.BindString(&settings.APIKey))
 	apiKeyEntry.Validator = func(newApiKey string) error {
 		if len(newApiKey) > 0 && len(newApiKey) != 32 {
 			return errors.New(translations.One(translations.ErrorInvalidApiKey))
@@ -89,17 +67,14 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		return nil
 	}
 
-	steamId := boundSettings.getBoundStringDefault("SteamID", "")
 	steamIdEntry := widget.NewEntry()
-	steamIdEntry.Bind(steamId)
+	steamIdEntry.Bind(binding.BindString(&settings.SteamID))
 	steamIdEntry.Validator = validateSteamId
 
-	tf2Dir := boundSettings.getBoundStringDefault("TF2Dir", platform.DefaultTF2Root)
-	tf2RootEntry := widget.NewEntryWithData(tf2Dir)
+	tf2RootEntry := widget.NewEntryWithData(binding.BindString(&settings.TF2Dir))
 	tf2RootEntry.Validator = validateSteamRoot
 
-	steamDir := boundSettings.getBoundStringDefault("SteamDir", platform.DefaultSteamRoot)
-	steamDirEntry := widget.NewEntryWithData(steamDir)
+	steamDirEntry := widget.NewEntryWithData(binding.BindString(&settings.SteamDir))
 	steamDirEntry.Validator = func(newRoot string) error {
 		if len(newRoot) > 0 {
 			if !golib.Exists(newRoot) {
@@ -118,38 +93,38 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 		}
 		return nil
 	}
-	autoCloseOnGameExit := boundSettings.getBoundBoolDefault("AutoCloseOnGameExit", true)
-	autoCloseOnGameExitEntry := widget.NewCheckWithData("", autoCloseOnGameExit)
-
-	autoLaunchGame := boundSettings.getBoundBoolDefault("AutoLaunchGame", true)
-	autoLaunchGameEntry := widget.NewCheckWithData("", autoLaunchGame)
-
-	kickerEnabled := boundSettings.getBoundBoolDefault("KickerEnabled", true)
-	kickerEnabledEntry := widget.NewCheckWithData("", kickerEnabled)
-
-	chatWarningsEnabled := boundSettings.getBoundBoolDefault("ChatWarningsEnabled", false)
-	chatWarningsEnabledEntry := widget.NewCheckWithData("", chatWarningsEnabled)
-
-	partyWarningsEnabled := boundSettings.getBoundBoolDefault("PartyWarningsEnabled", true)
-	partyWarningsEnabledEntry := widget.NewCheckWithData("", partyWarningsEnabled)
-
-	discordPresenceEnabled := boundSettings.getBoundBoolDefault("DiscordPresenceEnabled", false)
-	discordPresenceEnabledEntry := widget.NewCheckWithData("", discordPresenceEnabled)
-
-	rconModeStatic := boundSettings.getBoundBoolDefault("RconStatic", false)
-	rconModeStaticEntry := widget.NewCheckWithData(translations.One(translations.CheckboxRconStatic), rconModeStatic)
-
+	autoCloseOnGameExitEntry := widget.NewCheckWithData("", binding.BindBool(&settings.AutoCloseOnGameExit))
+	autoLaunchGameEntry := widget.NewCheckWithData("", binding.BindBool(&settings.AutoLaunchGame))
+	kickerEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.KickerEnabled))
+	chatWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.ChatWarningsEnabled))
+	partyWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.PartyWarningsEnabled))
+	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DiscordPresenceEnabled))
+	rconModeStaticEntry := widget.NewCheckWithData(translations.One(translations.CheckboxRconStatic), binding.BindBool(&settings.RCONStatic))
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
 	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
 		log.Printf("Failed to set tags: %v\n", errSet)
 	}
-
 	tagsEntry := widget.NewEntryWithData(boundTags)
 	tagsEntry.Validator = validateTags
+	linksDialog := newLinksDialog(parent, settings)
+	linksButton := widget.NewButtonWithIcon("Edit Links", theme.SettingsIcon(), func() {
+		linksDialog.Show()
+	})
+	linksButton.Alignment = widget.ButtonAlignLeading
+	linksButton.Refresh()
+
+	listsDialog := newRuleListConfigDialog(parent, settings)
+	listsButton := widget.NewButtonWithIcon("Edit Lists", theme.SettingsIcon(), func() {
+		listsDialog.Show()
+	})
+	listsButton.Alignment = widget.ButtonAlignLeading
+	listsButton.Refresh()
 
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
+			{Text: "Lists & Rules", Widget: listsButton, HintText: "Configure your 3rd party player and rule lists"},
+			{Text: "External Links", Widget: linksButton, HintText: "Customize external links menu"},
 			{Text: translations.One(translations.LabelSettingsVoteKicker), Widget: kickerEnabledEntry,
 				HintText: translations.One(translations.LabelSettingsVoteKickerHint)},
 			{Text: translations.One(translations.LabelSettingsKickableTags), Widget: tagsEntry,
@@ -168,6 +143,7 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 				HintText: translations.One(translations.LabelSettingsSteamApiKeyHint)},
 			{Text: translations.One(translations.LabelSettingsSteamId), Widget: steamIdEntry,
 				HintText: translations.One(translations.LabelSettingsSteamIdHint)},
+
 			{Text: translations.One(translations.LabelSettingsSteamRoot),
 				Widget:   createSelectorRow(translations.One(translations.LabelSelect), theme.FileTextIcon(), steamDirEntry, ""),
 				HintText: translations.One(translations.LabelSettingsSteamRootHint)},
@@ -180,15 +156,10 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 			},
 		},
 	}
-
-	settingsWindow := dialog.NewCustom(
-		translations.One(translations.TitleSettings),
-		translations.One(translations.LabelClose),
-		container.NewVScroll(settingsForm),
-		parent,
-	)
-
-	settingsForm.OnSubmit = func() {
+	onSave := func(status bool) {
+		if !status {
+			return
+		}
 		// Update it to our preferred format
 		if steamIdEntry.Text != "" {
 			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
@@ -206,28 +177,38 @@ func newSettingsDialog(parent fyne.Window, boundSettings boundSettings, settings
 			}
 			newTags = append(newTags, strings.Trim(t, " "))
 		}
-		settings.SetKickTags(newTags)
-		settings.SetAPIKey(apiKeyEntry.Text)
-		settings.SetSteamDir(steamDirEntry.Text)
-		settings.SetTF2Dir(tf2RootEntry.Text)
-		settings.SetKickerEnabled(kickerEnabledEntry.Checked)
-		settings.SetChatWarningsEnabled(chatWarningsEnabledEntry.Checked)
-		settings.SetPartyWarningsEnabled(partyWarningsEnabledEntry.Checked)
-		settings.SetRconStatic(rconModeStaticEntry.Checked)
-		settings.SetAutoCloseOnGameExit(autoCloseOnGameExitEntry.Checked)
-		settings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
+		origSettings.SetKickTags(newTags)
+		origSettings.SetAPIKey(apiKeyEntry.Text)
+		origSettings.SetSteamDir(steamDirEntry.Text)
+		origSettings.SetTF2Dir(tf2RootEntry.Text)
+		origSettings.SetKickerEnabled(kickerEnabledEntry.Checked)
+		origSettings.SetChatWarningsEnabled(chatWarningsEnabledEntry.Checked)
+		origSettings.SetPartyWarningsEnabled(partyWarningsEnabledEntry.Checked)
+		origSettings.SetRconStatic(rconModeStaticEntry.Checked)
+		origSettings.SetAutoCloseOnGameExit(autoCloseOnGameExitEntry.Checked)
+		origSettings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
+		origSettings.SetLinks(settings.GetLinks())
+		origSettings.SetLists(settings.GetLists())
 
 		if apiKeyOriginal != apiKeyEntry.Text {
 			if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
 				log.Printf("Failed to set new steam key: %v\n", errSetKey)
 			}
 		}
-		if errSave := settings.Save(); errSave != nil {
+		if errSave := origSettings.Save(); errSave != nil {
 			log.Printf("Failed to save settings: %v\n", errSave)
 		}
-		settingsWindow.Hide()
 	}
+	settingsWindow := dialog.NewCustomConfirm(
+		translations.One(translations.TitleSettings),
+		"save",
+		translations.One(translations.LabelClose),
+		container.NewVScroll(settingsForm),
+		onSave,
+		parent,
+	)
+
 	settingsForm.Refresh()
-	settingsWindow.Resize(fyne.NewSize(750, 800))
+	settingsWindow.Resize(fyne.NewSize(800, 800))
 	return settingsWindow
 }

@@ -5,7 +5,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -31,9 +30,7 @@ type playerWindow struct {
 	boundListMu sync.RWMutex
 	settings    *model.Settings
 
-	aboutDialog    *aboutDialog
-	settingsDialog dialog.Dialog
-	listsDialog    dialog.Dialog
+	aboutDialog *aboutDialog
 
 	labelHostname       *widget.RichText
 	labelMap            *widget.RichText
@@ -54,6 +51,11 @@ type playerWindow struct {
 	onReload    func(count int)
 	callBacks   callBacks
 	avatarCache *avatarCache
+}
+
+func (screen *playerWindow) showSettings(settings *model.Settings) {
+	d := newSettingsDialog(screen.window, settings)
+	d.Show()
 }
 
 func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
@@ -162,7 +164,6 @@ func (screen *playerWindow) createMainMenu() {
 	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutFolder := &desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutSettings := &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}
-	shortCutLists := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutQuit := &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}
 	shortCutHelp := &desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
@@ -177,10 +178,7 @@ func (screen *playerWindow) createMainMenu() {
 		platform.OpenFolder(screen.settings.ConfigRoot())
 	})
 	screen.window.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
-		screen.settingsDialog.Show()
-	})
-	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
-		screen.listsDialog.Show()
+		screen.showSettings(screen.settings)
 	})
 	screen.window.Canvas().AddShortcut(shortCutQuit, func(shortcut fyne.Shortcut) {
 		screen.app.Quit()
@@ -219,14 +217,10 @@ func (screen *playerWindow) createMainMenu() {
 		&fyne.MenuItem{
 			Shortcut: shortCutSettings,
 			Label:    translations.One(translations.LabelSettings),
-			Action:   screen.settingsDialog.Show,
-			Icon:     theme.SettingsIcon(),
-		},
-		&fyne.MenuItem{
-			Shortcut: shortCutLists,
-			Label:    translations.One(translations.LabelListConfig),
-			Action:   screen.listsDialog.Show,
-			Icon:     theme.StorageIcon(),
+			Action: func() {
+				screen.showSettings(screen.settings)
+			},
+			Icon: theme.SettingsIcon(),
 		},
 		fyne.NewMenuItemSeparator(),
 		&fyne.MenuItem{
@@ -263,7 +257,7 @@ const symbolBad = "✗"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings boundSettings, showChatWindowFunc func(), showSearchWindowFunc func(),
+func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc func(), showSearchWindowFunc func(),
 	callbacks callBacks, menuCreator MenuCreator, cache *avatarCache, version model.Version) *playerWindow {
 	screen := &playerWindow{
 		app:                app,
@@ -275,6 +269,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		callBacks:          callbacks,
 		menuCreator:        menuCreator,
 		avatarCache:        cache,
+		settings:           settings,
 		labelHostname: widget.NewRichText(
 			&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
@@ -291,8 +286,6 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		}
 	}
 	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
-	screen.settingsDialog = newSettingsDialog(screen.window, boundSettings, settings)
-	screen.listsDialog = newRuleListConfigDialog(screen.window, settings.Save, settings)
 	screen.aboutDialog = newAboutDialog(screen.window, version)
 	screen.onReload = func(count int) {
 		if errSet := screen.bindingPlayerCount.Set(count); errSet != nil {
@@ -306,15 +299,12 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 		func() {
 			screen.onShowChat()
 		}, func() {
-			screen.settingsDialog.Show()
+			screen.showSettings(settings)
 		}, func() {
 			screen.aboutDialog.Show()
 		},
 		func() {
 			go screen.callBacks.gameLauncherFunc()
-		},
-		func() {
-			screen.listsDialog.Show()
 		},
 		func() {
 			screen.onShowSearch()
@@ -477,7 +467,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, boundSettings bound
 	return screen
 }
 
-func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showListsFunc func(), showSearchFunc func()) *widget.Toolbar {
+func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
@@ -492,9 +482,6 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 		widget.NewToolbarAction(theme.SearchIcon(), showSearchFunc),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
-		widget.NewToolbarAction(theme.StorageIcon(), func() {
-			showListsFunc()
-		}),
 		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
 			platform.OpenFolder(settings.ConfigRoot())
 		}),

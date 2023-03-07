@@ -41,3 +41,20 @@ func newContextMenuIcon() *contextMenuIcon {
 		menu: fyne.NewMenu(""),
 	}
 }
+
+//
+//type clickableIcon struct {
+//	*widget.Icon
+//	onClicked func()
+//}
+//
+//func (b *clickableIcon) Tapped(e *fyne.PointEvent) {
+//	b.onClicked()
+//}
+//
+//func newClickableIcon(icon fyne.Resource, clickHandler func()) *clickableIcon {
+//	return &clickableIcon{
+//		Icon:      widget.NewIcon(icon),
+//		onClicked: clickHandler,
+//	}
+//}
