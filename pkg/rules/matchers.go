@@ -81,6 +81,7 @@ type steamIDMatcher struct {
 	steamID    steamid.SID64
 	origin     string
 	attributes []string
+	lastSeen   playerLastSeen
 }
 
 func (m steamIDMatcher) Match(sid64 steamid.SID64) *MatchResult {

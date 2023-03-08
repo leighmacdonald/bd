@@ -1,4 +1,4 @@
-package util
+package voiceban
 
 import (
 	"encoding/binary"
@@ -10,7 +10,7 @@ import (
 const banMgrVersion = 1
 const idSize = 32
 
-func VoiceBansRead(reader io.Reader) (steamid.Collection, error) {
+func Read(reader io.Reader) (steamid.Collection, error) {
 	var version int32
 	errVersion := binary.Read(reader, binary.BigEndian, &version)
 	if errVersion != nil {
@@ -42,7 +42,7 @@ func VoiceBansRead(reader io.Reader) (steamid.Collection, error) {
 	return ids, nil
 }
 
-func VoiceBansWrite(output io.Writer, steamIds steamid.Collection) error {
+func Write(output io.Writer, steamIds steamid.Collection) error {
 	var version int32 = banMgrVersion
 	if errWrite := binary.Write(output, binary.BigEndian, version); errWrite != nil {
 		return errWrite

@@ -108,7 +108,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	chatWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.ChatWarningsEnabled))
 	partyWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.PartyWarningsEnabled))
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DiscordPresenceEnabled))
-
+	voiceBanEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.VoiceBansEnabled))
 	rconModeStaticEntry := widget.NewCheckWithData("", binding.BindBool(&settings.RCONStatic))
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
@@ -188,6 +188,10 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	labelRCONModeHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_rcon_mode_hint", Other: "Static: Port: {{ .Port }}, Password: {{ .Password }}"},
 		TemplateData:   map[string]interface{}{"Port": staticConfig.Port(), "Password": staticConfig.Password()}})
+	labelVoiceBanEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_voice_ban_enabled", Other: "Gen. Voice Bans"}})
+	labelVoiceBanEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_voice_ban_enabled_hint", Other: "WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries."}})
 	labelSelect := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_select_folder", Other: "Select"}})
 
@@ -211,6 +215,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 				Widget:   createSelectorRow(labelSelect, theme.FolderIcon(), tf2RootEntry, ""),
 				HintText: labelTF2RootHint},
 			{Text: labelRCONMode, Widget: rconModeStaticEntry, HintText: labelRCONModeHint},
+			{Text: labelVoiceBanEnabled, Widget: voiceBanEnabledEntry, HintText: labelVoiceBanEnabledHint},
 		},
 	}
 	onSave := func(status bool) {
@@ -244,6 +249,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 		origSettings.SetRconStatic(rconModeStaticEntry.Checked)
 		origSettings.SetAutoCloseOnGameExit(autoCloseOnGameExitEntry.Checked)
 		origSettings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
+		origSettings.SetVoiceBansEnabled(voiceBanEnabledEntry.Checked)
 		origSettings.SetLinks(settings.GetLinks())
 		origSettings.SetLists(settings.GetLists())
 
@@ -259,14 +265,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	titleSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_title", Other: "Edit Settings"}})
 	buttonSave := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_apply", Other: "Save"}})
 	buttonCancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_cancel", Other: "Cancel"}})
-	settingsWindow := dialog.NewCustomConfirm(
-		titleSettings,
-		buttonSave,
-		buttonCancel,
-		container.NewVScroll(settingsForm),
-		onSave,
-		parent,
-	)
+	settingsWindow := dialog.NewCustomConfirm(titleSettings, buttonSave, buttonCancel, container.NewVScroll(settingsForm), onSave, parent)
 	settingsForm.Refresh()
 	settingsWindow.Resize(fyne.NewSize(sizeDialogueWidth, sizeWindowMainHeight))
 	return settingsWindow

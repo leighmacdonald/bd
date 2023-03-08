@@ -12,6 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/leighmacdonald/bd/pkg/voiceban"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
@@ -284,9 +285,31 @@ func (bd *BD) eventHandler() {
 	}
 }
 
+func (bd *BD) ExportVoiceBans() error {
+	bannedIds := bd.rules.FindNewestEntries(200)
+	if len(bannedIds) == 0 {
+		return nil
+	}
+	vbPath := filepath.Join(bd.settings.GetTF2Dir(), "voice_ban.dt")
+	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, 0755)
+	if errOpen != nil {
+		return errOpen
+	}
+	if errWrite := voiceban.Write(vbFile, bannedIds); errWrite != nil {
+		return errWrite
+	}
+	log.Printf("Generated voice_ban.dt successfully")
+	return nil
+}
+
 func (bd *BD) LaunchGameAndWait() {
 	if errInstall := addons.Install(bd.settings.GetTF2Dir()); errInstall != nil {
 		log.Printf("Error trying to install addons: %v", errInstall)
+	}
+	if bd.settings.GetVoiceBansEnabled() {
+		if errVB := bd.ExportVoiceBans(); errVB != nil {
+			log.Printf("Failed to export voiceban list: %v\n", errVB)
+		}
 	}
 	rconConfig := bd.settings.GetRcon()
 	args, errArgs := getLaunchArgs(

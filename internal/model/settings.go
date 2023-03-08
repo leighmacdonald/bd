@@ -99,10 +99,23 @@ type Settings struct {
 	ChatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
 	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
 	KickTags               []string             `yaml:"kick_tags"`
+	VoiceBansEnabled       bool                 `yaml:"voice_bans_enabled"`
 	Lists                  ListConfigCollection `yaml:"lists"`
 	Links                  []*LinkConfig        `yaml:"links"`
 	RCONStatic             bool                 `yaml:"rcon_static"`
 	rcon                   RCONConfigProvider   `yaml:"-"`
+}
+
+func (s *Settings) GetVoiceBansEnabled() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.VoiceBansEnabled
+}
+
+func (s *Settings) SetVoiceBansEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.VoiceBansEnabled = enabled
 }
 
 func (s *Settings) GetRcon() RCONConfigProvider {
