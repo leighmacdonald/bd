@@ -2,19 +2,17 @@ package util
 
 import (
 	"encoding/binary"
-	"fmt"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"io"
-	"log"
 )
 
 const banMgrVersion = 1
 const idSize = 32
 
-func ReadVoiceBans(reader io.Reader) (steamid.Collection, error) {
+func VoiceBansRead(reader io.Reader) (steamid.Collection, error) {
 	var version int32
-	errVersion := binary.Read(reader, binary.LittleEndian, &version)
+	errVersion := binary.Read(reader, binary.BigEndian, &version)
 	if errVersion != nil {
 		return nil, errVersion
 	}
@@ -28,7 +26,6 @@ func ReadVoiceBans(reader io.Reader) (steamid.Collection, error) {
 		if errRead == io.EOF {
 			break
 		}
-		log.Println(fmt.Sprintf("%s", sid))
 		var trimId []byte
 		for _, r := range sid {
 			if r == 0 {
@@ -42,6 +39,25 @@ func ReadVoiceBans(reader io.Reader) (steamid.Collection, error) {
 		}
 		ids = append(ids, parsedSid)
 	}
-
 	return ids, nil
+}
+
+func VoiceBansWrite(output io.Writer, steamIds steamid.Collection) error {
+	var version int32 = banMgrVersion
+	if errWrite := binary.Write(output, binary.BigEndian, version); errWrite != nil {
+		return errWrite
+	}
+	for _, sid := range steamIds {
+		raw := []byte(steamid.SID64ToSID3(sid))
+		var sidBytes []byte
+		sidBytes = append(sidBytes, raw...)
+		// pad output
+		for len(sidBytes) < idSize {
+			sidBytes = append(sidBytes, 0)
+		}
+		if errWrite := binary.Write(output, binary.BigEndian, sidBytes); errWrite != nil {
+			return errWrite
+		}
+	}
+	return nil
 }

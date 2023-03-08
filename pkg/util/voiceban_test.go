@@ -1,16 +1,25 @@
 package util
 
 import (
+	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 )
 
-func TestReadVoiceBans(t *testing.T) {
-	f, errOpen := os.Open("../../voice_ban.dt")
-	require.NoError(t, errOpen)
-	defer f.Close()
-	bans, err := ReadVoiceBans(f)
+func TestVoiceBans(t *testing.T) {
+	vbTestFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
-	require.True(t, len(bans) > 0)
+	defer func() {
+		_ = vbTestFile.Close()
+	}()
+	testIds := steamid.Collection{76561198369477018, 76561197970669109, 76561197961279983}
+	require.NoError(t, VoiceBansWrite(vbTestFile, testIds))
+	_ = vbTestFile.Sync()
+	_, _ = vbTestFile.Seek(0, 0)
+	bans, errRead := VoiceBansRead(vbTestFile)
+	require.NoError(t, errRead)
+	for idx, foundId := range bans {
+		require.Equal(t, testIds[idx], foundId)
+	}
 }
