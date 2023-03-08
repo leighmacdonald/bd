@@ -108,6 +108,8 @@ settings_label_steam_root: Steam Root
 settings_label_steam_root_hint: Location of your steam install directory containing a userdata folder.
 settings_label_tf2_root: TF2 Root
 settings_label_tf2_root_hint: Path to your steamapps/common/Team Fortress 2/tf folder
+settings_label_voice_ban_enabled: Gen. Voice Bans
+settings_label_voice_ban_enabled_hint: 'WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries.'
 settings_title: Edit Settings
 user_menu_call_vote: Call Vote...
 user_menu_chat_hist: View Chat History
