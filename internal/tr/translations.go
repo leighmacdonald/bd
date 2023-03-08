@@ -18,7 +18,7 @@ var (
 )
 
 func init() {
-	bundle = i18n.NewBundle(language.Russian)
+	bundle = i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 	for _, langFile := range []string{"active.en.yaml", "active.ru.yaml"} {
 		_, errLoad := bundle.LoadMessageFileFS(localeFS, langFile)
