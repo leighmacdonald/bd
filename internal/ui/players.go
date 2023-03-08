@@ -10,7 +10,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
 	"net/url"
@@ -31,6 +32,9 @@ type playerWindow struct {
 	settings    *model.Settings
 
 	aboutDialog *aboutDialog
+
+	labelHostnameLabel string
+	labelMapLabel      string
 
 	labelHostname       *widget.RichText
 	labelMap            *widget.RichText
@@ -125,12 +129,12 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 
 func (screen *playerWindow) UpdateServerState(state model.Server) {
 	screen.labelHostname.Segments = []widget.RichTextSegment{
-		&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: screen.labelHostnameLabel, Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
 	}
 	screen.labelHostname.Refresh()
 	screen.labelMap.Segments = []widget.RichTextSegment{
-		&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: screen.labelMapLabel, Style: widget.RichTextStyleInline},
 		&widget.TextSegment{Text: state.CurrentMap, Style: widget.RichTextStyleStrong},
 	}
 	screen.labelMap.Refresh()
@@ -191,10 +195,17 @@ func (screen *playerWindow) createMainMenu() {
 	screen.window.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
 		screen.aboutDialog.Show()
 	})
-	fm := fyne.NewMenu("Bot Detector",
+
+	labelMainMenu := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_heading", Other: "Bot Detector"}})
+	labelLaunch := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_launch", Other: "Launch TF2"}})
+	labelChatLog := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_chat_log", Other: "Chat Log"}})
+	labelConfigFolder := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_config_folder", Other: "Open Config Folder"}})
+	labelSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_settings", Other: "Settings"}})
+	labelQuit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_quit", Other: "Quit"}})
+	fm := fyne.NewMenu(labelMainMenu,
 		&fyne.MenuItem{
 			Shortcut: shortCutLaunch,
-			Label:    translations.One(translations.LabelLaunch),
+			Label:    labelLaunch,
 			Action: func() {
 				go screen.callBacks.gameLauncherFunc()
 			},
@@ -202,13 +213,13 @@ func (screen *playerWindow) createMainMenu() {
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutChat,
-			Label:    translations.One(translations.LabelChatLog),
+			Label:    labelChatLog,
 			Action:   screen.onShowChat,
 			Icon:     theme.MailComposeIcon(),
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutFolder,
-			Label:    translations.One(translations.LabelConfigFolder),
+			Label:    labelConfigFolder,
 			Action: func() {
 				platform.OpenFolder(screen.settings.ConfigRoot())
 			},
@@ -216,7 +227,7 @@ func (screen *playerWindow) createMainMenu() {
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutSettings,
-			Label:    translations.One(translations.LabelSettings),
+			Label:    labelSettings,
 			Action: func() {
 				screen.showSettings(screen.settings)
 			},
@@ -226,15 +237,18 @@ func (screen *playerWindow) createMainMenu() {
 		&fyne.MenuItem{
 			Icon:     theme.ContentUndoIcon(),
 			Shortcut: shortCutQuit,
-			Label:    translations.One(translations.LabelQuit),
+			Label:    labelQuit,
 			IsQuit:   true,
 			Action:   screen.app.Quit,
 		},
 	)
 
-	hm := fyne.NewMenu(translations.One(translations.LabelHelp),
+	labelHelpMenuHeading := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "help_menu_heading", Other: "Help"}})
+	labelHelpMenu := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "help_menu_help", Other: "Help"}})
+	labelAboutMenu := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "help_menu_about", Other: "About"}})
+	hm := fyne.NewMenu(labelHelpMenuHeading,
 		&fyne.MenuItem{
-			Label:    translations.One(translations.LabelHelp),
+			Label:    labelHelpMenu,
 			Shortcut: shortCutHelp,
 			Icon:     theme.HelpIcon(),
 			Action: func() {
@@ -243,7 +257,7 @@ func (screen *playerWindow) createMainMenu() {
 				}
 			}},
 		&fyne.MenuItem{
-			Label:    translations.One(translations.LabelAbout),
+			Label:    labelAboutMenu,
 			Shortcut: shortCutAbout,
 			Icon:     theme.InfoIcon(),
 			Action:   screen.aboutDialog.Show},
@@ -259,6 +273,10 @@ const symbolBad = "✗"
 // │─────────────────────────────────────────────────────────┤
 func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc func(), showSearchWindowFunc func(),
 	callbacks callBacks, menuCreator MenuCreator, cache *avatarCache, version model.Version) *playerWindow {
+
+	hostname := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_hostname", Other: "Hostname: "}})
+	mapName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_map", Other: "Map: "}})
+
 	screen := &playerWindow{
 		app:                app,
 		window:             app.NewWindow("Bot Detector"),
@@ -267,15 +285,17 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		onShowChat:         showChatWindowFunc,
 		onShowSearch:       showSearchWindowFunc,
 		callBacks:          callbacks,
+		labelHostnameLabel: hostname,
+		labelMapLabel:      mapName,
 		menuCreator:        menuCreator,
 		avatarCache:        cache,
 		settings:           settings,
 		labelHostname: widget.NewRichText(
-			&widget.TextSegment{Text: translations.One(translations.LabelHostname), Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: hostname, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 		),
 		labelMap: widget.NewRichText(
-			&widget.TextSegment{Text: translations.One(translations.LabelMap), Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: mapName, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 		),
 		playerSortDir: binding.BindPreferenceString("sort_dir", app.Preferences()),
@@ -326,7 +346,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		screen.updatePlayerState(sorted)
 	})
 
-	sortSelect.PlaceHolder = translations.One(translations.LabelSortBy)
+	sortSelect.PlaceHolder = tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_sort_by", Other: "Sort By..."}})
 
 	screen.createMainMenu()
 
@@ -499,7 +519,8 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 		widget.NewToolbarAction(resourceTf2Png, func() {
 			sid := settings.GetSteamId()
 			if !sid.Valid() {
-				showUserError(errors.New(translations.One(translations.ErrorSteamIdMisconfigured)), parent)
+				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_steam_id_misconfigured", Other: "Invalid steamid configuration"}})
+				showUserError(errors.New(msg), parent)
 			} else {
 				launchFunc()
 			}

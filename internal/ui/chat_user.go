@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
@@ -31,10 +31,13 @@ type userChatWindow struct {
 }
 
 func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
-	appWindow := app.NewWindow(translations.Tr(&i18n.Message{ID: string(translations.WindowChatHistoryUser)},
-		1, map[string]interface{}{
+	appWindow := app.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{
+			ID:    "userchat_title",
+			Other: "User Chat History: {{ .SteamId }}"},
+		TemplateData: map[string]interface{}{
 			"SteamId": sid64,
-		}))
+		}}))
 	appWindow.SetCloseIntercept(func() {
 		appWindow.Hide()
 	})
@@ -79,20 +82,24 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 		}
 		messageRichText.Refresh()
 	})
+	labelAutoScroll := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "chatuser_check_auto_scroll", Other: "Auto-Scroll"}})
+	buttonBottom := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_button_bottom", Other: "Bottom"}})
+	buttonClear := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_button_clear", Other: "Clear"}})
+	labelMessageCount := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_label_message_count", Other: "Messages: "}})
 	window.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), window.autoScrollEnabled),
-				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), window.list.ScrollToBottom),
-				widget.NewButtonWithIcon(translations.One(translations.LabelClear), theme.ContentClearIcon(), func() {
+				widget.NewCheckWithData(labelAutoScroll, window.autoScrollEnabled),
+				widget.NewButtonWithIcon(buttonBottom, theme.MoveDownIcon(), window.list.ScrollToBottom),
+				widget.NewButtonWithIcon(buttonClear, theme.ContentClearIcon(), func() {
 					if errReload := window.boundList.Set(nil); errReload != nil {
 						log.Printf("Failed to clear chat: %v\n", errReload)
 					}
 				}),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(window.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(window.messageCount, fmt.Sprintf("%s%%d", labelMessageCount))),
 			widget.NewLabel(""),
 		),
 		nil,

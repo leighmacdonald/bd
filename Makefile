@@ -7,7 +7,7 @@ deps:
 	# go install github.com/goreleaser/goreleaser@latest
 	# for pro install from: https://github.com/goreleaser/goreleaser-pro/releases
 
-extract: fonts translations
+extract: fonts tr_extract
 
 fmt:
 	gofmt -s -w .
@@ -64,8 +64,17 @@ snapshot_linux:
 test:
 	go test ./...
 
-translations:
-	goi18n extract -outdir translations/ -format yaml
+tr_extract:
+	goi18n extract -outdir internal/tr/ -format yaml
+
+tf_new_lang:
+	goi18n merge internal/tr/active.en.toml translate.es.toml
+
+tr_gen_translate:
+	goi18n merge -format yaml -outdir internal/tr/ internal/tr/active.*.yaml
+
+tr_merge:
+	goi18n merge -format yaml -outdir internal/tr/ internal/tr/active.*.yaml internal/tr/translate.*.yaml
 
 update:
 	go get -u ./...

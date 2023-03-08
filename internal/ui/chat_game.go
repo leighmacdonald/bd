@@ -10,7 +10,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
 	"sync"
@@ -32,7 +33,7 @@ type gameChatWindow struct {
 }
 
 func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs binding.StringList, settings *model.Settings, cache *avatarCache) *gameChatWindow {
-	window := app.NewWindow(translations.One(translations.WindowChatHistoryGame))
+	window := app.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
@@ -143,15 +144,17 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), gcw.autoScrollEnabled),
-				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), gcw.list.ScrollToBottom),
-				widget.NewButtonWithIcon(translations.One(translations.LabelClear), theme.ContentClearIcon(), func() {
+				widget.NewCheckWithData(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_check_autoscroll", Other: "Auto-Scroll"}}), gcw.autoScrollEnabled),
+				widget.NewButtonWithIcon(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_button_bottom", Other: "Bottom"}}), theme.MoveDownIcon(), gcw.list.ScrollToBottom),
+				widget.NewButtonWithIcon(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_button_clear", Other: "Clear"}}), theme.ContentClearIcon(), func() {
 					if errReload := gcw.boundList.Set(nil); errReload != nil {
 						log.Printf("Failed to clear chat: %v\n", errReload)
 					}
 				}),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(gcw.messageCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
+			// TODO use i18n and set manually?
+			widget.NewLabelWithData(binding.IntToStringWithFormat(gcw.messageCount, fmt.Sprintf("%s%%d",
+				tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_message_count", Other: "Messages: "}})))),
 			widget.NewLabel(""),
 		),
 		bottomContainer,

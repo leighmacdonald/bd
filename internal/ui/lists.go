@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
 )
@@ -23,19 +23,17 @@ type ruleListConfigDialog struct {
 }
 
 func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialog.Dialog {
+	buttonEdit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_edit", Other: "Edit"}})
+	buttonDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_delete", Other: "Delete"}})
 	boundList := binding.BindUntypedList(&[]interface{}{})
 	list := widget.NewListWithData(boundList, func() fyne.CanvasObject {
 		return container.NewBorder(
 			nil,
 			nil,
-			widget.NewCheck("", func(b bool) {
-
-			}),
+			widget.NewCheck("", func(b bool) {}),
 			container.NewHBox(
-				widget.NewButtonWithIcon(translations.One(translations.LabelEdit),
-					theme.DocumentCreateIcon(), func() {}),
-				widget.NewButtonWithIcon(translations.One(translations.LabelDelete),
-					theme.DeleteIcon(), func() {}),
+				widget.NewButtonWithIcon(buttonEdit, theme.DocumentCreateIcon(), func() {}),
+				widget.NewButtonWithIcon(buttonDelete, theme.DeleteIcon(), func() {}),
 			),
 			widget.NewLabel(""),
 		)
@@ -59,16 +57,21 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		enabledCheck.Bind(binding.BindBool(&lc.Enabled))
 		editButton.OnTapped = func() {
 			nameEntry := widget.NewEntryWithData(binding.BindString(&lc.Name))
-			//enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), binding.BindBool(&lc.Enabled))
+			//enabledEntry := widget.NewCheckWithData(tr.One(tr.LabelEnabled), binding.BindBool(&lc.Enabled))
+			labelName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_label_name", Other: "Name"}})
+			labelURL := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_label_url", Other: "URL"}})
+			labelEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_label_enabled", Other: "Enabled"}})
+			titleEdit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title_edit", Other: "Edit"}})
+			buttonClose := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_close", Other: "Close"}})
 			form := widget.NewForm([]*widget.FormItem{
-				{Text: translations.One(translations.LabelName), Widget: nameEntry},
-				{Text: translations.One(translations.LabelURL), Widget: urlEntry},
-				{Text: translations.One(translations.LabelEnabled), Widget: enabledCheck},
+				{Text: labelName, Widget: nameEntry},
+				{Text: labelURL, Widget: urlEntry},
+				{Text: labelEnabled, Widget: enabledCheck},
 			}...)
 
 			d := dialog.NewCustom(
-				translations.One(translations.LabelEdit),
-				translations.One(translations.LabelClose),
+				titleEdit,
+				buttonClose,
 				container.NewVScroll(container.NewMax(form)),
 				parent)
 			sz := d.MinSize()
@@ -79,9 +82,11 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		}
 
 		deleteButton.OnTapped = func() {
-			msg := translations.Tr(&i18n.Message{ID: string(translations.LabelConfirmDeleteList)},
-				1, map[string]interface{}{"Name": lc.Name})
-			confirm := dialog.NewConfirm(translations.One(translations.TitleDeleteConfirm), msg, func(b bool) {
+			titleDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title_delete", Other: "Delete List"}, PluralCount: 1})
+			labelDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{ID: "lists_label_delete", Other: "Are you sure you want to delete the list: {{ .Name }}?"},
+				PluralCount:    1, TemplateData: map[string]interface{}{"Name": lc.Name}})
+			confirm := dialog.NewConfirm(titleDelete, labelDelete, func(b bool) {
 				if !b {
 					return
 				}
@@ -103,10 +108,11 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 
 	})
 	listCount := 1
+	buttonAdd := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_add", Other: "Add"}})
 	toolBar := container.NewBorder(
 		nil,
 		nil, container.NewHBox(
-			widget.NewButtonWithIcon(translations.One(translations.LabelAdd), theme.ContentAddIcon(), func() {
+			widget.NewButtonWithIcon(buttonAdd, theme.ContentAddIcon(), func() {
 				newLists := settings.GetLists()
 				newLists = append(newLists, &model.ListConfig{
 					ListType: model.ListTypeTF2BDPlayerList,
@@ -125,11 +131,12 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 	if errSet := boundList.Set(settings.GetLists().AsAny()); errSet != nil {
 		log.Printf("failed to load lists")
 	}
-
+	titleLists := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title", Other: "List Configuration"}})
+	buttonClose := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_close", Other: "Close"}})
 	configDialog := ruleListConfigDialog{
 		Dialog: dialog.NewCustom(
-			translations.One(translations.TitleListConfig),
-			translations.One(translations.LabelClose),
+			titleLists,
+			buttonClose,
 			container.NewBorder(toolBar, nil, nil, nil, list),
 			parent,
 		),

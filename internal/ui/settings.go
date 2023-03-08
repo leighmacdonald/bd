@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	clone "github.com/huandu/go-clone/generic"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
@@ -43,7 +43,9 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	apiKeyEntry.Bind(binding.BindString(&settings.APIKey))
 	apiKeyEntry.Validator = func(newApiKey string) error {
 		if len(newApiKey) > 0 && len(newApiKey) != 32 {
-			return errors.New(translations.One(translations.ErrorInvalidApiKey))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{ID: "error_invalid_api_key", Other: "Invalid API Key"}})
+			return errors.New(msg)
 		}
 		// Wait until all validation is complete to keep the setting
 		defer func() {
@@ -58,11 +60,15 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 		res, errRes := steamweb.PlayerSummaries(steamid.Collection{testSteamId})
 		if errRes != nil {
 			log.Printf("Failed to fetch player summary for validation: %v", errRes)
-			return errors.New(translations.One(translations.ErrorValidateAPICall))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{ID: "error_invalid_api_key", Other: "Failed to validate"}})
+			return errors.New(msg)
 		}
 		if len(res) != 1 {
 			log.Printf("Received incorrect number of steam api validation call\n")
-			return errors.New(translations.One(translations.ErrorValidateAPICall))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{ID: "error_invalid_api_invalid_response", Other: "Invalid Response"}})
+			return errors.New(msg)
 		}
 		return nil
 	}
@@ -78,11 +84,14 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	steamDirEntry.Validator = func(newRoot string) error {
 		if len(newRoot) > 0 {
 			if !golib.Exists(newRoot) {
-				return errors.New(translations.One(translations.ErrorInvalidPath))
+				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_path", Other: "Invalid Path"}})
+				return errors.New(msg)
 			}
 			userDataDir := filepath.Join(newRoot, "userdata")
 			if !golib.Exists(userDataDir) {
-				return errors.New(translations.One(translations.ErrorInvalidSteamDirUserData))
+				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+					DefaultMessage: &i18n.Message{ID: "error_invalid_steam_dir_user_data", Other: "Could not find userdata folder"}})
+				return errors.New(msg)
 			}
 			if tf2RootEntry.Text == "" {
 				dp := filepath.Join(newRoot, "steamapps/common/Team Fortress 2/tf")
@@ -99,7 +108,8 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	chatWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.ChatWarningsEnabled))
 	partyWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.PartyWarningsEnabled))
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DiscordPresenceEnabled))
-	rconModeStaticEntry := widget.NewCheckWithData(translations.One(translations.CheckboxRconStatic), binding.BindBool(&settings.RCONStatic))
+
+	rconModeStaticEntry := widget.NewCheckWithData("", binding.BindBool(&settings.RCONStatic))
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
 	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
@@ -121,39 +131,86 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	listsButton.Alignment = widget.ButtonAlignLeading
 	listsButton.Refresh()
 
+	labelLists := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_lists", Other: "Lists & Rules"}})
+	labelListsHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_lists_hint", Other: "Configure your 3rd party player and rule lists"}})
+	labelLinks := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_links", Other: "External Links"}})
+	labelLinksHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_links_hint", Other: "Customize external links menu"}})
+	labelKickerEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_kicker_enabled", Other: "Vote Kicker"}})
+	labelKickerEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_kicker_enabled_hint", Other: "Enable vote kick functionality in-game"}})
+	labelKickableTags := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_kickable_tags", Other: "Kickable Tags"}})
+	labelKickableTagsHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_kickable_tags_hint", Other: "Attributes/Tags that when matched will trigger a in-game kick."}})
+	labelChatWarnEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_chat_warn_enabled", Other: "Chat Warnings"}})
+	labelChatWarnEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_chat_warn_enabled_hint", Other: "Show warning message using in-game chat"}})
+	labelPartyWarnEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_party_warn_enabled", Other: "Party Warnings"}})
+	labelPartyWarnEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_party_warn_enabled_hint", Other: "Show lobby only warning messages"}})
+	labelDiscordPresence := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled", Other: "Discord Presence"}})
+	labelDiscordPresenceHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled_hint", Other: "Enables discord rich presence if discord is running"}})
+	labelAutoLaunch := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_auto_launch", Other: "Auto Launch TF2"}})
+	labelAutoLaunchHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_auto_launch_hint", Other: "When launching bd, also automatically launch tf2"}})
+	labelAutoExit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_auto_exit", Other: "Auto Close"}})
+	labelAutoExitHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_auto_exit_hint", Other: "When TF2 exits, close bd as well"}})
+	labelSteamAPIKey := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_api_key", Other: "Steam API Key"}})
+	labelSteamAPIKeyHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_api_key_hint", Other: "Steam web api key. https://steamcommunity.com/dev/apikey"}})
+	labelSteamID := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_id", Other: "Steam ID"}})
+	labelSteamIDHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_id_hint", Other: "Your steam id in any of the following formats: steam,steam3,steam32,steam64"}})
+	labelSteamRoot := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_root", Other: "Steam Root"}})
+	labelSteamRootHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_steam_root_hint", Other: "Location of your steam install directory containing a userdata folder."}})
+	labelTF2Root := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_tf2_root", Other: "TF2 Root"}})
+	labelTF2RootHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_tf2_root_hint", Other: "Path to your steamapps/common/Team Fortress 2/tf folder"}})
+	labelRCONMode := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_rcon_mode", Other: "RCON Mode"}})
+	labelRCONModeHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_rcon_mode_hint", Other: "Static: Port: {{ .Port }}, Password: {{ .Password }}"},
+		TemplateData:   map[string]interface{}{"Port": staticConfig.Port(), "Password": staticConfig.Password()}})
+	labelSelect := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_select_folder", Other: "Select"}})
+
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Lists & Rules", Widget: listsButton, HintText: "Configure your 3rd party player and rule lists"},
-			{Text: "External Links", Widget: linksButton, HintText: "Customize external links menu"},
-			{Text: translations.One(translations.LabelSettingsVoteKicker), Widget: kickerEnabledEntry,
-				HintText: translations.One(translations.LabelSettingsVoteKickerHint)},
-			{Text: translations.One(translations.LabelSettingsKickableTags), Widget: tagsEntry,
-				HintText: translations.One(translations.LabelSettingsKickableTagsHint)},
-			{Text: translations.One(translations.LabelSettingsChatWarnings), Widget: chatWarningsEnabledEntry,
-				HintText: translations.One(translations.LabelSettingsChatWarningsHint)},
-			{Text: translations.One(translations.LabelSettingsPartyWarnings), Widget: partyWarningsEnabledEntry,
-				HintText: translations.One(translations.LabelSettingsPartyWarningsHint)},
-			{Text: translations.One(translations.LabelSettingsDiscordPresence), Widget: discordPresenceEnabledEntry,
-				HintText: translations.One(translations.LabelSettingsDiscordPresenceHint)},
-			{Text: translations.One(translations.LabelAutoLaunchGame), Widget: autoLaunchGameEntry,
-				HintText: translations.One(translations.LabelAutoLaunchGameHint)},
-			{Text: translations.One(translations.LabelAutoCloseOnGameExit), Widget: autoCloseOnGameExitEntry,
-				HintText: translations.One(translations.LabelAutoCloseOnGameExitHint)},
-			{Text: translations.One(translations.LabelSettingsSteamApiKey), Widget: apiKeyEntry,
-				HintText: translations.One(translations.LabelSettingsSteamApiKeyHint)},
-			{Text: translations.One(translations.LabelSettingsSteamId), Widget: steamIdEntry,
-				HintText: translations.One(translations.LabelSettingsSteamIdHint)},
-
-			{Text: translations.One(translations.LabelSettingsSteamRoot),
-				Widget:   createSelectorRow(translations.One(translations.LabelSelect), theme.FileTextIcon(), steamDirEntry, ""),
-				HintText: translations.One(translations.LabelSettingsSteamRootHint)},
-			{Text: translations.One(translations.LabelSettingsTF2Root),
-				Widget:   createSelectorRow(translations.One(translations.LabelSelect), theme.FileTextIcon(), tf2RootEntry, ""),
-				HintText: translations.One(translations.LabelSettingsTF2RootHint)},
-			{Text: translations.One(translations.LabelSettingsRCONMode), Widget: rconModeStaticEntry,
-				HintText: translations.Tr(&i18n.Message{ID: string(translations.LabelSettingsRCONModeHint)},
-					1, map[string]interface{}{"Port": staticConfig.Port(), "Password": staticConfig.Password()}),
-			},
+			{Text: labelLists, Widget: listsButton, HintText: labelListsHint},
+			{Text: labelLinks, Widget: linksButton, HintText: labelLinksHint},
+			{Text: labelKickerEnabled, Widget: kickerEnabledEntry, HintText: labelKickerEnabledHint},
+			{Text: labelKickableTags, Widget: tagsEntry, HintText: labelKickableTagsHint},
+			{Text: labelChatWarnEnabled, Widget: chatWarningsEnabledEntry, HintText: labelChatWarnEnabledHint},
+			{Text: labelPartyWarnEnabled, Widget: partyWarningsEnabledEntry, HintText: labelPartyWarnEnabledHint},
+			{Text: labelDiscordPresence, Widget: discordPresenceEnabledEntry, HintText: labelDiscordPresenceHint},
+			{Text: labelAutoLaunch, Widget: autoLaunchGameEntry, HintText: labelAutoLaunchHint},
+			{Text: labelAutoExit, Widget: autoCloseOnGameExitEntry, HintText: labelAutoExitHint},
+			{Text: labelSteamAPIKey, Widget: apiKeyEntry, HintText: labelSteamAPIKeyHint},
+			{Text: labelSteamID, Widget: steamIdEntry, HintText: labelSteamIDHint},
+			{Text: labelSteamRoot,
+				Widget:   createSelectorRow(labelSelect, theme.FolderIcon(), steamDirEntry, ""),
+				HintText: labelSteamRootHint},
+			{Text: labelTF2Root,
+				Widget:   createSelectorRow(labelSelect, theme.FolderIcon(), tf2RootEntry, ""),
+				HintText: labelTF2RootHint},
+			{Text: labelRCONMode, Widget: rconModeStaticEntry, HintText: labelRCONModeHint},
 		},
 	}
 	onSave := func(status bool) {
@@ -199,15 +256,17 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 			log.Printf("Failed to save settings: %v\n", errSave)
 		}
 	}
+	titleSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_title", Other: "Edit Settings"}})
+	buttonSave := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_apply", Other: "Save"}})
+	buttonCancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_cancel", Other: "Cancel"}})
 	settingsWindow := dialog.NewCustomConfirm(
-		translations.One(translations.TitleSettings),
-		"save",
-		translations.One(translations.LabelClose),
+		titleSettings,
+		buttonSave,
+		buttonCancel,
 		container.NewVScroll(settingsForm),
 		onSave,
 		parent,
 	)
-
 	settingsForm.Refresh()
 	settingsWindow.Resize(fyne.NewSize(sizeDialogueWidth, sizeWindowMainHeight))
 	return settingsWindow

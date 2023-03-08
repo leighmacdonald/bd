@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
@@ -51,9 +51,12 @@ func (nameList *userNameWindow) Widget() *widget.List {
 }
 
 func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
-	appWindow := app.NewWindow(translations.Tr(&i18n.Message{ID: string(translations.WindowNameHistory)}, 1, map[string]interface{}{
-		"SteamId": sid64,
-	}))
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "names_title", Other: "Username History: {{ .SteamID }}"},
+		TemplateData: map[string]interface{}{
+			"SteamId": sid64,
+		}})
+	appWindow := app.NewWindow(title)
 	appWindow.SetCloseIntercept(func() {
 		appWindow.Hide()
 	})
@@ -97,13 +100,12 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 
 	names, err := namesFunc(ctx, sid64)
 	if err != nil {
-		names = append(names, model.UserNameHistory{
-			NameId: 0,
-			Name: translations.Tr(&i18n.Message{ID: string(translations.ErrorNoNamesFound)}, 1, map[string]interface{}{
+		msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+			DefaultMessage: &i18n.Message{ID: "error_names_empty", Other: "Names not found for: {{ .SteamID }}"},
+			TemplateData: map[string]interface{}{
 				"SteamId": sid64,
-			}),
-			FirstSeen: time.Now(),
-		})
+			}})
+		names = append(names, model.UserNameHistory{Name: msg, FirstSeen: time.Now()})
 	}
 	if errSet := unl.boundList.Set(names.AsAny()); errSet != nil {
 		log.Printf("Failed to set names list: %v\n", errSet)
@@ -111,15 +113,18 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 	if errSetCount := unl.nameCount.Set(unl.boundList.Length()); errSetCount != nil {
 		log.Printf("Failed to set name count: %v", errSetCount)
 	}
+	labelAutoScroll := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "names_check_autoscroll", Other: "Auto-Scroll"}})
+	labelBottom := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "names_button_bottom", Other: "Bottom"}})
+	labelCount := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "names_label_count", Other: "Count: "}})
 	unl.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
 			container.NewHBox(
-				widget.NewCheckWithData(translations.One(translations.LabelAutoScroll), unl.autoScrollEnabled),
-				widget.NewButtonWithIcon(translations.One(translations.LabelBottom), theme.MoveDownIcon(), unl.list.ScrollToBottom),
+				widget.NewCheckWithData(labelAutoScroll, unl.autoScrollEnabled),
+				widget.NewButtonWithIcon(labelBottom, theme.MoveDownIcon(), unl.list.ScrollToBottom),
 			),
-			widget.NewLabelWithData(binding.IntToStringWithFormat(unl.nameCount, fmt.Sprintf("%s%%d", translations.One(translations.LabelMessageCount)))),
+			widget.NewLabelWithData(binding.IntToStringWithFormat(unl.nameCount, fmt.Sprintf("%s%%d", labelCount))),
 			widget.NewLabel(""),
 		),
 		nil,

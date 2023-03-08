@@ -10,7 +10,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"sync"
 	"time"
@@ -49,7 +50,8 @@ func (screen *searchWindow) Reload(results model.PlayerCollection) error {
 }
 
 func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs binding.StringList, settings *model.Settings, cache *avatarCache) *searchWindow {
-	window := app.NewWindow(translations.One(translations.WindowPlayerSearch))
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "player_search_title", Other: "Player Search"}})
+	window := app.NewWindow(title)
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
@@ -134,7 +136,6 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		case 3:
 			ctxMenu.menu = generateUserMenu(sw.ctx, app, window, ps.SteamId, ps.UserId, cb, attrs, settings.GetLinks())
 			ctxMenu.Show()
-			//labelIcon.Refresh()
 		}
 	})
 
@@ -142,7 +143,7 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 	sw.list.SetColumnWidth(1, 40)
 	sw.list.SetColumnWidth(2, 400)
 	sw.list.SetColumnWidth(3, 40)
-	//sw.list.SetColumnWidth(2, 200)
+
 	sw.queryEntry = widget.NewEntryWithData(sw.queryString)
 	sw.queryEntry.PlaceHolder = "SteamID or Name"
 	sw.queryEntry.OnSubmitted = func(s string) {
@@ -154,9 +155,8 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 		if errReload := sw.Reload(results); errReload != nil {
 			showUserError(errReload, sw.Window)
 		}
-
 	}
-	//sw.list.Resize(fyne.NewSize(600, 500))
+	results := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "player_search_label_results", Other: "Results: "}})
 	sw.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
@@ -164,7 +164,7 @@ func newSearchWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bind
 			nil,
 			widget.NewLabelWithData(binding.IntToStringWithFormat(
 				sw.resultCount,
-				fmt.Sprintf("%s%%d", translations.One(translations.LabelResultCount)))),
+				fmt.Sprintf("%s%%d", results))),
 			container.NewMax(sw.queryEntry),
 		),
 		nil, nil, nil,

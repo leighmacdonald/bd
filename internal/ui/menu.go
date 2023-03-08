@@ -9,21 +9,15 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
 	"net/url"
 	"sort"
 	"strings"
 )
-
-func newMenuItem(key translations.Key, fn func()) *fyne.MenuItem {
-	return &fyne.MenuItem{
-		Label:  translations.One(key),
-		Action: fn,
-	}
-}
 
 type menuButton struct {
 	widget.Button
@@ -55,7 +49,8 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 			}
 		}
 	}
-	attrMenu := fyne.NewMenu(translations.One(translations.LabelMarkAs))
+	markAsMenuLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_markas_label", Other: "Mark As..."}})
+	markAsMenu := fyne.NewMenu(markAsMenuLabel)
 	knownAttributes, errGet := attrList.Get()
 	if errGet != nil {
 		log.Panicf("Failed to get list: %v\n", errGet)
@@ -64,27 +59,31 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 		return strings.ToLower(knownAttributes[i]) < strings.ToLower(knownAttributes[j])
 	})
 	for _, mi := range knownAttributes {
-		attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(mi, mkAttr(mi)))
+		markAsMenu.Items = append(markAsMenu.Items, fyne.NewMenuItem(mi, mkAttr(mi)))
 	}
 	entry := widget.NewEntry()
 	entry.Validator = func(s string) error {
 		if s == "" {
-			return errors.New(translations.One(translations.ErrorAttributeEmpty))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_attribute_empty", Other: "Attribute cannot be empty"}})
+			return errors.New(msg)
 		}
 		for _, knownAttr := range knownAttributes {
 			if strings.EqualFold(knownAttr, s) {
-				return errors.New(translations.One(translations.ErrorAttributeDuplicate))
+				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+					DefaultMessage: &i18n.Message{ID: "error_attribute_duplicate", Other: "Duplicate attribute: {{ .Attr }} "},
+					TemplateData:   map[string]any{"Attr": knownAttr}})
+				return errors.New(msg)
 			}
 		}
 		return nil
 	}
-	fi := widget.NewFormItem(translations.One(translations.LabelAttributeName), entry)
-
-	attrMenu.Items = append(attrMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
-		w := dialog.NewForm(
-			translations.One(translations.WindowMarkCustom),
-			translations.One(translations.LabelApply),
-			translations.One(translations.LabelClose),
+	attributeLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "mark_label_attr", Other: "Attribute Name"}})
+	fi := widget.NewFormItem(attributeLabel, entry)
+	markAsMenu.Items = append(markAsMenu.Items, fyne.NewMenuItem(newItemLabel, func() {
+		title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "mark_title", Other: "Add custom mark attribute"}})
+		save := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "mark_button_save", Other: "Save"}})
+		cancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "mark_button_cancel", Other: "Cancel"}})
+		w := dialog.NewForm(title, save, cancel,
 			[]*widget.FormItem{fi}, func(success bool) {
 				if !success {
 					return
@@ -95,8 +94,8 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 			}, window)
 		w.Show()
 	}))
-	attrMenu.Refresh()
-	return attrMenu
+	markAsMenu.Refresh()
+	return markAsMenu
 }
 
 func generateExternalLinksMenu(steamId steamid.SID64, links model.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
@@ -142,7 +141,8 @@ func generateExternalLinksMenu(steamId steamid.SID64, links model.LinkConfigColl
 }
 
 func generateSteamIdMenu(window fyne.Window, steamId steamid.SID64) *fyne.Menu {
-	m := fyne.NewMenu(translations.One(translations.MenuCopySteamId),
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_steam_id", Other: "Copy SteamID..."}})
+	m := fyne.NewMenu(title,
 		fyne.NewMenuItem(fmt.Sprintf("%d", steamId), func() {
 			window.Clipboard().SetContent(fmt.Sprintf("%d", steamId))
 		}),
@@ -168,49 +168,61 @@ func generateKickMenu(ctx context.Context, userId int64, kickFunc model.KickFunc
 			}
 		}
 	}
-	return fyne.NewMenu(translations.One(translations.MenuCallVote),
-		newMenuItem(translations.MenuVoteCheating, fn(model.KickReasonCheating)),
-		newMenuItem(translations.MenuVoteIdle, fn(model.KickReasonIdle)),
-		newMenuItem(translations.MenuVoteScamming, fn(model.KickReasonScamming)),
-		newMenuItem(translations.MenuVoteOther, fn(model.KickReasonOther)),
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_call_vote", Other: "Call Vote..."}})
+	labelCheating := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_cheating", Other: "Cheating"}})
+	labelIdle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_idle", Other: "Idle"}})
+	labelScamming := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_scamming", Other: "Scamming"}})
+	labelOther := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_other", Other: "Other"}})
+	return fyne.NewMenu(title,
+		&fyne.MenuItem{Label: labelCheating, Action: fn(model.KickReasonCheating)},
+		&fyne.MenuItem{Label: labelIdle, Action: fn(model.KickReasonIdle)},
+		&fyne.MenuItem{Label: labelScamming, Action: fn(model.KickReasonScamming)},
+		&fyne.MenuItem{Label: labelOther, Action: fn(model.KickReasonOther)},
 	)
 }
 
 func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, steamId steamid.SID64, userId int64, cb callBacks,
 	knownAttributes binding.StringList, links model.LinkConfigCollection) *fyne.Menu {
-
+	kickTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_call_vote", Other: "Call Vote..."}})
+	markTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_mark", Other: "Mark As..."}})
+	externalTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_external", Other: "Open External..."}})
+	steamIdTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_steam_id", Other: "Copy SteamID..."}})
+	chatHistoryTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_chat_hist", Other: "View Chat History"}})
+	nameHistoryTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_name_hist", Other: "View Name History"}})
+	whitelistTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_whitelist", Other: "Whitelist Player"}})
+	notesTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_notes", Other: "Edit Notes"}})
 	var items []*fyne.MenuItem
 	if userId > 0 {
 		items = append(items, &fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
 			ChildMenu: generateKickMenu(ctx, userId, cb.kickFunc),
-			Label:     translations.One(translations.MenuCallVote)})
+			Label:     kickTitle})
 	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
 			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, cb.markFn),
-			Label:     translations.One(translations.MenuMarkAs)},
+			Label:     markTitle},
 		{
 			Icon:      theme.SearchIcon(),
 			ChildMenu: generateExternalLinksMenu(steamId, links, app.OpenURL),
-			Label:     translations.One(translations.MenuOpenExternal)},
+			Label:     externalTitle},
 		{
 			Icon:      theme.ContentCopyIcon(),
 			ChildMenu: generateSteamIdMenu(window, steamId),
-			Label:     translations.One(translations.MenuCopySteamId)},
+			Label:     steamIdTitle},
 		{
 			Icon: theme.ListIcon(),
 			Action: func() {
 				cb.createUserChat(steamId)
 			},
-			Label: translations.One(translations.MenuChatHistory)},
+			Label: chatHistoryTitle},
 		{
 			Icon: theme.VisibilityIcon(),
 			Action: func() {
 				cb.createNameHistory(steamId)
 			},
-			Label: translations.One(translations.MenuNameHistory)},
+			Label: nameHistoryTitle},
 		{
 			Icon: theme.VisibilityOffIcon(),
 			Action: func() {
@@ -218,7 +230,7 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 					showUserError(err, window)
 				}
 			},
-			Label: translations.One(translations.MenuWhitelist)},
+			Label: whitelistTitle},
 		{
 			Icon: theme.DocumentCreateIcon(),
 			Action: func() {
@@ -241,7 +253,12 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 				sz := item.Widget.Size()
 				sz.Height = sizeDialogueHeight
 				item.Widget.Resize(sz)
-				d := dialog.NewForm("Edit Player Notes", "Save", "Cancel", []*widget.FormItem{item}, func(b bool) {
+
+				editNoteTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "edit_note_title", Other: "Edit Player Notes"}})
+				editNoteSave := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "edit_note_button_save", Other: "Save"}})
+				editNoteCancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "edit_note_button_cancel", Other: "Cancel"}})
+
+				d := dialog.NewForm(editNoteTitle, editNoteSave, editNoteCancel, []*widget.FormItem{item}, func(b bool) {
 					if !b {
 						return
 					}
@@ -259,7 +276,7 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 				d.Resize(window.Canvas().Size())
 				d.Show()
 			},
-			Label: "Edit Notes"},
+			Label: notesTitle},
 	}...)
 	menu := fyne.NewMenu("User Actions", items...)
 	return menu

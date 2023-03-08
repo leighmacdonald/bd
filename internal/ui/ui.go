@@ -15,7 +15,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -241,14 +241,15 @@ func validateUrl(urlString string) error {
 	}
 	_, errParse := url.Parse(urlString)
 	if errParse != nil {
-		return errors.New(translations.One(translations.ErrorInvalidURL))
+		msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_url", Other: "Invalid URL"}})
+		return errors.New(msg)
 	}
 	return nil
 }
 
 //func validateName(name string) error {
 //	if len(name) == 0 {
-//		return errors.New(translations.One(translations.ErrorNameEmpty))
+//		return errors.New(tr.One(tr.ErrorNameEmpty))
 //	}
 //	return nil
 //}
@@ -257,7 +258,8 @@ func validateSteamId(steamId string) error {
 	if len(steamId) > 0 {
 		_, err := steamid.StringToSID64(steamId)
 		if err != nil {
-			return errors.New(translations.One(translations.ErrorInvalidSteamId))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_steam_id", Other: "Invalid Steam ID"}})
+			return errors.New(msg)
 		}
 	}
 	return nil
@@ -265,12 +267,19 @@ func validateSteamId(steamId string) error {
 func validateSteamRoot(newRoot string) error {
 	if len(newRoot) > 0 {
 		if !golib.Exists(newRoot) {
-			return errors.New(translations.One(translations.ErrorInvalidPath))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_path", Other: "Invalid Path"}})
+			return errors.New(msg)
 		}
 		fp := filepath.Join(newRoot, platform.TF2RootValidationFile)
 		if !golib.Exists(fp) {
-			return errors.New(translations.Tr(&i18n.Message{ID: string(translations.ErrorInvalidSteamRoot)},
-				1, map[string]interface{}{"FileName": platform.TF2RootValidationFile}))
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{
+					ID:    "error_invalid_path",
+					Other: "Invalid Path: {{ .FileName }}"},
+				TemplateData: map[string]interface{}{
+					"FileName": platform.TF2RootValidationFile,
+				}})
+			return errors.New(msg)
 		}
 	}
 	return nil
@@ -282,7 +291,14 @@ func validateTags(tagStr string) error {
 		normalized := strings.Trim(tag, " ")
 		for _, vt := range validTags {
 			if strings.EqualFold(vt, normalized) {
-				return errors.Errorf("Duplicate tag found: %s", vt)
+				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+					DefaultMessage: &i18n.Message{
+						ID:    "error_invalid_tag",
+						Other: "Duplicate tag found: {{ .TagName }}"},
+					TemplateData: map[string]interface{}{
+						"TagName": vt,
+					}})
+				return errors.New(msg)
 			}
 		}
 		validTags = append(validTags, normalized)

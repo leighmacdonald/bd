@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"log"
 	"sync"
@@ -69,16 +69,22 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		nameBinding := binding.BindString(&linkConfig.Name)
 		labelName.Bind(nameBinding)
 		nameEntry := widget.NewEntryWithData(nameBinding)
+
 		editButton.OnTapped = func() {
-			enabledEntry := widget.NewCheckWithData(translations.One(translations.LabelEnabled), enabledBinding)
+			enabledEntry := widget.NewCheckWithData("", enabledBinding)
 			formatEntry := widget.NewSelectEntry(lcd.selectOpts)
 			formatEntry.Bind(binding.BindString(&linkConfig.IdFormat))
 
+			msgName := &i18n.Message{ID: "links_label_name", Other: "Name"}
+			msgUrl := &i18n.Message{ID: "links_label_url", Other: "URL"}
+			msgFormat := &i18n.Message{ID: "links_label_format", Other: "Format"}
+			msgEnabled := &i18n.Message{ID: "links_label_enabled", Other: "Enabled"}
+
 			form := widget.NewForm([]*widget.FormItem{
-				{Text: translations.One(translations.LabelName), Widget: nameEntry},
-				{Text: translations.One(translations.LabelURL), Widget: urlEntry},
-				{Text: "Format", Widget: formatEntry},
-				{Text: translations.One(translations.LabelEnabled), Widget: enabledEntry},
+				{Text: tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: msgName}), Widget: nameEntry},
+				{Text: tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: msgUrl}), Widget: urlEntry},
+				{Text: tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: msgFormat}), Widget: formatEntry},
+				{Text: tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: msgEnabled}), Widget: enabledEntry},
 			}...)
 
 			d := dialog.NewCustom("Edit Entry", "Close", container.NewMax(form), parent)
@@ -90,7 +96,11 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		editButton.Refresh()
 	})
 	count := 1
-	delButton := widget.NewButtonWithIcon(translations.One(translations.LabelDelete), theme.ContentRemoveIcon(), func() {})
+	delButton := widget.NewButtonWithIcon(
+		tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+			DefaultMessage: &i18n.Message{ID: "links_label_delete", Other: "Delete"}}),
+		theme.ContentRemoveIcon(),
+		func() {})
 
 	lcd.list.OnSelected = func(id widget.ListItemID) {
 		selectedId = id
@@ -100,8 +110,8 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		delButton.Disable()
 		selectedId = -1
 	}
-
-	addButton := widget.NewButtonWithIcon(translations.One(translations.LabelAdd), theme.ContentAddIcon(), func() {
+	addMsg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_label_add", Other: "Add"}})
+	addButton := widget.NewButtonWithIcon(addMsg, theme.ContentAddIcon(), func() {
 		lcd.boundListMu.Lock()
 		newLinks := settings.GetLinks()
 		newLinks = append(newLinks, &model.LinkConfig{
@@ -117,9 +127,9 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 	})
 
 	delButton.OnTapped = func() {
-		msg := translations.Tr(&i18n.Message{ID: string(translations.LabelConfirmDeleteList)},
-			1, map[string]interface{}{"Name": ""})
-		confirm := dialog.NewConfirm(translations.One(translations.TitleDeleteConfirm), msg, func(b bool) {
+		title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_title_delete", Other: "Delete Link"}})
+		msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_label_confirm", Other: "Are you sure?"}})
+		confirm := dialog.NewConfirm(title, msg, func(b bool) {
 			if !b {
 				return
 			}
@@ -142,7 +152,10 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 		confirm.Show()
 	}
 	delButton.Refresh()
-	lcd.Dialog = dialog.NewCustom("Edit Links", translations.One(translations.LabelClose),
+
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_title_edit", Other: "Edit Link"}})
+	closeLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "links_button_close", Other: "Close"}})
+	lcd.Dialog = dialog.NewCustom(title, closeLabel,
 		container.NewBorder(container.NewHBox(addButton, delButton), nil, nil, nil, lcd.list), parent)
 
 	lcd.Resize(fyne.NewSize(sizeDialogueWidth, sizeDialogueHeight))

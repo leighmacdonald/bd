@@ -6,7 +6,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/model"
-	"github.com/leighmacdonald/bd/internal/translations"
+	"github.com/leighmacdonald/bd/internal/tr"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"net/url"
 	"runtime"
 )
@@ -23,18 +24,23 @@ type aboutDialog struct {
 func newAboutDialog(parent fyne.Window, version model.Version) *aboutDialog {
 	u, _ := url.Parse(urlHome)
 	about := aboutDialog{
-		labelBuiltBy: widget.NewRichTextWithText(translations.One(translations.LabelAboutBuiltBy)),
-		labelDate:    widget.NewRichTextWithText(translations.One(translations.LabelAboutBuildDate)),
-		labelVersion: widget.NewRichTextWithText(translations.One(translations.LabelAboutVersion)),
-		labelCommit:  widget.NewRichTextWithText(translations.One(translations.LabelAboutCommit)),
+		labelBuiltBy: widget.NewRichTextWithText(tr.Localizer.MustLocalize(
+			&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_label_built_by", Other: "Built By "}})),
+		labelDate: widget.NewRichTextWithText(tr.Localizer.MustLocalize(
+			&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_label_build_date", Other: "Build Date "}})),
+		labelVersion: widget.NewRichTextWithText(tr.Localizer.MustLocalize(
+			&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_label_version", Other: "Version "}})),
+		labelCommit: widget.NewRichTextWithText(tr.Localizer.MustLocalize(
+			&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_label_commit", Other: "Commit "}})),
 		labelGo: widget.NewRichText(
 			&widget.TextSegment{Text: "Go ", Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: runtime.Version(), Style: widget.RichTextStyleStrong},
 		),
 	}
+
 	about.Dialog = dialog.NewCustom(
-		translations.One(translations.LabelAbout),
-		translations.One(translations.LabelClose),
+		tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_title", Other: "About"}}),
+		tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "about_button_close", Other: "Close"}}),
 		container.NewVBox(
 			about.labelVersion,
 			about.labelCommit,

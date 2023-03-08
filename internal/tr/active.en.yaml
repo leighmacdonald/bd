@@ -1,0 +1,120 @@
+about_button_close: Close
+about_label_build_date: 'Build Date '
+about_label_built_by: 'Built By '
+about_label_commit: 'Commit '
+about_label_version: 'Version '
+about_title: About
+chatuser_check_auto_scroll: Auto-Scroll
+edit_note_button_cancel: Cancel
+edit_note_button_save: Save
+edit_note_title: Edit Player Notes
+error_attribute_duplicate: 'Duplicate attribute: {{ .Attr }} '
+error_attribute_empty: Attribute cannot be empty
+error_invalid_api_invalid_response: Invalid Response
+error_invalid_api_key: Failed to validate
+error_invalid_path: 'Invalid Path: {{ .FileName }}'
+error_invalid_steam_dir_user_data: Could not find userdata folder
+error_invalid_steam_id: Invalid Steam ID
+error_invalid_tag: 'Duplicate tag found: {{ .TagName }}'
+error_invalid_url: Invalid URL
+error_names_empty: 'Names not found for: {{ .SteamID }}'
+error_steam_id_misconfigured: Invalid steamid configuration
+gamechat_button_bottom: Bottom
+gamechat_button_clear: Clear
+gamechat_check_autoscroll: Auto-Scroll
+gamechat_label_add: Add
+gamechat_message_count: 'Messages: '
+gamechat_title: Game Chat
+help_menu_about: About
+help_menu_heading: Help
+help_menu_help: Help
+links_button_bottom: Bottom
+links_button_clear: Clear
+links_button_close: Close
+links_label_confirm: Are you sure?
+links_label_delete: Delete
+links_label_enabled: Enabled
+links_label_format: Format
+links_label_message_count: 'Messages: '
+links_label_name: Name
+links_label_url: URL
+links_title_delete: Delete Link
+links_title_edit: Edit Link
+lists_button_add: Add
+lists_button_close: Close
+lists_button_delete: Delete
+lists_button_edit: Edit
+lists_label_delete: 'Are you sure you want to delete the list: {{ .Name }}?'
+lists_label_enabled: Enabled
+lists_label_name: Name
+lists_label_url: URL
+lists_title: List Configuration
+lists_title_delete: Delete List
+lists_title_edit: Edit
+main_label_hostname: 'Hostname: '
+main_label_map: 'Map: '
+main_label_sort_by: Sort By...
+main_menu_chat_log: Chat Log
+main_menu_config_folder: Open Config Folder
+main_menu_heading: Bot Detector
+main_menu_launch: Launch TF2
+main_menu_quit: Quit
+main_menu_settings: Settings
+mark_button_cancel: Cancel
+mark_button_save: Save
+mark_label_attr: Attribute Name
+mark_title: Add custom mark attribute
+menu_call_vote_cheating: Cheating
+menu_call_vote_idle: Idle
+menu_call_vote_other: Other
+menu_call_vote_scamming: Scamming
+menu_markas_label: Mark As...
+menu_title_call_vote: Call Vote...
+menu_title_steam_id: Copy SteamID...
+names_button_bottom: Bottom
+names_check_autoscroll: Auto-Scroll
+names_label_count: 'Count: '
+names_title: 'Username History: {{ .SteamID }}'
+player_search_label_results: 'Results: '
+player_search_title: Player Search
+settings_button_apply: Save
+settings_button_cancel: Cancel
+settings_label_auto_exit: Auto Close
+settings_label_auto_exit_hint: When TF2 exits, close bd as well
+settings_label_auto_launch: Auto Launch TF2
+settings_label_auto_launch_hint: When launching bd, also automatically launch tf2
+settings_label_chat_warn_enabled: Chat Warnings
+settings_label_chat_warn_enabled_hint: Show warning message using in-game chat
+settings_label_discord_presence_enabled: Discord Presence
+settings_label_discord_presence_enabled_hint: Enables discord rich presence if discord is running
+settings_label_kickable_tags: Kickable Tags
+settings_label_kickable_tags_hint: Attributes/Tags that when matched will trigger a in-game kick.
+settings_label_kicker_enabled: Vote Kicker
+settings_label_kicker_enabled_hint: Enable vote kick functionality in-game
+settings_label_links: External Links
+settings_label_links_hint: Customize external links menu
+settings_label_lists: Lists & Rules
+settings_label_lists_hint: Configure your 3rd party player and rule lists
+settings_label_party_warn_enabled: Party Warnings
+settings_label_party_warn_enabled_hint: Show lobby only warning messages
+settings_label_rcon_mode: RCON Mode
+settings_label_rcon_mode_hint: 'Static: Port: {{ .Port }}, Password: {{ .Password }}'
+settings_label_select_folder: Select
+settings_label_steam_api_key: Steam API Key
+settings_label_steam_api_key_hint: Steam web api key. https://steamcommunity.com/dev/apikey
+settings_label_steam_id: Steam ID
+settings_label_steam_id_hint: 'Your steam id in any of the following formats: steam,steam3,steam32,steam64'
+settings_label_steam_root: Steam Root
+settings_label_steam_root_hint: Location of your steam install directory containing a userdata folder.
+settings_label_tf2_root: TF2 Root
+settings_label_tf2_root_hint: Path to your steamapps/common/Team Fortress 2/tf folder
+settings_title: Edit Settings
+user_menu_call_vote: Call Vote...
+user_menu_chat_hist: View Chat History
+user_menu_external: Open External...
+user_menu_mark: Mark As...
+user_menu_name_hist: View Name History
+user_menu_notes: Edit Notes
+user_menu_steam_id: Copy SteamID...
+user_menu_whitelist: Whitelist Player
+userchat_title: 'User Chat History: {{ .SteamId }}'
