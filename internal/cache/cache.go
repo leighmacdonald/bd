@@ -64,8 +64,7 @@ func (cache FsCache) getPath(ct Type, key string) string {
 
 func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 	fullPath := cache.getPath(ct, key)
-	dir := filepath.Dir(fullPath)
-	if errMkdir := os.Mkdir(dir, 0755); errMkdir != nil {
+	if errMkdir := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); errMkdir != nil {
 		return errMkdir
 	}
 	of, errOf := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0660)

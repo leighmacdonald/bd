@@ -13,9 +13,9 @@ importing and exporting TF2BD player and rule lists to help ease adoption to thi
 quite difficult to hack on, so one of the goals of this project was to simplify that to encourage more
 outside contributions.
 
-## Features
+## Current & Planned Features
 
-- [x] Automatically download remote TF2BD lists
+- [x] Automatically download updated remote TF2BD lists
   - [x] Rules
   - [x] Players
 - [ ] Cool logo
@@ -27,16 +27,24 @@ outside contributions.
   - [x] Name Pattern
   - [x] Avatar Pattern
   - [ ] Multi match
-- [ ] Translations
+- [x] Translations
+  - [x] English
+  - [x] Russian
 - [ ] GUI 
   - [x] Player status display list
   - [x] Current game chat dialogue 
+    - [x] Send in=game chat messages
+  - [ ] Player profile panel
+    - [ ] Show highest level of UGC/ETF2L/RGL league history achieved
+    - [ ] Logs.tf count
   - [x] Player all-time chat history dialogue
   - [x] Player all-time name history dialogue
-  - [ ] Track all-time k:d against players
-  - [ ] External link configuration dialogue
-  - [ ] List configuration dialogue
+  - [x] Track all-time k:d against players
+  - [x] External link configuration dialogue
+  - [x] List configuration dialogue
   - [x] Settings dialogue
+  - [ ] Rule creator & tester
+  - [x] Auto start TF2 on launch & auto quit on game close.
 
 ## Installation
 
@@ -53,7 +61,6 @@ no installers so just extract anywhere and run. All data will be stored in the s
 - Linux (debian/ubuntu)
   - `sudo apt-get install git golang gcc libgl1-mesa-dev xorg-dev make`
 
-
 Checkout source
 
     # New checkout
@@ -65,7 +72,7 @@ Checkout source
 
 Linkers and static analysers 
 
-    make lint
+    make check
 
 Run tests
 

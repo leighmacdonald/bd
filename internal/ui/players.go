@@ -12,6 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/tr"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"log"
@@ -264,8 +265,7 @@ func (screen *playerWindow) createMainMenu() {
 	screen.window.SetMainMenu(fyne.NewMainMenu(fm, hm))
 }
 
-const symbolOk = "✓"
-const symbolBad = "✗"
+const symbolBad = "x"
 
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
@@ -385,7 +385,7 @@ func (ui *Ui) newPlayerWindow(menuCreator MenuCreator, version model.Version) *p
 		styleKDAllTIme := calcKDStyle(ps.KillsOn, ps.DeathsBy)
 
 		profileLabel.Segments = []widget.RichTextSegment{
-			&widget.TextSegment{Text: ps.Name, Style: calcNameStyle(ps)},
+			&widget.TextSegment{Text: ps.Name, Style: calcNameStyle(ps, ui.settings.GetSteamId())},
 			&widget.TextSegment{Text: fmt.Sprintf("  %d", ps.Kills), Style: styleKD},
 			&widget.TextSegment{Text: ":", Style: styleKD},
 			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.Deaths), Style: styleKD},
@@ -477,9 +477,7 @@ func generateBanStateMsg(ps *model.Player) (string, widget.RichTextStyle) {
 		vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
 	}
 
-	if len(vacState) == 0 && !ps.IsMatched() {
-		vacState = append(vacState, symbolOk)
-	} else if !ps.Whitelisted {
+	if len(vacState) > 0 || ps.IsMatched() && !ps.Whitelisted {
 		style.ColorName = theme.ColorNameError
 	}
 	vacMsg := strings.Join(vacState, ", ")
@@ -494,11 +492,13 @@ func generateBanStateMsg(ps *model.Player) (string, widget.RichTextStyle) {
 	return vacMsgFull, style
 }
 
-func calcNameStyle(player *model.Player) widget.RichTextStyle {
+func calcNameStyle(player *model.Player, ownSid steamid.SID64) widget.RichTextStyle {
 	style := widget.RichTextStyleStrong
 	style.ColorName = theme.ColorNameSuccess
-	if player.IsDisconnected() {
-		style.ColorName = theme.ColorNameShadow
+	if player.GetSteamID() == ownSid {
+		style.ColorName = theme.ColorNameSuccess
+	} else if player.IsDisconnected() {
+		style.ColorName = theme.ColorNameForeground
 	} else if player.NumberOfVACBans > 0 {
 		style.ColorName = theme.ColorNameWarning
 	} else if player.NumberOfGameBans > 0 || player.CommunityBanned || player.EconomyBan {

@@ -124,6 +124,7 @@ func (bd *BD) discordLogout() {
 	if bd.richPresenceActive {
 		client.Logout()
 		bd.richPresenceActive = false
+		log.Printf("Discord presence closed")
 	}
 }
 
@@ -141,7 +142,6 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 		if errLogin := bd.discordLogin(); errLogin != nil {
 			return
 		}
-		name := ""
 		buttons := []*client.Button{
 			{
 				Label: "GitHub",
@@ -160,7 +160,7 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 			Details:    bd.server.ServerName,
 			LargeImage: fmt.Sprintf("map_%s", currentMap),
 			LargeText:  currentMap,
-			SmallImage: name,
+			SmallImage: fmt.Sprintf("map_%s", currentMap),
 			SmallText:  bd.server.CurrentMap,
 			Party: &client.Party{
 				ID:         "-1",
@@ -288,7 +288,7 @@ func (bd *BD) eventHandler() {
 }
 
 func (bd *BD) ExportVoiceBans() error {
-	bannedIds := bd.rules.FindNewestEntries(200)
+	bannedIds := bd.rules.FindNewestEntries(200, bd.settings.GetKickTags())
 	if len(bannedIds) == 0 {
 		return nil
 	}
@@ -658,6 +658,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 func (bd *BD) onUpdateTags(event tagsEvent) {
 	bd.serverMu.Lock()
 	bd.server.Tags = event.tags
+	bd.server.LastUpdate = time.Now()
 	bd.serverMu.Unlock()
 	bd.serverMu.RLock()
 	bd.gui.UpdateServerState(bd.server)
