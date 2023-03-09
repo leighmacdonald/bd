@@ -82,10 +82,10 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 		}
 
 		deleteButton.OnTapped = func() {
-			titleDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title_delete", Other: "Delete List"}, PluralCount: 1})
+			titleDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title_delete", Other: "Delete List"}})
 			labelDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				DefaultMessage: &i18n.Message{ID: "lists_label_delete", Other: "Are you sure you want to delete the list: {{ .Name }}?"},
-				PluralCount:    1, TemplateData: map[string]interface{}{"Name": lc.Name}})
+				TemplateData:   map[string]interface{}{"Name": lc.Name}})
 			confirm := dialog.NewConfirm(titleDelete, labelDelete, func(b bool) {
 				if !b {
 					return

@@ -107,6 +107,9 @@ func (bd *BD) reload() {
 		client.Logout()
 	}
 }
+func (bd *BD) Store() store.DataStore {
+	return bd.store
+}
 
 const discordAppID = "1076716221162082364"
 
@@ -246,9 +249,7 @@ func (bd *BD) eventHandler() {
 			}
 			bd.gameStateUpdate <- updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
 		case model.EvtDisconnect:
-			// We don't really care about this, handled later via UpdatedOn timeout so that there is a
-			// lag between actually removing the player from the player table.
-			log.Printf("Player disconnected: %d", evt.PlayerSID.Int64())
+			bd.onMapChange()
 		case model.EvtKill:
 			bd.gameStateUpdate <- updateGameStateEvent{
 				kind:   updateKill,
@@ -723,18 +724,34 @@ func (bd *BD) onUpdateKill(kill killEvent) {
 	if !source.Valid() || !target.Valid() {
 		return
 	}
+	ourSid := bd.settings.GetSteamId()
 	sourcePlayer := bd.GetPlayer(source)
+	targetPlayer := bd.GetPlayer(target)
 	bd.playersMu.Lock()
 	sourcePlayer.Kills++
+	targetPlayer.Deaths++
+	if targetPlayer.SteamId == ourSid {
+		sourcePlayer.DeathsBy++
+	}
+	if sourcePlayer.SteamId == ourSid {
+		targetPlayer.KillsOn++
+	}
 	sourcePlayer.Touch()
-	bd.playersMu.Unlock()
-
-	targetPlayer := bd.GetPlayer(source)
-	bd.playersMu.Lock()
-	targetPlayer.Kills++
 	targetPlayer.Touch()
 	bd.playersMu.Unlock()
+}
 
+func (bd *BD) onMapChange() {
+	bd.playersMu.Lock()
+	for _, player := range bd.players {
+		player.Kills = 0
+		player.Deaths = 0
+	}
+	bd.playersMu.Unlock()
+	bd.serverMu.Lock()
+	bd.server.CurrentMap = ""
+	bd.server.ServerName = ""
+	bd.serverMu.Unlock()
 }
 
 func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
@@ -750,7 +767,6 @@ func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	}
 	player.EconomyBan = ban.EconomyBan != "none"
 	player.Touch()
-
 }
 
 func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {

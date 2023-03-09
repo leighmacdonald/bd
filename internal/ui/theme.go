@@ -8,8 +8,8 @@ import (
 
 type bdTheme struct{}
 
-func (bdTheme) Font(s fyne.TextStyle) fyne.Resource {
-	return theme.DefaultTheme().Font(s)
+func (bdTheme) Font(style fyne.TextStyle) fyne.Resource {
+	return theme.DefaultTheme().Font(style)
 }
 
 func (bdTheme) Color(c fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {

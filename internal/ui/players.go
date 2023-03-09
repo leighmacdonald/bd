@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/tr"
@@ -23,8 +24,10 @@ import (
 
 type playerWindow struct {
 	app         fyne.App
+	ui          *Ui
 	window      fyne.Window
 	list        *widget.List
+	bd          *detector.BD
 	boundList   binding.ExternalUntypedList
 	content     fyne.CanvasObject
 	objectMu    sync.RWMutex
@@ -48,12 +51,8 @@ type playerWindow struct {
 	containerHeading   *fyne.Container
 	containerStatPanel *fyne.Container
 
-	onShowChat   func()
-	onShowSearch func()
-
 	menuCreator MenuCreator
 	onReload    func(count int)
-	callBacks   callBacks
 	avatarCache *avatarCache
 }
 
@@ -173,10 +172,10 @@ func (screen *playerWindow) createMainMenu() {
 	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 
 	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
-		screen.callBacks.gameLauncherFunc()
+		screen.bd.LaunchGameAndWait()
 	})
 	screen.window.Canvas().AddShortcut(shortCutChat, func(shortcut fyne.Shortcut) {
-		screen.onShowChat()
+		screen.ui.windows.chat.Show()
 	})
 	screen.window.Canvas().AddShortcut(shortCutFolder, func(shortcut fyne.Shortcut) {
 		platform.OpenFolder(screen.settings.ConfigRoot())
@@ -207,14 +206,14 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutLaunch,
 			Label:    labelLaunch,
 			Action: func() {
-				go screen.callBacks.gameLauncherFunc()
+				go screen.bd.LaunchGameAndWait()
 			},
 			Icon: resourceTf2Png,
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutChat,
 			Label:    labelChatLog,
-			Action:   screen.onShowChat,
+			Action:   screen.ui.windows.chat.Show,
 			Icon:     theme.MailComposeIcon(),
 		},
 		&fyne.MenuItem{
@@ -271,25 +270,20 @@ const symbolBad = "✗"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc func(), showSearchWindowFunc func(),
-	callbacks callBacks, menuCreator MenuCreator, cache *avatarCache, version model.Version) *playerWindow {
-
+func (ui *Ui) newPlayerWindow(menuCreator MenuCreator, version model.Version) *playerWindow {
 	hostname := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_hostname", Other: "Hostname: "}})
 	mapName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_map", Other: "Map: "}})
-
 	screen := &playerWindow{
-		app:                app,
-		window:             app.NewWindow("Bot Detector"),
+		app:                ui.application,
+		ui:                 ui,
+		window:             ui.application.NewWindow("Bot Detector"),
 		boundList:          binding.BindUntypedList(&[]interface{}{}),
 		bindingPlayerCount: binding.NewInt(),
-		onShowChat:         showChatWindowFunc,
-		onShowSearch:       showSearchWindowFunc,
-		callBacks:          callbacks,
 		labelHostnameLabel: hostname,
 		labelMapLabel:      mapName,
 		menuCreator:        menuCreator,
-		avatarCache:        cache,
-		settings:           settings,
+		avatarCache:        ui.avatarCache,
+		settings:           ui.settings,
 		labelHostname: widget.NewRichText(
 			&widget.TextSegment{Text: hostname, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
@@ -298,7 +292,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 			&widget.TextSegment{Text: mapName, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 		),
-		playerSortDir: binding.BindPreferenceString("sort_dir", app.Preferences()),
+		playerSortDir: binding.BindPreferenceString("sort_dir", ui.application.Preferences()),
 	}
 	if sortDir, getErr := screen.playerSortDir.Get(); getErr != nil && sortDir == "" {
 		if errSetSort := screen.playerSortDir.Set(string(playerSortTeam)); errSetSort != nil {
@@ -313,21 +307,21 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		}
 	}
 	screen.toolbar = newToolbar(
-		app,
+		ui.application,
 		screen.window,
-		settings,
+		ui.settings,
 		func() {
-			screen.onShowChat()
+			ui.windows.chat.Show()
 		}, func() {
-			screen.showSettings(settings)
+			screen.showSettings(ui.settings)
 		}, func() {
 			screen.aboutDialog.Show()
 		},
 		func() {
-			go screen.callBacks.gameLauncherFunc()
+			go ui.bd.LaunchGameAndWait()
 		},
 		func() {
-			screen.onShowSearch()
+			ui.windows.search.Show()
 		})
 
 	var dirNames []string
@@ -362,7 +356,7 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 			nil,
 			nil,
 			menuBtn,
-			container.NewHBox(widget.NewRichText(), widget.NewRichText()),
+			container.NewHBox(widget.NewRichText()),
 			widget.NewRichText(),
 		)
 		rootContainer.Add(upperContainer)
@@ -386,101 +380,30 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 		btn.Refresh()
 
 		profileLabel := upperContainer.Objects[0].(*widget.RichText)
-		stlBad := widget.RichTextStyleStrong
-		stlBad.ColorName = theme.ColorNameError
 
-		stlOk := widget.RichTextStyleStrong
-		stlOk.ColorName = theme.ColorNameSuccess
+		styleKD := calcKDStyle(ps.Kills, ps.Deaths)
+		styleKDAllTIme := calcKDStyle(ps.KillsOn, ps.DeathsBy)
 
-		nameStyle := stlOk
-		if ps.NumberOfVACBans > 0 {
-			nameStyle.ColorName = theme.ColorNameWarning
-		} else if ps.NumberOfGameBans > 0 || ps.CommunityBanned || ps.EconomyBan {
-			nameStyle.ColorName = theme.ColorNameWarning
-		} else if ps.Team == model.Red {
-			nameStyle.ColorName = theme.ColorNameError
-		} else {
-			nameStyle.ColorName = theme.ColorNamePrimary
-		}
-		stlKD := widget.RichTextStyleInline
-		if ps.Kills > ps.Deaths {
-			stlKD.ColorName = theme.ColorNameSuccess
-		} else if ps.Deaths > ps.Kills {
-			stlKD.ColorName = theme.ColorNameError
-		}
-		stlPing := widget.RichTextStyleInline
-		if ps.Ping > 150 {
-			stlPing.ColorName = theme.ColorNameError
-		} else if ps.Ping > 100 {
-			stlPing.ColorName = theme.ColorNameWarning
-		} else {
-			stlPing.ColorName = theme.ColorNameSuccess
-		}
 		profileLabel.Segments = []widget.RichTextSegment{
-			&widget.TextSegment{Text: ps.Name, Style: nameStyle},
-			&widget.TextSegment{Text: fmt.Sprintf(" %d", ps.Kills), Style: stlKD},
-			&widget.TextSegment{Text: ":", Style: widget.RichTextStyleInline},
-			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.Deaths), Style: stlKD},
-			&widget.TextSegment{Text: fmt.Sprintf(" %dms", ps.Ping), Style: stlPing},
+			&widget.TextSegment{Text: ps.Name, Style: calcNameStyle(ps)},
+			&widget.TextSegment{Text: fmt.Sprintf("  %d", ps.Kills), Style: styleKD},
+			&widget.TextSegment{Text: ":", Style: styleKD},
+			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.Deaths), Style: styleKD},
+			&widget.TextSegment{Text: fmt.Sprintf("  %d", ps.KillsOn), Style: styleKDAllTIme},
+			&widget.TextSegment{Text: ":", Style: styleKDAllTIme},
+			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.DeathsBy), Style: styleKDAllTIme},
+			&widget.TextSegment{Text: fmt.Sprintf("  %dms", ps.Ping), Style: calcPingStyle(ps.Ping)},
 		}
 		profileLabel.Refresh()
-		var vacState []string
-		if ps.NumberOfVACBans > 0 {
-			vacState = append(vacState, fmt.Sprintf("VB: %s", strings.Repeat(symbolBad, ps.NumberOfVACBans)))
-		}
-		if ps.NumberOfGameBans > 0 {
-			vacState = append(vacState, fmt.Sprintf("GB: %s", strings.Repeat(symbolBad, ps.NumberOfGameBans)))
-		}
-		if ps.CommunityBanned {
-			vacState = append(vacState, fmt.Sprintf("CB: %s", symbolBad))
-		}
-		if ps.EconomyBan {
-			vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
-		}
-		vacStyle := stlBad
-		if len(vacState) == 0 && !ps.IsMatched() {
-			vacState = append(vacState, symbolOk)
-			vacStyle = stlOk
-		}
-		vacMsg := strings.Join(vacState, ", ")
-		vacMsgFull := ""
-		if ps.LastVACBanOn != nil {
-			vacMsgFull = fmt.Sprintf("[%s] (%s - %d days)",
-				vacMsg,
-				ps.LastVACBanOn.Format("Mon Jan 02 2006"),
-				int(time.Since(*ps.LastVACBanOn).Hours()/24),
-			)
-		}
+
 		lc := upperContainer.Objects[2].(*fyne.Container)
-		matchLabel := lc.Objects[0].(*widget.RichText)
-		if ps.IsMatched() {
-			if ps.Whitelisted {
-				matchLabel.Segments = []widget.RichTextSegment{
-					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s] (WL)", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ",")),
-						Style: stlOk},
-				}
-			} else {
-				matchLabel.Segments = []widget.RichTextSegment{
-					&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s]", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ",")),
-						Style: vacStyle},
-				}
-			}
-		} else {
-			matchLabel.Segments = nil
+		rightLabels := lc.Objects[0].(*widget.RichText)
+		rightLabels.Segments = []widget.RichTextSegment{}
+		for _, s := range generateRightSegments(ps) {
+			rightLabels.Segments = append(rightLabels.Segments, s)
 		}
-		matchLabel.Refresh()
-		vacLabel := lc.Objects[1].(*widget.RichText)
-		vacLabel.Segments = []widget.RichTextSegment{}
-		if vacMsg != "" {
-			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: vacMsgFull, Style: vacStyle})
-		}
-		if ps.Notes != "" {
-			notesStyle := stlOk
-			notesStyle.ColorName = theme.ColorNameWarning
-			vacLabel.Segments = append(vacLabel.Segments, &widget.TextSegment{Text: "[note]", Style: notesStyle})
-		}
+		rightLabels.Refresh()
 		lc.Refresh()
-		vacLabel.Refresh()
 		rootContainer.Refresh()
 		ps.RUnlock()
 		screen.objectMu.Unlock()
@@ -513,6 +436,104 @@ func newPlayerWindow(app fyne.App, settings *model.Settings, showChatWindowFunc 
 	return screen
 }
 
+func generateRightSegments(ps *model.Player) []*widget.TextSegment {
+	var rightSegments []*widget.TextSegment
+	banStateMsg, banStateStyle := generateBanStateMsg(ps)
+	if ps.Notes != "" {
+		notesStyle := widget.RichTextStyleStrong
+		notesStyle.ColorName = theme.ColorNameWarning
+		rightSegments = append(rightSegments, &widget.TextSegment{Text: "[note]  ", Style: notesStyle})
+	}
+	if ps.IsMatched() {
+		suffix := ""
+		if ps.Whitelisted {
+			suffix = " (WL)"
+		}
+		rightSegments = append(rightSegments,
+			&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s]%s", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ","), suffix), Style: banStateStyle})
+	}
+	if banStateMsg != "" {
+		rightSegments = append(rightSegments, &widget.TextSegment{Text: banStateMsg, Style: banStateStyle})
+	}
+
+	return rightSegments
+}
+
+func generateBanStateMsg(ps *model.Player) (string, widget.RichTextStyle) {
+	style := widget.RichTextStyleStrong
+	style.ColorName = theme.ColorNameSuccess
+
+	var vacState []string
+	if ps.NumberOfVACBans > 0 {
+		vacState = append(vacState, fmt.Sprintf("VB: %s", strings.Repeat(symbolBad, ps.NumberOfVACBans)))
+	}
+	if ps.NumberOfGameBans > 0 {
+		vacState = append(vacState, fmt.Sprintf("GB: %s", strings.Repeat(symbolBad, ps.NumberOfGameBans)))
+	}
+	if ps.CommunityBanned {
+		vacState = append(vacState, fmt.Sprintf("CB: %s", symbolBad))
+	}
+	if ps.EconomyBan {
+		vacState = append(vacState, fmt.Sprintf("EB: %s", symbolBad))
+	}
+
+	if len(vacState) == 0 && !ps.IsMatched() {
+		vacState = append(vacState, symbolOk)
+	} else if !ps.Whitelisted {
+		style.ColorName = theme.ColorNameError
+	}
+	vacMsg := strings.Join(vacState, ", ")
+	vacMsgFull := vacMsg
+	if ps.LastVACBanOn != nil {
+		vacMsgFull = fmt.Sprintf("[%s] (%s - %d days)",
+			vacMsg,
+			ps.LastVACBanOn.Format("Mon Jan 02 2006"),
+			int(time.Since(*ps.LastVACBanOn).Hours()/24),
+		)
+	}
+	return vacMsgFull, style
+}
+
+func calcNameStyle(player *model.Player) widget.RichTextStyle {
+	style := widget.RichTextStyleStrong
+	style.ColorName = theme.ColorNameSuccess
+	if player.IsDisconnected() {
+		style.ColorName = theme.ColorNameShadow
+	} else if player.NumberOfVACBans > 0 {
+		style.ColorName = theme.ColorNameWarning
+	} else if player.NumberOfGameBans > 0 || player.CommunityBanned || player.EconomyBan {
+		style.ColorName = theme.ColorNameWarning
+	} else if player.Team == model.Red {
+		style.ColorName = theme.ColorNameError
+	} else {
+		style.ColorName = theme.ColorNamePrimary
+	}
+	return style
+}
+
+func calcPingStyle(ping int) widget.RichTextStyle {
+	style := widget.RichTextStyleInline
+	style.Inline = true
+	if ping > 150 {
+		style.ColorName = theme.ColorNameError
+	} else if ping > 100 {
+		style.ColorName = theme.ColorNameWarning
+	} else {
+		style.ColorName = theme.ColorNameSuccess
+	}
+	return style
+}
+
+func calcKDStyle(kills int, deaths int) widget.RichTextStyle {
+	style := widget.RichTextStyleInline
+	style.Inline = true
+	if kills > deaths {
+		style.ColorName = theme.ColorNameSuccess
+	} else if deaths > kills {
+		style.ColorName = theme.ColorNameError
+	}
+	return style
+}
 func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(

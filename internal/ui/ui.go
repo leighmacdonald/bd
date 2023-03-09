@@ -14,7 +14,6 @@ import (
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
-	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -59,22 +58,6 @@ type windows struct {
 	nameHistory map[steamid.SID64]*userNameWindow
 }
 
-type callBacks struct {
-	markFn                model.MarkFunc
-	whitelistFn           model.SteamIDErrFunc
-	kickFunc              model.KickFunc
-	chatFunc              model.ChatFunc
-	queryNamesFunc        model.QueryNamesFunc
-	queryUserMessagesFunc model.QueryUserMessagesFunc
-	gameLauncherFunc      model.LaunchFunc
-	createUserChat        model.SteamIDFunc
-	createNameHistory     model.SteamIDFunc
-	getPlayer             model.GetPlayer
-	getPlayerOffline      model.GetPlayerOffline
-	searchPlayer          model.SearchPlayers
-	savePlayer            model.SavePlayer
-}
-
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
 
 type Ui struct {
@@ -82,7 +65,6 @@ type Ui struct {
 	application     fyne.App
 	settings        *model.Settings
 	windows         *windows
-	callBacks       callBacks
 	knownAttributes binding.StringList
 	avatarCache     *avatarCache
 	version         model.Version
@@ -96,7 +78,7 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 	ui.windows.player.updatePlayerState(collection)
 }
 
-func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store store.DataStore, version model.Version) model.UserInterface {
+func New(ctx context.Context, bd *detector.BD, settings *model.Settings, version model.Version) model.UserInterface {
 	ui := Ui{
 		bd:              bd,
 		version:         version,
@@ -111,44 +93,16 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, store s
 			RWMutex:    &sync.RWMutex{},
 			userAvatar: make(map[steamid.SID64]fyne.Resource),
 		},
-		callBacks: callBacks{
-			savePlayer:            store.SavePlayer,
-			getPlayerOffline:      store.GetPlayer,
-			searchPlayer:          store.SearchPlayers,
-			queryNamesFunc:        store.FetchNames,
-			queryUserMessagesFunc: store.FetchMessages,
-			chatFunc:              bd.SendChat,
-			kickFunc:              bd.CallVote,
-			markFn:                bd.OnMark,
-			gameLauncherFunc:      bd.LaunchGameAndWait,
-			whitelistFn:           bd.OnWhitelist,
-			getPlayer:             bd.GetPlayer,
-		},
-	}
-	ui.callBacks.createUserChat = func(sid64 steamid.SID64) {
-		ui.createChatHistoryWindow(ctx, sid64)
-	}
-	ui.callBacks.createNameHistory = func(sid64 steamid.SID64) {
-		ui.createNameHistoryWindow(ctx, sid64)
 	}
 
-	ui.windows.chat = newGameChatWindow(ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
+	ui.windows.chat = newGameChatWindow(ctx, &ui)
 
-	ui.windows.search = newSearchWindow(ctx, ui.application, ui.callBacks, ui.knownAttributes, settings, ui.avatarCache)
+	ui.windows.search = newSearchWindow(ctx, &ui)
 
-	ui.windows.player = newPlayerWindow(
-		ui.application,
-		settings,
-		func() {
-			ui.windows.chat.window.Show()
-		},
-		func() {
-			ui.windows.search.Show()
-		},
-		ui.callBacks,
+	ui.windows.player = ui.newPlayerWindow(
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
-			return generateUserMenu(ctx, ui.application, window, steamId, userId, ui.callBacks, ui.knownAttributes, ui.settings.GetLinks())
-		}, ui.avatarCache, version)
+			return generateUserMenu(ctx, window, &ui, steamId, userId, ui.knownAttributes)
+		}, version)
 
 	return &ui
 }
@@ -161,7 +115,7 @@ func (ui *Ui) SetAvatar(sid64 steamid.SID64, data []byte) {
 }
 
 func (ui *Ui) Refresh() {
-	ui.windows.chat.window.Content().Refresh()
+	ui.windows.chat.Content().Refresh()
 	if ui.windows.player != nil {
 		ui.windows.player.content.Refresh()
 	}
@@ -201,7 +155,7 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.chatHistory[sid64]
 	if !found {
-		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.application, ui.callBacks.queryUserMessagesFunc, sid64)
+		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.application, ui.bd.Store().FetchMessages, sid64)
 	}
 	ui.windows.chatHistory[sid64].Show()
 }
@@ -209,7 +163,7 @@ func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) 
 func (ui *Ui) createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.nameHistory[sid64]
 	if !found {
-		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.application, ui.callBacks.queryNamesFunc, sid64)
+		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.application, ui.bd.Store().FetchNames, sid64)
 	}
 	ui.windows.nameHistory[sid64].Show()
 }

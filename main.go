@@ -27,6 +27,7 @@ var (
 )
 
 func main() {
+	versionInfo := model.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	ctx := context.Background()
 	settings, errSettings := model.NewSettings()
 	if errSettings != nil {
@@ -77,11 +78,7 @@ func main() {
 	}
 	defer util.LogClose(dataStore)
 	bd := detector.New(settings, dataStore, engine, cache.New(settings.ConfigRoot(), model.DurationCacheTimeout))
-	gui := ui.New(ctx, &bd, settings, dataStore, model.Version{
-		Version: version,
-		Commit:  commit,
-		Date:    date,
-		BuiltBy: builtBy,
-	})
+
+	gui := ui.New(ctx, &bd, settings, versionInfo)
 	gui.Start(ctx)
 }

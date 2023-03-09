@@ -267,6 +267,6 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	buttonCancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_cancel", Other: "Cancel"}})
 	settingsWindow := dialog.NewCustomConfirm(titleSettings, buttonSave, buttonCancel, container.NewVScroll(settingsForm), onSave, parent)
 	settingsForm.Refresh()
-	settingsWindow.Resize(fyne.NewSize(sizeDialogueWidth, sizeWindowMainHeight))
+	settingsWindow.Resize(fyne.NewSize(sizeDialogueWidth, sizeWindowMainHeight-200))
 	return settingsWindow
 }

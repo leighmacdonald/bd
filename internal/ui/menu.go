@@ -181,8 +181,7 @@ func generateKickMenu(ctx context.Context, userId int64, kickFunc model.KickFunc
 	)
 }
 
-func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, steamId steamid.SID64, userId int64, cb callBacks,
-	knownAttributes binding.StringList, links model.LinkConfigCollection) *fyne.Menu {
+func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId steamid.SID64, userId int64, knownAttributes binding.StringList) *fyne.Menu {
 	kickTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_call_vote", Other: "Call Vote..."}})
 	markTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_mark", Other: "Mark As..."}})
 	externalTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_external", Other: "Open External..."}})
@@ -195,17 +194,17 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 	if userId > 0 {
 		items = append(items, &fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: generateKickMenu(ctx, userId, cb.kickFunc),
+			ChildMenu: generateKickMenu(ctx, userId, ui.bd.CallVote),
 			Label:     kickTitle})
 	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, cb.markFn),
+			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, ui.bd.OnMark),
 			Label:     markTitle},
 		{
 			Icon:      theme.SearchIcon(),
-			ChildMenu: generateExternalLinksMenu(steamId, links, app.OpenURL),
+			ChildMenu: generateExternalLinksMenu(steamId, ui.settings.GetLinks(), ui.application.OpenURL),
 			Label:     externalTitle},
 		{
 			Icon:      theme.ContentCopyIcon(),
@@ -214,19 +213,19 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 		{
 			Icon: theme.ListIcon(),
 			Action: func() {
-				cb.createUserChat(steamId)
+				ui.createChatHistoryWindow(ctx, steamId)
 			},
 			Label: chatHistoryTitle},
 		{
 			Icon: theme.VisibilityIcon(),
 			Action: func() {
-				cb.createNameHistory(steamId)
+				ui.createNameHistoryWindow(ctx, steamId)
 			},
 			Label: nameHistoryTitle},
 		{
 			Icon: theme.VisibilityOffIcon(),
 			Action: func() {
-				if err := cb.whitelistFn(steamId); err != nil {
+				if err := ui.bd.OnWhitelist(steamId); err != nil {
 					showUserError(err, window)
 				}
 			},
@@ -235,10 +234,10 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 			Icon: theme.DocumentCreateIcon(),
 			Action: func() {
 				offline := false
-				player := cb.getPlayer(steamId)
+				player := ui.bd.GetPlayer(steamId)
 				if player == nil {
 					player = model.NewPlayer(steamId, "")
-					if errOffline := cb.getPlayerOffline(ctx, steamId, player); errOffline != nil {
+					if errOffline := ui.bd.Store().GetPlayer(ctx, steamId, player); errOffline != nil {
 						showUserError(errors.Errorf("Unknown player: %v", errOffline), window)
 						return
 					}
@@ -267,7 +266,7 @@ func generateUserMenu(ctx context.Context, app fyne.App, window fyne.Window, ste
 					player.Touch()
 					player.Unlock()
 					if offline {
-						if errSave := cb.savePlayer(ctx, player); errSave != nil {
+						if errSave := ui.bd.Store().SavePlayer(ctx, player); errSave != nil {
 							log.Printf("Failed to save: %v\n", errSave)
 						}
 					}

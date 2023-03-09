@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -19,7 +20,7 @@ import (
 )
 
 type gameChatWindow struct {
-	window            fyne.Window
+	fyne.Window
 	ctx               context.Context
 	app               fyne.App
 	list              *widget.List
@@ -29,11 +30,11 @@ type gameChatWindow struct {
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
 	avatarCache       *avatarCache
-	cb                callBacks
+	bd                *detector.BD
 }
 
-func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs binding.StringList, settings *model.Settings, cache *avatarCache) *gameChatWindow {
-	window := app.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
+func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
+	window := ui.application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
@@ -43,16 +44,16 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		window.Hide()
 	})
 	gcw := gameChatWindow{
-		window:            window,
+		Window:            window,
 		ctx:               ctx,
-		app:               app,
+		app:               ui.application,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
 		boundListMu:       &sync.RWMutex{},
 		objectMu:          &sync.RWMutex{},
-		avatarCache:       cache,
-		cb:                cb,
+		avatarCache:       ui.avatarCache,
+		bd:                ui.bd,
 	}
 
 	if errSet := gcw.autoScrollEnabled.Set(true); errSet != nil {
@@ -85,7 +86,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
 		profileButton.SetText(um.Player)
 		profileButton.SetIcon(gcw.avatarCache.GetAvatar(um.PlayerSID))
-		profileButton.menu = generateUserMenu(gcw.ctx, app, gcw.window, um.PlayerSID, um.UserId, cb, attrs, settings.GetLinks())
+		profileButton.menu = generateUserMenu(gcw.ctx, window, ui, um.PlayerSID, um.UserId, ui.knownAttributes)
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline
@@ -120,7 +121,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 	chatEntryData := binding.NewString()
 	messageEntry := widget.NewEntryWithData(chatEntryData)
 	messageEntry.OnSubmitted = func(s string) {
-		showUserError(gcw.cb.chatFunc(ctx, model.ChatDest(selected), s), gcw.window)
+		showUserError(gcw.bd.SendChat(ctx, model.ChatDest(selected), s), gcw)
 		_ = chatEntryData.Set("")
 	}
 	bottomContainer := container.NewBorder(
@@ -134,12 +135,12 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 				if err != nil {
 					return
 				}
-				showUserError(gcw.cb.chatFunc(ctx, model.ChatDest(selected), msg), gcw.window)
+				showUserError(gcw.bd.SendChat(ctx, model.ChatDest(selected), msg), gcw)
 				_ = chatEntryData.Set("")
 			})),
 		messageEntry)
 
-	gcw.window.SetContent(container.NewBorder(
+	gcw.SetContent(container.NewBorder(
 		container.NewBorder(
 			nil,
 			nil,
@@ -161,7 +162,7 @@ func newGameChatWindow(ctx context.Context, app fyne.App, cb callBacks, attrs bi
 		nil,
 		nil,
 		container.NewVScroll(gcw.list)))
-	gcw.window.Resize(fyne.NewSize(sizeWindowChatWidth, sizeWindowChatHeight))
+	gcw.Resize(fyne.NewSize(sizeWindowChatWidth, sizeWindowChatHeight))
 	return &gcw
 }
 
