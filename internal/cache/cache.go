@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"io"
@@ -47,7 +48,12 @@ func (cache FsCache) init() {
 func (cache FsCache) getPath(ct Type, key string) string {
 	switch ct {
 	case TypeAvatar:
-		return filepath.Join(cache.rootPath, "avatars", key)
+		if key == "" {
+			return filepath.Join(cache.rootPath, "avatars")
+		}
+		prefix := key[0:2]
+		root := filepath.Join(cache.rootPath, "avatars", prefix)
+		return filepath.Join(root, fmt.Sprintf("%s.jpg", key))
 	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:
@@ -57,7 +63,12 @@ func (cache FsCache) getPath(ct Type, key string) string {
 }
 
 func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
-	of, errOf := os.OpenFile(cache.getPath(ct, key), os.O_WRONLY|os.O_CREATE, 0660)
+	fullPath := cache.getPath(ct, key)
+	dir := filepath.Dir(fullPath)
+	if errMkdir := os.Mkdir(dir, 0755); errMkdir != nil {
+		return errMkdir
+	}
+	of, errOf := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0660)
 	if errOf != nil {
 		return errOf
 	}
