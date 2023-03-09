@@ -534,6 +534,7 @@ func calcKDStyle(kills int, deaths int) widget.RichTextStyle {
 	}
 	return style
 }
+
 func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(

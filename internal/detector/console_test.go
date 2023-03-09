@@ -70,9 +70,10 @@ func TestParseEvent(t *testing.T) {
 			// 02/26/2023 - 16:45:43: Disconnect: #TF_Idle_kicked.
 			// 02/26/2023 - 16:39:59: Connected to 169.254.174.254:26128
 			// 02/26/2023 - 16:32:28: ุ has been idle for too long and has been kicked
-			text:     "02/24/2023 - 23:37:19: Disconnect: #TF_Idle_kicked.",
+			// 03/09/2023 - 01:08:03: Differing lobby received. Lobby: [A:1:1191368713:22805]/Match79636263/Lobby601530352177650 CurrentlyAssigned: [A:1:1191368713:22805]/Match79636024/Lobby601530352177650 ConnectedToMatchServer: 1 HasLobby: 1 AssignedMatchEnded: 0
+			text:     "02/24/2023 - 23:37:19: Differing lobby received. Lobby: [A:1:1191368713:22805]/Match79636263/Lobby601530352177650 CurrentlyAssigned: [A:1:1191368713:22805]/Match79636024/Lobby601530352177650 ConnectedToMatchServer: 1 HasLobby: 1 AssignedMatchEnded: 0",
 			match:    true,
-			expected: model.LogEvent{Type: model.EvtDisconnect, Timestamp: ts, MetaData: "#TF_Idle_kicked."}},
+			expected: model.LogEvent{Type: model.EvtDisconnect, Timestamp: ts, MetaData: "Differing lobby received."}},
 	}
 	reader := newLogParser(nil, nil)
 	for num, testCase := range cases {

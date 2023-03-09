@@ -36,15 +36,12 @@ type BD struct {
 	// - estimate private steam account ages (find nearby non-private account)
 	// - "unmark" players, overriding any lists that may match
 	// - track rage quits
-	// - auto generate voice_ban.dt
 	// - install vote fail mod
 	// - wipe map session stats k/d
 	// - track k/d over entire session?
 	// - track history of interactions with players
 	// - colourise messages that trigger
-	// - auto launch tf2 upon open
 	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
-	// - Save custom notes on users
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             model.Server
@@ -249,7 +246,11 @@ func (bd *BD) eventHandler() {
 			}
 			bd.gameStateUpdate <- updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
 		case model.EvtDisconnect:
-			bd.onMapChange()
+			bd.gameStateUpdate <- updateGameStateEvent{
+				kind:   changeMap,
+				source: evt.PlayerSID,
+				data:   mapChangeEvent{},
+			}
 		case model.EvtKill:
 			bd.gameStateUpdate <- updateGameStateEvent{
 				kind:   updateKill,
@@ -366,6 +367,7 @@ const (
 	updateTags
 	updateAddress
 	updateWhitelist
+	changeMap
 )
 
 type killEvent struct {
@@ -415,6 +417,9 @@ type hostnameEvent struct {
 type mapEvent struct {
 	mapName string
 }
+
+type mapChangeEvent struct{}
+
 type tagsEvent struct {
 	tags []string
 }
@@ -642,6 +647,8 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				bd.onUpdateHostname(update.data.(hostnameEvent))
 			case updateMap:
 				bd.onUpdateMap(update.data.(mapEvent))
+			case changeMap:
+				bd.onMapChange()
 			}
 			queueUpdate = true
 		}
