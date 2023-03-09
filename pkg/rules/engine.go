@@ -67,12 +67,25 @@ type MarkOpts struct {
 	Name       string
 }
 
-func (e *Engine) FindNewestEntries(max int) steamid.Collection {
+func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collection {
 	e.RLock()
 	defer e.RUnlock()
 	var matchers []steamIDMatcher
 	for _, m := range e.matchersSteam {
-		matchers = append(matchers, m.(steamIDMatcher))
+		sm := m.(steamIDMatcher)
+		valid := false
+		for _, tag := range sm.attributes {
+			for _, okTags := range validAttrs {
+				if strings.EqualFold(tag, okTags) {
+					valid = true
+					break
+				}
+			}
+		}
+		if !valid {
+			continue
+		}
+		matchers = append(matchers, sm)
 	}
 	sort.Slice(matchers, func(i, j int) bool {
 		return matchers[i].lastSeen.Time > matchers[j].lastSeen.Time
