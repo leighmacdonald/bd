@@ -1,6 +1,18 @@
 about_button_close:
   hash: sha1-bbfa773e5a63a5ea58c9b6207e608ca0120e592a
   other: Закрыть
+about_label_build_date:
+  hash: sha1-bbee17771e5fdada7ab335cca19310536dff3dd4
+  other: 'Дата сборки '
+about_label_built_by:
+  hash: sha1-07048f86e569c91cf702b3ad29b697740dce8369
+  other: 'Собрано '
+about_label_commit:
+  hash: sha1-0104968c7bf31c3a0bcb892266bc792e1545b28c
+  other: 'Коммит '
+about_label_version:
+  hash: sha1-03283ea975dfdfdfeebb7738d2c80aff3fb06187
+  other: 'Версия '
 about_title:
   hash: sha1-6b21fb791ac05170893860c248401cd24a59b732
   other: Справка
@@ -205,6 +217,15 @@ menu_title_call_vote:
 menu_title_steam_id:
   hash: sha1-08add47119c619a063bdba1ff9ed2211b7d24c17
   other: Копировать SteamID...
+menu_title_whitelist:
+  hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
+  other: Белый Список
+menu_whitelist_add:
+  hash: sha1-20063ad9053289cecaa20ae630ed2dd758282a07
+  other: Активировать
+menu_whitelist_remove:
+  hash: sha1-9a7d4e0687b14e2b7cda406900b802782cd50a62
+  other: Деактивировать
 names_button_bottom:
   hash: sha1-cce7f2f2f0dc525117a70d581d9c335212145e5b
   other: Вниз
@@ -247,6 +268,12 @@ settings_label_chat_warn_enabled:
 settings_label_chat_warn_enabled_hint:
   hash: sha1-775479627e5aa57a6fe026485ac06a5b32178644
   other: Показывать предупреждения в общем чате
+settings_label_debug_log_enabled:
+  hash: sha1-7a7e8e72cbff581b6ad060d6361c9e44690e8b96
+  other: Отчет Об Ошибках
+settings_label_debug_log_enabled_hint:
+  hash: sha1-2db299f23658688f91b06060081ecb7073261a8a
+  other: Логируемые события сохраняются в bd.log. Необходим перезапуск.
 settings_label_discord_presence_enabled:
   hash: sha1-fdb9e95b5c77d1d5472f7961ed86f621b6411172
   other: Discord Presence
@@ -316,6 +343,12 @@ settings_label_tf2_root:
 settings_label_tf2_root_hint:
   hash: sha1-cbf575bb006120f55270a44e1399288ae14be999
   other: Путь к папке steamapps/common/Team Fortress 2/tf
+settings_label_voice_ban_enabled:
+  hash: sha1-890b1724927c5e1cb92b9a59d0c081bcb91cc9c8
+  other: Генерировать Голосовые Баны
+settings_label_voice_ban_enabled_hint:
+  hash: sha1-0c5da93a5609bbaa7811b3b4f76603ecf6641dc7
+  other: 'ВНИМАНИЕ: Это действие перезапишет ваш список банов. Заглушает последних 200 помеченных игроков.'
 settings_title:
   hash: sha1-a9414b4e4c1232c2cb97e33a19ed106e6938e46d
   other: Изменить Настройки
@@ -340,6 +373,12 @@ user_menu_notes:
 user_menu_steam_id:
   hash: sha1-08add47119c619a063bdba1ff9ed2211b7d24c17
   other: Копировать SteamID...
+user_menu_unmark:
+  hash: sha1-21e4b87df84733161f63072bcff7f3e7174854d9
+  other: Снять метку
+user_menu_whitelist:
+  hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
+  other: Белый Список
 userchat_title:
   hash: sha1-33a5982435633f82530028c84d3080083337bd91
   other: 'История Чата Игрока: {{ .SteamId }}'
