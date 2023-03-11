@@ -10,6 +10,12 @@ about_label_commit:
 about_label_version:
   hash: sha1-03283ea975dfdfdfeebb7738d2c80aff3fb06187
   other: 'Version '
+settings_label_debug_log_enabled:
+  hash: sha1-7a7e8e72cbff581b6ad060d6361c9e44690e8b96
+  other: Debug Log
+settings_label_debug_log_enabled_hint:
+  hash: sha1-2db299f23658688f91b06060081ecb7073261a8a
+  other: Log events are save to bd.log. Requires restart of application.
 settings_label_voice_ban_enabled:
   hash: sha1-890b1724927c5e1cb92b9a59d0c081bcb91cc9c8
   other: Gen. Voice Bans
