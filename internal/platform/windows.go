@@ -8,7 +8,6 @@ import (
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,43 +73,41 @@ func getTF2Folder() (string, error) {
 	return "", errors.New("TF2 install path could not be found")
 }
 
-func LaunchTF2(tf2Dir string, args []string) error {
+func LaunchTF2(logger *zap.Logger, tf2Dir string, args []string) error {
 	hl2Path := filepath.Join(filepath.Dir(tf2Dir), BinaryName)
 	var procAttr os.ProcAttr
 	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	log.Printf("Launching game: %s %s", hl2Path, strings.Join(args, " "))
+	logger.Info("Launching game", zap.Strings("args", args), zap.String("binary", hl2Path))
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
 		return errors.Wrap(errStart, "Failed to launch TF2\n")
 	}
 	state, errWait := process.Wait()
 	if errWait != nil {
-		log.Printf("Error waiting for game process: %v\n", errWait)
+		logger.Error("Error waiting for game process", zap.Error(errWait))
 	} else {
-		log.Printf("Game exited: %s\n", state.String())
+		logger.Info("Game exited")
 	}
 	return nil
 }
 
-func OpenFolder(dir string) {
+func OpenFolder(dir string) error {
 	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil {
-		log.Printf("Failed to start process: %v\n", errRun)
-		return
+		return errors.Wrap(errRun, "Failed to start process")
 	}
 }
 
-func IsGameRunning() bool {
+func IsGameRunning() (bool, error) {
 	processes, errPs := ps.Processes()
 	if errPs != nil {
-		log.Printf("Failed to get process list: %v\n", errPs)
-		return false
+		return false, errPs
 	}
 	for _, process := range processes {
 		if process.Executable() == BinaryName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func init() {

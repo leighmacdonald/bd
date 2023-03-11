@@ -100,6 +100,7 @@ type Settings struct {
 	PartyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
 	KickTags               []string             `yaml:"kick_tags"`
 	VoiceBansEnabled       bool                 `yaml:"voice_bans_enabled"`
+	DebugLogEnabled        bool                 `yaml:"debug_log_enabled"`
 	Lists                  ListConfigCollection `yaml:"lists"`
 	Links                  []*LinkConfig        `yaml:"links"`
 	RCONStatic             bool                 `yaml:"rcon_static"`
@@ -118,6 +119,17 @@ func (s *Settings) SetVoiceBansEnabled(enabled bool) {
 	s.VoiceBansEnabled = enabled
 }
 
+func (s *Settings) GetDebugLogEnabled() bool {
+	s.RLock()
+	defer s.RUnlock()
+	return s.DebugLogEnabled
+}
+
+func (s *Settings) SetDebugLogEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.DebugLogEnabled = enabled
+}
 func (s *Settings) GetRcon() RCONConfigProvider {
 	s.RLock()
 	defer s.RUnlock()

@@ -68,6 +68,7 @@ type BD struct {
 func New(logger *zap.Logger, settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
+	isRunning, _ := platform.IsGameRunning()
 	rootApp := BD{
 		logger:             logger,
 		store:              store,
@@ -83,7 +84,7 @@ func New(logger *zap.Logger, settings *model.Settings, store store.DataStore, ru
 		cache:              cache,
 		logParser:          newLogParser(logger, logChan, eventChan),
 		startupTime:        time.Now(),
-		gameHasStartedOnce: platform.IsGameRunning(),
+		gameHasStartedOnce: isRunning,
 	}
 
 	rootApp.createLogReader()
@@ -320,7 +321,7 @@ func (bd *BD) LaunchGameAndWait() {
 		return
 	}
 	bd.gameHasStartedOnce = true
-	if errLaunch := platform.LaunchTF2(bd.settings.GetTF2Dir(), args); errLaunch != nil {
+	if errLaunch := platform.LaunchTF2(bd.logger, bd.settings.GetTF2Dir(), args); errLaunch != nil {
 		bd.logger.Error("Failed to launch game", zap.Error(errLaunch))
 	}
 }
@@ -1010,7 +1011,11 @@ func (bd *BD) processChecker(ctx context.Context) {
 			if !bd.gameHasStartedOnce || !bd.settings.GetAutoCloseOnGameExit() {
 				continue
 			}
-			if !platform.IsGameRunning() {
+			running, errRunningStatus := platform.IsGameRunning()
+			if errRunningStatus != nil {
+				bd.logger.Error("Failed to get process run status", zap.Error(errRunningStatus))
+			}
+			if !running {
 				bd.logger.Info("Auto-closing on game exit")
 				bd.gui.Quit()
 			}
@@ -1039,8 +1044,10 @@ func (bd *BD) Start(ctx context.Context) {
 	go bd.gameStateTracker(ctx)
 	go bd.statusUpdater(ctx)
 	go bd.processChecker(ctx)
-	if !bd.gameHasStartedOnce && bd.settings.GetAutoLaunchGame() && !platform.IsGameRunning() {
-		go bd.LaunchGameAndWait()
+	if running, errRunning := platform.IsGameRunning(); errRunning == nil && !running {
+		if !bd.gameHasStartedOnce && bd.settings.GetAutoLaunchGame() {
+			go bd.LaunchGameAndWait()
+		}
 	}
 	<-ctx.Done()
 }

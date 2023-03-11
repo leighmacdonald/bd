@@ -5,9 +5,9 @@ package platform
 import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
-	"log"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"os/exec"
-	"strings"
 )
 
 var (
@@ -19,10 +19,10 @@ var (
 
 // LaunchTF2 calls the steam binary directly
 // On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size
-func LaunchTF2(_ string, args []string) error {
+func LaunchTF2(logger *zap.Logger, _ string, args []string) error {
 	fa := []string{"-applaunch", "440"}
 	fa = append(fa, args...)
-	log.Printf("Launching game: steam %s", strings.Join(args, " "))
+	logger.Info("Launching game", zap.Strings("args", args), zap.String("binary", "steam"))
 	cmd := exec.Command("steam", fa...)
 	if errLaunch := cmd.Run(); errLaunch != nil {
 		return errLaunch
@@ -30,25 +30,24 @@ func LaunchTF2(_ string, args []string) error {
 	return nil
 }
 
-func OpenFolder(dir string) {
+func OpenFolder(dir string) error {
 	if errRun := exec.Command("xdg-open", dir).Start(); errRun != nil {
-		log.Printf("Failed to start process: %v\n", errRun)
-		return
+		return errors.Wrap(errRun, "Failed to start process")
 	}
+	return nil
 }
 
-func IsGameRunning() bool {
+func IsGameRunning() (bool, error) {
 	processes, errPs := ps.Processes()
 	if errPs != nil {
-		log.Printf("Failed to get process list: %v\n", errPs)
-		return false
+		return false, errPs
 	}
 	for _, process := range processes {
 		if process.Executable() == BinaryName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func init() {

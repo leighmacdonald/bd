@@ -31,7 +31,9 @@ var (
 func MustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
 	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
+	if logFile != "" {
+		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
+	}
 	logger, errLogger := loggingConfig.Build()
 	if errLogger != nil {
 		fmt.Printf("Failed to create logger: %v\n", errLogger)
@@ -51,7 +53,11 @@ func main() {
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
 		log.Println(errReadSettings)
 	}
-	logger := MustCreateLogger(settings.LogFilePath())
+	logFilePath := ""
+	if settings.DebugLogEnabled {
+		logFilePath = settings.LogFilePath()
+	}
+	logger := MustCreateLogger(logFilePath)
 	defer func() {
 		if errSync := logger.Sync(); errSync != nil {
 			fmt.Printf("Failed to sync log: %v\n", errSync)

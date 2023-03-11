@@ -110,6 +110,8 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DiscordPresenceEnabled))
 	voiceBanEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.VoiceBansEnabled))
 	rconModeStaticEntry := widget.NewCheckWithData("", binding.BindBool(&settings.RCONStatic))
+	debugLogEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DebugLogEnabled))
+
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
 	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
@@ -191,9 +193,17 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 	labelVoiceBanEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_voice_ban_enabled", Other: "Gen. Voice Bans"}})
 	labelVoiceBanEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{ID: "settings_label_voice_ban_enabled_hint", Other: "WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries."}})
+		DefaultMessage: &i18n.Message{ID: "settings_label_voice_ban_enabled_hint",
+			Other: "WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries."}})
 	labelSelect := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{ID: "settings_label_select_folder", Other: "Select"}})
+		DefaultMessage: &i18n.Message{ID: "settings_label_select_folder",
+			Other: "Select"}})
+	labelDebugLogEnabled := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_debug_log_enabled",
+			Other: "Debug Log"}})
+	labelDebugLogEnabledHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "settings_label_debug_log_enabled_hint",
+			Other: "Log events are save to bd.log. Requires restart of application."}})
 
 	settingsForm := &widget.Form{
 		Items: []*widget.FormItem{
@@ -206,6 +216,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 			{Text: labelDiscordPresence, Widget: discordPresenceEnabledEntry, HintText: labelDiscordPresenceHint},
 			{Text: labelAutoLaunch, Widget: autoLaunchGameEntry, HintText: labelAutoLaunchHint},
 			{Text: labelAutoExit, Widget: autoCloseOnGameExitEntry, HintText: labelAutoExitHint},
+			{Text: labelDebugLogEnabled, Widget: debugLogEnabledEntry, HintText: labelDebugLogEnabledHint},
 			{Text: labelSteamAPIKey, Widget: apiKeyEntry, HintText: labelSteamAPIKeyHint},
 			{Text: labelSteamID, Widget: steamIdEntry, HintText: labelSteamIDHint},
 			{Text: labelSteamRoot,
@@ -250,6 +261,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 		origSettings.SetAutoCloseOnGameExit(autoCloseOnGameExitEntry.Checked)
 		origSettings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
 		origSettings.SetVoiceBansEnabled(voiceBanEnabledEntry.Checked)
+		origSettings.SetDebugLogEnabled(debugLogEnabledEntry.Checked)
 		origSettings.SetLinks(settings.GetLinks())
 		origSettings.SetLists(settings.GetLists())
 
