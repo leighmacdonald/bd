@@ -10,9 +10,17 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 )
+
+// fixSteamIdFormat converts raw unquoted steamids to quoted ones
+// e.g. "steamid":76561199063807260 -> "steamid": "76561199063807260"
+func fixSteamIdFormat(body []byte) []byte {
+	r := regexp.MustCompile(`("steamid":\+?(\d+))`)
+	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
+}
 
 func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
@@ -43,6 +51,7 @@ func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rul
 		if errFetch != nil {
 			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", u.URL)
 		}
+		body = fixSteamIdFormat(body)
 		dur := time.Since(start)
 		switch u.ListType {
 		case model.ListTypeTF2BDPlayerList:

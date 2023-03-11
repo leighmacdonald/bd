@@ -128,7 +128,7 @@ type playerLastSeen struct {
 type playerDefinition struct {
 	Attributes []string       `json:"attributes"`
 	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
-	SteamID    interface{}    `json:"steamid"`
+	SteamID    string         `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
 }

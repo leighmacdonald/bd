@@ -106,7 +106,8 @@ func (e *Engine) Mark(opts MarkOpts) error {
 	}
 	e.Lock()
 	for _, knownPlayer := range e.playerLists[0].Players {
-		if knownPlayer.SteamID == opts.SteamID {
+		strId := opts.SteamID.String()
+		if knownPlayer.SteamID == strId {
 			e.Unlock()
 			return errDuplicateSteamID
 		}
@@ -215,18 +216,10 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 	var playerAttrs []string
 	var count int
 	for _, player := range list.Players {
-		var steamID steamid.SID64
-		// Some entries can be raw number types in addition to strings...
-		switch value := player.SteamID.(type) {
-		case float64:
-			steamID = steamid.SID64(int64(value))
-		case string:
-			sid64, errSid := steamid.StringToSID64(player.SteamID.(string))
-			if errSid != nil {
-				log.Printf("Failed to import steamid: %v\n", errSid)
-				continue
-			}
-			steamID = sid64
+		steamID, errSid := steamid.StringToSID64(player.SteamID)
+		if errSid != nil {
+			log.Printf("Failed to import steamid: %v\n", errSid)
+			continue
 		}
 		if !steamID.Valid() {
 			log.Printf("tried to import invalid steamdid: %v", player.SteamID)
