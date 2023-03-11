@@ -11,7 +11,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"log"
+	"go.uber.org/zap"
 )
 
 type ruleListConfigDialog struct {
@@ -22,7 +22,7 @@ type ruleListConfigDialog struct {
 	settings  *model.Settings
 }
 
-func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialog.Dialog {
+func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *model.Settings) dialog.Dialog {
 	buttonEdit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_edit", Other: "Edit"}})
 	buttonDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_delete", Other: "Delete"}})
 	boundList := binding.BindUntypedList(&[]interface{}{})
@@ -99,7 +99,7 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 				}
 				settings.SetLists(lists)
 				if errReload := boundList.Set(settings.GetLists().AsAny()); errReload != nil {
-					log.Printf("Failed to reload: %v\n", errReload)
+					logger.Error("Failed to reload lists", zap.Error(errReload))
 				}
 
 			}, parent)
@@ -122,14 +122,14 @@ func newRuleListConfigDialog(parent fyne.Window, settings *model.Settings) dialo
 				})
 				settings.SetLists(newLists)
 				if errAppend := boundList.Set(settings.GetLists().AsAny()); errAppend != nil {
-					log.Printf("Failed to update config list: %v", errAppend)
+					logger.Error("Failed to update config list", zap.Error(errAppend))
 				}
 				list.Refresh()
 			})), nil,
 		container.NewHBox())
 
 	if errSet := boundList.Set(settings.GetLists().AsAny()); errSet != nil {
-		log.Printf("failed to load lists")
+		logger.Error("failed to set new lists", zap.Error(errSet))
 	}
 	titleLists := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_title", Other: "List Configuration"}})
 	buttonClose := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_close", Other: "Close"}})

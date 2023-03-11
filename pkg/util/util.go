@@ -18,3 +18,7 @@ func LogClose(closer io.Closer) {
 		log.Printf("Error trying to close: %v\n", errClose)
 	}
 }
+
+func IgnoreClose(closer io.Closer) {
+	_ = closer.Close()
+}

@@ -12,7 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"log"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -26,6 +26,7 @@ type userNameWindow struct {
 	boundListMu       sync.RWMutex
 	nameCount         binding.Int
 	autoScrollEnabled binding.Bool
+	logger            *zap.Logger
 }
 
 func (nameList *userNameWindow) Reload(rr []model.UserNameHistory) error {
@@ -36,7 +37,7 @@ func (nameList *userNameWindow) Reload(rr []model.UserNameHistory) error {
 	nameList.boundListMu.Lock()
 	defer nameList.boundListMu.Unlock()
 	if errSet := nameList.boundList.Set(bl); errSet != nil {
-		log.Printf("failed to set player list: %v\n", errSet)
+		nameList.logger.Error("failed to set player list", zap.Error(errSet))
 	}
 	if errReload := nameList.boundList.Reload(); errReload != nil {
 		return errReload
@@ -50,7 +51,7 @@ func (nameList *userNameWindow) Widget() *widget.List {
 	return nameList.list
 }
 
-func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
+func newUserNameWindow(ctx context.Context, logger *zap.Logger, app fyne.App, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "names_title", Other: "Username History: {{ .SteamID }}"},
 		TemplateData: map[string]interface{}{
@@ -62,12 +63,13 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 	})
 	unl := &userNameWindow{
 		Window:            appWindow,
+		logger:            logger,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		nameCount:         binding.NewInt(),
 	}
 	if errSet := unl.autoScrollEnabled.Set(true); errSet != nil {
-		log.Printf("Failed to set default autoscroll: %v\n", errSet)
+		unl.logger.Error("Failed to set user name window default autoscroll", zap.Error(errSet))
 	}
 
 	userMessageListWidget := widget.NewListWithData(
@@ -108,10 +110,10 @@ func newUserNameWindow(ctx context.Context, app fyne.App, namesFunc model.QueryN
 		names = append(names, model.UserNameHistory{Name: msg, FirstSeen: time.Now()})
 	}
 	if errSet := unl.boundList.Set(names.AsAny()); errSet != nil {
-		log.Printf("Failed to set names list: %v\n", errSet)
+		unl.logger.Error("Failed to set names list", zap.Error(errSet))
 	}
 	if errSetCount := unl.nameCount.Set(unl.boundList.Length()); errSetCount != nil {
-		log.Printf("Failed to set name count: %v", errSetCount)
+		unl.logger.Error("Failed to set name count", zap.Error(errSetCount))
 	}
 	labelAutoScroll := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "names_check_autoscroll", Other: "Auto-Scroll"}})
 	labelBottom := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "names_button_bottom", Other: "Bottom"}})

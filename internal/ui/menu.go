@@ -13,7 +13,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
-	"log"
+	"go.uber.org/zap"
 	"net/url"
 	"sort"
 	"strings"
@@ -43,18 +43,12 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 		clsAttribute := attrName
 		clsSteamId := sid64
 		return func() {
-			log.Printf("marking %d as %s", clsSteamId, clsAttribute)
-			if errMark := markFunc(sid64, []string{clsAttribute}); errMark != nil {
-				log.Printf("Failed to mark player: %v\n", errMark)
-			}
+			showUserError(markFunc(clsSteamId, []string{clsAttribute}), window)
 		}
 	}
 	markAsMenuLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_markas_label", Other: "Mark As..."}})
 	markAsMenu := fyne.NewMenu(markAsMenuLabel)
-	knownAttributes, errGet := attrList.Get()
-	if errGet != nil {
-		log.Panicf("Failed to get list: %v\n", errGet)
-	}
+	knownAttributes, _ := attrList.Get()
 	sort.Slice(knownAttributes, func(i, j int) bool {
 		return strings.ToLower(knownAttributes[i]) < strings.ToLower(knownAttributes[j])
 	})
@@ -88,9 +82,7 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 				if !success {
 					return
 				}
-				if errMark := markFunc(sid64, []string{entry.Text}); errMark != nil {
-					log.Printf("Failed to mark player: %v\n", errMark)
-				}
+				showUserError(markFunc(sid64, []string{entry.Text}), window)
 			}, window)
 		w.Show()
 	}))
@@ -98,7 +90,7 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 	return markAsMenu
 }
 
-func generateExternalLinksMenu(steamId steamid.SID64, links model.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
+func generateExternalLinksMenu(logger *zap.Logger, steamId steamid.SID64, links model.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
 	lk := func(link *model.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
 		clsLinkValue := link
 		clsSteamId := sid64
@@ -114,15 +106,15 @@ func generateExternalLinksMenu(steamId steamid.SID64, links model.LinkConfigColl
 			case model.Steam64:
 				u = fmt.Sprintf(u, clsSteamId.Int64())
 			default:
-				log.Printf("Got unhandled steamid format, trying steam64: %v", clsLinkValue.IdFormat)
+				logger.Error("Got unhandled steamid format, trying steam64", zap.String("format", clsLinkValue.IdFormat))
 			}
 			ul, urlErr := url.Parse(u)
 			if urlErr != nil {
-				log.Printf("Failed to create link: %v", urlErr)
+				logger.Error("Failed to create external link", zap.Error(urlErr), zap.String("url", u))
 				return
 			}
 			if errOpen := urlOpener(ul); errOpen != nil {
-				log.Printf("Failed to open url: %v", errOpen)
+				logger.Error("Failed to open url", zap.Error(errOpen), zap.String("url", u))
 			}
 		}
 	}
@@ -159,13 +151,10 @@ func generateSteamIdMenu(window fyne.Window, steamId steamid.SID64) *fyne.Menu {
 	return m
 }
 
-func generateKickMenu(ctx context.Context, userId int64, kickFunc model.KickFunc) *fyne.Menu {
+func generateKickMenu(ctx context.Context, parent fyne.Window, userId int64, kickFunc model.KickFunc) *fyne.Menu {
 	fn := func(reason model.KickReason) func() {
 		return func() {
-			log.Printf("Calling vote: %d %v", userId, reason)
-			if errKick := kickFunc(ctx, userId, reason); errKick != nil {
-				log.Printf("Error trying to call kick: %v\n", errKick)
-			}
+			showUserError(kickFunc(ctx, userId, reason), parent)
 		}
 	}
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_call_vote", Other: "Call Vote..."}})
@@ -194,7 +183,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 	if userId > 0 {
 		items = append(items, &fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: generateKickMenu(ctx, userId, ui.bd.CallVote),
+			ChildMenu: generateKickMenu(ctx, window, userId, ui.bd.CallVote),
 			Label:     kickTitle})
 	}
 	items = append(items, []*fyne.MenuItem{
@@ -204,7 +193,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 			Label:     markTitle},
 		{
 			Icon:      theme.SearchIcon(),
-			ChildMenu: generateExternalLinksMenu(steamId, ui.settings.GetLinks(), ui.application.OpenURL),
+			ChildMenu: generateExternalLinksMenu(ui.logger, steamId, ui.settings.GetLinks(), ui.application.OpenURL),
 			Label:     externalTitle},
 		{
 			Icon:      theme.ContentCopyIcon(),
@@ -267,7 +256,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 					player.Unlock()
 					if offline {
 						if errSave := ui.bd.Store().SavePlayer(ctx, player); errSave != nil {
-							log.Printf("Failed to save: %v\n", errSave)
+							ui.logger.Error("Failed to save player note", zap.Error(errSave))
 						}
 					}
 

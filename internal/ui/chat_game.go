@@ -14,6 +14,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"log"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ type gameChatWindow struct {
 	autoScrollEnabled binding.Bool
 	avatarCache       *avatarCache
 	bd                *detector.BD
+	logger            *zap.Logger
 }
 
 func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {

@@ -3,9 +3,9 @@ package detector
 import (
 	"context"
 	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/pkg/errors"
-	"log"
 )
 
 func updatePlayerState(ctx context.Context, address string, password string) (string, error) {
@@ -13,11 +13,7 @@ func updatePlayerState(ctx context.Context, address string, password string) (st
 	if errConn != nil {
 		return "", errors.Wrap(errConn, "Failed to connect to client")
 	}
-	defer func() {
-		if errClose := conn.Close(); errClose != nil {
-			log.Printf("Failed to Close rcon connection: %v\n", errClose)
-		}
-	}()
+	defer util.IgnoreClose(conn)
 	// Sent to client, response via log output
 	_, errStatus := conn.Exec("status")
 	if errStatus != nil {

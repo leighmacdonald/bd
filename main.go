@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/detector"
@@ -14,6 +15,7 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"log"
 	"os"
 )
@@ -26,27 +28,55 @@ var (
 	builtBy string = "src"
 )
 
+func MustCreateLogger(logFile string) *zap.Logger {
+	loggingConfig := zap.NewProductionConfig()
+	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
+	logger, errLogger := loggingConfig.Build()
+	if errLogger != nil {
+		fmt.Printf("Failed to create logger: %v\n", errLogger)
+		os.Exit(1)
+	}
+	return logger
+}
+
 func main() {
-	versionInfo := model.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	ctx := context.Background()
+	versionInfo := model.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	settings, errSettings := model.NewSettings()
 	if errSettings != nil {
-		log.Panicf("Failed to initialize settings: %v", errSettings)
+		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
+		os.Exit(1)
+	}
+	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
+		log.Println(errReadSettings)
+	}
+	logger := MustCreateLogger(settings.LogFilePath())
+	defer func() {
+		if errSync := logger.Sync(); errSync != nil {
+			fmt.Printf("Failed to sync log: %v\n", errSync)
+		}
+	}()
+
+	if settings.GetAPIKey() != "" {
+		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
+			logger.Error("Failed to set steam api key", zap.Error(errAPIKey))
+		}
 	}
 
 	localRules := rules.NewRuleSchema()
 	localPlayersList := rules.NewPlayerListSchema()
-	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
-		log.Println(errReadSettings)
-	}
+
 	// Try and load our existing custom players/rules
 	if util.Exists(settings.LocalPlayerListPath()) {
 		input, errInput := os.Open(settings.LocalPlayerListPath())
 		if errInput != nil {
-			log.Printf("Failed to open local player list\n")
+			logger.Error("Failed to open local player list", zap.Error(errInput))
 		} else {
 			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
-				log.Printf("Failed to parse local player list: %v\n", errRead)
+				logger.Error("Failed to parse local player list", zap.Error(errRead))
+			} else {
+				logger.Debug("Loaded local player list", zap.Int("count", len(localPlayersList.Players)))
 			}
 			util.LogClose(input)
 		}
@@ -54,31 +84,31 @@ func main() {
 	if util.Exists(settings.LocalRulesListPath()) {
 		input, errInput := os.Open(settings.LocalRulesListPath())
 		if errInput != nil {
-			log.Printf("Failed to open local rules list\n")
+			logger.Error("Failed to open local rules list", zap.Error(errInput))
 		} else {
 			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
-				log.Printf("Failed to parse local rules list: %v\n", errRead)
+				logger.Error("Failed to parse local rules list", zap.Error(errRead))
+			} else {
+				logger.Debug("Loaded local rules list", zap.Int("count", len(localRules.Rules)))
 			}
 			util.LogClose(input)
 		}
 	}
 	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
 	if ruleEngineErr != nil {
-		log.Panicf("Failed to setup rules engine: %v\n", ruleEngineErr)
+		logger.Panic("Failed to setup rules engine", zap.Error(ruleEngineErr))
 	}
-	if settings.GetAPIKey() != "" {
-		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
-			log.Printf("Failed to set steam api key: %v\n", errAPIKey)
-		}
-	}
+
 	dataStore := store.New(settings.DBPath())
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		log.Printf("Failed to migrate database: %v\n", errMigrate)
-		os.Exit(1)
+		logger.Panic("Failed to migrate database", zap.Error(errMigrate))
 	}
 	defer util.LogClose(dataStore)
-	bd := detector.New(settings, dataStore, engine, cache.New(settings.ConfigRoot(), model.DurationCacheTimeout))
 
-	gui := ui.New(ctx, &bd, settings, versionInfo)
+	fileSystemCache := cache.New(logger, settings.ConfigRoot(), model.DurationCacheTimeout)
+
+	bd := detector.New(logger, settings, dataStore, engine, fileSystemCache)
+
+	gui := ui.New(ctx, logger, &bd, settings, versionInfo)
 	gui.Start(ctx)
 }

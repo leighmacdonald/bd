@@ -7,7 +7,6 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"io"
-	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -30,18 +29,17 @@ func New(localRules *RuleSchema, localPlayers *PlayerListSchema) (*Engine, error
 		matchersAvatar: nil,
 	}
 	if localRules != nil {
-		if errImport := re.ImportRules(localRules); errImport != nil {
-			log.Printf("Failed to load local rules: %v\n", errImport)
-			return nil, errImport
+		if _, errImport := re.ImportRules(localRules); errImport != nil {
+			return nil, errors.Wrap(errImport, "Failed to load local rules")
 		}
 	} else {
 		ls := NewRuleSchema()
 		re.rulesLists = append(re.rulesLists, &ls)
 	}
 	if localPlayers != nil {
-		if errImport := re.ImportPlayers(localPlayers); errImport != nil {
-			log.Printf("Failed to load local players: %v\n", errImport)
-			return nil, errImport
+		_, errImport := re.ImportPlayers(localPlayers)
+		if errImport != nil {
+			return nil, errors.Wrap(errImport, "Failed to load local players")
 		}
 	} else {
 		ls := NewPlayerListSchema()
@@ -164,7 +162,8 @@ func (e *Engine) ExportRules(listName string, w io.Writer) error {
 }
 
 // ImportRules loads the provided ruleset for use
-func (e *Engine) ImportRules(list *RuleSchema) error {
+func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
+	count := 0
 	for _, rule := range list.Rules {
 		if rule.Triggers.UsernameTextMatch != nil {
 			attrs := rule.Triggers.UsernameTextMatch.Attributes
@@ -178,6 +177,7 @@ func (e *Engine) ImportRules(list *RuleSchema) error {
 				rule.Triggers.UsernameTextMatch.CaseSensitive,
 				attrs,
 				rule.Triggers.UsernameTextMatch.Patterns...))
+			count++
 		}
 
 		if rule.Triggers.ChatMsgTextMatch != nil {
@@ -192,6 +192,7 @@ func (e *Engine) ImportRules(list *RuleSchema) error {
 				rule.Triggers.ChatMsgTextMatch.CaseSensitive,
 				attrs,
 				rule.Triggers.ChatMsgTextMatch.Patterns...))
+			count++
 		}
 		if len(rule.Triggers.AvatarMatch) > 0 {
 			var hashes []string
@@ -205,25 +206,24 @@ func (e *Engine) ImportRules(list *RuleSchema) error {
 				list.FileInfo.Title,
 				avatarMatchExact,
 				hashes...))
+			count++
 		}
 	}
 	e.rulesLists = append(e.rulesLists, list)
-	return nil
+	return count, nil
 }
 
 // ImportPlayers loads the provided player list for matching
-func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
+func (e *Engine) ImportPlayers(list *PlayerListSchema) (int, error) {
 	var playerAttrs []string
 	var count int
 	for _, player := range list.Players {
 		steamID, errSid := steamid.StringToSID64(player.SteamID)
 		if errSid != nil {
-			log.Printf("Failed to import steamid: %v\n", errSid)
-			continue
+			return 0, errors.Wrap(errSid, "Failed to parse steamid")
 		}
 		if !steamID.Valid() {
-			log.Printf("tried to import invalid steamdid: %v", player.SteamID)
-			continue
+			return 0, errors.Errorf("Received malformed steamid: %v", steamID)
 		}
 		e.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID, player.Attributes))
 		playerAttrs = append(playerAttrs, player.Attributes...)
@@ -244,8 +244,7 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) error {
 	}
 	e.playerLists = append(e.playerLists, list)
 	e.Unlock()
-	log.Printf("[%s] Loaded %d players\n", list.FileInfo.Title, count)
-	return nil
+	return count, nil
 }
 
 func (e *Engine) registerSteamIDMatcher(matcher SteamIDMatcher) {

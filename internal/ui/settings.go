@@ -15,12 +15,12 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
-	"log"
+	"go.uber.org/zap"
 	"path/filepath"
 	"strings"
 )
 
-func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.Dialog {
+func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *model.Settings) dialog.Dialog {
 	const testSteamId = 76561197961279983
 
 	settings := clone.Clone[*model.Settings](origSettings)
@@ -59,13 +59,13 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 		}
 		res, errRes := steamweb.PlayerSummaries(steamid.Collection{testSteamId})
 		if errRes != nil {
-			log.Printf("Failed to fetch player summary for validation: %v", errRes)
+			logger.Error("Failed to fetch player summary for validation", zap.Error(errRes))
 			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				DefaultMessage: &i18n.Message{ID: "error_invalid_api_key", Other: "Failed to validate"}})
 			return errors.New(msg)
 		}
 		if len(res) != 1 {
-			log.Printf("Received incorrect number of steam api validation call\n")
+			logger.Error("Received incorrect number of results in steam api validation call")
 			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				DefaultMessage: &i18n.Message{ID: "error_invalid_api_invalid_response", Other: "Invalid Response"}})
 			return errors.New(msg)
@@ -113,18 +113,18 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()
 	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
-		log.Printf("Failed to set tags: %v\n", errSet)
+		logger.Error("Failed to set tags", zap.Error(errSet))
 	}
 	tagsEntry := widget.NewEntryWithData(boundTags)
 	tagsEntry.Validator = validateTags
-	linksDialog := newLinksDialog(parent, settings)
+	linksDialog := newLinksDialog(parent, logger, settings)
 	linksButton := widget.NewButtonWithIcon("Edit Links", theme.SettingsIcon(), func() {
 		linksDialog.Show()
 	})
 	linksButton.Alignment = widget.ButtonAlignLeading
 	linksButton.Refresh()
 
-	listsDialog := newRuleListConfigDialog(parent, settings)
+	listsDialog := newRuleListConfigDialog(parent, logger, settings)
 	listsButton := widget.NewButtonWithIcon("Edit Lists", theme.SettingsIcon(), func() {
 		listsDialog.Show()
 	})
@@ -227,7 +227,7 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 			newSid, errSid := steamid.StringToSID64(steamIdEntry.Text)
 			if errSid != nil {
 				// Should never happen? was validated previously.
-				log.Panicf("Steamid state invalid?: %v\n", errSid)
+				logger.Panic("Steamid state invalid?", zap.Error(errSid))
 			}
 			origSettings.SetSteamID(newSid.String())
 			steamIdEntry.SetText(newSid.String())
@@ -255,11 +255,11 @@ func newSettingsDialog(parent fyne.Window, origSettings *model.Settings) dialog.
 
 		if apiKeyOriginal != apiKeyEntry.Text {
 			if errSetKey := steamweb.SetKey(apiKeyEntry.Text); errSetKey != nil {
-				log.Printf("Failed to set new steam key: %v\n", errSetKey)
+				logger.Error("Failed to set new steam key", zap.Error(errSetKey))
 			}
 		}
 		if errSave := origSettings.Save(); errSave != nil {
-			log.Printf("Failed to save settings: %v\n", errSave)
+			logger.Error("Failed to save settings", zap.Error(errSave))
 		}
 	}
 	titleSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_title", Other: "Edit Settings"}})

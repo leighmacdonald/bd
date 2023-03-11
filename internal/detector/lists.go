@@ -7,8 +7,8 @@ import (
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"sync"
@@ -22,7 +22,7 @@ func fixSteamIdFormat(body []byte) []byte {
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
-func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, model.DurationWebRequestTimeout)
 		defer cancel()
@@ -62,7 +62,7 @@ func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rul
 			mu.Lock()
 			playerLists = append(playerLists, result)
 			mu.Unlock()
-			log.Printf("Downloaded playerlist successfully (%s): %s\n", dur.String(), result.FileInfo.Title)
+			logger.Info("Downloaded players successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
 		case model.ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
@@ -71,7 +71,7 @@ func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rul
 			mu.Lock()
 			rulesLists = append(rulesLists, result)
 			mu.Unlock()
-			log.Printf("Downloaded rules successfully (%s): %s\n", dur.String(), result.FileInfo.Title)
+			logger.Info("Downloaded rules successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
 		}
 		return nil
 	}
@@ -84,7 +84,7 @@ func downloadLists(ctx context.Context, lists model.ListConfigCollection) ([]rul
 		go func(lc *model.ListConfig) {
 			defer wg.Done()
 			if errDL := downloadFn(lc); errDL != nil {
-				log.Printf("Failed to download list: %v", errDL)
+				logger.Error("Failed to download list: %v", zap.Error(errDL))
 			}
 		}(listConfig)
 	}

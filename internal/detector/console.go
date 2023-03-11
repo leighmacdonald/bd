@@ -7,8 +7,8 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -19,6 +19,7 @@ import (
 type logReader struct {
 	tail    *tail.Tail
 	outChan chan string
+	logger  *zap.Logger
 }
 
 func (reader *logReader) start(ctx context.Context) {
@@ -33,17 +34,17 @@ func (reader *logReader) start(ctx context.Context) {
 
 		case <-ctx.Done():
 			if errStop := reader.tail.Stop(); errStop != nil {
-				log.Printf("Failed to Close tail: %v\n", errStop)
+				reader.logger.Error("Failed to stop tailing console.log cleanly", zap.Error(errStop))
 			}
 			return
 		}
 	}
 }
 
-func newLogReader(path string, outChan chan string, echo bool) (*logReader, error) {
-	logger := tail.DiscardingLogger
+func newLogReader(logger *zap.Logger, path string, outChan chan string, echo bool) (*logReader, error) {
+	tailLogger := tail.DiscardingLogger
 	if echo {
-		logger = tail.DefaultLogger
+		tailLogger = tail.DefaultLogger
 	}
 	//goland:noinspection GoBoolExpressions
 	tailConfig := tail.Config{
@@ -55,7 +56,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*logReader, erro
 		ReOpen:    true,
 		MustExist: false,
 		Poll:      runtime.GOOS == "windows",
-		Logger:    logger,
+		Logger:    tailLogger,
 	}
 	//goland:noinspection ALL
 	t, errTail := tail.TailFile(path, tailConfig)
@@ -65,6 +66,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*logReader, erro
 	reader := logReader{
 		tail:    t,
 		outChan: outChan,
+		logger:  logger,
 	}
 	return &reader, nil
 }
@@ -77,6 +79,7 @@ type logParser struct {
 	evtChan     chan model.LogEvent
 	ReadChannel chan string
 	rx          []*regexp.Regexp
+	logger      *zap.Logger
 }
 
 const teamPrefix = "(TEAM) "
@@ -89,7 +92,9 @@ func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error 
 		if match := rxMatcher.FindStringSubmatch(msg); match != nil {
 			outEvent.Type = model.EventType(i)
 			if outEvent.Type != model.EvtLobby {
-				outEvent.ApplyTimestamp(match[1])
+				if errTs := outEvent.ApplyTimestamp(match[1]); errTs != nil {
+					parser.logger.Error("Failed to parse timestamp", zap.Error(errTs))
+				}
 			}
 			switch outEvent.Type {
 			case model.EvtConnect:
@@ -119,18 +124,23 @@ func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error 
 			case model.EvtStatusId:
 				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
-					log.Printf("Failed to parse userid: %v", errUserID)
+					parser.logger.Error("Failed to parse status userid", zap.Error(errUserID))
 					continue
 				}
 				ping, errPing := strconv.ParseInt(match[7], 10, 32)
 				if errPing != nil {
-					log.Printf("Failed to parse ping: %v", errUserID)
+					parser.logger.Error("Failed to parse status ping", zap.Error(errPing))
+					continue
+				}
+				dur, durErr := parseConnected(match[5])
+				if durErr != nil {
+					parser.logger.Error("Failed to parse status duration", zap.Error(durErr))
 					continue
 				}
 				outEvent.UserId = userID
 				outEvent.Player = match[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
-				outEvent.PlayerConnected = parseConnected(match[5])
+				outEvent.PlayerConnected = dur
 				outEvent.PlayerPing = int(ping)
 			case model.EvtKill:
 				outEvent.Player = match[2]
@@ -156,7 +166,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error 
 	}
 	return errNoMatch
 }
-func parseConnected(d string) time.Duration {
+func parseConnected(d string) (time.Duration, error) {
 	pcs := strings.Split(d, ":")
 	var dur time.Duration
 	var parseErr error
@@ -170,10 +180,7 @@ func parseConnected(d string) time.Duration {
 	default:
 		dur = 0
 	}
-	if parseErr != nil {
-		log.Printf("Failed to parse connected duration: %v", parseErr)
-	}
-	return dur
+	return dur, parseErr
 }
 
 // TODO why keep this?
@@ -192,8 +199,9 @@ func (parser *logParser) start(ctx context.Context) {
 	}
 }
 
-func newLogParser(readChannel chan string, evtChan chan model.LogEvent) *logParser {
+func newLogParser(logger *zap.Logger, readChannel chan string, evtChan chan model.LogEvent) *logParser {
 	return &logParser{
+		logger:      logger,
 		evtChan:     evtChan,
 		ReadChannel: readChannel,
 		rx: []*regexp.Regexp{

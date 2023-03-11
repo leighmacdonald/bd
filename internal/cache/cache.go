@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,6 +23,7 @@ type Cache interface {
 type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
+	logger   *zap.Logger
 }
 type Type int
 
@@ -31,8 +32,8 @@ const (
 	TypeLists
 )
 
-func New(rootDir string, maxAge time.Duration) FsCache {
-	cache := FsCache{rootPath: rootDir, maxAge: maxAge}
+func New(logger *zap.Logger, rootDir string, maxAge time.Duration) FsCache {
+	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger}
 	cache.init()
 	return cache
 }
@@ -40,7 +41,7 @@ func New(rootDir string, maxAge time.Duration) FsCache {
 func (cache FsCache) init() {
 	for _, p := range []Type{TypeAvatar, TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0770); errMkDir != nil {
-			log.Panicf("Failed to setup cache dirs: %v\n", errMkDir)
+			cache.logger.Panic("Failed to setup cache dirs", zap.Error(errMkDir))
 		}
 	}
 }
@@ -57,7 +58,7 @@ func (cache FsCache) getPath(ct Type, key string) string {
 	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:
-		log.Panicf("Got unknown Type: %v\n", ct)
+		cache.logger.Panic("Got unknown cache type", zap.Int("type", int(ct)))
 		return ""
 	}
 }

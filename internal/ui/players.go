@@ -15,7 +15,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
-	"log"
+	"go.uber.org/zap"
 	"net/url"
 	"sort"
 	"strings"
@@ -26,6 +26,7 @@ import (
 type playerWindow struct {
 	app         fyne.App
 	ui          *Ui
+	logger      *zap.Logger
 	window      fyne.Window
 	list        *widget.List
 	bd          *detector.BD
@@ -58,7 +59,7 @@ type playerWindow struct {
 }
 
 func (screen *playerWindow) showSettings(settings *model.Settings) {
-	d := newSettingsDialog(screen.window, settings)
+	d := newSettingsDialog(screen.logger, screen.window, settings)
 	d.Show()
 }
 
@@ -69,7 +70,7 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 	})
 	sortType, errGet := screen.playerSortDir.Get()
 	if errGet != nil {
-		log.Printf("Failed to get sort dir: %v\n", errGet)
+		screen.logger.Error("Failed to get sort dir: %v\n", zap.Error(errGet))
 		sortType = string(playerSortTeam)
 	}
 	// Apply secondary ordering
@@ -123,7 +124,7 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 		})
 	}
 	if errReboot := screen.Reload(players); errReboot != nil {
-		log.Printf("Faile to reboot data: %v\n", errReboot)
+		screen.logger.Error("Failed to reboot player list", zap.Error(errReboot))
 	}
 }
 
@@ -148,7 +149,7 @@ func (screen *playerWindow) Reload(rr model.PlayerCollection) error {
 	screen.boundListMu.Lock()
 	defer screen.boundListMu.Unlock()
 	if errSet := screen.boundList.Set(bl); errSet != nil {
-		log.Printf("failed to set player list: %v\n", errSet)
+		screen.logger.Error("failed to set player list", zap.Error(errSet))
 	}
 	if errReload := screen.boundList.Reload(); errReload != nil {
 		return errReload
@@ -162,7 +163,7 @@ func (screen *playerWindow) Reload(rr model.PlayerCollection) error {
 func (screen *playerWindow) createMainMenu() {
 	wikiUrl, errUrl := url.Parse(urlHelp)
 	if errUrl != nil {
-		log.Panicln("Failed to parse wiki url")
+		screen.logger.Panic("Failed to parse wiki url")
 	}
 	shortCutLaunch := &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierControl}
 	shortCutChat := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
@@ -189,7 +190,7 @@ func (screen *playerWindow) createMainMenu() {
 	})
 	screen.window.Canvas().AddShortcut(shortCutHelp, func(shortcut fyne.Shortcut) {
 		if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
-			log.Printf("Failed to open help url: %v\n", errOpenHelp)
+			screen.logger.Error("Failed to open help url", zap.Error(errOpenHelp))
 		}
 	})
 	screen.window.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
@@ -253,7 +254,7 @@ func (screen *playerWindow) createMainMenu() {
 			Icon:     theme.HelpIcon(),
 			Action: func() {
 				if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
-					log.Printf("Failed to open help url: %v\n", errOpenHelp)
+					screen.logger.Error("Failed to open help url", zap.Error(errOpenHelp), zap.String("url", wikiUrl.String()))
 				}
 			}},
 		&fyne.MenuItem{
@@ -270,10 +271,11 @@ const symbolBad = "x"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func (ui *Ui) newPlayerWindow(menuCreator MenuCreator, version model.Version) *playerWindow {
+func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.Version) *playerWindow {
 	hostname := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_hostname", Other: "Hostname: "}})
 	mapName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_map", Other: "Map: "}})
 	screen := &playerWindow{
+		logger:             logger,
 		app:                ui.application,
 		ui:                 ui,
 		window:             ui.application.NewWindow("Bot Detector"),
@@ -296,19 +298,20 @@ func (ui *Ui) newPlayerWindow(menuCreator MenuCreator, version model.Version) *p
 	}
 	if sortDir, getErr := screen.playerSortDir.Get(); getErr != nil && sortDir == "" {
 		if errSetSort := screen.playerSortDir.Set(string(playerSortTeam)); errSetSort != nil {
-			log.Printf("Failed to set initial sort dir: %s\n", errSetSort)
+			screen.logger.Error("Failed to set initial sort dir", zap.Error(errSetSort))
 		}
 	}
 	screen.labelPlayersHeading = widget.NewLabelWithData(binding.IntToStringWithFormat(screen.bindingPlayerCount, "%d Players"))
 	screen.aboutDialog = newAboutDialog(screen.window, version)
 	screen.onReload = func(count int) {
 		if errSet := screen.bindingPlayerCount.Set(count); errSet != nil {
-			log.Printf("Failed to update player count: %v\n", errSet)
+			screen.logger.Error("Failed to update player count", zap.Error(errSet))
 		}
 	}
 	screen.toolbar = newToolbar(
 		ui.application,
 		screen.window,
+		logger,
 		ui.settings,
 		func() {
 			ui.windows.chat.Show()
@@ -329,9 +332,7 @@ func (ui *Ui) newPlayerWindow(menuCreator MenuCreator, version model.Version) *p
 		dirNames = append(dirNames, string(dir))
 	}
 	sortSelect := widget.NewSelect(dirNames, func(s string) {
-		if errSet := screen.playerSortDir.Set(s); errSet != nil {
-			log.Printf("Failed to set sort dir: %v\n", errSet)
-		}
+		showUserError(screen.playerSortDir.Set(s), screen.window)
 		v, _ := screen.boundList.Get()
 		var sorted model.PlayerCollection
 		for _, p := range v {
@@ -535,7 +536,7 @@ func calcKDStyle(kills int, deaths int) widget.RichTextStyle {
 	return style
 }
 
-func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
+func newToolbar(app fyne.App, parent fyne.Window, logger *zap.Logger, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
@@ -557,7 +558,7 @@ func newToolbar(app fyne.App, parent fyne.Window, settings *model.Settings, chat
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {
 			if errOpenHelp := app.OpenURL(wikiUrl); errOpenHelp != nil {
-				log.Printf("Failed to open help url: %v\n", errOpenHelp)
+				logger.Error("Failed to open help url: %v\n", zap.Error(errOpenHelp))
 			}
 		}),
 		widget.NewToolbarAction(theme.InfoIcon(), aboutFunc),

@@ -7,12 +7,12 @@ import (
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -274,9 +274,6 @@ func (s *Settings) GetKickTags() []string {
 func (s *Settings) GetSteamId() steamid.SID64 {
 	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
-		if s.SteamID != "" {
-			log.Printf("Failed to parse stored steam id: %v\n", err)
-		}
 		return 0
 	}
 	return value
@@ -410,6 +407,10 @@ func NewSettings() (*Settings, error) {
 	return &settings, nil
 }
 
+func (s *Settings) LogFilePath() string {
+	return filepath.Join(configdir.LocalConfig(configRoot), "bd.log")
+}
+
 func (s *Settings) ReadDefaultOrCreate() error {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
@@ -417,7 +418,6 @@ func (s *Settings) ReadDefaultOrCreate() error {
 	}
 	errRead := s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
 	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
-		log.Printf("Creating new config file with defaults")
 		return s.Save()
 	}
 	s.reload()
@@ -458,11 +458,7 @@ func (s *Settings) ReadFilePath(filePath string) error {
 	if errOpen != nil {
 		return errOpen
 	}
-	defer func() {
-		if errClose := settingsFile.Close(); errClose != nil {
-			log.Printf("Failed to close Settings file: %v\n", errClose)
-		}
-	}()
+	defer util.LogClose(settingsFile)
 	if errRead := s.Read(settingsFile); errRead != nil {
 		return errRead
 	}
@@ -498,11 +494,7 @@ func (s *Settings) WriteFilePath(filePath string) error {
 	if errOpen != nil {
 		return errors.Wrapf(errOpen, "Failed to open Settings file for writing")
 	}
-	defer func() {
-		if errClose := settingsFile.Close(); errClose != nil {
-			log.Printf("Failed to close Settings file: %v\n", errClose)
-		}
-	}()
+	defer util.LogClose(settingsFile)
 	return s.Write(settingsFile)
 }
 
@@ -544,7 +536,6 @@ func randPort() uint16 {
 	const defaultPort = 21212
 	var b [8]byte
 	if _, errRead := rand.Read(b[:]); errRead != nil {
-		log.Printf("Failed to generate port number, using default %d: %v\n", defaultPort, errRead)
 		return defaultPort
 	}
 	return uint16(binary.LittleEndian.Uint64(b[:]))

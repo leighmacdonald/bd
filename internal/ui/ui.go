@@ -19,7 +19,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
-	"log"
+	"go.uber.org/zap"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -68,6 +68,7 @@ type Ui struct {
 	knownAttributes binding.StringList
 	avatarCache     *avatarCache
 	version         model.Version
+	logger          *zap.Logger
 }
 
 func (ui *Ui) UpdateServerState(state model.Server) {
@@ -78,9 +79,10 @@ func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
 	ui.windows.player.updatePlayerState(collection)
 }
 
-func New(ctx context.Context, bd *detector.BD, settings *model.Settings, version model.Version) model.UserInterface {
+func New(ctx context.Context, logger *zap.Logger, bd *detector.BD, settings *model.Settings, version model.Version) model.UserInterface {
 	ui := Ui{
 		bd:              bd,
+		logger:          logger,
 		version:         version,
 		application:     defaultApp(),
 		settings:        settings,
@@ -100,6 +102,7 @@ func New(ctx context.Context, bd *detector.BD, settings *model.Settings, version
 	ui.windows.search = newSearchWindow(ctx, &ui)
 
 	ui.windows.player = ui.newPlayerWindow(
+		ui.logger,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
 			return generateUserMenu(ctx, window, &ui, steamId, userId, ui.knownAttributes)
 		}, version)
@@ -123,7 +126,7 @@ func (ui *Ui) Refresh() {
 
 func (ui *Ui) UpdateAttributes(attrs []string) {
 	if err := ui.knownAttributes.Set(attrs); err != nil {
-		log.Printf("Failed to update known attribute: %v\n", err)
+		ui.logger.Error("Failed to update known attribute", zap.Error(err))
 	}
 }
 
@@ -142,11 +145,11 @@ var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSor
 
 func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 	if errAppend := ui.windows.chat.append(msg); errAppend != nil {
-		log.Printf("Failed to append game message: %v", errAppend)
+		ui.logger.Error("Failed to append game message", zap.Error(errAppend))
 	}
 	if userChat, found := ui.windows.chatHistory[msg.PlayerSID]; found {
 		if errAppend := userChat.boundList.Append(msg); errAppend != nil {
-			log.Printf("Failed to append user history message: %v", errAppend)
+			ui.logger.Error("Failed to append user history message", zap.Error(errAppend))
 		}
 		userChat.Content().Refresh()
 	}
@@ -155,7 +158,7 @@ func (ui *Ui) AddUserMessage(msg model.UserMessage) {
 func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.chatHistory[sid64]
 	if !found {
-		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.application, ui.bd.Store().FetchMessages, sid64)
+		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.logger, ui.application, ui.bd.Store().FetchMessages, sid64)
 	}
 	ui.windows.chatHistory[sid64].Show()
 }
@@ -163,7 +166,7 @@ func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) 
 func (ui *Ui) createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 	_, found := ui.windows.nameHistory[sid64]
 	if !found {
-		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.application, ui.bd.Store().FetchNames, sid64)
+		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.logger, ui.application, ui.bd.Store().FetchNames, sid64)
 	}
 	ui.windows.nameHistory[sid64].Show()
 }

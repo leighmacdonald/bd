@@ -11,7 +11,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"log"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -25,7 +25,7 @@ type linksConfigDialog struct {
 	selectOpts  []string
 }
 
-func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDialog {
+func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *model.Settings) *linksConfigDialog {
 	var links []any
 	for _, l := range settings.GetLinks() {
 		links = append(links, l)
@@ -143,7 +143,7 @@ func newLinksDialog(parent fyne.Window, settings *model.Settings) *linksConfigDi
 			settings.SetLinks(updatedLinks)
 			lcd.boundListMu.Lock()
 			if errReload := lcd.boundList.Set(settings.GetLinks().AsAny()); errReload != nil {
-				log.Printf("Failed to reload: %v\n", errReload)
+				logger.Error("Failed to reload links list", zap.Error(errReload))
 			}
 			lcd.boundListMu.Unlock()
 			lcd.list.Refresh()

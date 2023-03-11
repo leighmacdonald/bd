@@ -13,7 +13,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"log"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -28,9 +28,11 @@ type userChatWindow struct {
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
 	queryFunc         model.QueryUserMessagesFunc
+
+	logger *zap.Logger
 }
 
-func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
+func newUserChatWindow(ctx context.Context, logger *zap.Logger, app fyne.App, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
 	appWindow := app.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
 			ID:    "userchat_title",
@@ -44,6 +46,7 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 	window := userChatWindow{
 		Window:            appWindow,
 		app:               app,
+		logger:            logger,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
@@ -56,7 +59,7 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 			window.Hide()
 		})
 	if errSet := window.autoScrollEnabled.Set(true); errSet != nil {
-		log.Printf("Failed to set default autoscroll: %v\n", errSet)
+		logger.Error("Failed to set default autoscroll", zap.Error(errSet))
 	}
 
 	window.list = widget.NewListWithData(window.boundList, func() fyne.CanvasObject {
@@ -95,7 +98,7 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 				widget.NewButtonWithIcon(buttonBottom, theme.MoveDownIcon(), window.list.ScrollToBottom),
 				widget.NewButtonWithIcon(buttonClear, theme.ContentClearIcon(), func() {
 					if errReload := window.boundList.Set(nil); errReload != nil {
-						log.Printf("Failed to clear chat: %v\n", errReload)
+						logger.Error("Failed to clear chat", zap.Error(errReload))
 					}
 				}),
 			),
@@ -122,7 +125,7 @@ func newUserChatWindow(ctx context.Context, app fyne.App, queryFunc model.QueryU
 		})
 	}
 	if errSet := window.boundList.Set(messages.AsAny()); errSet != nil {
-		log.Printf("Failed to set messages: %v\n", errSet)
+		logger.Error("Failed to set messages", zap.Error(errSet))
 	}
 	_ = window.messageCount.Set(window.boundList.Length())
 	if ase, errASE := window.autoScrollEnabled.Get(); errASE == nil && ase {

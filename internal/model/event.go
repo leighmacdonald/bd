@@ -2,7 +2,6 @@ package model
 
 import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"log"
 	"strings"
 	"time"
 )
@@ -31,13 +30,13 @@ type LogEvent struct {
 	TeamOnly        bool
 }
 
-func (e *LogEvent) ApplyTimestamp(tsString string) {
+func (e *LogEvent) ApplyTimestamp(tsString string) error {
 	ts, errTs := parseTimestamp(tsString)
 	if errTs != nil {
-		log.Printf("Failed to parse timestamp for message log: %s", errTs)
-		return
+		return errTs
 	}
 	e.Timestamp = ts
+	return nil
 }
 
 type Event struct {
