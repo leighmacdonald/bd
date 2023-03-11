@@ -106,7 +106,8 @@ func TestTextRules(t *testing.T) {
 	re, reErr := New(nil, nil)
 	require.NoError(t, reErr)
 	tr := genTestRules()
-	require.NoError(t, re.ImportRules(&tr))
+	_, errImport := re.ImportRules(&tr)
+	require.NoError(t, errImport)
 	testAttrs := []string{"test_attr"}
 	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
 

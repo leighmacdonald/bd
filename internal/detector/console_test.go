@@ -4,6 +4,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"testing"
 	"time"
 )
@@ -75,7 +76,8 @@ func TestParseEvent(t *testing.T) {
 			match:    true,
 			expected: model.LogEvent{Type: model.EvtDisconnect, Timestamp: ts, MetaData: "Differing lobby received."}},
 	}
-	reader := newLogParser(nil, nil)
+	logger, _ := zap.NewDevelopment()
+	reader := newLogParser(logger, nil, nil)
 	for num, testCase := range cases {
 		var event model.LogEvent
 		err := reader.parseEvent(testCase.text, &event)
