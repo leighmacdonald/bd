@@ -7,6 +7,7 @@ import (
 	"github.com/leighmacdonald/golib"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows/registry"
 	"os"
 	"os/exec"
@@ -82,7 +83,7 @@ func LaunchTF2(logger *zap.Logger, tf2Dir string, args []string) error {
 	if errStart != nil {
 		return errors.Wrap(errStart, "Failed to launch TF2\n")
 	}
-	state, errWait := process.Wait()
+	_, errWait := process.Wait()
 	if errWait != nil {
 		logger.Error("Error waiting for game process", zap.Error(errWait))
 	} else {
@@ -95,6 +96,7 @@ func OpenFolder(dir string) error {
 	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil {
 		return errors.Wrap(errRun, "Failed to start process")
 	}
+	return nil
 }
 
 func IsGameRunning() (bool, error) {
