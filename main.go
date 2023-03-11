@@ -28,7 +28,7 @@ var (
 	builtBy string = "src"
 )
 
-func MustCreateLogger(logFile string) *zap.Logger {
+func mustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
 	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
@@ -57,7 +57,7 @@ func main() {
 	if settings.DebugLogEnabled {
 		logFilePath = settings.LogFilePath()
 	}
-	logger := MustCreateLogger(logFilePath)
+	logger := mustCreateLogger(logFilePath)
 	defer func() {
 		if errSync := logger.Sync(); errSync != nil {
 			fmt.Printf("Failed to sync log: %v\n", errSync)

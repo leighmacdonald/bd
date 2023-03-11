@@ -46,7 +46,8 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 			showUserError(markFunc(clsSteamId, []string{clsAttribute}), window)
 		}
 	}
-	markAsMenuLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_markas_label", Other: "Mark As..."}})
+	markAsMenuLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "menu_markas_label", Other: "Mark As..."}})
 	markAsMenu := fyne.NewMenu(markAsMenuLabel)
 	knownAttributes, _ := attrList.Get()
 	sort.Slice(knownAttributes, func(i, j int) bool {
@@ -58,7 +59,8 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 	entry := widget.NewEntry()
 	entry.Validator = func(s string) error {
 		if s == "" {
-			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_attribute_empty", Other: "Attribute cannot be empty"}})
+			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				DefaultMessage: &i18n.Message{ID: "error_attribute_empty", Other: "Attribute cannot be empty"}})
 			return errors.New(msg)
 		}
 		for _, knownAttr := range knownAttributes {
@@ -151,6 +153,29 @@ func generateSteamIdMenu(window fyne.Window, steamId steamid.SID64) *fyne.Menu {
 	return m
 }
 
+func generateWhitelistMenu(parent fyne.Window, ui *Ui, steamID steamid.SID64) *fyne.Menu {
+	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_whitelist", Other: "Whitelist"}})
+	labelAdd := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_whitelist_add", Other: "Enable"}})
+	labelRemove := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_whitelist_remove", Other: "Disable"}})
+	m := fyne.NewMenu(title,
+		&fyne.MenuItem{
+			Icon:  theme.ContentAddIcon(),
+			Label: labelAdd,
+			Action: func() {
+				showUserError(ui.bd.OnWhitelist(steamID, true), parent)
+			},
+		},
+		&fyne.MenuItem{
+			Icon:  theme.ContentRemoveIcon(),
+			Label: labelRemove,
+			Action: func() {
+				showUserError(ui.bd.OnWhitelist(steamID, false), parent)
+			},
+		},
+	)
+	return m
+}
+
 func generateKickMenu(ctx context.Context, parent fyne.Window, userId int64, kickFunc model.KickFunc) *fyne.Menu {
 	fn := func(reason model.KickReason) func() {
 		return func() {
@@ -173,11 +198,12 @@ func generateKickMenu(ctx context.Context, parent fyne.Window, userId int64, kic
 func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId steamid.SID64, userId int64, knownAttributes binding.StringList) *fyne.Menu {
 	kickTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_call_vote", Other: "Call Vote..."}})
 	markTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_mark", Other: "Mark As..."}})
+	unMarkTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_unmark", Other: "Unmark"}})
 	externalTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_external", Other: "Open External..."}})
 	steamIdTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_steam_id", Other: "Copy SteamID..."}})
 	chatHistoryTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_chat_hist", Other: "View Chat History"}})
 	nameHistoryTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_name_hist", Other: "View Name History"}})
-	whitelistTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_whitelist", Other: "Whitelist Player"}})
+	whitelistTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_whitelist", Other: "Whitelist"}})
 	notesTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_notes", Other: "Edit Notes"}})
 	var items []*fyne.MenuItem
 	if userId > 0 {
@@ -186,11 +212,23 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 			ChildMenu: generateKickMenu(ctx, window, userId, ui.bd.CallVote),
 			Label:     kickTitle})
 	}
+	unMarkFn := func(steamID steamid.SID64) func() {
+		clsSteamId := steamID
+		return func() {
+			showUserError(ui.bd.OnUnMark(clsSteamId), window)
+		}
+	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
 			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, ui.bd.OnMark),
-			Label:     markTitle},
+			Label:     markTitle,
+		},
+		{
+			Icon:   theme.DeleteIcon(),
+			Label:  unMarkTitle,
+			Action: unMarkFn(steamId),
+		},
 		{
 			Icon:      theme.SearchIcon(),
 			ChildMenu: generateExternalLinksMenu(ui.logger, steamId, ui.settings.GetLinks(), ui.application.OpenURL),
@@ -212,13 +250,9 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 			},
 			Label: nameHistoryTitle},
 		{
-			Icon: theme.VisibilityOffIcon(),
-			Action: func() {
-				if err := ui.bd.OnWhitelist(steamId); err != nil {
-					showUserError(err, window)
-				}
-			},
-			Label: whitelistTitle},
+			Icon:      theme.VisibilityOffIcon(),
+			ChildMenu: generateWhitelistMenu(window, ui, steamId),
+			Label:     whitelistTitle},
 		{
 			Icon: theme.DocumentCreateIcon(),
 			Action: func() {

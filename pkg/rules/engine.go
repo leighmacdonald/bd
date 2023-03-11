@@ -98,29 +98,82 @@ func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collect
 	return valid
 }
 
+func (e *Engine) Unmark(steamID steamid.SID64) bool {
+	e.Lock()
+	defer e.Unlock()
+	if len(e.playerLists) == 0 {
+		return false
+	}
+	found := false
+	var players []playerDefinition
+	for _, knownPlayer := range e.playerLists[0].Players {
+		strId := steamID.String()
+		if knownPlayer.SteamID == strId {
+			found = true
+			continue
+		}
+		players = append(players, knownPlayer)
+	}
+	e.playerLists[0].Players = players
+	// Remove the matcher from memory
+	var validMatchers []SteamIDMatcher
+	for _, matcher := range e.matchersSteam {
+		if match := matcher.Match(steamID); match == nil {
+			validMatchers = append(validMatchers, matcher)
+		}
+	}
+	e.matchersSteam = validMatchers
+	return found
+}
+
 func (e *Engine) Mark(opts MarkOpts) error {
 	if len(opts.Attributes) == 0 {
 		return errors.New("Invalid attribute count")
 	}
 	e.Lock()
-	for _, knownPlayer := range e.playerLists[0].Players {
-		strId := opts.SteamID.String()
-		if knownPlayer.SteamID == strId {
-			e.Unlock()
-			return errDuplicateSteamID
+	updatedAttributes := false
+	for idx, knownPlayer := range e.playerLists[0].Players {
+		knownSid64, errSid64 := steamid.StringToSID64(knownPlayer.SteamID)
+		if errSid64 != nil {
+			continue
+		}
+		if knownSid64 == opts.SteamID {
+			var newAttr []string
+			for _, updatedAttr := range opts.Attributes {
+				isNew := true
+				for _, existingAttr := range knownPlayer.Attributes {
+					if strings.EqualFold(updatedAttr, existingAttr) {
+						isNew = false
+						break
+					}
+				}
+				if isNew {
+					newAttr = append(newAttr, updatedAttr)
+				}
+			}
+			if len(newAttr) == 0 {
+				e.Unlock()
+				return errDuplicateSteamID
+			}
+			e.playerLists[0].Players[idx].Attributes = append(e.playerLists[0].Players[idx].Attributes, newAttr...)
+			updatedAttributes = true
 		}
 	}
-	e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
-		Attributes: opts.Attributes,
-		LastSeen: playerLastSeen{
-			Time:       int(time.Now().Unix()),
-			PlayerName: opts.Name,
-		},
-		SteamID: opts.SteamID.String(),
-		Proof:   opts.Proof,
-	})
+	if !updatedAttributes {
+		e.playerLists[0].Players = append(e.playerLists[0].Players, playerDefinition{
+			Attributes: opts.Attributes,
+			LastSeen: playerLastSeen{
+				Time:       int(time.Now().Unix()),
+				PlayerName: opts.Name,
+			},
+			SteamID: opts.SteamID.String(),
+			Proof:   opts.Proof,
+		})
+	}
 	e.Unlock()
-	e.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
+	if !updatedAttributes {
+		e.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
+	}
 	return nil
 }
 

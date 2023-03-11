@@ -88,7 +88,9 @@ type Player struct {
 	KickAttemptCount int
 
 	// Tracks the duration between announces to chat
-	AnnouncedLast time.Time
+	AnnouncedPartyLast time.Time
+
+	AnnouncedGeneralLast time.Time
 
 	// Dangling will be true when the user is new and doesn't have a physical entry in the database yet.
 	Dangling bool

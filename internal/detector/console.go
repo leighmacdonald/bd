@@ -55,7 +55,7 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 		Follow:    true,
 		ReOpen:    true,
 		MustExist: false,
-		Poll:      runtime.GOOS == "windows",
+		Poll:      runtime.GOOS == "windows", // TODO Is this still required years later?
 		Logger:    tailLogger,
 	}
 	//goland:noinspection ALL

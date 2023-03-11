@@ -326,6 +326,18 @@ func (bd *BD) LaunchGameAndWait() {
 	}
 }
 
+func (bd *BD) OnUnMark(sid64 steamid.SID64) error {
+	bd.gameStateUpdate <- updateGameStateEvent{
+		kind:   updateMark,
+		source: bd.settings.GetSteamId(),
+		data: updateMarkEvent{
+			target: sid64,
+			delete: true,
+		},
+	}
+	return nil
+}
+
 func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
 	bd.gameStateUpdate <- updateGameStateEvent{
 		kind:   updateMark,
@@ -338,12 +350,13 @@ func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
-func (bd *BD) OnWhitelist(sid64 steamid.SID64) error {
+func (bd *BD) OnWhitelist(sid64 steamid.SID64, enabled bool) error {
 	bd.gameStateUpdate <- updateGameStateEvent{
 		kind:   updateWhitelist,
 		source: bd.settings.GetSteamId(),
 		data: updateWhitelistEvent{
-			target: sid64,
+			target:  sid64,
+			enabled: enabled,
 		},
 	}
 	return nil
@@ -393,10 +406,12 @@ type updateGameStateEvent struct {
 type updateMarkEvent struct {
 	target steamid.SID64
 	attrs  []string
+	delete bool
 }
 
 type updateWhitelistEvent struct {
-	target steamid.SID64
+	target  steamid.SID64
+	enabled bool
 }
 
 type messageEvent struct {
@@ -814,13 +829,14 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 	player := bd.GetPlayer(event.target)
 	if player == nil {
-		return errors.New("Unknown player, cannot whitelist")
+		return errors.New("Unknown player, cannot update whitelist")
 	}
 	bd.playersMu.Lock()
-	player.Whitelisted = true
+	player.Whitelisted = event.enabled
 	player.Touch()
 	bd.playersMu.Unlock()
-	bd.logger.Info("Whitelisted player successfully", zap.Int64("steam_id", player.SteamId.Int64()))
+	bd.logger.Info("Update player whitelist status successfully",
+		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", event.enabled))
 	return nil
 }
 
@@ -836,14 +852,27 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	if name == "" {
 		name = player.NamePrevious
 	}
-	if errMark := bd.rules.Mark(rules.MarkOpts{
-		SteamID:    status.target,
-		Attributes: status.attrs,
-		Name:       name,
-	}); errMark != nil {
-		return errors.Wrap(errMark, "Failed to add mark")
+	if status.delete {
+		bd.rules.Unmark(status.target)
+		bd.playersMu.Lock()
+		for idx := range bd.players {
+			if bd.players[idx].SteamId == status.target {
+				bd.players[idx].Match = nil
+				break
+			}
+		}
+		bd.playersMu.Unlock()
+		bd.gui.UpdatePlayerState(bd.players)
+	} else {
+		if errMark := bd.rules.Mark(rules.MarkOpts{
+			SteamID:    status.target,
+			Attributes: status.attrs,
+			Name:       name,
+		}); errMark != nil {
+			return errors.Wrap(errMark, "Failed to add mark")
+		}
 	}
-	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE, 0666)
+	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if errOf != nil {
 		return errors.Wrap(errOf, "Failed to open player list for updating")
 	}
@@ -913,23 +942,32 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 }
 
 func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
-	msg := "Matched player"
-	if ps.Whitelisted {
-		msg = "Matched whitelisted player"
+	ps.RLock()
+	announceGeneralLast := ps.AnnouncedGeneralLast
+	announcePartyLast := ps.AnnouncedPartyLast
+	ps.RUnlock()
+	if time.Since(announceGeneralLast) >= model.DurationAnnounceMatchTimeout {
+		msg := "Matched player"
+		if ps.Whitelisted {
+			msg = "Matched whitelisted player"
+		}
+		bd.logger.Info(msg, zap.String("match_type", match.MatcherType),
+			zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
+		bd.playersMu.Lock()
+		ps.AnnouncedGeneralLast = time.Now()
+		bd.playersMu.Unlock()
 	}
-	bd.logger.Info(msg, zap.String("match_type", match.MatcherType),
-		zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
 	if ps.Whitelisted {
 		return
 	}
-	if bd.settings.GetPartyWarningsEnabled() && time.Since(ps.AnnouncedLast) >= model.DurationAnnounceMatchTimeout {
+	if bd.settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		if errLog := bd.SendChat(ctx, model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
 			bd.logger.Error("Failed to send party log message", zap.Error(errLog))
 			return
 		}
 		bd.playersMu.Lock()
-		ps.AnnouncedLast = time.Now()
+		ps.AnnouncedPartyLast = time.Now()
 		bd.playersMu.Unlock()
 	}
 	if bd.settings.GetKickerEnabled() {
