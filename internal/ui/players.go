@@ -180,7 +180,7 @@ func (screen *playerWindow) createMainMenu() {
 		screen.ui.windows.chat.Show()
 	})
 	screen.window.Canvas().AddShortcut(shortCutFolder, func(shortcut fyne.Shortcut) {
-		platform.OpenFolder(screen.settings.ConfigRoot())
+		showUserError(platform.OpenFolder(screen.settings.ConfigRoot()), screen.window)
 	})
 	screen.window.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
 		screen.showSettings(screen.settings)
@@ -222,7 +222,7 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutFolder,
 			Label:    labelConfigFolder,
 			Action: func() {
-				platform.OpenFolder(screen.settings.ConfigRoot())
+				showUserError(platform.OpenFolder(screen.settings.ConfigRoot()), screen.window)
 			},
 			Icon: theme.FolderOpenIcon(),
 		},
@@ -553,7 +553,7 @@ func newToolbar(app fyne.App, parent fyne.Window, logger *zap.Logger, settings *
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
-			platform.OpenFolder(settings.ConfigRoot())
+			showUserError(platform.OpenFolder(settings.ConfigRoot()), parent)
 		}),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {

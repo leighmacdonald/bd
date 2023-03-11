@@ -104,7 +104,7 @@ func (bd *BD) reload() {
 			bd.logger.Error("Failed to login for discord rich presence", zap.Error(errLogin))
 		}
 	} else {
-		client.Logout()
+		bd.discordLogout()
 	}
 }
 func (bd *BD) Store() store.DataStore {

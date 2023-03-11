@@ -8,7 +8,6 @@ import (
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,7 @@ func TestStore(t *testing.T) {
 		if util.Exists(tempDbPath) {
 			_ = store.Close()
 			if errRemove := os.Remove(tempDbPath); errRemove != nil {
-				log.Printf("Failed to remove test database: %v\n", errRemove)
+				fmt.Printf("Failed to remove test database: %v\n", errRemove)
 			}
 		}
 	}(impl)

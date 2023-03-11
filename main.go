@@ -9,6 +9,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/internal/ui"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
@@ -16,7 +17,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"log"
 	"os"
 )
 
@@ -51,7 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
-		log.Println(errReadSettings)
+		fmt.Printf("Failed to read settings: %v", errReadSettings)
 	}
 	logFilePath := ""
 	if settings.DebugLogEnabled {
@@ -63,7 +63,9 @@ func main() {
 			fmt.Printf("Failed to sync log: %v\n", errSync)
 		}
 	}()
-
+	if errTranslations := tr.Init(); errTranslations != nil {
+		logger.Error("Failed to load translations", zap.Error(errTranslations))
+	}
 	if settings.GetAPIKey() != "" {
 		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
 			logger.Error("Failed to set steam api key", zap.Error(errAPIKey))

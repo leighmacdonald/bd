@@ -15,7 +15,6 @@ import (
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"log"
 	"sync"
 	"time"
 )
@@ -36,7 +35,8 @@ type gameChatWindow struct {
 }
 
 func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
-	window := ui.application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
+	window := ui.application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+		DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
@@ -48,6 +48,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 	gcw := gameChatWindow{
 		Window:            window,
 		ctx:               ctx,
+		logger:            ui.logger,
 		app:               ui.application,
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
@@ -59,7 +60,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 	}
 
 	if errSet := gcw.autoScrollEnabled.Set(true); errSet != nil {
-		log.Printf("Failed to set default autoscroll: %v\n", errSet)
+		ui.logger.Error("Failed to set default autoscroll for game chat window", zap.Error(errSet))
 	}
 
 	createFunc := func() fyne.CanvasObject {
@@ -74,7 +75,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 		value := i.(binding.Untyped)
 		obj, errObj := value.Get()
 		if errObj != nil {
-			log.Printf("Failed to get bound value: %v", errObj)
+			ui.logger.Error("Failed to get bound value message value", zap.Error(errObj))
 			return
 		}
 		um := obj.(model.UserMessage)
@@ -151,7 +152,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 				widget.NewButtonWithIcon(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_button_bottom", Other: "Bottom"}}), theme.MoveDownIcon(), gcw.list.ScrollToBottom),
 				widget.NewButtonWithIcon(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "gamechat_button_clear", Other: "Clear"}}), theme.ContentClearIcon(), func() {
 					if errReload := gcw.boundList.Set(nil); errReload != nil {
-						log.Printf("Failed to clear chat: %v\n", errReload)
+						gcw.logger.Error("Failed to clear chat", zap.Error(errReload))
 					}
 				}),
 			),
@@ -172,7 +173,7 @@ func (gcw *gameChatWindow) append(msg any) error {
 	gcw.boundListMu.Lock()
 	defer gcw.boundListMu.Unlock()
 	if errSet := gcw.boundList.Append(msg); errSet != nil {
-		log.Printf("failed to append item: %v\n", errSet)
+		gcw.logger.Error("failed to append item", zap.Error(errSet))
 	}
 	if errSet := gcw.messageCount.Set(gcw.boundList.Length()); errSet != nil {
 		return errors.Wrapf(errSet, "Failed to set count")
