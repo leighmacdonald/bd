@@ -71,6 +71,9 @@ menu_call_vote_scamming: Scamming
 menu_markas_label: Mark As...
 menu_title_call_vote: Call Vote...
 menu_title_steam_id: Copy SteamID...
+menu_title_whitelist: Whitelist
+menu_whitelist_add: Enable
+menu_whitelist_remove: Disable
 names_button_bottom: Bottom
 names_check_autoscroll: Auto-Scroll
 names_label_count: 'Count: '
@@ -120,5 +123,6 @@ user_menu_mark: Mark As...
 user_menu_name_hist: View Name History
 user_menu_notes: Edit Notes
 user_menu_steam_id: Copy SteamID...
-user_menu_whitelist: Whitelist Player
+user_menu_unmark: Unmark
+user_menu_whitelist: Whitelist
 userchat_title: 'User Chat History: {{ .SteamId }}'

@@ -10,6 +10,15 @@ about_label_commit:
 about_label_version:
   hash: sha1-03283ea975dfdfdfeebb7738d2c80aff3fb06187
   other: 'Version '
+menu_title_whitelist:
+  hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
+  other: Whitelist
+menu_whitelist_add:
+  hash: sha1-20063ad9053289cecaa20ae630ed2dd758282a07
+  other: Enable
+menu_whitelist_remove:
+  hash: sha1-9a7d4e0687b14e2b7cda406900b802782cd50a62
+  other: Disable
 settings_label_debug_log_enabled:
   hash: sha1-7a7e8e72cbff581b6ad060d6361c9e44690e8b96
   other: Debug Log
@@ -22,3 +31,9 @@ settings_label_voice_ban_enabled:
 settings_label_voice_ban_enabled_hint:
   hash: sha1-0c5da93a5609bbaa7811b3b4f76603ecf6641dc7
   other: 'WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries.'
+user_menu_unmark:
+  hash: sha1-21e4b87df84733161f63072bcff7f3e7174854d9
+  other: Unmark
+user_menu_whitelist:
+  hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
+  other: Whitelist

@@ -340,9 +340,6 @@ user_menu_notes:
 user_menu_steam_id:
   hash: sha1-08add47119c619a063bdba1ff9ed2211b7d24c17
   other: Копировать SteamID...
-user_menu_whitelist:
-  hash: sha1-2ecd2edac9eb89b462a3a811c2d0d0027cc38be1
-  other: Добавить Игрока в Белый Список
 userchat_title:
   hash: sha1-33a5982435633f82530028c84d3080083337bd91
   other: 'История Чата Игрока: {{ .SteamId }}'
