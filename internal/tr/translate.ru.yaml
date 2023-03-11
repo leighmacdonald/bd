@@ -1,39 +1,39 @@
 about_label_build_date:
   hash: sha1-bbee17771e5fdada7ab335cca19310536dff3dd4
-  other: 'Build Date '
+  other: 'Дата сборки '
 about_label_built_by:
   hash: sha1-07048f86e569c91cf702b3ad29b697740dce8369
-  other: 'Built By '
+  other: 'Собрано '
 about_label_commit:
   hash: sha1-0104968c7bf31c3a0bcb892266bc792e1545b28c
-  other: 'Commit '
+  other: 'Коммит '
 about_label_version:
   hash: sha1-03283ea975dfdfdfeebb7738d2c80aff3fb06187
-  other: 'Version '
+  other: 'Версия '
 menu_title_whitelist:
   hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
-  other: Whitelist
+  other: Белый Список
 menu_whitelist_add:
   hash: sha1-20063ad9053289cecaa20ae630ed2dd758282a07
-  other: Enable
+  other: Активировать
 menu_whitelist_remove:
   hash: sha1-9a7d4e0687b14e2b7cda406900b802782cd50a62
-  other: Disable
+  other: Деактивировать
 settings_label_debug_log_enabled:
   hash: sha1-7a7e8e72cbff581b6ad060d6361c9e44690e8b96
-  other: Debug Log
+  other: Отчет Об Ошибках
 settings_label_debug_log_enabled_hint:
   hash: sha1-2db299f23658688f91b06060081ecb7073261a8a
-  other: Log events are save to bd.log. Requires restart of application.
+  other: Логируемые события сохраняются в bd.log. Необходим перезапуск.
 settings_label_voice_ban_enabled:
   hash: sha1-890b1724927c5e1cb92b9a59d0c081bcb91cc9c8
-  other: Gen. Voice Bans
+  other: Генерировать Голосовые Баны
 settings_label_voice_ban_enabled_hint:
   hash: sha1-0c5da93a5609bbaa7811b3b4f76603ecf6641dc7
-  other: 'WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries.'
+  other: 'ВНИМАНИЕ: Это действие перезапишет ваш список банов. Заглушает последних 200 помеченных игроков.'
 user_menu_unmark:
   hash: sha1-21e4b87df84733161f63072bcff7f3e7174854d9
-  other: Unmark
+  other: Снять метку
 user_menu_whitelist:
   hash: sha1-53c2ad308e416567345ed5fac7c4f48b8609157c
-  other: Whitelist
+  other: Белый Список
