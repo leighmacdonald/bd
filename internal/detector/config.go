@@ -25,6 +25,7 @@ func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
+	logger.Info("Reading userdata", zap.String("path", localConfigPath))
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
@@ -36,18 +37,32 @@ func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID
 	}
 	var (
 		ok         bool
+		found      bool
 		launchOpts []string
-		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "Steam", "apps", "440"}
+		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "sTeam", "apps", "440"}
 	)
 	for i, key := range pathKeys {
-		result, ok = result[key].(map[string]any)
+		// Find a matching existing key using case-insensitive match since casing can vary
+		csKey := key
+		for k := range result {
+			if strings.EqualFold(k, key) {
+				csKey = k
+				break
+			}
+		}
+		result, ok = result[csKey].(map[string]any)
 		if !ok {
 			return nil, errors.Wrapf(errOpen, "failed to find child key %s", key)
 		}
+
 		if i == len(pathKeys)-1 {
 			logger.Info("Raw args via userdata", zap.String("args", result["LaunchOptions"].(string)))
 			launchOpts = strings.Split(result["LaunchOptions"].(string), " ")
+			found = true
 		}
+	}
+	if !found {
+		return nil, errors.New("Failed to read LaunchOptions key")
 	}
 	return launchOpts, nil
 }
@@ -73,6 +88,7 @@ func getLaunchArgs(logger *zap.Logger, rconPass string, rconPort uint16, steamRo
 		"-condebug",
 		"-conclearlog",
 	}
+
 	var full []string
 	for _, arg := range append(bdArgs, userArgs...) {
 		arg = strings.Trim(arg, " ")
