@@ -6,6 +6,7 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"os"
 	"path"
 	"strings"
@@ -19,7 +20,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 	return fp, nil
 }
 
-func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
+func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID64) ([]string, error) {
 	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamID)
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
@@ -44,25 +45,19 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 			return nil, errors.Wrapf(errOpen, "failed to find child key %s", key)
 		}
 		if i == len(pathKeys)-1 {
-			launchOpts = strings.Split(result["LaunchOptions"].(string), "-")
+			logger.Info("Raw args via userdata", zap.String("args", result["LaunchOptions"].(string)))
+			launchOpts = strings.Split(result["LaunchOptions"].(string), " ")
 		}
 	}
-	var normOpts []string
-	for _, opt := range launchOpts {
-		if opt == "" {
-			continue
-		}
-		normOpts = append(normOpts, fmt.Sprintf("-%s", opt))
-	}
-	return normOpts, nil
+	return launchOpts, nil
 }
 
-func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
-	currentArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
+func getLaunchArgs(logger *zap.Logger, rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
+	userArgs, errUserArgs := getUserLaunchArgs(logger, steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}
-	newArgs := []string{
+	bdArgs := []string{
 		"-game", "tf",
 		"-noreactlogin", // needed for vac to load as of late 2022?
 		"-steam",
@@ -79,9 +74,26 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		"-condebug",
 		"-conclearlog",
 	}
-	var out []string
-	for _, arg := range append(currentArgs, newArgs...) {
-		out = append(out, strings.Trim(arg, " "))
+	var full []string
+	for _, arg := range append(bdArgs, userArgs...) {
+		arg = strings.Trim(arg, " ")
+		if !strings.HasSuffix(arg, "-") || strings.HasPrefix(arg, "+") {
+			full = append(full, arg)
+			continue
+		}
+		alreadyKnown := false
+		for _, known := range full {
+			if known == arg {
+				// duplicate arg
+				alreadyKnown = true
+				break
+			}
+		}
+		if alreadyKnown {
+			continue
+		}
+		full = append(full, arg)
 	}
-	return out, nil
+
+	return full, nil
 }

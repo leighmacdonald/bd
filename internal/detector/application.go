@@ -312,6 +312,7 @@ func (bd *BD) LaunchGameAndWait() {
 	}
 	rconConfig := bd.settings.GetRcon()
 	args, errArgs := getLaunchArgs(
+		bd.logger,
 		rconConfig.Password(),
 		rconConfig.Port(),
 		bd.settings.GetSteamDir(),
