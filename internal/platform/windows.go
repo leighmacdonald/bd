@@ -4,7 +4,6 @@ package platform
 
 import (
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/golib"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -49,7 +48,7 @@ func getTF2Folder() (string, error) {
 		return "", errRoot
 	}
 	libPath := filepath.Join(steamRoot, "steamapps", "libraryfolders.vdf")
-	if !golib.Exists(libPath) {
+	if !util.Exists(libPath) {
 		return "", errors.New("Could not find libraryfolders.vdf")
 	}
 	openVDF, errOpen := os.Open(libPath)
@@ -114,7 +113,7 @@ func IsGameRunning() (bool, error) {
 
 func init() {
 	foundSteamRoot, errFoundSteamRoot := getSteamRoot()
-	if errFoundSteamRoot == nil && golib.Exists(foundSteamRoot) {
+	if errFoundSteamRoot == nil && util.Exists(foundSteamRoot) {
 		DefaultSteamRoot = foundSteamRoot
 		tf2Dir, errTf2Dir := getTF2Folder()
 		if errTf2Dir == nil {

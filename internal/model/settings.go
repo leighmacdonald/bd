@@ -411,7 +411,7 @@ func NewSettings() (*Settings, error) {
 		RCONStatic: false,
 		rcon:       NewRconConfig(false),
 	}
-	if !golib.Exists(settings.ListRoot()) {
+	if !util.Exists(settings.ListRoot()) {
 		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
 			return nil, errors.Wrap(err, "Failed to initialize Settings directory")
 		}
@@ -461,7 +461,7 @@ func (s *Settings) LocalRulesListPath() string {
 }
 
 func (s *Settings) ReadFilePath(filePath string) error {
-	if !golib.Exists(filePath) {
+	if !util.Exists(filePath) {
 		// Use defaults
 		s.ConfigPath = filePath
 		return errConfigNotFound

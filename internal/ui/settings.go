@@ -10,7 +10,7 @@ import (
 	clone "github.com/huandu/go-clone/generic"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
-	"github.com/leighmacdonald/golib"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/leighmacdonald/steamweb"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -83,19 +83,19 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 	steamDirEntry := widget.NewEntryWithData(binding.BindString(&settings.SteamDir))
 	steamDirEntry.Validator = func(newRoot string) error {
 		if len(newRoot) > 0 {
-			if !golib.Exists(newRoot) {
+			if !util.Exists(newRoot) {
 				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_path", Other: "Invalid Path"}})
 				return errors.New(msg)
 			}
 			userDataDir := filepath.Join(newRoot, "userdata")
-			if !golib.Exists(userDataDir) {
+			if !util.Exists(userDataDir) {
 				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 					DefaultMessage: &i18n.Message{ID: "error_invalid_steam_dir_user_data", Other: "Could not find userdata folder"}})
 				return errors.New(msg)
 			}
 			if tf2RootEntry.Text == "" {
 				dp := filepath.Join(newRoot, "steamapps/common/Team Fortress 2/tf")
-				if errValid := validateSteamRoot(dp); errValid == nil && golib.Exists(dp) {
+				if errValid := validateSteamRoot(dp); errValid == nil && util.Exists(dp) {
 					tf2RootEntry.SetText(dp)
 				}
 			}

@@ -15,7 +15,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/tr"
-	"github.com/leighmacdonald/golib"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
@@ -223,12 +223,12 @@ func validateSteamId(steamId string) error {
 }
 func validateSteamRoot(newRoot string) error {
 	if len(newRoot) > 0 {
-		if !golib.Exists(newRoot) {
+		if !util.Exists(newRoot) {
 			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_invalid_path", Other: "Invalid Path"}})
 			return errors.New(msg)
 		}
 		fp := filepath.Join(newRoot, platform.TF2RootValidationFile)
-		if !golib.Exists(fp) {
+		if !util.Exists(fp) {
 			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				DefaultMessage: &i18n.Message{
 					ID:    "error_invalid_path",

@@ -3,7 +3,7 @@ package addons
 import (
 	"embed"
 	"fmt"
-	"github.com/leighmacdonald/golib"
+	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"io/fs"
 	"os"
@@ -19,7 +19,7 @@ const addonNameEraser = "aaaaaaaaaa_votefailed_eraser_v2"
 
 func Install(tf2dir string) error {
 	wrapperPath := filepath.Join(tf2dir, "custom", chatWrapperName)
-	if golib.Exists(wrapperPath) {
+	if util.Exists(wrapperPath) {
 		if errDelete := os.RemoveAll(wrapperPath); errDelete != nil {
 			return errors.Wrapf(errDelete, "Failed to remove tf2bd chat wrappers")
 		}
