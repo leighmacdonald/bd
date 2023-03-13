@@ -63,7 +63,6 @@ func getLaunchArgs(logger *zap.Logger, rconPass string, rconPort uint16, steamRo
 		"-steam",
 		"-secure",
 		"-usercon",
-		"+developer", "1", "+alias", "developer",
 		"+ip", "0.0.0.0", "+alias", "ip",
 		"+sv_rcon_whitelist_address", "127.0.0.1",
 		"+sv_quota_stringcmdspersecond", "1000000",
