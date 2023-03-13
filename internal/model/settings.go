@@ -517,9 +517,9 @@ func (s *Settings) Write(outputFile io.Writer) error {
 }
 
 const (
-	rconDefaultHost     = "0.0.0.0"
-	rconDefaultPort     = 21212
-	rconDefaultPassword = "pazer_sux_lol"
+	rconDefaultListenAddr = "127.0.0.1"
+	rconDefaultPort       = 21212
+	rconDefaultPassword   = "pazer_sux_lol"
 )
 
 type RCONConfig struct {
@@ -563,13 +563,13 @@ type RCONConfigProvider interface {
 func NewRconConfig(static bool) RCONConfigProvider {
 	if static {
 		return RCONConfig{
-			address:  rconDefaultHost,
+			address:  rconDefaultListenAddr,
 			port:     rconDefaultPort,
 			password: rconDefaultPassword,
 		}
 	}
 	return RCONConfig{
-		address:  rconDefaultHost,
+		address:  rconDefaultListenAddr,
 		port:     randPort(),
 		password: golib.RandomString(10),
 	}
