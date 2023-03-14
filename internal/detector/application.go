@@ -9,6 +9,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
+	"github.com/leighmacdonald/bd/internal/state"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
@@ -56,7 +57,6 @@ type BD struct {
 	store              store.DataStore
 	gui                model.UserInterface
 	triggerUpdate      chan any
-	gameStateUpdate    chan updateGameStateEvent
 	cache              cache.FsCache
 	startupTime        time.Time
 	gameHasStartedOnce bool
@@ -80,7 +80,6 @@ func New(logger *zap.Logger, settings *model.Settings, store store.DataStore, ru
 		players:            model.PlayerCollection{},
 		playersMu:          &sync.RWMutex{},
 		triggerUpdate:      make(chan any),
-		gameStateUpdate:    make(chan updateGameStateEvent, 50),
 		cache:              cache,
 		logParser:          newLogParser(logger, logChan, eventChan),
 		startupTime:        time.Now(),
@@ -107,6 +106,7 @@ func (bd *BD) reload() {
 		bd.discordLogout()
 	}
 }
+
 func (bd *BD) Store() store.DataStore {
 	return bd.store
 }
@@ -174,7 +174,7 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 	}
 }
 
-func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error) {
+func fetchAvatar(ctx context.Context, logger *zap.Logger, c cache.Cache, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
 	buf := bytes.NewBuffer(nil)
 	errCache := c.Get(cache.TypeAvatar, hash, buf)
@@ -201,7 +201,7 @@ func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error
 	if bodyErr != nil {
 		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
 	}
-	defer util.LogClose(resp.Body)
+	defer util.LogClose(logger, resp.Body)
 
 	if errSet := c.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
@@ -224,11 +224,11 @@ func (bd *BD) eventHandler() {
 		evt := <-bd.incomingLogEvents
 		switch evt.Type {
 		case model.EvtMap:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
+			state.Update(state.UpdateEvent{Kind: state.Map, Data: state.MapData{Name: evt.MetaData}})
 		case model.EvtHostname:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
+			state.Update(state.UpdateEvent{Kind: state.Hostname, Data: state.HostnameData{Hostname: evt.MetaData}})
 		case model.EvtTags:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
+			state.Update(state.UpdateEvent{Kind: state.Tags, Data: state.TagsData{Tags: strings.Split(evt.MetaData, ",")}})
 		case model.EvtAddress:
 			pcs := strings.Split(evt.MetaData, ":")
 			portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
@@ -241,45 +241,30 @@ func (bd *BD) eventHandler() {
 				bd.logger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
 				continue
 			}
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
+			state.Update(state.UpdateEvent{Kind: state.Address, Data: state.AddressData{Ip: ip, Port: uint16(portValue)}})
 		case model.EvtDisconnect:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   changeMap,
-				source: evt.PlayerSID,
-				data:   mapChangeEvent{},
-			}
+			//state.Update(state.UpdateEvent{Kind: state.changeMap, source: evt.PlayerSID, data: state.mapChangeEvent{}})
 		case model.EvtKill:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateKill,
-				source: evt.PlayerSID,
-				data:   killEvent{victimName: evt.Victim, sourceName: evt.Player},
-			}
+			state.Update(state.UpdateEvent{Kind: state.Kill, Source: evt.PlayerSID, Data: state.KillData{VictimName: evt.Victim, SourceName: evt.Player}})
 		case model.EvtMsg:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateMessage,
-				source: evt.PlayerSID,
-				data: messageEvent{
-					name:      evt.Player,
-					createdAt: evt.Timestamp,
-					message:   evt.Message,
-					teamOnly:  evt.TeamOnly,
-					dead:      evt.Dead,
-				},
-			}
+			state.Update(state.UpdateEvent{
+				Kind:   state.Message,
+				Source: evt.PlayerSID,
+				Data:   state.MessageData{Name: evt.Player, CreatedAt: evt.Timestamp, Message: evt.Message, TeamOnly: evt.TeamOnly, Dead: evt.Dead}})
 		case model.EvtStatusId:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateStatus,
-				source: evt.PlayerSID,
-				data: statusEvent{
-					playerSID: evt.PlayerSID,
-					ping:      evt.PlayerPing,
-					userID:    evt.UserId,
-					name:      evt.Player,
-					connected: evt.PlayerConnected,
+			state.Update(state.UpdateEvent{
+				Kind:   state.Status,
+				Source: evt.PlayerSID,
+				Data: state.StatusData{
+					PlayerSID: evt.PlayerSID,
+					Ping:      evt.PlayerPing,
+					UserID:    evt.UserId,
+					Name:      evt.Player,
+					Connected: evt.PlayerConnected,
 				},
-			}
+			})
 		case model.EvtLobby:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
+			state.Update(state.UpdateEvent{Kind: state.Lobby, Source: evt.PlayerSID, Data: state.LobbyData{Team: evt.Team}})
 		}
 	}
 }
@@ -328,122 +313,43 @@ func (bd *BD) LaunchGameAndWait() {
 }
 
 func (bd *BD) OnUnMark(sid64 steamid.SID64) error {
-	bd.gameStateUpdate <- updateGameStateEvent{
-		kind:   updateMark,
-		source: bd.settings.GetSteamId(),
-		data: updateMarkEvent{
-			target: sid64,
-			delete: true,
+	state.Update(state.UpdateEvent{
+		Kind:   state.Mark,
+		Source: bd.settings.GetSteamId(),
+		Data: state.MarkData{
+			Target: sid64,
+			Delete: true,
 		},
-	}
+	})
 	return nil
 }
 
 func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
-	bd.gameStateUpdate <- updateGameStateEvent{
-		kind:   updateMark,
-		source: bd.settings.GetSteamId(),
-		data: updateMarkEvent{
-			target: sid64,
-			attrs:  attrs,
+	state.Update(state.UpdateEvent{
+		Kind:   state.Mark,
+		Source: bd.settings.GetSteamId(),
+		Data: state.MarkData{
+			Target: sid64,
+			Attrs:  attrs,
 		},
-	}
+	})
 	return nil
 }
 
 func (bd *BD) OnWhitelist(sid64 steamid.SID64, enabled bool) error {
-	bd.gameStateUpdate <- updateGameStateEvent{
-		kind:   updateWhitelist,
-		source: bd.settings.GetSteamId(),
-		data: updateWhitelistEvent{
-			target:  sid64,
-			enabled: enabled,
+	state.Update(state.UpdateEvent{
+		Kind:   state.Whitelist,
+		Source: bd.settings.GetSteamId(),
+		Data: state.WhitelistData{
+			Target:  sid64,
+			Enabled: enabled,
 		},
-	}
+	})
 	return nil
 }
 
-type updateType int
-
-const (
-	updateKill updateType = iota
-	updateProfile
-	updateBans
-	updateStatus
-	updateMark
-	updateMessage
-	updateLobby
-	updateMap
-	updateHostname
-	updateTags
-	updateAddress
-	updateWhitelist
-	changeMap
-)
-
-type killEvent struct {
-	sourceName string
-	victimName string
-}
-
-type lobbyEvent struct {
-	team model.Team
-}
-
-type statusEvent struct {
-	playerSID steamid.SID64
-	ping      int
-	userID    int64
-	name      string
-	connected time.Duration
-}
-
-type updateGameStateEvent struct {
-	kind   updateType
-	source steamid.SID64
-	data   any
-}
-
-type updateMarkEvent struct {
-	target steamid.SID64
-	attrs  []string
-	delete bool
-}
-
-type updateWhitelistEvent struct {
-	target  steamid.SID64
-	enabled bool
-}
-
-type messageEvent struct {
-	name      string
-	createdAt time.Time
-	message   string
-	teamOnly  bool
-	dead      bool
-}
-
-type hostnameEvent struct {
-	hostname string
-}
-
-type mapEvent struct {
-	mapName string
-}
-
-type mapChangeEvent struct{}
-
-type tagsEvent struct {
-	tags []string
-}
-
-type addressEvent struct {
-	ip   net.IP
-	port uint16
-}
-
-func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, error) {
-	var results []updateGameStateEvent
+func fetchSteamWebUpdates(updates steamid.Collection) ([]state.UpdateEvent, error) {
+	var results []state.UpdateEvent
 	summaries, errSummaries := steamweb.PlayerSummaries(updates)
 	if errSummaries != nil {
 		return nil, errors.Wrap(errSummaries, "Failed to fetch summaries: %v\n")
@@ -453,10 +359,10 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, e
 		if errSid != nil {
 			return nil, errors.Wrap(errSid, "Invalid sid from steam api?")
 		}
-		results = append(results, updateGameStateEvent{
-			kind:   updateProfile,
-			source: sid,
-			data:   sum,
+		results = append(results, state.UpdateEvent{
+			Kind:   state.Profile,
+			Source: sid,
+			Data:   sum,
 		})
 	}
 	bans, errBans := steamweb.GetPlayerBans(updates)
@@ -468,10 +374,10 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, e
 		if errSid != nil {
 			return nil, errors.Wrap(errSummaries, "Invalid sid from api?: %v\n")
 		}
-		results = append(results, updateGameStateEvent{
-			kind:   updateBans,
-			source: sid,
-			data:   ban,
+		results = append(results, state.UpdateEvent{
+			Kind:   state.Bans,
+			Source: sid,
+			Data:   ban,
 		})
 	}
 	return results, nil
@@ -492,6 +398,7 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 				bd.logParser.ReadChannel <- line
 			}
 		case <-ctx.Done():
+			bd.logger.Info("statusUpdater exited")
 			return
 		}
 	}
@@ -563,13 +470,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			if errUpdates != nil {
 				continue
 			}
-			for _, r := range results {
-				select {
-				case bd.gameStateUpdate <- r:
-				default:
-					bd.logger.Error("Game update channel full")
-				}
-			}
+			state.Update(results...)
 			queuedUpdates = nil
 		case <-checkTimer.C:
 			p := bd.GetPlayer(bd.settings.GetSteamId())
@@ -606,7 +507,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			if p == nil || p.AvatarHash == "" {
 				continue
 			}
-			avatar, errDownload := fetchAvatar(ctx, bd.cache, p.AvatarHash)
+			avatar, errDownload := fetchAvatar(ctx, bd.logger, bd.cache, p.AvatarHash)
 			if errDownload != nil {
 				bd.logger.Error("Failed to download avatar", zap.String("hash", p.AvatarHash), zap.Error(errDownload))
 				continue
@@ -617,46 +518,46 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			var sourcePlayer *model.Player
 			if update.source.Valid() {
 				sourcePlayer = bd.GetPlayer(update.source)
-				if sourcePlayer == nil && update.kind != updateStatus && update.kind != updateMark {
+				if sourcePlayer == nil && update.kind != state.updateStatus && update.kind != state.updateMark {
 					// Only register a new user to track once we received a status line
 					continue
 				}
 			}
 			switch update.kind {
-			case updateMessage:
-				if errUm := bd.onUpdateMessage(ctx, update.data.(messageEvent), bd.store); errUm != nil {
+			case state.updateMessage:
+				if errUm := bd.onUpdateMessage(ctx, update.data.(state.messageEvent), bd.store); errUm != nil {
 					bd.logger.Error("Failed to handle user message", zap.Error(errUm))
 					continue
 				}
-			case updateKill:
-				bd.onUpdateKill(update.data.(killEvent))
-			case updateBans:
+			case state.updateKill:
+				bd.onUpdateKill(update.data.(state.killEvent))
+			case state.updateBans:
 				bd.onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
-			case updateProfile:
+			case state.updateProfile:
 				bd.onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
 				queueAvatars <- update.source
-			case updateStatus:
-				if errUpdate := bd.onUpdateStatus(ctx, bd.store, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
+			case state.updateStatus:
+				if errUpdate := bd.onUpdateStatus(ctx, bd.store, update.source, update.data.(state.statusEvent), &queuedUpdates); errUpdate != nil {
 					bd.logger.Error("updateStatus error", zap.Error(errUpdate))
 				}
-			case updateMark:
-				d := update.data.(updateMarkEvent)
+			case state.updateMark:
+				d := update.data.(state.updateMarkEvent)
 				if errUpdate := bd.onUpdateMark(d); errUpdate != nil {
 					bd.logger.Error("updateMark error", zap.Error(errUpdate))
 				}
-			case updateWhitelist:
-				if errUpdate := bd.onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
+			case state.updateWhitelist:
+				if errUpdate := bd.onUpdateWhitelist(update.data.(state.updateWhitelistEvent)); errUpdate != nil {
 					bd.logger.Error("updateWhitelist error", zap.Error(errUpdate))
 				}
-			case updateLobby:
-				bd.onUpdateLobby(update.source, update.data.(lobbyEvent))
-			case updateTags:
-				bd.onUpdateTags(update.data.(tagsEvent))
-			case updateHostname:
-				bd.onUpdateHostname(update.data.(hostnameEvent))
-			case updateMap:
-				bd.onUpdateMap(update.data.(mapEvent))
-			case changeMap:
+			case state.updateLobby:
+				bd.onUpdateLobby(update.source, update.data.(state.lobbyEvent))
+			case state.updateTags:
+				bd.onUpdateTags(update.data.(state.tagsEvent))
+			case state.updateHostname:
+				bd.onUpdateHostname(update.data.(state.hostnameEvent))
+			case state.updateMap:
+				bd.onUpdateMap(update.data.(state.mapEvent))
+			case state.changeMap:
 				bd.onMapChange()
 			}
 			queueUpdate = true
@@ -664,7 +565,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 	}
 }
 
-func (bd *BD) onUpdateTags(event tagsEvent) {
+func (bd *BD) onUpdateTags(event state.tagsEvent) {
 	bd.serverMu.Lock()
 	bd.server.Tags = event.tags
 	bd.server.LastUpdate = time.Now()
@@ -674,13 +575,13 @@ func (bd *BD) onUpdateTags(event tagsEvent) {
 	bd.serverMu.RUnlock()
 }
 
-func (bd *BD) onUpdateMap(event mapEvent) {
+func (bd *BD) onUpdateMap(event state.mapEvent) {
 	bd.serverMu.Lock()
 	bd.server.CurrentMap = event.mapName
 	bd.serverMu.Unlock()
 }
 
-func (bd *BD) onUpdateHostname(event hostnameEvent) {
+func (bd *BD) onUpdateHostname(event state.hostnameEvent) {
 	bd.serverMu.Lock()
 	bd.server.ServerName = event.hostname
 	bd.serverMu.Unlock()
@@ -697,7 +598,7 @@ func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID
 	return 0
 }
 
-func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
+func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt state.lobbyEvent) {
 	player := bd.GetPlayer(steamID)
 	if player != nil {
 		bd.playersMu.Lock()
@@ -706,7 +607,7 @@ func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStore) error {
+func (bd *BD) onUpdateMessage(ctx context.Context, msg state.messageEvent, store store.DataStore) error {
 	player := bd.getPlayerByName(msg.name)
 	if player == nil {
 		return errors.Errorf("Unknown name: %v", msg.name)
@@ -735,7 +636,7 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 	return nil
 }
 
-func (bd *BD) onUpdateKill(kill killEvent) {
+func (bd *BD) onUpdateKill(kill state.killEvent) {
 	source := bd.nameToSid(bd.players, kill.sourceName)
 	target := bd.nameToSid(bd.players, kill.victimName)
 	if !source.Valid() || !target.Valid() {
@@ -798,7 +699,7 @@ func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSumm
 	player.Touch()
 }
 
-func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
+func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update state.statusEvent, queuedUpdates *steamid.Collection) error {
 	player := bd.GetPlayer(steamID)
 	if player == nil {
 		player = model.NewPlayer(steamID, update.name)
@@ -827,7 +728,7 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 	return nil
 }
 
-func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
+func (bd *BD) onUpdateWhitelist(event state.updateWhitelistEvent) error {
 	player := bd.GetPlayer(event.target)
 	if player == nil {
 		return errors.New("Unknown player, cannot update whitelist")
@@ -841,7 +742,7 @@ func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 	return nil
 }
 
-func (bd *BD) onUpdateMark(status updateMarkEvent) error {
+func (bd *BD) onUpdateMark(status state.updateMarkEvent) error {
 	player := bd.GetPlayer(status.target)
 	if player == nil {
 		player = model.NewPlayer(status.target, "")
@@ -880,7 +781,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		bd.logger.Error("Failed to export player list", zap.Error(errExport))
 	}
-	util.LogClose(of)
+	util.LogClose(bd.logger, of)
 	return nil
 }
 
@@ -996,7 +897,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 
 func (bd *BD) connectRcon(ctx context.Context) error {
 	if bd.rconConnection != nil {
-		util.LogClose(bd.rconConnection)
+		util.LogClose(bd.logger, bd.rconConnection)
 	}
 	rconConfig := bd.settings.GetRcon()
 	conn, errConn := rcon.Dial(ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
@@ -1065,12 +966,12 @@ func (bd *BD) processChecker(ctx context.Context) {
 // Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
-		util.LogClose(bd.rconConnection)
+		util.LogClose(bd.logger, bd.rconConnection)
 	}
 	if bd.settings.GetDiscordPresenceEnabled() {
 		client.Logout()
 	}
-	util.LogClose(bd.store)
+	util.LogClose(bd.logger, bd.store)
 	bd.logger.Info("Goodbye")
 }
 

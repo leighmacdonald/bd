@@ -1,8 +1,8 @@
 package util
 
 import (
+	"go.uber.org/zap"
 	"io"
-	"log"
 	"os"
 )
 
@@ -13,9 +13,9 @@ func Exists(filePath string) bool {
 	return true
 }
 
-func LogClose(closer io.Closer) {
+func LogClose(logger *zap.Logger, closer io.Closer) {
 	if errClose := closer.Close(); errClose != nil {
-		log.Printf("Error trying to close: %v\n", errClose)
+		logger.Error("Error trying to close: %v\n", zap.Error(errClose))
 	}
 }
 

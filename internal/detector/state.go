@@ -9,7 +9,9 @@ import (
 )
 
 func updatePlayerState(ctx context.Context, address string, password string) (string, error) {
-	conn, errConn := rcon.Dial(ctx, address, password, model.DurationRCONRequestTimeout)
+	localCtx, cancel := context.WithTimeout(ctx, model.DurationRCONRequestTimeout)
+	defer cancel()
+	conn, errConn := rcon.Dial(localCtx, address, password, model.DurationRCONRequestTimeout)
 	if errConn != nil {
 		return "", errors.Wrap(errConn, "Failed to connect to client")
 	}

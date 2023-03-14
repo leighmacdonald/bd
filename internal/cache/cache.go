@@ -72,7 +72,7 @@ func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 	if errOf != nil {
 		return errOf
 	}
-	defer util.LogClose(of)
+	defer util.LogClose(cache.logger, of)
 	if _, errWrite := io.Copy(of, value); errWrite != nil {
 		return errWrite
 	}
@@ -84,7 +84,7 @@ func (cache FsCache) Get(ct Type, key string, receiver io.Writer) error {
 	if errOf != nil {
 		return ErrCacheExpired
 	}
-	defer util.LogClose(of)
+	defer util.LogClose(cache.logger, of)
 
 	stat, errStat := of.Stat()
 	if errStat != nil {

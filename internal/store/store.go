@@ -13,6 +13,7 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -34,12 +35,13 @@ type DataStore interface {
 }
 
 type SqliteStore struct {
-	db  *sql.DB
-	dsn string
+	db     *sql.DB
+	dsn    string
+	logger *zap.Logger
 }
 
-func New(dsn string) *SqliteStore {
-	return &SqliteStore{dsn: dsn}
+func New(dsn string, logger *zap.Logger) *SqliteStore {
+	return &SqliteStore{dsn: dsn, logger: logger}
 }
 
 func (store *SqliteStore) Close() error {
@@ -212,7 +214,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 	if rowErr != nil {
 		return nil, rowErr
 	}
-	defer util.LogClose(rows)
+	defer util.LogClose(store.logger, rows)
 	var col model.PlayerCollection
 	for rows.Next() {
 		var prevName *string
@@ -323,7 +325,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		}
 		return nil, errQuery
 	}
-	defer util.LogClose(rows)
+	defer util.LogClose(store.logger, rows)
 	var hist model.UserNameHistoryCollection
 	for rows.Next() {
 		var h model.UserNameHistory
@@ -351,7 +353,7 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		return nil, errQuery
 	}
-	defer util.LogClose(rows)
+	defer util.LogClose(store.logger, rows)
 	var messages model.UserMessageCollection
 	for rows.Next() {
 		var m model.UserMessage
