@@ -8,14 +8,15 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
-var logged bool
+var logged atomic.Bool
 var logger *zap.Logger
 
 func Login(clientID string) error {
-	if !logged {
+	if !logged.Load() {
 		payload, errMarshal := json.Marshal(Handshake{"1", clientID})
 		if errMarshal != nil {
 			return errMarshal
@@ -28,17 +29,17 @@ func Login(clientID string) error {
 			return errSend
 		}
 	}
-	logged = true
+	logged.Store(true)
 	return nil
 }
 
 func Logout() error {
-	logged = false
+	logged.Store(false)
 	return ipc.Close()
 }
 
 func SetActivity(activity Activity) error {
-	if !logged {
+	if !logged.Load() {
 		return nil
 	}
 	nonce, errNonce := getNonce()

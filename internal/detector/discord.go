@@ -192,6 +192,7 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 						bd.logger.Error("Failed to logout of discord client", zap.Error(errLogout))
 						// continue?
 					}
+					isRunning = false
 				}
 				continue
 			}

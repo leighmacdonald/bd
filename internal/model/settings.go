@@ -237,6 +237,12 @@ func (s *Settings) GetAutoLaunchGame() bool {
 	return s.AutoLaunchGame
 }
 
+func (s *Settings) SetDiscordPresenceEnabled(enabled bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.DiscordPresenceEnabled = enabled
+}
+
 func (s *Settings) GetDiscordPresenceEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()

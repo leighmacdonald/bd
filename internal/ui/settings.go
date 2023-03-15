@@ -262,6 +262,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 		origSettings.SetAutoLaunchGame(autoLaunchGameEntry.Checked)
 		origSettings.SetVoiceBansEnabled(voiceBanEnabledEntry.Checked)
 		origSettings.SetDebugLogEnabled(debugLogEnabledEntry.Checked)
+		origSettings.SetDiscordPresenceEnabled(discordPresenceEnabledEntry.Checked)
 		origSettings.SetLinks(settings.GetLinks())
 		origSettings.SetLists(settings.GetLists())
 
