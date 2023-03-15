@@ -23,7 +23,7 @@ jobs:
         run: make check_deps
 
       - name: Lint golangci-lint
-        run: make link_golangci
+        run: make lint_golangci
 
       - name: Lint vet
         run: make lint_vet
@@ -38,7 +38,7 @@ jobs:
         run: make lint_golint
 
       - name: Lint static
-        run: make link_golangci
+        run: make static
 
   test:
     runs-on: ubuntu-latest
