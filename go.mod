@@ -1,6 +1,6 @@
 module github.com/leighmacdonald/bd
 
-go 1.19
+go 1.20
 
 require (
 	fyne.io/fyne/v2 v2.3.1
@@ -8,7 +8,6 @@ require (
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/huandu/go-clone/generic v1.5.1
-	github.com/hugolgst/rich-go v0.0.0-20210925091458-d59fb695d9c0
 	github.com/jeandeaual/go-locale v0.0.0-20220711133428-7de61946b173
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/leighmacdonald/golib v1.1.0
@@ -25,6 +24,7 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/sys v0.6.0
 	golang.org/x/text v0.8.0
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -85,10 +85,9 @@ require (
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	honnef.co/go/js/dom v0.0.0-20221001195520-26252dedbe70 // indirect
-	lukechampine.com/uint128 v1.2.0 // indirect
+	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
 	modernc.org/ccgo/v3 v3.16.13 // indirect
 	modernc.org/libc v1.22.3 // indirect

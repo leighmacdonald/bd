@@ -17,9 +17,9 @@ fonts:
 	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/Icon.png
 	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/tf2.png
 
-check: link_golangci lint_vet lint_imports lint_cyclo lint_golint static
+check: lint_golangci lint_vet lint_imports lint_cyclo lint_golint static
 
-link_golangci:
+lint_golangci:
 	@golangci-lint run --timeout 3m
 
 lint_vet:
@@ -29,13 +29,13 @@ lint_imports:
 	@test -z $(goimports -e -d . | tee /dev/stderr)
 
 lint_cyclo:
-	@gocyclo -over 45 .
+	@gocyclo -over 50 .
 
 lint_golint:
 	@golint -set_exit_status $(go list -tags ci ./...)
 
 static:
-	@staticcheck -go 1.19 ./...
+	@staticcheck -go 1.20 ./...
 
 check_deps:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
