@@ -38,6 +38,7 @@ func mustCreateLogger(logFile string) *zap.Logger {
 			}
 		}
 		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
+		loggingConfig.Level.SetLevel(zap.DebugLevel)
 	}
 	logger, errLogger := loggingConfig.Build()
 	if errLogger != nil {
@@ -121,7 +122,7 @@ func main() {
 	fileSystemCache := cache.New(logger, settings.ConfigRoot(), model.DurationCacheTimeout)
 
 	bd := detector.New(ctx, logger, settings, dataStore, engine, fileSystemCache)
-
+	//bd.Start(ctx)
 	gui := ui.New(ctx, logger, &bd, settings, versionInfo)
 	gui.Start(ctx)
 }

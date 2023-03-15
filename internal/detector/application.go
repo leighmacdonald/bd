@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/hugolgst/rich-go/client"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/model"
@@ -64,7 +63,6 @@ type BD struct {
 	cache              cache.FsCache
 	startupTime        time.Time
 	gameHasStartedOnce bool
-	richPresenceActive bool
 	logger             *zap.Logger
 	gameProcessActive  *atomic.Bool
 }
@@ -98,8 +96,6 @@ func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, stor
 
 	rootApp.createLogReader()
 
-	rootApp.reload()
-
 	return rootApp
 }
 
@@ -107,83 +103,8 @@ func (bd *BD) Settings() *model.Settings {
 	return bd.settings
 }
 
-func (bd *BD) reload() {
-	if errConn := bd.connectRcon(); errConn != nil {
-
-	}
-	if bd.settings.GetDiscordPresenceEnabled() {
-		if errLogin := bd.discordLogin(); errLogin != nil {
-			bd.logger.Error("Failed to login for discord rich presence", zap.Error(errLogin))
-		}
-	} else {
-		bd.discordLogout()
-	}
-}
 func (bd *BD) Store() store.DataStore {
 	return bd.store
-}
-
-const discordAppID = "1076716221162082364"
-
-func (bd *BD) discordLogin() error {
-	if !bd.richPresenceActive {
-		if errLogin := client.Login(discordAppID); errLogin != nil {
-			return errors.Wrap(errLogin, "Failed to login to discord api\n")
-		}
-		bd.richPresenceActive = true
-	}
-	return nil
-}
-
-func (bd *BD) discordLogout() {
-	if bd.richPresenceActive {
-		client.Logout()
-		bd.richPresenceActive = false
-		bd.logger.Info("Discord presence closed")
-	}
-}
-
-func (bd *BD) discordUpdateActivity(cnt int) {
-	if !bd.settings.GetDiscordPresenceEnabled() {
-		return
-	}
-	bd.serverMu.RLock()
-	defer bd.serverMu.RUnlock()
-
-	if errLogin := bd.discordLogin(); errLogin != nil {
-		return
-	}
-	buttons := []*client.Button{
-		{
-			Label: "GitHub",
-			Url:   "https://github.com/leighmacdonald/bd",
-		},
-	}
-	if !bd.server.Addr.IsLinkLocalUnicast() /*SDR*/ && !bd.server.Addr.IsPrivate() {
-		buttons = append(buttons, &client.Button{
-			Label: "Connect",
-			Url:   fmt.Sprintf("steam://connect/%s:%d", bd.server.Addr.String(), bd.server.Port),
-		})
-	}
-	currentMap := discordAssetNameMap(bd.server.CurrentMap)
-	if errSetActivity := client.SetActivity(client.Activity{
-		State:      "In-Game",
-		Details:    bd.server.ServerName,
-		LargeImage: fmt.Sprintf("map_%s", currentMap),
-		LargeText:  currentMap,
-		SmallImage: fmt.Sprintf("map_%s", currentMap),
-		SmallText:  bd.server.CurrentMap,
-		Party: &client.Party{
-			Players:    cnt,
-			MaxPlayers: 24,
-		},
-		Timestamps: &client.Timestamps{
-			Start: &bd.startupTime,
-		},
-		Buttons: buttons,
-	}); errSetActivity != nil {
-		bd.logger.Error("Failed to set discord activity", zap.Error(errSetActivity))
-	}
 }
 
 func (bd *BD) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
@@ -233,65 +154,72 @@ func (bd *BD) createLogReader() {
 
 func (bd *BD) eventHandler() {
 	for {
-		evt := <-bd.incomingLogEvents
-		switch evt.Type {
-		case model.EvtMap:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
-		case model.EvtHostname:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
-		case model.EvtTags:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
-		case model.EvtAddress:
-			pcs := strings.Split(evt.MetaData, ":")
-			portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
-			if errPort != nil {
-				bd.logger.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
-				continue
+		select {
+		case <-bd.ctx.Done():
+			bd.logger.Info("event handler exited")
+			return
+		case evt := <-bd.incomingLogEvents:
+			var update updateGameStateEvent
+			switch evt.Type {
+			case model.EvtMap:
+				update = updateGameStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
+			case model.EvtHostname:
+				update = updateGameStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
+			case model.EvtTags:
+				update = updateGameStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
+			case model.EvtAddress:
+				pcs := strings.Split(evt.MetaData, ":")
+				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
+				if errPort != nil {
+					bd.logger.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
+					continue
+				}
+				ip := net.ParseIP(pcs[0])
+				if ip == nil {
+					bd.logger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
+					continue
+				}
+				update = updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
+			case model.EvtDisconnect:
+				update = updateGameStateEvent{
+					kind:   changeMap,
+					source: evt.PlayerSID,
+					data:   mapChangeEvent{},
+				}
+			case model.EvtKill:
+				update = updateGameStateEvent{
+					kind:   updateKill,
+					source: evt.PlayerSID,
+					data:   killEvent{victimName: evt.Victim, sourceName: evt.Player},
+				}
+			case model.EvtMsg:
+				update = updateGameStateEvent{
+					kind:   updateMessage,
+					source: evt.PlayerSID,
+					data: messageEvent{
+						name:      evt.Player,
+						createdAt: evt.Timestamp,
+						message:   evt.Message,
+						teamOnly:  evt.TeamOnly,
+						dead:      evt.Dead,
+					},
+				}
+			case model.EvtStatusId:
+				update = updateGameStateEvent{
+					kind:   updateStatus,
+					source: evt.PlayerSID,
+					data: statusEvent{
+						playerSID: evt.PlayerSID,
+						ping:      evt.PlayerPing,
+						userID:    evt.UserId,
+						name:      evt.Player,
+						connected: evt.PlayerConnected,
+					},
+				}
+			case model.EvtLobby:
+				update = updateGameStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
 			}
-			ip := net.ParseIP(pcs[0])
-			if ip == nil {
-				bd.logger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
-				continue
-			}
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
-		case model.EvtDisconnect:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   changeMap,
-				source: evt.PlayerSID,
-				data:   mapChangeEvent{},
-			}
-		case model.EvtKill:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateKill,
-				source: evt.PlayerSID,
-				data:   killEvent{victimName: evt.Victim, sourceName: evt.Player},
-			}
-		case model.EvtMsg:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateMessage,
-				source: evt.PlayerSID,
-				data: messageEvent{
-					name:      evt.Player,
-					createdAt: evt.Timestamp,
-					message:   evt.Message,
-					teamOnly:  evt.TeamOnly,
-					dead:      evt.Dead,
-				},
-			}
-		case model.EvtStatusId:
-			bd.gameStateUpdate <- updateGameStateEvent{
-				kind:   updateStatus,
-				source: evt.PlayerSID,
-				data: statusEvent{
-					playerSID: evt.PlayerSID,
-					ping:      evt.PlayerPing,
-					userID:    evt.UserId,
-					name:      evt.Player,
-					connected: evt.PlayerConnected,
-				},
-			}
-		case model.EvtLobby:
-			bd.gameStateUpdate <- updateGameStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
+			bd.gameStateUpdate <- update
 		}
 	}
 }
@@ -314,6 +242,10 @@ func (bd *BD) ExportVoiceBans() error {
 }
 
 func (bd *BD) LaunchGameAndWait() {
+	defer func() {
+		bd.gameProcessActive.Store(false)
+		bd.rconConnection = nil
+	}()
 	if errInstall := addons.Install(bd.settings.GetTF2Dir()); errInstall != nil {
 		bd.logger.Error("Error trying to install addon", zap.Error(errInstall))
 	}
@@ -334,6 +266,14 @@ func (bd *BD) LaunchGameAndWait() {
 		return
 	}
 	bd.gameHasStartedOnce = true
+
+	//go func() {
+	//	time.Sleep(time.Second * 5)
+	//	if errRcon := bd.ensureRcon(); errRcon != nil {
+	//		bd.logger.Error("Failed to create rcon connection")
+	//	}
+	//}()
+
 	if errLaunch := platform.LaunchTF2(bd.logger, bd.settings.GetTF2Dir(), args); errLaunch != nil {
 		bd.logger.Error("Failed to launch game", zap.Error(errLaunch))
 	}
@@ -518,11 +458,7 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 				continue
 			}
 			for _, line := range strings.Split(lobbyStatus, "\n") {
-				select {
-				case bd.logParser.ReadChannel <- line:
-				default:
-					bd.logger.Error("log parser full")
-				}
+				bd.logParser.ReadChannel <- line
 			}
 		case <-ctx.Done():
 			return
@@ -569,14 +505,17 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			return strings.ToLower(bd.players[i].Name) < strings.ToLower(bd.players[j].Name)
 		})
 		bd.playersMu.Unlock()
-		bd.gui.UpdatePlayerState(bd.players)
-		bd.gui.Refresh()
+		if bd.gui != nil {
+			bd.gui.UpdatePlayerState(bd.players)
+			bd.gui.Refresh()
+		}
 		queueUpdate = false
 	}
 
 	for {
 		select {
 		case <-updateTimer.C:
+			bd.logger.Debug("Gui update input received")
 			if queueUpdate {
 				// TODO not necessary?
 				updateUI()
@@ -613,8 +552,8 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			bd.checkPlayerStates(ctx, p.Team)
 			queueUpdate = true
 		case <-deleteTimer.C:
-			bd.playersMu.Lock()
-			var valid []*model.Player
+			bd.logger.Debug("Delete update input received", zap.String("state", "start"))
+			var valid model.PlayerCollection
 			expired := 0
 			for _, ps := range bd.players {
 				if ps.IsExpired() {
@@ -626,15 +565,20 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 					valid = append(valid, ps)
 				}
 			}
+
+			bd.playersMu.Lock()
 			bd.players = valid
 			bd.playersMu.Unlock()
 			if expired > 0 {
 				bd.logger.Debug("Flushing expired players", zap.Int("count", expired))
 			}
 			queueUpdate = true
-			bd.discordUpdateActivity(len(valid))
-			bd.gui.UpdatePlayerState(bd.players)
+			if bd.gui != nil {
+				bd.gui.UpdatePlayerState(bd.players)
+			}
+			bd.logger.Debug("Delete update input received", zap.String("state", "end"))
 		case sid64 := <-queueAvatars:
+			bd.logger.Debug("Avatar update input received")
 			p := bd.GetPlayer(sid64)
 			if p == nil || p.AvatarHash == "" {
 				continue
@@ -644,9 +588,12 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				bd.logger.Error("Failed to download avatar", zap.String("hash", p.AvatarHash), zap.Error(errDownload))
 				continue
 			}
-			bd.gui.SetAvatar(sid64, avatar)
+			if bd.gui != nil {
+				bd.gui.SetAvatar(sid64, avatar)
+			}
 			queueUpdate = true
 		case update := <-bd.gameStateUpdate:
+			bd.logger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
 			var sourcePlayer *model.Player
 			if update.source.Valid() {
 				sourcePlayer = bd.GetPlayer(update.source)
@@ -662,7 +609,10 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 					continue
 				}
 			case updateKill:
-				bd.onUpdateKill(update.data.(killEvent))
+				e, ok := update.data.(killEvent)
+				if ok {
+					bd.onUpdateKill(e)
+				}
 			case updateBans:
 				bd.onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
 			case updateProfile:
@@ -693,6 +643,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 				bd.onMapChange()
 			}
 			queueUpdate = true
+			bd.logger.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
 		}
 	}
 }
@@ -702,9 +653,11 @@ func (bd *BD) onUpdateTags(event tagsEvent) {
 	bd.server.Tags = event.tags
 	bd.server.LastUpdate = time.Now()
 	bd.serverMu.Unlock()
-	bd.serverMu.RLock()
-	bd.gui.UpdateServerState(bd.server)
-	bd.serverMu.RUnlock()
+	if bd.gui != nil {
+		bd.serverMu.RLock()
+		bd.gui.UpdateServerState(bd.server)
+		bd.serverMu.RUnlock()
+	}
 }
 
 func (bd *BD) onUpdateMap(event mapEvent) {
@@ -763,8 +716,10 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 	if match := bd.rules.MatchMessage(um.Message); match != nil {
 		bd.triggerMatch(player, match)
 	}
-	bd.gui.AddUserMessage(um)
-	bd.gui.Refresh()
+	if bd.gui != nil {
+		bd.gui.AddUserMessage(um)
+		bd.gui.Refresh()
+	}
 	return nil
 }
 
@@ -943,7 +898,9 @@ func (bd *BD) refreshLists(ctx context.Context) {
 		}
 	}
 	// TODO move
-	bd.gui.UpdateAttributes(bd.rules.UniqueTags())
+	if bd.gui != nil {
+		bd.gui.UpdateAttributes(bd.rules.UniqueTags())
+	}
 }
 
 func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
@@ -972,7 +929,9 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 			ps.Dirty = false
 		}
 	}
-	bd.gui.UpdatePlayerState(bd.players)
+	if bd.gui != nil {
+		bd.gui.UpdatePlayerState(bd.players)
+	}
 }
 
 func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
@@ -1027,9 +986,9 @@ func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
 	bd.playersMu.Unlock()
 }
 
-func (bd *BD) connectRcon() error {
+func (bd *BD) ensureRcon() error {
 	if bd.rconConnection != nil {
-		util.LogClose(bd.logger, bd.rconConnection)
+		return nil
 	}
 	rconConfig := bd.settings.GetRcon()
 	conn, errConn := rcon.Dial(bd.ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
@@ -1041,7 +1000,14 @@ func (bd *BD) connectRcon() error {
 }
 
 func (bd *BD) ready() bool {
-	return bd.gameProcessActive.Load() && bd.rconConnection != nil
+	if !bd.gameProcessActive.Load() {
+		return false
+	}
+	if errRcon := bd.ensureRcon(); errRcon != nil {
+		bd.logger.Debug("RCON is not ready yet", zap.Error(errRcon))
+		return false
+	}
+	return true
 }
 
 func (bd *BD) SendChat(destination model.ChatDest, format string, args ...any) error {
@@ -1092,9 +1058,6 @@ func (bd *BD) processChecker(ctx context.Context) {
 			}
 			if existingState != newState {
 				bd.logger.Info("Game process state changed", zap.Bool("is_running", newState))
-				if newState {
-					bd.reload()
-				}
 			}
 			bd.gameProcessActive.Store(newState)
 			// Handle auto closing the app on game close if enabled
@@ -1114,9 +1077,6 @@ func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
 		util.LogClose(bd.logger, bd.rconConnection)
 	}
-	if bd.settings.GetDiscordPresenceEnabled() {
-		client.Logout()
-	}
 	util.LogClose(bd.logger, bd.store)
 	bd.logger.Info("Goodbye")
 }
@@ -1130,6 +1090,7 @@ func (bd *BD) Start(ctx context.Context) {
 	go bd.gameStateTracker(ctx)
 	go bd.statusUpdater(ctx)
 	go bd.processChecker(ctx)
+	go bd.discordStateUpdater(ctx)
 	if running, errRunning := platform.IsGameRunning(); errRunning == nil && !running {
 		if !bd.gameHasStartedOnce && bd.settings.GetAutoLaunchGame() {
 			go bd.LaunchGameAndWait()

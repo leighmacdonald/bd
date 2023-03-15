@@ -8,6 +8,7 @@ import (
 	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,8 @@ import (
 
 func TestStore(t *testing.T) {
 	tempDbPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-db-%d.sqlite", time.Now().Unix()))
-	impl := New(tempDbPath)
+	logger, _ := zap.NewDevelopment()
+	impl := New(tempDbPath, logger)
 	defer func(store DataStore) {
 		if util.Exists(tempDbPath) {
 			_ = store.Close()

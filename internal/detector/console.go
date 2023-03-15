@@ -193,6 +193,11 @@ func (parser *logParser) start(ctx context.Context) {
 				continue
 			}
 			parser.evtChan <- logEvent
+			//select {
+			//case parser.evtChan <- logEvent:
+			//default:
+			//	parser.logger.Debug("Event channel full")
+			//}
 		case <-ctx.Done():
 			return
 		}
