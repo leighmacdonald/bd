@@ -38,7 +38,7 @@ func mustCreateLogger(logFile string) *zap.Logger {
 			}
 		}
 		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
-		loggingConfig.Level.SetLevel(zap.DebugLevel)
+		//loggingConfig.Level.SetLevel(zap.DebugLevel)
 	}
 	logger, errLogger := loggingConfig.Build()
 	if errLogger != nil {
