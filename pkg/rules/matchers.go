@@ -120,7 +120,7 @@ func newRegexTextMatcher(origin string, matcherType textMatchType, attributes []
 	for _, inputPattern := range patterns {
 		c, compErr := regexp.Compile(inputPattern)
 		if compErr != nil {
-			return regexTextMatcher{}, errors.Wrapf(compErr, "Invalid regex pattern: %s\n", inputPattern)
+			return regexTextMatcher{}, errors.Wrapf(compErr, "Invalid regex pattern: %s", inputPattern)
 		}
 		compiled = append(compiled, c)
 	}

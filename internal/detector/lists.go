@@ -38,7 +38,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConf
 		if errBody != nil {
 			return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
 		}
-		defer util.LogClose(resp.Body)
+		defer util.LogClose(logger, resp.Body)
 		return body, nil
 	}
 	var playerLists []rules.PlayerListSchema

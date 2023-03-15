@@ -124,7 +124,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 	chatEntryData := binding.NewString()
 	messageEntry := widget.NewEntryWithData(chatEntryData)
 	messageEntry.OnSubmitted = func(s string) {
-		showUserError(gcw.bd.SendChat(ctx, model.ChatDest(selected), s), gcw)
+		showUserError(gcw.bd.SendChat(model.ChatDest(selected), s), gcw)
 		_ = chatEntryData.Set("")
 	}
 	bottomContainer := container.NewBorder(
@@ -138,7 +138,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 				if err != nil {
 					return
 				}
-				showUserError(gcw.bd.SendChat(ctx, model.ChatDest(selected), msg), gcw)
+				showUserError(gcw.bd.SendChat(model.ChatDest(selected), msg), gcw)
 				_ = chatEntryData.Set("")
 			})),
 		messageEntry)

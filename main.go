@@ -32,6 +32,11 @@ func mustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
 	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
+		if util.Exists(logFile) {
+			if err := os.Remove(logFile); err != nil {
+				panic(fmt.Sprintf("Failed to remove log file: %v", err))
+			}
+		}
 		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
 	}
 	logger, errLogger := loggingConfig.Build()
@@ -86,7 +91,7 @@ func main() {
 			} else {
 				logger.Debug("Loaded local player list", zap.Int("count", len(localPlayersList.Players)))
 			}
-			util.LogClose(input)
+			util.LogClose(logger, input)
 		}
 	}
 	if util.Exists(settings.LocalRulesListPath()) {
@@ -99,7 +104,7 @@ func main() {
 			} else {
 				logger.Debug("Loaded local rules list", zap.Int("count", len(localRules.Rules)))
 			}
-			util.LogClose(input)
+			util.LogClose(logger, input)
 		}
 	}
 	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
@@ -107,15 +112,15 @@ func main() {
 		logger.Panic("Failed to setup rules engine", zap.Error(ruleEngineErr))
 	}
 
-	dataStore := store.New(settings.DBPath())
+	dataStore := store.New(settings.DBPath(), logger)
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
 		logger.Panic("Failed to migrate database", zap.Error(errMigrate))
 	}
-	defer util.LogClose(dataStore)
+	defer util.LogClose(logger, dataStore)
 
 	fileSystemCache := cache.New(logger, settings.ConfigRoot(), model.DurationCacheTimeout)
 
-	bd := detector.New(logger, settings, dataStore, engine, fileSystemCache)
+	bd := detector.New(ctx, logger, settings, dataStore, engine, fileSystemCache)
 
 	gui := ui.New(ctx, logger, &bd, settings, versionInfo)
 	gui.Start(ctx)

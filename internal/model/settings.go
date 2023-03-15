@@ -470,7 +470,7 @@ func (s *Settings) ReadFilePath(filePath string) error {
 	if errOpen != nil {
 		return errOpen
 	}
-	defer util.LogClose(settingsFile)
+	defer util.IgnoreClose(settingsFile)
 	if errRead := s.Read(settingsFile); errRead != nil {
 		return errRead
 	}
@@ -506,7 +506,7 @@ func (s *Settings) WriteFilePath(filePath string) error {
 	if errOpen != nil {
 		return errors.Wrapf(errOpen, "Failed to open Settings file for writing")
 	}
-	defer util.LogClose(settingsFile)
+	defer util.IgnoreClose(settingsFile)
 	return s.Write(settingsFile)
 }
 

@@ -70,7 +70,7 @@ const (
 	KickReasonOther    KickReason = "other"
 )
 
-type KickFunc func(ctx context.Context, userId int64, reason KickReason) error
+type KickFunc func(userId int64, reason KickReason) error
 
 type ChatDest string
 
@@ -80,7 +80,7 @@ const (
 	ChatDestParty ChatDest = "party"
 )
 
-type ChatFunc func(ctx context.Context, destination ChatDest, format string, args ...any) error
+type ChatFunc func(destination ChatDest, format string, args ...any) error
 
 type LaunchFunc func()
 

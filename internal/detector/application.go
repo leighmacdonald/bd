@@ -27,8 +27,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+var ErrInvalidReadyState = errors.New("Invalid ready state")
 
 // BD is the main application container
 type BD struct {
@@ -42,6 +45,7 @@ type BD struct {
 	// - track history of interactions with players
 	// - colourise messages that trigger
 	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
+	ctx                context.Context // TODO detach from struct
 	logChan            chan string
 	incomingLogEvents  chan model.LogEvent
 	server             model.Server
@@ -62,14 +66,16 @@ type BD struct {
 	gameHasStartedOnce bool
 	richPresenceActive bool
 	logger             *zap.Logger
+	gameProcessActive  *atomic.Bool
 }
 
 // New allocates a new bot detector application instance
-func New(logger *zap.Logger, settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
+func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	isRunning, _ := platform.IsGameRunning()
 	rootApp := BD{
+		ctx:                ctx,
 		logger:             logger,
 		store:              store,
 		rules:              rules,
@@ -85,7 +91,10 @@ func New(logger *zap.Logger, settings *model.Settings, store store.DataStore, ru
 		logParser:          newLogParser(logger, logChan, eventChan),
 		startupTime:        time.Now(),
 		gameHasStartedOnce: isRunning,
+		gameProcessActive:  &atomic.Bool{},
 	}
+
+	rootApp.gameProcessActive.Store(isRunning)
 
 	rootApp.createLogReader()
 
@@ -99,6 +108,9 @@ func (bd *BD) Settings() *model.Settings {
 }
 
 func (bd *BD) reload() {
+	if errConn := bd.connectRcon(); errConn != nil {
+
+	}
 	if bd.settings.GetDiscordPresenceEnabled() {
 		if errLogin := bd.discordLogin(); errLogin != nil {
 			bd.logger.Error("Failed to login for discord rich presence", zap.Error(errLogin))
@@ -174,10 +186,10 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 	}
 }
 
-func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error) {
+func (bd *BD) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
 	buf := bytes.NewBuffer(nil)
-	errCache := c.Get(cache.TypeAvatar, hash, buf)
+	errCache := bd.cache.Get(cache.TypeAvatar, hash, buf)
 	if errCache == nil {
 		return buf.Bytes(), nil
 	}
@@ -201,9 +213,9 @@ func fetchAvatar(ctx context.Context, c cache.Cache, hash string) ([]byte, error
 	if bodyErr != nil {
 		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
 	}
-	defer util.LogClose(resp.Body)
+	defer util.LogClose(bd.logger, resp.Body)
 
-	if errSet := c.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
+	if errSet := bd.cache.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
 	}
 
@@ -477,19 +489,40 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateGameStateEvent, e
 	return results, nil
 }
 
+func (bd *BD) updatePlayerState() (string, error) {
+	if !bd.ready() {
+		return "", ErrInvalidReadyState
+	}
+	// Sent to client, response via log output
+	_, errStatus := bd.rconConnection.Exec("status")
+	if errStatus != nil {
+		return "", errors.Wrap(errStatus, "Failed to get status results")
+
+	}
+	// Sent to client, response via direct rcon response
+	lobbyStatus, errDebug := bd.rconConnection.Exec("tf_lobby_debug")
+	if errDebug != nil {
+		return "", errors.Wrap(errDebug, "Failed to get debug results")
+	}
+	return lobbyStatus, nil
+}
+
 func (bd *BD) statusUpdater(ctx context.Context) {
 	statusTimer := time.NewTicker(model.DurationStatusUpdateTimer)
 	for {
 		select {
 		case <-statusTimer.C:
-			rconConfig := bd.settings.GetRcon()
-			lobbyStatus, errUpdate := updatePlayerState(ctx, rconConfig.String(), rconConfig.Password())
+			lobbyStatus, errUpdate := bd.updatePlayerState()
 			if errUpdate != nil {
 				bd.logger.Debug("Failed to query state", zap.Error(errUpdate))
 				continue
 			}
 			for _, line := range strings.Split(lobbyStatus, "\n") {
-				bd.logParser.ReadChannel <- line
+				select {
+				case bd.logParser.ReadChannel <- line:
+				default:
+					bd.logger.Error("log parser full")
+				}
 			}
 		case <-ctx.Done():
 			return
@@ -606,7 +639,7 @@ func (bd *BD) gameStateTracker(ctx context.Context) {
 			if p == nil || p.AvatarHash == "" {
 				continue
 			}
-			avatar, errDownload := fetchAvatar(ctx, bd.cache, p.AvatarHash)
+			avatar, errDownload := bd.fetchAvatar(ctx, p.AvatarHash)
 			if errDownload != nil {
 				bd.logger.Error("Failed to download avatar", zap.String("hash", p.AvatarHash), zap.Error(errDownload))
 				continue
@@ -728,7 +761,7 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 		bd.logger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
 	}
 	if match := bd.rules.MatchMessage(um.Message); match != nil {
-		bd.triggerMatch(ctx, player, match)
+		bd.triggerMatch(player, match)
 	}
 	bd.gui.AddUserMessage(um)
 	bd.gui.Refresh()
@@ -880,7 +913,7 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		bd.logger.Error("Failed to export player list", zap.Error(errExport))
 	}
-	util.LogClose(of)
+	util.LogClose(bd.logger, of)
 	return nil
 }
 
@@ -921,13 +954,13 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 		if matchSteam := bd.rules.MatchSteam(ps.GetSteamID()); matchSteam != nil {
 			ps.Match = matchSteam
 			if validTeam == ps.Team {
-				bd.triggerMatch(ctx, ps, matchSteam)
+				bd.triggerMatch(ps, matchSteam)
 			}
 		} else if ps.Name != "" {
 			if matchName := bd.rules.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
 				ps.Match = matchSteam
 				if validTeam == ps.Team {
-					bd.triggerMatch(ctx, ps, matchSteam)
+					bd.triggerMatch(ps, matchSteam)
 				}
 			}
 		}
@@ -942,7 +975,7 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 	bd.gui.UpdatePlayerState(bd.players)
 }
 
-func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.MatchResult) {
+func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
 	ps.RLock()
 	announceGeneralLast := ps.AnnouncedGeneralLast
 	announcePartyLast := ps.AnnouncedPartyLast
@@ -963,7 +996,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 	}
 	if bd.settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := bd.SendChat(ctx, model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
+		if errLog := bd.SendChat(model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
 			bd.logger.Error("Failed to send party log message", zap.Error(errLog))
 			return
 		}
@@ -982,7 +1015,7 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 			}
 		}
 		if kickTag {
-			if errVote := bd.CallVote(ctx, ps.UserId, model.KickReasonCheating); errVote != nil {
+			if errVote := bd.CallVote(ps.UserId, model.KickReasonCheating); errVote != nil {
 				bd.logger.Error("Error calling vote", zap.Error(errVote))
 			}
 		} else {
@@ -994,12 +1027,12 @@ func (bd *BD) triggerMatch(ctx context.Context, ps *model.Player, match *rules.M
 	bd.playersMu.Unlock()
 }
 
-func (bd *BD) connectRcon(ctx context.Context) error {
+func (bd *BD) connectRcon() error {
 	if bd.rconConnection != nil {
-		util.LogClose(bd.rconConnection)
+		util.LogClose(bd.logger, bd.rconConnection)
 	}
 	rconConfig := bd.settings.GetRcon()
-	conn, errConn := rcon.Dial(ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
+	conn, errConn := rcon.Dial(bd.ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
 	if errConn != nil {
 		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
 	}
@@ -1007,9 +1040,13 @@ func (bd *BD) connectRcon(ctx context.Context) error {
 	return nil
 }
 
-func (bd *BD) SendChat(ctx context.Context, destination model.ChatDest, format string, args ...any) error {
-	if errConn := bd.connectRcon(ctx); errConn != nil {
-		return errConn
+func (bd *BD) ready() bool {
+	return bd.gameProcessActive.Load() && bd.rconConnection != nil
+}
+
+func (bd *BD) SendChat(destination model.ChatDest, format string, args ...any) error {
+	if !bd.ready() {
+		return ErrInvalidReadyState
 	}
 	cmd := ""
 	switch destination {
@@ -1029,9 +1066,9 @@ func (bd *BD) SendChat(ctx context.Context, destination model.ChatDest, format s
 	return nil
 }
 
-func (bd *BD) CallVote(ctx context.Context, userID int64, reason model.KickReason) error {
-	if errConn := bd.connectRcon(ctx); errConn != nil {
-		return errConn
+func (bd *BD) CallVote(userID int64, reason model.KickReason) error {
+	if !bd.ready() {
+		return ErrInvalidReadyState
 	}
 	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
 	if errExec != nil {
@@ -1047,14 +1084,24 @@ func (bd *BD) processChecker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			existingState := bd.gameProcessActive.Load()
+			newState, errRunningStatus := platform.IsGameRunning()
+			if errRunningStatus != nil {
+				bd.logger.Error("Failed to get process run status", zap.Error(errRunningStatus))
+				continue
+			}
+			if existingState != newState {
+				bd.logger.Info("Game process state changed", zap.Bool("is_running", newState))
+				if newState {
+					bd.reload()
+				}
+			}
+			bd.gameProcessActive.Store(newState)
+			// Handle auto closing the app on game close if enabled
 			if !bd.gameHasStartedOnce || !bd.settings.GetAutoCloseOnGameExit() {
 				continue
 			}
-			running, errRunningStatus := platform.IsGameRunning()
-			if errRunningStatus != nil {
-				bd.logger.Error("Failed to get process run status", zap.Error(errRunningStatus))
-			}
-			if !running {
+			if !newState {
 				bd.logger.Info("Auto-closing on game exit")
 				bd.gui.Quit()
 			}
@@ -1065,12 +1112,12 @@ func (bd *BD) processChecker(ctx context.Context) {
 // Shutdown closes any open rcon connection and will flush any player list to disk
 func (bd *BD) Shutdown() {
 	if bd.rconConnection != nil {
-		util.LogClose(bd.rconConnection)
+		util.LogClose(bd.logger, bd.rconConnection)
 	}
 	if bd.settings.GetDiscordPresenceEnabled() {
 		client.Logout()
 	}
-	util.LogClose(bd.store)
+	util.LogClose(bd.logger, bd.store)
 	bd.logger.Info("Goodbye")
 }
 

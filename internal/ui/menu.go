@@ -176,10 +176,10 @@ func generateWhitelistMenu(parent fyne.Window, ui *Ui, steamID steamid.SID64) *f
 	return m
 }
 
-func generateKickMenu(ctx context.Context, parent fyne.Window, userId int64, kickFunc model.KickFunc) *fyne.Menu {
+func generateKickMenu(parent fyne.Window, userId int64, kickFunc model.KickFunc) *fyne.Menu {
 	fn := func(reason model.KickReason) func() {
 		return func() {
-			showUserError(kickFunc(ctx, userId, reason), parent)
+			showUserError(kickFunc(userId, reason), parent)
 		}
 	}
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_call_vote", Other: "Call Vote..."}})
@@ -209,7 +209,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 	if userId > 0 {
 		items = append(items, &fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: generateKickMenu(ctx, window, userId, ui.bd.CallVote),
+			ChildMenu: generateKickMenu(window, userId, ui.bd.CallVote),
 			Label:     kickTitle})
 	}
 	unMarkFn := func(steamID steamid.SID64) func() {
