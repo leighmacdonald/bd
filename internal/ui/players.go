@@ -129,14 +129,22 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 }
 
 func (screen *playerWindow) UpdateServerState(state model.Server) {
+	serverName := "n/a"
+	if state.ServerName != "" {
+		serverName = state.ServerName
+	}
 	screen.labelHostname.Segments = []widget.RichTextSegment{
 		&widget.TextSegment{Text: screen.labelHostnameLabel, Style: widget.RichTextStyleInline},
-		&widget.TextSegment{Text: state.ServerName, Style: widget.RichTextStyleStrong},
+		&widget.TextSegment{Text: serverName, Style: widget.RichTextStyleStrong},
 	}
 	screen.labelHostname.Refresh()
+	currentMap := "n/a"
+	if state.CurrentMap != "" {
+		currentMap = state.CurrentMap
+	}
 	screen.labelMap.Segments = []widget.RichTextSegment{
 		&widget.TextSegment{Text: screen.labelMapLabel, Style: widget.RichTextStyleInline},
-		&widget.TextSegment{Text: state.CurrentMap, Style: widget.RichTextStyleStrong},
+		&widget.TextSegment{Text: currentMap, Style: widget.RichTextStyleStrong},
 	}
 	screen.labelMap.Refresh()
 }

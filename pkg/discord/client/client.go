@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"github.com/leighmacdonald/bd/pkg/discord/ipc"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"os"
 	"sync/atomic"
 	"time"
 )
 
 var logged atomic.Bool
-var logger *zap.Logger
 
 func Login(clientID string) error {
 	if !logged.Load() {
@@ -52,8 +50,7 @@ func SetActivity(activity Activity) error {
 	}
 	resp, errSend := ipc.Send(1, string(payload))
 	if errSend != nil {
-		logger.Error("Discord could not update activity state", zap.Error(errors.New(resp)))
-		return errSend
+		return errors.New(resp)
 	}
 	return nil
 }
@@ -230,9 +227,4 @@ type PayloadSecrets struct {
 type PayloadButton struct {
 	Label string `json:"label,omitempty"`
 	Url   string `json:"url,omitempty"`
-}
-
-func init() {
-	logger, _ = zap.NewProduction()
-
 }

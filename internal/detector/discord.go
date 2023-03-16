@@ -148,6 +148,10 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 		})
 	}
 	currentMap := discordAssetNameMap(bd.server.CurrentMap)
+	state := "Offline"
+	if bd.gameProcessActive.Load() {
+		state = "In-Game"
+	}
 	details := "Idle"
 	if bd.server.ServerName != "" {
 		details = bd.server.ServerName
@@ -161,12 +165,12 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 		}
 	}
 	if errSetActivity := client.SetActivity(client.Activity{
-		State:      "In-Game",
+		State:      state,
 		Details:    details,
 		LargeImage: fmt.Sprintf("map_%s", currentMap),
 		LargeText:  currentMap,
-		SmallImage: "map_cp_cloak",
-		SmallText:  bd.server.CurrentMap,
+		SmallImage: "logo_cd",
+		SmallText:  "",
 		Party:      party,
 		Timestamps: &client.Timestamps{
 			Start: &bd.startupTime,
@@ -198,7 +202,7 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 			}
 			if !isRunning {
 				if errLogin := client.Login(discordAppID); errLogin != nil {
-					bd.logger.Error("Failed to login to discord", zap.Error(errLogin))
+					bd.logger.Debug("Failed to login to discord", zap.Error(errLogin))
 					continue
 				}
 				isRunning = true

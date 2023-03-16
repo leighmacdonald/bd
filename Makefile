@@ -29,7 +29,7 @@ lint_imports:
 	@test -z $(goimports -e -d . | tee /dev/stderr)
 
 lint_cyclo:
-	@gocyclo -over 50 .
+	@gocyclo -over 40 .
 
 lint_golint:
 	@golint -set_exit_status $(go list -tags ci ./...)
