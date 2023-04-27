@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// OpenSocket opens the discord-ipc-0 named pipe
+// OpenSocket opens the discordutil-ipc-0 named pipe
 func OpenSocket() error {
 	// Connect to the Windows named pipe, this is a well known name
 	// We use DialTimeout since it will block forever (or very very long) on Windows

@@ -91,7 +91,7 @@ settings_label_chat_warn_enabled_hint: Show warning message using in-game chat
 settings_label_debug_log_enabled: Debug Log
 settings_label_debug_log_enabled_hint: Log events are save to bd.log. Requires restart of application.
 settings_label_discord_presence_enabled: Discord Presence
-settings_label_discord_presence_enabled_hint: Enables discord rich presence if discord is running
+settings_label_discord_presence_enabled_hint: Enables discordutil rich presence if discordutil is running
 settings_label_kickable_tags: Kickable Tags
 settings_label_kickable_tags_hint: Attributes/Tags that when matched will trigger a in-game kick.
 settings_label_kicker_enabled: Vote Kicker
