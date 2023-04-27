@@ -279,7 +279,7 @@ settings_label_discord_presence_enabled:
   other: Discord Presence
 settings_label_discord_presence_enabled_hint:
   hash: sha1-823f71d2a887652c7b6eeac21d6243c9006e12f1
-  other: Включает discord rich presence если discord запушен
+  other: Включает discordutil rich presence если discordutil запушен
 settings_label_kickable_tags:
   hash: sha1-de986415ad8f5fba7e2df6954e2f3616af0d6093
   other: Выгоняемые метки

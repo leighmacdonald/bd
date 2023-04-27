@@ -160,7 +160,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 	labelDiscordPresence := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled", Other: "Discord Presence"}})
 	labelDiscordPresenceHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled_hint", Other: "Enables discord rich presence if discord is running"}})
+		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled_hint", Other: "Enables discordutil rich presence if discordutil is running"}})
 	labelAutoLaunch := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_auto_launch", Other: "Auto Launch TF2"}})
 	labelAutoLaunchHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
