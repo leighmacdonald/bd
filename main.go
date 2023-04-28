@@ -123,6 +123,11 @@ func main() {
 
 	bd := detector.New(ctx, logger, settings, dataStore, engine, fileSystemCache)
 	//bd.Start(ctx)
+	go func() {
+		if errApi := bd.StartApi(ctx); errApi != nil {
+			logger.Panic("Failed to start api service", zap.Error(errApi))
+		}
+	}()
 	gui := ui.New(ctx, logger, &bd, settings, versionInfo)
 	gui.Start(ctx)
 }

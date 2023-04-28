@@ -62,6 +62,7 @@ type BD struct {
 	gameHasStartedOnce bool
 	logger             *zap.Logger
 	gameProcessActive  *atomic.Bool
+	api                *Api
 }
 
 // New allocates a new bot detector application instance
@@ -69,6 +70,7 @@ func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, stor
 	logChan := make(chan string)
 	eventChan := make(chan model.LogEvent)
 	isRunning, _ := platform.IsGameRunning()
+
 	rootApp := BD{
 		ctx:                ctx,
 		logger:             logger,
@@ -89,11 +91,17 @@ func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, stor
 		gameProcessActive:  &atomic.Bool{},
 	}
 
+	rootApp.api = NewApi(&rootApp)
+
 	rootApp.gameProcessActive.Store(isRunning)
 
 	rootApp.createLogReader()
 
 	return rootApp
+}
+
+func (bd *BD) StartApi(ctx context.Context) error {
+	return bd.api.ListenAndServe(ctx)
 }
 
 func (bd *BD) Settings() *model.Settings {
