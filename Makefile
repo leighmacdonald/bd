@@ -12,6 +12,10 @@ extract: fonts tr_extract
 fmt:
 	gofmt -s -w .
 
+bump_deps:
+	go get -u ./...
+	#cd frontend && yarn upgrade-interactive --latest
+
 fonts:
 	fyne bundle --pkg ui    -o ./internal/ui/embed_img.go ./internal/ui/resources/default_avatar.jpg
 	fyne bundle --pkg ui -a -o ./internal/ui/embed_img.go ./internal/ui/resources/Icon.png

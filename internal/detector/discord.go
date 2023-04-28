@@ -158,7 +158,7 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 	}
 	var party *client.Party
 	if cnt > 0 {
-		// discordutil requires >=1
+		// discord requires >=1
 		party = &client.Party{
 			Players:    cnt,
 			MaxPlayers: 24,
@@ -177,7 +177,7 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 		},
 		Buttons: buttons,
 	}); errSetActivity != nil {
-		bd.logger.Error("Failed to set discordutil activity", zap.Error(errSetActivity))
+		bd.logger.Error("Failed to set discord activity", zap.Error(errSetActivity))
 	}
 }
 
@@ -193,7 +193,7 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 				if isRunning {
 					// Logout of existing connection on settings change
 					if errLogout := client.Logout(); errLogout != nil {
-						bd.logger.Error("Failed to logout of discordutil client", zap.Error(errLogout))
+						bd.logger.Error("Failed to logout of discord client", zap.Error(errLogout))
 						// continue?
 					}
 					isRunning = false
@@ -202,7 +202,7 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 			}
 			if !isRunning {
 				if errLogin := client.Login(discordAppID); errLogin != nil {
-					bd.logger.Debug("Failed to login to discordutil", zap.Error(errLogin))
+					bd.logger.Debug("Failed to login to discord", zap.Error(errLogin))
 					continue
 				}
 				isRunning = true
