@@ -65,7 +65,7 @@ func getNonce() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8], buf[8:10], buf[10:]), nil
 }
 
-// Activity holds the data for discordutil rich presence
+// Activity holds the data for discord rich presence
 type Activity struct {
 	// What the player is currently doing
 	Details string
