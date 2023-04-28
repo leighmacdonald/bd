@@ -1,11 +1,11 @@
 import * as path from 'path';
 import * as webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
-import CopyPlugin from 'copy-webpack-plugin';
 
-const outPath = path.resolve('../dist');
+const outPath = path.resolve('../internal/detector/dist');
 
 const devMode = process.env.NODE_ENV !== 'production';
+
 const paths = {
     src: path.join(__dirname, 'src'),
     dist: outPath
@@ -87,18 +87,6 @@ const config: webpack.Configuration = {
     //     port: 9000
     // },
     plugins: [
-        new CopyPlugin({
-            // TODO dont hard code these
-            patterns: [
-                { from: 'src/icons/android-chrome-192x192.png' },
-                { from: 'src/icons/android-chrome-512x512.png' },
-                { from: 'src/icons/apple-touch-icon.png' },
-                // { from: 'src/icons/favicon.svg' },
-                { from: 'src/icons/favicon-16x16.png' },
-                { from: 'src/icons/favicon-32x32.png' },
-                { from: 'src/icons/site.webmanifest' }
-            ]
-        }),
         new HtmlWebpackPlugin({
             template: path.join(paths.src, 'index.html'),
             filename: path.join(paths.dist, 'index.html'),
