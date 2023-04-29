@@ -2,6 +2,7 @@ package detector
 
 import (
 	"context"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
@@ -16,16 +17,25 @@ type jsConfig struct {
 func NewApi(bd *BD) *Api {
 	logger := bd.logger.Named("api")
 
-	absStaticPath, errStaticPath := filepath.Abs("./dist")
+	absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
 	if errStaticPath != nil {
 		logger.Fatal("Invalid static path", zap.Error(errStaticPath))
 	}
 
 	router := gin.New()
-	router.Use(ErrorHandler(logger), gin.Recovery())
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:8900"}
+	corsConfig.AllowHeaders = []string{"*"}
+	corsConfig.AllowWildcard = false
+	corsConfig.AllowCredentials = false
+
+	router.Use(cors.New(corsConfig))
+	router.Use(ErrorHandler(logger))
+	router.Use(gin.Recovery())
+
 	router.StaticFS("/dist", http.Dir(absStaticPath))
 	router.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
-
+	router.GET("/players", getPlayers(bd))
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}
@@ -50,20 +60,20 @@ func NewApi(bd *BD) *Api {
 	return &api
 }
 
-type apiResponse struct {
-	// Status is a simple truthy status of the response. See response codes for more specific
-	// error handling scenarios
-	Message string `json:"message"`
-	Error   string `json:"error,omitempty"`
-	Result  any    `json:"result"`
+func getPlayers(bd *BD) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		bd.playersMu.RLock()
+		defer bd.playersMu.RUnlock()
+		responseOK(ctx, http.StatusOK, bd.players)
+	}
 }
 
 func responseErr(ctx *gin.Context, status int, data any) {
-	ctx.JSON(status, apiResponse{Result: data})
+	ctx.JSON(status, data)
 }
 
 func responseOK(ctx *gin.Context, status int, data any) {
-	ctx.JSON(status, apiResponse{Result: data})
+	ctx.JSON(status, data)
 }
 
 type Api struct {

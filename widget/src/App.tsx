@@ -5,6 +5,7 @@ import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './component/ErrorBoundary';
 import { createTheme } from '@mui/material';
+import { PlayerTable } from './component/PlayerTable';
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createTheme(), []);
@@ -21,7 +22,7 @@ export const App = (): JSX.Element => {
                                         path={'/'}
                                         element={
                                             <ErrorBoundary>
-                                                <Fragment>hi</Fragment>
+                                                <PlayerTable />
                                             </ErrorBoundary>
                                         }
                                     />

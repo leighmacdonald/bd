@@ -1,0 +1,74 @@
+{
+  "name": "bd",
+  "version": "0.0.1",
+  "description": "Steam overlay widget",
+  "main": "src/index.tsx",
+  "repository": "github.com/leighmacdonald/bd",
+  "author": "Leigh MacDonald",
+  "license": "MIT",
+  "private": false,
+  "jest": {
+    "verbose": true
+  },
+  "presets": [
+    [
+      "env",
+      {
+        "modules": false
+      }
+    ]
+  ],
+  "scripts": {
+    "watch": "cross-env NODE_ENV=development webpack --watch --progress",
+    "serve": "cross-env NODE_ENV=development webpack serve --progress --static ../dist",
+    "build": "cross-env NODE_ENV=production webpack",
+    "prettier:base": "prettier --parser typescript --single-quote",
+    "prettier:check": "npm run prettier:base -- --list-different \"src/**/*.{ts,tsx}\"",
+    "prettier:fix": "npm run prettier:base -- --write \"src/**/*.{ts,tsx}\"",
+    "eslint:check": "eslint . --ext .ts,.tsx",
+    "eslint:fix": "eslint . --ext .ts,.tsx --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --colors"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all",
+      "ie >= 9"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version",
+      "ie 11"
+    ]
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.10.8",
+    "@emotion/styled": "^11.10.8",
+    "@fontsource/roboto": "^4.5.8",
+    "@mui/icons-material": "^5.11.16",
+    "@mui/material": "^5.12.2",
+    "@types/node": "^18.16.2",
+    "@types/react-dom": "^18.2.1",
+    "@types/steamid": "^2.0.1",
+    "copy-webpack-plugin": "^11.0.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^6.7.3",
+    "html-webpack-plugin": "^5.5.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.10.0",
+    "sass": "^1.62.1",
+    "sass-loader": "^13.2.2",
+    "steamid": "^2.0.0",
+    "style-loader": "^3.3.2",
+    "ts-loader": "^9.4.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4",
+    "webpack": "^5.81.0",
+    "webpack-cli": "^5.0.2"
+  }
+}

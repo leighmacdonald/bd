@@ -24,83 +24,83 @@ const (
 )
 
 type Player struct {
-	sync.RWMutex
+	sync.RWMutex `json:"-"`
 	// - Permanent storage backed
 
 	// SteamId is the 64bit steamid of the user
-	SteamId steamid.SID64
+	SteamId steamid.SID64 `json:"steam_id"`
 
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
-	Name string
+	Name string `json:"name"`
 
 	// CreatedOn is the first time we have seen the player
-	CreatedOn time.Time
+	CreatedOn time.Time `json:"created_on"`
 
 	// UpdatedOn is the last time we have received a status update from rcon
 	// This is used to calculate when we consider the player disconnected and also when
 	// they are expired and should be removed from the player pool entirely.
-	UpdatedOn        time.Time
-	ProfileUpdatedOn time.Time
+	UpdatedOn        time.Time `json:"updated_on"`
+	ProfileUpdatedOn time.Time `json:"profile_updated_on"`
 
 	// The users kill count vs this player
-	KillsOn   int
-	RageQuits int
-	DeathsBy  int
+	KillsOn   int `json:"kills_on"`
+	RageQuits int `json:"rage_quits"`
+	DeathsBy  int `json:"deaths_by"`
 
-	Notes       string
-	Whitelisted bool
+	Notes       string `json:"notes"`
+	Whitelisted bool   `json:"whitelisted"`
 
 	// PlayerSummary
-	RealName         string
-	NamePrevious     string
-	AccountCreatedOn time.Time
+	RealName         string    `json:"real_name"`
+	NamePrevious     string    `json:"name_previous"`
+	AccountCreatedOn time.Time `json:"account_created_on"`
 
-	Visibility ProfileVisibility
-	AvatarHash string
+	Visibility ProfileVisibility `json:"visibility"`
+	AvatarHash string            `json:"avatar_hash"`
 
 	// PlayerBanState
-	CommunityBanned  bool
-	NumberOfVACBans  int
-	LastVACBanOn     *time.Time
-	NumberOfGameBans int
-	EconomyBan       bool
+	CommunityBanned  bool       `json:"community_banned"`
+	NumberOfVACBans  int        `json:"number_of_vac_bans"`
+	LastVACBanOn     *time.Time `json:"last_vac_ban_on"`
+	NumberOfGameBans int        `json:"number_of_game_bans"`
+	EconomyBan       bool       `json:"economy_ban"`
 
 	// - Parsed Ephemeral data
 
 	// tf_lobby_debug
-	Team Team
+	Team Team `json:"team"`
 
 	// status
 	// Connected is how long the user has been in the server
-	Connected time.Duration
+	Connected time.Duration `json:"connected"`
 	// In game user id
-	UserId int64
-	Ping   int
+	UserId int64 `json:"user_id"`
+	Ping   int   `json:"ping"`
 
 	// Parsed stats from logs
-	Kills  int
-	Deaths int
+	Kills  int `json:"kills"`
+	Deaths int `json:"deaths"`
 
 	// - Misc
 
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
-	KickAttemptCount int
+	KickAttemptCount int `json:"kick_attempt_count"`
 
 	// Tracks the duration between announces to chat
-	AnnouncedPartyLast time.Time
+	AnnouncedPartyLast time.Time `json:"-"`
 
-	AnnouncedGeneralLast time.Time
+	AnnouncedGeneralLast time.Time `json:"-"`
 
 	// Dangling will be true when the user is new and doesn't have a physical entry in the database yet.
-	Dangling bool
+	Dangling bool `json:"-"`
 
-	OurFriend bool
+	OurFriend bool `json:"our_friend"`
 
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
-	Dirty bool
+	Dirty bool `json:"-"`
 
-	Match *rules.MatchResult
+	Match *rules.MatchResult `json:"match"`
 }
 
 func (ps *Player) IsMatched() bool {
