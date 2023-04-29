@@ -10,15 +10,13 @@ import { createRoot } from 'react-dom/client';
 // extend window with our own items that we inject
 declare global {
     interface Window {
-        gbans: {
-            siteName: string;
-            discordClientId: string;
-            discordLinkId: string;
+        bd: {
+            port: number;
         };
     }
 }
 
-window.gbans = window.gbans || [];
+window.bd = window.bd || [];
 
 const container = document.getElementById('root');
 if (container) {
