@@ -35,12 +35,25 @@ enum ProfileVisibility {
     ProfileVisibilityFriendsOnly = 2,
     ProfileVisibilityPublic = 3
 }
+export enum Team {
+    SPEC,
+    UNASSIGNED,
+    BLU,
+    RED
+}
+
+export interface Match {
+    origin: string;
+    attributes: string[];
+    matcher_type: string;
+}
 
 export interface Player {
     steam_id: SteamID;
     name: string;
     created_on: Date;
     updated_on: Date;
+    team: Team;
     profile_updated_on: Date;
     kills_on: number;
     rage_quits: number;
@@ -63,7 +76,7 @@ export interface Player {
     kills: number;
     deaths: number;
     our_friend: boolean;
-    match: any;
+    match: null | Match;
 }
 
 export const getPlayers = async () => {

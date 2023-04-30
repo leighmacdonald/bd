@@ -29,6 +29,15 @@ import (
 
 var ErrInvalidReadyState = errors.New("Invalid ready state")
 
+var (
+	players   model.PlayerCollection
+	playersMu *sync.RWMutex
+)
+
+func init() {
+	playersMu = &sync.RWMutex{}
+}
+
 // BD is the main application container
 type BD struct {
 	// TODO
@@ -46,8 +55,6 @@ type BD struct {
 	incomingLogEvents  chan model.LogEvent
 	server             model.Server
 	serverMu           *sync.RWMutex
-	players            model.PlayerCollection
-	playersMu          *sync.RWMutex
 	logReader          *logReader
 	logParser          *logParser
 	rules              *rules.Engine
@@ -80,8 +87,6 @@ func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, stor
 		logChan:            logChan,
 		incomingLogEvents:  eventChan,
 		serverMu:           &sync.RWMutex{},
-		players:            model.PlayerCollection{},
-		playersMu:          &sync.RWMutex{},
 		triggerUpdate:      make(chan any),
 		gameStateUpdate:    make(chan updateStateEvent, 50),
 		cache:              cache,
@@ -315,9 +320,9 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 }
 
 func (bd *BD) GetPlayer(sid64 steamid.SID64) *model.Player {
-	bd.playersMu.RLock()
-	defer bd.playersMu.RUnlock()
-	for _, player := range bd.players {
+	playersMu.RLock()
+	defer playersMu.RUnlock()
+	for _, player := range players {
 		if player.SteamId == sid64 {
 			return player
 		}
@@ -326,9 +331,9 @@ func (bd *BD) GetPlayer(sid64 steamid.SID64) *model.Player {
 }
 
 func (bd *BD) getPlayerByName(name string) *model.Player {
-	bd.playersMu.RLock()
-	defer bd.playersMu.RUnlock()
-	for _, player := range bd.players {
+	playersMu.RLock()
+	defer playersMu.RUnlock()
+	for _, player := range players {
 		if player.Name == name {
 			return player
 		}
@@ -370,7 +375,7 @@ func (bd *BD) cleanupHandler(ctx context.Context) {
 			bd.serverMu.Unlock()
 			var valid model.PlayerCollection
 			expired := 0
-			for _, ps := range bd.players {
+			for _, ps := range players {
 				if ps.IsExpired() {
 					if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
 						bd.logger.Error("Failed to save expired player state", zap.Error(errSave))
@@ -381,14 +386,14 @@ func (bd *BD) cleanupHandler(ctx context.Context) {
 				}
 			}
 
-			bd.playersMu.Lock()
-			bd.players = valid
-			bd.playersMu.Unlock()
+			playersMu.Lock()
+			players = valid
+			playersMu.Unlock()
 			if expired > 0 {
 				bd.logger.Debug("Flushing expired players", zap.Int("count", expired))
 			}
 			if bd.gui != nil {
-				bd.gui.UpdatePlayerState(bd.players)
+				bd.gui.UpdatePlayerState(players)
 				bd.gui.UpdateServerState(bd.server)
 			}
 			bd.logger.Debug("Delete update input received", zap.String("state", "end"))
@@ -528,8 +533,8 @@ func (bd *BD) onUpdateHostname(event hostnameEvent) {
 }
 
 func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID64 {
-	bd.playersMu.RLock()
-	defer bd.playersMu.RUnlock()
+	playersMu.RLock()
+	defer playersMu.RUnlock()
 	for _, player := range players {
 		if name == player.Name {
 			return player.SteamId
@@ -541,9 +546,9 @@ func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID
 func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	player := bd.GetPlayer(steamID)
 	if player != nil {
-		bd.playersMu.Lock()
+		playersMu.Lock()
 		player.Team = evt.team
-		bd.playersMu.Unlock()
+		playersMu.Unlock()
 	}
 }
 
@@ -554,12 +559,12 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 	}
 
 	um := model.UserMessage{}
-	bd.playersMu.RLock()
+	playersMu.RLock()
 	um.Player = player.Name
 	um.Team = player.Team
 	um.PlayerSID = player.SteamId
 	um.UserId = player.UserId
-	bd.playersMu.RUnlock()
+	playersMu.RUnlock()
 	um.Message = msg.message
 	um.Created = msg.createdAt
 	um.Dead = msg.dead
@@ -579,15 +584,15 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 }
 
 func (bd *BD) onUpdateKill(kill killEvent) {
-	source := bd.nameToSid(bd.players, kill.sourceName)
-	target := bd.nameToSid(bd.players, kill.victimName)
+	source := bd.nameToSid(players, kill.sourceName)
+	target := bd.nameToSid(players, kill.victimName)
 	if !source.Valid() || !target.Valid() {
 		return
 	}
 	ourSid := bd.settings.GetSteamId()
 	sourcePlayer := bd.GetPlayer(source)
 	targetPlayer := bd.GetPlayer(target)
-	bd.playersMu.Lock()
+	playersMu.Lock()
 	sourcePlayer.Kills++
 	targetPlayer.Deaths++
 	if targetPlayer.SteamId == ourSid {
@@ -598,16 +603,16 @@ func (bd *BD) onUpdateKill(kill killEvent) {
 	}
 	sourcePlayer.Touch()
 	targetPlayer.Touch()
-	bd.playersMu.Unlock()
+	playersMu.Unlock()
 }
 
 func (bd *BD) onMapChange() {
-	bd.playersMu.Lock()
-	for _, player := range bd.players {
+	playersMu.Lock()
+	for _, player := range players {
 		player.Kills = 0
 		player.Deaths = 0
 	}
-	bd.playersMu.Unlock()
+	playersMu.Unlock()
 	bd.serverMu.Lock()
 	bd.server.CurrentMap = ""
 	bd.server.ServerName = ""
@@ -616,8 +621,8 @@ func (bd *BD) onMapChange() {
 
 func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	player := bd.GetPlayer(steamID)
-	bd.playersMu.Lock()
-	defer bd.playersMu.Unlock()
+	playersMu.Lock()
+	defer playersMu.Unlock()
 	player.NumberOfVACBans = ban.NumberOfVACBans
 	player.NumberOfGameBans = ban.NumberOfGameBans
 	player.CommunityBanned = ban.CommunityBanned
@@ -631,8 +636,8 @@ func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 
 func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
 	player := bd.GetPlayer(steamID)
-	bd.playersMu.Lock()
-	defer bd.playersMu.Unlock()
+	playersMu.Lock()
+	defer playersMu.Unlock()
 	player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
 	player.AvatarHash = summary.AvatarHash
 	player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
@@ -653,11 +658,11 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 				return errors.Wrap(errSaveName, "Failed to save name")
 			}
 		}
-		bd.playersMu.Lock()
-		bd.players = append(bd.players, player)
-		bd.playersMu.Unlock()
+		playersMu.Lock()
+		players = append(players, player)
+		playersMu.Unlock()
 	}
-	bd.playersMu.Lock()
+	playersMu.Lock()
 	player.Ping = update.ping
 	player.UserId = update.userID
 	player.Name = update.name
@@ -666,7 +671,7 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 	if time.Since(player.ProfileUpdatedOn) > model.DurationCacheTimeout {
 		*queuedUpdates = append(*queuedUpdates, steamID)
 	}
-	bd.playersMu.Unlock()
+	playersMu.Unlock()
 	return nil
 }
 
@@ -675,10 +680,10 @@ func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 	if player == nil {
 		return errors.New("Unknown player, cannot update whitelist")
 	}
-	bd.playersMu.Lock()
+	playersMu.Lock()
 	player.Whitelisted = event.enabled
 	player.Touch()
-	bd.playersMu.Unlock()
+	playersMu.Unlock()
 	bd.logger.Info("Update player whitelist status successfully",
 		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", event.enabled))
 	return nil
@@ -698,15 +703,15 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 	}
 	if status.delete {
 		bd.rules.Unmark(status.target)
-		bd.playersMu.Lock()
-		for idx := range bd.players {
-			if bd.players[idx].SteamId == status.target {
-				bd.players[idx].Match = nil
+		playersMu.Lock()
+		for idx := range players {
+			if players[idx].SteamId == status.target {
+				players[idx].Match = nil
 				break
 			}
 		}
-		bd.playersMu.Unlock()
-		bd.gui.UpdatePlayerState(bd.players)
+		playersMu.Unlock()
+		bd.gui.UpdatePlayerState(players)
 	} else {
 		if errMark := bd.rules.Mark(rules.MarkOpts{
 			SteamID:    status.target,
@@ -759,7 +764,7 @@ func (bd *BD) refreshLists(ctx context.Context) {
 }
 
 func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
-	for _, ps := range bd.players {
+	for _, ps := range players {
 		if ps.IsDisconnected() {
 			continue
 		}
@@ -785,7 +790,7 @@ func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
 		}
 	}
 	if bd.gui != nil {
-		bd.gui.UpdatePlayerState(bd.players)
+		bd.gui.UpdatePlayerState(players)
 	}
 }
 

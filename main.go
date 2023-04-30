@@ -17,6 +17,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"os"
 )
 
@@ -30,7 +31,7 @@ var (
 
 func mustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
-	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
 		if util.Exists(logFile) {
 			if err := os.Remove(logFile); err != nil {

@@ -1,6 +1,5 @@
 import createTheme from '@mui/material/styles/createTheme';
 import darkScrollbar from '@mui/material/darkScrollbar';
-import { PaletteMode, PaletteOptions } from '@mui/material';
 
 const baseFontSet = [
     '"Helvetica Neue"',
@@ -10,47 +9,7 @@ const baseFontSet = [
     'sans-serif'
 ];
 
-export const createThemeByMode = (mode: PaletteMode) => {
-    const opts: PaletteOptions =
-        mode == 'light'
-            ? {
-                  primary: {
-                      main: '#395c78'
-                  },
-                  secondary: {
-                      main: '#9d312f'
-                  },
-                  background: {
-                      default: '#dabdab',
-                      paper: '#f5e7de'
-                  },
-                  common: {
-                      white: '#f5e7de',
-                      black: '#34302d'
-                  }
-              }
-            : {
-                  primary: {
-                      main: '#9d312f',
-                      dark: '#d14441'
-                  },
-                  secondary: {
-                      main: '#395c78'
-                  },
-                  background: {
-                      default: '#6a4535',
-                      paper: '#3e281f'
-                  },
-                  common: {
-                      white: '#f5e7de',
-                      black: '#34302d'
-                  },
-                  text: {
-                      primary: '#f5e7de',
-                      secondary: '#e3d6ce'
-                  },
-                  divider: '#452c22'
-              };
+export const createThemeByMode = () => {
 
     return createTheme({
         components: {
@@ -102,6 +61,27 @@ export const createThemeByMode = (mode: PaletteMode) => {
                 fontSize: 16
             }
         },
-        palette: opts
+        palette: {
+            primary: {
+                main: '#9d312f',
+                dark: '#d14441'
+            },
+            secondary: {
+                main: '#395c78'
+            },
+            background: {
+                default: '#0c0c0c',
+                paper: '#0c0c0c'
+            },
+            common: {
+                white: '#f5e7de',
+                black: '#34302d'
+            },
+            text: {
+                primary: '#f5e7de',
+                secondary: '#e3d6ce'
+            },
+            divider: '#452c22'
+        }
     });
 };

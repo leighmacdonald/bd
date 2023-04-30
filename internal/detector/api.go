@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/model"
 	"go.uber.org/zap"
 	"net/http"
 	"path/filepath"
@@ -35,7 +36,7 @@ func NewApi(bd *BD) *Api {
 
 	router.StaticFS("/dist", http.Dir(absStaticPath))
 	router.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
-	router.GET("/players", getPlayers(bd))
+	router.GET("/players", getPlayers())
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}
@@ -60,11 +61,15 @@ func NewApi(bd *BD) *Api {
 	return &api
 }
 
-func getPlayers(bd *BD) gin.HandlerFunc {
+func getPlayers() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		bd.playersMu.RLock()
-		defer bd.playersMu.RUnlock()
-		responseOK(ctx, http.StatusOK, bd.players)
+		playersMu.RLock()
+		defer playersMu.RUnlock()
+		p := model.PlayerCollection{}
+		if players != nil {
+			p = players
+		}
+		responseOK(ctx, http.StatusOK, p)
 	}
 }
 
@@ -96,8 +101,8 @@ func (api *Api) ListenAndServe(ctx context.Context) error {
 	return api.httpServer.ListenAndServe()
 }
 
-func (api *Api) bind(ctx *gin.Context, recv any) bool {
-	if errBind := ctx.BindJSON(&recv); errBind != nil {
+func (api *Api) bind(ctx *gin.Context, recveiver any) bool {
+	if errBind := ctx.BindJSON(&recveiver); errBind != nil {
 		responseErr(ctx, http.StatusBadRequest, gin.H{
 			"error": "Invalid request parameters",
 		})

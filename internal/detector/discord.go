@@ -208,7 +208,7 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 				isRunning = true
 			}
 			if isRunning {
-				bd.discordUpdateActivity(len(bd.players))
+				bd.discordUpdateActivity(len(players))
 			}
 		case <-ctx.Done():
 			return
