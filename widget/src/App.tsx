@@ -4,11 +4,11 @@ import CssBaseline from '@mui/material/CssBaseline';
 import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './component/ErrorBoundary';
-import { createTheme } from '@mui/material';
 import { PlayerTable } from './component/PlayerTable';
+import {createThemeByMode} from "./theme";
 
 export const App = (): JSX.Element => {
-    const theme = useMemo(() => createTheme(), []);
+    const theme = useMemo(() => createThemeByMode(), []);
     return (
         <Router>
             <React.Fragment>

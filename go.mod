@@ -6,6 +6,7 @@ require (
 	fyne.io/fyne/v2 v2.3.3
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/andygrunwald/vdf v1.1.0
+	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/gin v1.9.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/huandu/go-clone/generic v1.6.0
@@ -33,7 +34,6 @@ require (
 require (
 	fyne.io/systray v1.10.1-0.20230312215936-7f71b037e260 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/benoitkugler/textlayout v0.3.0 // indirect
 	github.com/bytedance/sonic v1.8.8 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

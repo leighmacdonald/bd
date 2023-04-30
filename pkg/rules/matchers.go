@@ -8,10 +8,10 @@ import (
 )
 
 type MatchResult struct {
-	Origin     string // Title of the list that the match was generated against
-	Attributes []string
+	Origin     string   `json:"origin"` // Title of the list that the match was generated against
+	Attributes []string `json:"attributes"`
 	//Proof       []string
-	MatcherType string
+	MatcherType string `json:"matcher_type"`
 }
 
 type textMatchType string
