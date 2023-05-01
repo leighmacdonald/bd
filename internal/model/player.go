@@ -28,8 +28,8 @@ type Player struct {
 	// - Permanent storage backed
 
 	// SteamId is the 64bit steamid of the user
-	SteamId steamid.SID64 `json:"steam_id"`
-
+	SteamId       steamid.SID64 `json:"-"`
+	SteamIdString string        `json:"steam_id"`
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string `json:"name"`
@@ -172,6 +172,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		AccountCreatedOn: time.Time{},
 		Visibility:       ProfileVisibilityPublic,
 		SteamId:          sid64,
+		SteamIdString:    sid64.String(),
 		CreatedOn:        t0,
 		UpdatedOn:        t0,
 		Dangling:         true,

@@ -9,8 +9,8 @@ import {
     TableHead,
     TableRow
 } from '@mui/material';
-import { getPlayers, Player, Team } from '../api';
-
+import { getPlayers, Player } from '../api';
+import { TableRowContextMenu } from './ContextMenu';
 type sortableColumns = 'name' | 'kills' | 'ping' | 'status';
 
 export const PlayerTable = () => {
@@ -62,6 +62,20 @@ export const PlayerTable = () => {
         setSortBy(columnName);
     }, []);
 
+    const mkHeaderCell = (columnName: sortableColumns) => {
+        return (
+            <TableCell
+                key={`header-${columnName}`}
+                onClick={() => {
+                    updateSortDir(columnName);
+                }}
+            >
+                {columnName.charAt(0).toUpperCase() + columnName.slice(1)}
+            </TableCell>
+        );
+    };
+    const columns: sortableColumns[] = ['name', 'kills', 'ping', 'status'];
+
     return (
         <Paper sx={{ width: '100%', overflow: 'hidden' }}>
             <TableContainer>
@@ -72,70 +86,16 @@ export const PlayerTable = () => {
                     padding={'none'}
                 >
                     <TableHead>
-                        <TableRow>
-                            <TableCell
-                                onClick={() => {
-                                    updateSortDir('name');
-                                }}
-                            >
-                                Name
-                            </TableCell>
-                            <TableCell
-                                onClick={() => {
-                                    updateSortDir('kills');
-                                }}
-                            >
-                                Kills
-                            </TableCell>
-                            <TableCell
-                                onClick={() => {
-                                    updateSortDir('ping');
-                                }}
-                            >
-                                Ping
-                            </TableCell>
-                            <TableCell
-                                onClick={() => {
-                                    updateSortDir('status');
-                                }}
-                            >
-                                Status
-                            </TableCell>
-                        </TableRow>
+                        <TableRow>{columns.map(mkHeaderCell)}</TableRow>
                     </TableHead>
 
                     <TableBody>
-                        {sortedPlayers.map((p) => {
-                            let bg = '';
-                            if (p.team == Team.BLU) {
-                                bg = '#1e2f97';
-                            } else if (p.team == Team.RED) {
-                                bg = '#179f4d';
-                            }
-                            let status = '';
-                            if (p.number_of_vac_bans) {
-                                status += `VAC: ${p.number_of_vac_bans}`;
-                                bg = '#383615';
-                            }
-                            if (p.match != null) {
-                                status = `${
-                                    p.match.origin
-                                } [${p.match.attributes.join(',')}]`;
-                                bg = '#500e0e';
-                            }
-                            return (
-                                <TableRow
-                                    hover
-                                    style={{ backgroundColor: bg }}
-                                    key={`row-${p.steam_id}`}
-                                >
-                                    <TableCell>{p.name}</TableCell>
-                                    <TableCell>{p.kills}</TableCell>
-                                    <TableCell>{p.ping}</TableCell>
-                                    <TableCell>{status}</TableCell>
-                                </TableRow>
-                            );
-                        })}
+                        {sortedPlayers.map((player, i) => (
+                            <TableRowContextMenu
+                                player={player}
+                                key={`row-${i}-${player.steam_id}`}
+                            />
+                        ))}
                     </TableBody>
                 </Table>
             </TableContainer>

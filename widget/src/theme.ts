@@ -10,7 +10,6 @@ const baseFontSet = [
 ];
 
 export const createThemeByMode = () => {
-
     return createTheme({
         components: {
             MuiCssBaseline: {
@@ -43,22 +42,22 @@ export const createThemeByMode = () => {
             },
             fontSize: 12,
             h1: {
-                fontSize: 36
+                fontSize: 18
             },
             h2: {
-                fontSize: 32
+                fontSize: 16
             },
             h3: {
-                fontSize: 28
+                fontSize: 14
             },
             h4: {
-                fontSize: 24
+                fontSize: 12
             },
             h5: {
-                fontSize: 20
+                fontSize: 11
             },
             h6: {
-                fontSize: 16
+                fontSize: 10
             }
         },
         palette: {
@@ -78,8 +77,8 @@ export const createThemeByMode = () => {
                 black: '#34302d'
             },
             text: {
-                primary: '#f5e7de',
-                secondary: '#e3d6ce'
+                primary: '#b6b1af',
+                secondary: '#7b7775'
             },
             divider: '#452c22'
         }

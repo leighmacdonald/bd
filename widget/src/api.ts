@@ -1,5 +1,3 @@
-import SteamID from 'steamid';
-
 export const call = async <TRequest = null, TResponse = null>(
     method: string,
     path: string,
@@ -49,7 +47,7 @@ export interface Match {
 }
 
 export interface Player {
-    steam_id: SteamID;
+    steam_id: bigint;
     name: string;
     created_on: Date;
     updated_on: Date;

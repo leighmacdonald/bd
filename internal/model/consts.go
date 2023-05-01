@@ -22,7 +22,9 @@ const (
 type Team int
 
 const (
-	Red Team = iota
+	Spec Team = iota
+	Unassigned
+	Red
 	Blu
 )
 

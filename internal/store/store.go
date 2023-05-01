@@ -265,6 +265,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		player.Dangling = true
 	}
 	player.SteamId = steamID
+	player.SteamIdString = steamID.String()
 	player.Dangling = false
 	if prevName != nil {
 		player.NamePrevious = *prevName
@@ -295,6 +296,7 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
 	player.SteamId = steamID
+	player.SteamIdString = steamID.String()
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr
