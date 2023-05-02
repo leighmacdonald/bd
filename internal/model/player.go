@@ -73,7 +73,7 @@ type Player struct {
 
 	// status
 	// Connected is how long the user has been in the server
-	Connected time.Duration `json:"connected"`
+	Connected float64 `json:"connected"`
 	// In game user id
 	UserId int64 `json:"user_id"`
 	Ping   int   `json:"ping"`

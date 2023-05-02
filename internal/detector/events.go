@@ -98,7 +98,7 @@ func (bd *BD) incomingLogEventHandler(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case evt := <-bd.incomingLogEvents:
+		case evt := <-eventChan:
 			var update updateStateEvent
 			switch evt.Type {
 			case model.EvtMap:

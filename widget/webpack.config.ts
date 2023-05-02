@@ -1,6 +1,7 @@
 import * as path from 'path';
-import * as webpack from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+import type { Configuration as DevServerConfiguration } from 'webpack-dev-server';
+import type { Configuration } from 'webpack';
 
 const outPath = path.resolve('../internal/detector/dist');
 
@@ -11,7 +12,15 @@ const paths = {
     dist: outPath
 };
 
-const config: webpack.Configuration = {
+const devServer: DevServerConfiguration = {
+    static: {
+        directory: paths.dist
+    },
+    hot: true,
+    port: 9000
+};
+
+const config: Configuration = {
     entry: './src/index.tsx',
     output: {
         path: path.join(paths.dist),
@@ -20,6 +29,7 @@ const config: webpack.Configuration = {
         clean: false
     },
     devtool: devMode ? 'inline-source-map' : false,
+    devServer,
     performance: {
         maxAssetSize: 1000000,
         maxEntrypointSize: 1000000
@@ -79,13 +89,6 @@ const config: webpack.Configuration = {
     resolve: {
         extensions: ['.tsx', '.ts', '.js']
     },
-    // devServer: {
-    //     static: {
-    //         directory: paths.dist
-    //     },
-    //     compress: true,
-    //     port: 9000
-    // },
     plugins: [
         new HtmlWebpackPlugin({
             template: path.join(paths.src, 'index.html'),

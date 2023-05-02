@@ -1,6 +1,6 @@
 import React, { Fragment, useState } from 'react';
 import { Paper, Popover, Stack, TableCell, TableRow } from '@mui/material';
-import { Player, Team } from '../api';
+import { formatSeconds, Player, Team } from '../api';
 import Typography from '@mui/material/Typography';
 import Grid2 from '@mui/material/Unstable_Grid2';
 
@@ -8,10 +8,65 @@ export interface TableRowContextMenuProps {
     player: Player;
 }
 
-export type ContextMenu = {
-    mouseX: number;
-    mouseY: number;
-} | null;
+export const renderStatus = (player: Player): string => {
+    let status = '';
+    if (player.number_of_vac_bans) {
+        status += `VAC: ${player.number_of_vac_bans}`;
+    }
+    if (player.match != null) {
+        status = `${player.match.origin} [${player.match.attributes.join(
+            ','
+        )}]`;
+    }
+    return status;
+};
+
+interface userTheme {
+    connectingBg: string;
+    matchCheaterBg: string;
+    matchBotBg: string;
+    matchOtherBg: string;
+    vacBansBg: string;
+    gameBansBg: string;
+    teamABg: string;
+    teamBBg: string;
+}
+
+const createUserTheme = (): userTheme => {
+    // TODO user configurable
+    return {
+        connectingBg: '#032a23',
+        teamABg: '#062c15',
+        matchBotBg: '#901380',
+        matchCheaterBg: '#500e0e',
+        matchOtherBg: '#0c1341',
+        teamBBg: '#032a23',
+        gameBansBg: '#383615',
+        vacBansBg: '#55521f'
+    };
+};
+
+const curTheme = createUserTheme();
+
+export const rowColour = (player: Player): string => {
+    if (player.match != null) {
+        if (player.match.attributes.includes('cheater')) {
+            return curTheme.matchCheaterBg;
+        } else if (player.match.attributes.includes('bot')) {
+            return curTheme.matchBotBg;
+        }
+        return curTheme.matchOtherBg;
+    } else if (player.number_of_vac_bans) {
+        return curTheme.vacBansBg;
+    } else if (player.number_of_game_bans) {
+        return curTheme.gameBansBg;
+    } else if (player.team == Team.RED) {
+        return curTheme.teamABg;
+    } else if (player.team == Team.BLU) {
+        return curTheme.teamBBg;
+    }
+    return curTheme.connectingBg;
+};
 
 export const TableRowContextMenu = ({
     player
@@ -38,42 +93,26 @@ export const TableRowContextMenu = ({
     //     setAnchorEl(event.currentTarget);
     // };
 
-    let bg = '';
-    if (player.team == Team.BLU) {
-        bg = '#0c1341';
-    } else if (player.team == Team.RED) {
-        bg = '#062c15';
-    }
-    let status = '';
-    if (player.number_of_vac_bans) {
-        status += `VAC: ${player.number_of_vac_bans}`;
-        bg = '#383615';
-    }
-    if (player.match != null) {
-        status = `${player.match.origin} [${player.match.attributes.join(
-            ','
-        )}]`;
-        bg = '#500e0e';
-    }
-    const makeInfoRow = (key: string, value: string): JSX.Element[] => {
+    const makeInfoRow = (key: string, value: any): JSX.Element[] => {
         return [
-            <Grid2 xs={3} key={`${key}`} padding={0}>
+            <Grid2 xs={3} key={`${key}-key`} padding={0}>
                 <Typography variant={'button'} textAlign={'right'}>
                     {key}
                 </Typography>
             </Grid2>,
-            <Grid2 xs={9} padding={0}>
+            <Grid2 xs={9} key={`${key}-val`} padding={0}>
                 <Typography variant={'button'}>{value}</Typography>
             </Grid2>
         ];
     };
+
     return (
-        <Fragment>
+        <Fragment key={`${player.steam_id}`}>
             <TableRow
                 hover
                 //onClick={handleClick}
                 //onContextMenu={handleContextMenu}
-                style={{ backgroundColor: bg }}
+                style={{ backgroundColor: rowColour(player) }}
                 key={`row-${player.steam_id}`}
                 onMouseEnter={(
                     event: React.MouseEvent<HTMLTableRowElement>
@@ -86,10 +125,35 @@ export const TableRowContextMenu = ({
                     setOpen(false);
                 }}
             >
-                <TableCell style={{ padding: 3 }}>{player.name}</TableCell>
-                <TableCell>{player.kills}</TableCell>
-                <TableCell>{player.ping}</TableCell>
-                <TableCell>{status}</TableCell>
+                <TableCell align={'right'} style={{ paddingRight: 6 }}>
+                    <Typography variant={'overline'}>
+                        {player.user_id}
+                    </Typography>
+                </TableCell>
+                <TableCell>
+                    <Typography
+                        sx={{ fontFamily: 'Monospace' }}
+                        overflow={'ellipsis'}
+                    >
+                        {player.name}
+                    </Typography>
+                </TableCell>
+                <TableCell align={'right'}>
+                    <Typography variant={'overline'}>{player.kills}</Typography>
+                </TableCell>
+                <TableCell align={'right'}>
+                    <Typography variant={'overline'}>
+                        {player.deaths}
+                    </Typography>
+                </TableCell>
+                <TableCell align={'right'}>
+                    <Typography variant={'overline'}>
+                        {formatSeconds(player.connected)}
+                    </Typography>
+                </TableCell>
+                <TableCell align={'right'} style={{ paddingRight: 6 }}>
+                    <Typography variant={'overline'}> {player.ping}</Typography>
+                </TableCell>
             </TableRow>
 
             <Popover
@@ -118,25 +182,20 @@ export const TableRowContextMenu = ({
                             src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
                         />
                         <Grid2 container>
-                            {makeInfoRow('Name', player.name)}
-                            {makeInfoRow('Kills', player.kills.toString())}
-                            {makeInfoRow('Deaths', player.deaths.toString())}
-                            {makeInfoRow('Ping', player.ping.toString())}
-                            {makeInfoRow(
+                            {...makeInfoRow('UID', player.user_id)}
+                            {...makeInfoRow('Name', player.name)}
+                            {...makeInfoRow('Kills', player.kills.toString())}
+                            {...makeInfoRow('Deaths', player.deaths.toString())}
+                            {...makeInfoRow('Time', player.connected)}
+                            {...makeInfoRow('Ping', player.ping.toString())}
+                            {...makeInfoRow(
                                 'Vac Bans',
                                 player.number_of_vac_bans.toString()
                             )}
-                            {makeInfoRow(
+                            {...makeInfoRow(
                                 'Game Bans',
                                 player.number_of_game_bans.toString()
                             )}
-                            {player.match &&
-                                makeInfoRow(
-                                    'List(s)',
-                                    `[${player.match.attributes.join(',')}] (${
-                                        player.match.origin
-                                    })`
-                                )}
                         </Grid2>
                     </Stack>
                 </Paper>

@@ -32,10 +32,14 @@ var ErrInvalidReadyState = errors.New("Invalid ready state")
 var (
 	players   model.PlayerCollection
 	playersMu *sync.RWMutex
+	logChan   chan string
+	eventChan chan model.LogEvent
 )
 
 func init() {
 	playersMu = &sync.RWMutex{}
+	logChan = make(chan string)
+	eventChan = make(chan model.LogEvent)
 }
 
 // BD is the main application container
@@ -50,9 +54,8 @@ type BD struct {
 	// - track history of interactions with players
 	// - colourise messages that trigger
 	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
-	ctx                context.Context // TODO detach from struct
-	logChan            chan string
-	incomingLogEvents  chan model.LogEvent
+	ctx context.Context // TODO detach from struct
+
 	server             model.Server
 	serverMu           *sync.RWMutex
 	logReader          *logReader
@@ -74,8 +77,7 @@ type BD struct {
 
 // New allocates a new bot detector application instance
 func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
-	logChan := make(chan string)
-	eventChan := make(chan model.LogEvent)
+
 	isRunning, _ := platform.IsGameRunning()
 
 	rootApp := BD{
@@ -84,8 +86,6 @@ func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, stor
 		store:              store,
 		rules:              rules,
 		settings:           settings,
-		logChan:            logChan,
-		incomingLogEvents:  eventChan,
 		serverMu:           &sync.RWMutex{},
 		triggerUpdate:      make(chan any),
 		gameStateUpdate:    make(chan updateStateEvent, 50),
@@ -155,7 +155,7 @@ func (bd *BD) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 
 func (bd *BD) createLogReader() {
 	consoleLogPath := filepath.Join(bd.settings.GetTF2Dir(), "console.log")
-	reader, errLogReader := newLogReader(bd.logger, consoleLogPath, bd.logChan, true)
+	reader, errLogReader := newLogReader(bd.logger, consoleLogPath, logChan, true)
 	if errLogReader != nil {
 		bd.logger.Panic("Failed to create log reader", zap.Error(errLogReader))
 	}
@@ -666,7 +666,7 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 	player.Ping = update.ping
 	player.UserId = update.userID
 	player.Name = update.name
-	player.Connected = update.connected
+	player.Connected = update.connected.Seconds()
 	player.UpdatedOn = time.Now()
 	if time.Since(player.ProfileUpdatedOn) > model.DurationCacheTimeout {
 		*queuedUpdates = append(*queuedUpdates, steamID)
