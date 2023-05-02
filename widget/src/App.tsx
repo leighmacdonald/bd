@@ -4,8 +4,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './component/ErrorBoundary';
-import { PlayerTable } from './component/PlayerTable';
-import {createThemeByMode} from "./theme";
+import { createThemeByMode } from './theme';
+import { Home } from './page/Home';
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);
@@ -22,7 +22,7 @@ export const App = (): JSX.Element => {
                                         path={'/'}
                                         element={
                                             <ErrorBoundary>
-                                                <PlayerTable />
+                                                <Home />
                                             </ErrorBoundary>
                                         }
                                     />

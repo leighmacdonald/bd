@@ -2,7 +2,6 @@ package detector
 
 import (
 	"context"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
@@ -29,13 +28,7 @@ func NewApi(bd *BD) *Api {
 	}
 
 	router := gin.New()
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{"http://localhost:8900", "http://127.0.0.1:8900"}
-	corsConfig.AllowHeaders = []string{"*"}
-	corsConfig.AllowWildcard = false
-	corsConfig.AllowCredentials = false
 
-	router.Use(cors.New(corsConfig))
 	router.Use(ErrorHandler(logger))
 	router.Use(gin.Recovery())
 
@@ -95,7 +88,7 @@ func createTestPlayer() model.PlayerCollection {
 			NumberOfGameBans: 0,
 			EconomyBan:       false,
 			Team:             team,
-			Connected:        time.Second * time.Duration(rand.Intn(500)),
+			Connected:        float64(rand.Intn(3600)),
 			UserId:           userId,
 			Ping:             rand.Intn(150),
 			Kills:            rand.Intn(50),
@@ -117,6 +110,15 @@ func createTestPlayer() model.PlayerCollection {
 				Attributes:  []string{"cheater"},
 				MatcherType: "string",
 			}
+		case 6:
+			p.Match = &rules.MatchResult{
+				Origin:      "Test Rules List",
+				Attributes:  []string{"other"},
+				MatcherType: "string",
+			}
+
+		case 7:
+			p.Team = model.Spec
 		}
 		testPlayers = append(testPlayers, p)
 	}

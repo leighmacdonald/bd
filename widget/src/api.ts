@@ -7,8 +7,7 @@ export const call = async <TRequest = null, TResponse = null>(
         'Content-Type': 'application/json; charset=UTF-8'
     };
     const opts: RequestInit = {
-        mode: 'cors',
-        credentials: 'include',
+        mode: 'same-origin',
         method: method.toUpperCase()
     };
     if (method !== 'GET' && body) {
@@ -77,6 +76,20 @@ export interface Player {
     match: null | Match;
 }
 
+// export const formatSeconds = (seconds: number): string => {
+//     const date = new Date(0);
+//     date.setSeconds(seconds / 1000 / 10000);
+//     return date.toISOString().substring(11, 19);
+// };
+
+export const formatSeconds = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.round(seconds % 60);
+    return [h, m > 9 ? m : h ? '0' + m : m || '0', s > 9 ? s : '0' + s]
+        .filter(Boolean)
+        .join(':');
+};
 export const getPlayers = async () => {
     return await call<null, Player[]>('GET', 'players');
 };
