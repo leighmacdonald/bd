@@ -1,7 +1,8 @@
-package detector
+package web
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/golib"
@@ -90,9 +91,9 @@ func getPlayers() gin.HandlerFunc {
 			responseOK(ctx, http.StatusOK, testPlayers)
 			return
 		}
-		playersMu.RLock()
-		defer playersMu.RUnlock()
-		p := model.PlayerCollection{}
+		players := detector.Players()
+
+		var p []model.Player
 		if players != nil {
 			p = players
 		}
@@ -128,7 +129,7 @@ func bind(ctx *gin.Context, receiver any) bool {
 	return true
 }
 
-func ErrorHandler(logger *zap.Logger) gin.HandlerFunc {
+func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 

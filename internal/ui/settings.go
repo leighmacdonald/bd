@@ -39,9 +39,10 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 		fileInputContainer.SetOffset(0.0)
 		return fileInputContainer
 	}
-	apiKeyOriginal := settings.APIKey
+	apiKeyOriginal := settings.GetAPIKey()
 	apiKeyEntry := widget.NewPasswordEntry()
-	apiKeyEntry.Bind(binding.BindString(&settings.APIKey))
+	apiKey := settings.GetAPIKey()
+	apiKeyEntry.Bind(binding.BindString(&apiKey))
 	apiKeyEntry.Validator = func(newApiKey string) error {
 		if len(newApiKey) > 0 && len(newApiKey) != 32 {
 			msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
@@ -75,13 +76,15 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 	}
 
 	steamIdEntry := widget.NewEntry()
-	steamIdEntry.Bind(binding.BindString(&settings.SteamID))
+	steamIdVal := settings.GetSteamId()
+	steamId := steamIdVal.String()
+	steamIdEntry.Bind(binding.BindString(&steamId))
 	steamIdEntry.Validator = validateSteamId
-
-	tf2RootEntry := widget.NewEntryWithData(binding.BindString(&settings.TF2Dir))
+	tf2Dir := settings.GetTF2Dir()
+	tf2RootEntry := widget.NewEntryWithData(binding.BindString(&tf2Dir))
 	tf2RootEntry.Validator = validateSteamRoot
-
-	steamDirEntry := widget.NewEntryWithData(binding.BindString(&settings.SteamDir))
+	steamDir := settings.GetSteamDir()
+	steamDirEntry := widget.NewEntryWithData(binding.BindString(&steamDir))
 	steamDirEntry.Validator = func(newRoot string) error {
 		if len(newRoot) > 0 {
 			if !util.Exists(newRoot) {
@@ -103,15 +106,33 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 		}
 		return nil
 	}
-	autoCloseOnGameExitEntry := widget.NewCheckWithData("", binding.BindBool(&settings.AutoCloseOnGameExit))
-	autoLaunchGameEntry := widget.NewCheckWithData("", binding.BindBool(&settings.AutoLaunchGame))
-	kickerEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.KickerEnabled))
-	chatWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.ChatWarningsEnabled))
-	partyWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.PartyWarningsEnabled))
-	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DiscordPresenceEnabled))
-	voiceBanEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.VoiceBansEnabled))
-	rconModeStaticEntry := widget.NewCheckWithData("", binding.BindBool(&settings.RCONStatic))
-	debugLogEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&settings.DebugLogEnabled))
+	autoCloseOnGameExit := settings.GetAutoCloseOnGameExit()
+	autoCloseOnGameExitEntry := widget.NewCheckWithData("", binding.BindBool(&autoCloseOnGameExit))
+
+	autoLaunchGame := settings.GetAutoLaunchGame()
+	autoLaunchGameEntry := widget.NewCheckWithData("", binding.BindBool(&autoLaunchGame))
+
+	kickerEnabled := settings.GetKickerEnabled()
+	kickerEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&kickerEnabled))
+
+	chatWarningsEnabled := settings.GetChatWarningsEnabled()
+	chatWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&chatWarningsEnabled))
+
+	partyWarningsEnabled := settings.GetPartyWarningsEnabled()
+	partyWarningsEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&partyWarningsEnabled))
+
+	discordPresenceEnabled := settings.GetDiscordPresenceEnabled()
+	discordPresenceEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&discordPresenceEnabled))
+
+	voiceBansEnabled := settings.GetVoiceBansEnabled()
+	voiceBanEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&voiceBansEnabled))
+
+	rconStatic := settings.GetRCONStatic()
+
+	rconModeStaticEntry := widget.NewCheckWithData("", binding.BindBool(&rconStatic))
+
+	debugLogEnabled := settings.GetDebugLogEnabled()
+	debugLogEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&debugLogEnabled))
 
 	staticConfig := model.NewRconConfig(true)
 	boundTags := binding.NewString()

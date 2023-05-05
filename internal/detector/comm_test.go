@@ -23,6 +23,5 @@ func TestParse(t *testing.T) {
   Pending[0] [U:1:1201744457]  team = TF_GC_TEAM_INVADERS  type = MATCH_PLAYER
 
 `
-	players := parseLobbyPlayers(s)
-	require.Equal(t, 14, len(players))
+	require.Equal(t, 14, len(parseLobbyPlayers(s)))
 }

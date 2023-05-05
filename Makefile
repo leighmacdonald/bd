@@ -14,7 +14,7 @@ fmt:
 
 bump_deps:
 	go get -u ./...
-	#cd frontend && yarn upgrade-interactive --latest
+	cd widget && yarn upgrade-interactive --latest
 
 fonts:
 	fyne bundle --pkg ui    -o ./internal/ui/embed_img.go ./internal/ui/resources/default_avatar.jpg
