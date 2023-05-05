@@ -1,31 +1,17 @@
-import { PlayerTable } from '../component/PlayerTable';
-import React, { useEffect, useState } from 'react';
+import { ColumnConfigButton, PlayerTable } from '../component/PlayerTable';
+import React, { useState } from 'react';
 import Grid2 from '@mui/material/Unstable_Grid2';
 import { Box, ButtonGroup, IconButton, Stack, Tooltip } from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import Typography from '@mui/material/Typography';
-import { getPlayers, Player } from '../api';
+import { usePlayers } from '../api';
 
 export const Home = () => {
-    const [players, setPlayers] = useState<Player[]>([]);
+    const players = usePlayers();
     const [matchesOnly, setMatchesOnly] = useState(
         // Surely strings are the only types
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
-
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                setPlayers(await getPlayers());
-            } catch (e) {
-                console.log(e);
-            }
-        }, 1000);
-        return () => {
-            clearInterval(interval);
-        };
-    }, []);
 
     return (
         <Grid2 container>
@@ -49,12 +35,10 @@ export const Home = () => {
                                     });
                                 }}
                             >
-                                <FilterListOutlinedIcon color={'primary'} />
+                                <SettingsOutlinedIcon color={'primary'} />
                             </IconButton>
                         </Tooltip>
-                        <IconButton>
-                            <SettingsOutlinedIcon color={'primary'} />
-                        </IconButton>
+                        <ColumnConfigButton />
                     </ButtonGroup>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant={'overline'}></Typography>

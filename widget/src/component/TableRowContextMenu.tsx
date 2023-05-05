@@ -8,19 +8,6 @@ export interface TableRowContextMenuProps {
     player: Player;
 }
 
-export const renderStatus = (player: Player): string => {
-    let status = '';
-    if (player.number_of_vac_bans) {
-        status += `VAC: ${player.number_of_vac_bans}`;
-    }
-    if (player.match != null) {
-        status = `${player.match.origin} [${player.match.attributes.join(
-            ','
-        )}]`;
-    }
-    return status;
-};
-
 interface userTheme {
     connectingBg: string;
     matchCheaterBg: string;
@@ -49,10 +36,18 @@ const createUserTheme = (): userTheme => {
 const curTheme = createUserTheme();
 
 export const rowColour = (player: Player): string => {
-    if (player.match != null) {
-        if (player.match.attributes.includes('cheater')) {
+    if (player.matches.length) {
+        if (
+            player.matches.filter((m) => {
+                m.attributes.includes('cheater');
+            })
+        ) {
             return curTheme.matchCheaterBg;
-        } else if (player.match.attributes.includes('bot')) {
+        } else if (
+            player.matches.filter((m) => {
+                m.attributes.includes('bot');
+            })
+        ) {
             return curTheme.matchBotBg;
         }
         return curTheme.matchOtherBg;

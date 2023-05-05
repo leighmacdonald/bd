@@ -2,7 +2,10 @@ import React, { useMemo } from 'react';
 
 import {
     Box,
+    IconButton,
     Paper,
+    Popover,
+    Stack,
     Table,
     TableBody,
     TableCell,
@@ -12,8 +15,9 @@ import {
     TableSortLabel
 } from '@mui/material';
 import { Player } from '../api';
-import { TableRowContextMenu } from './ContextMenu';
+import { TableRowContextMenu } from './TableRowContextMenu';
 import { visuallyHidden } from '@mui/utils';
+import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -107,7 +111,44 @@ const headCells: readonly HeadCell[] = [
     }
 ];
 
-const EnhancedTableHead = (props: PlayerTableProps) => {
+export const ColumnConfigButton = () => {
+    const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(
+        null
+    );
+
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const open = Boolean(anchorEl);
+    return (
+        <>
+            <IconButton onClick={handleClick}>
+                <FilterListOutlinedIcon color={'primary'} />
+            </IconButton>
+            <Popover
+                open={open}
+                onClose={handleClose}
+                id={'column-config-popover'}
+                anchorEl={anchorEl}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left'
+                }}
+            >
+                <Paper>
+                    <Stack spacing={1}></Stack>
+                </Paper>
+            </Popover>
+        </>
+    );
+};
+
+const PlayerTableHead = (props: PlayerTableProps) => {
     const { order, orderBy, onRequestSort } = props;
     const createSortHandler =
         (property: keyof Player) => (event: React.MouseEvent<unknown>) => {
@@ -149,6 +190,7 @@ interface PlayerTableRootProps {
     players: Player[];
     matchesOnly?: boolean;
 }
+
 export const PlayerTable = ({ players, matchesOnly }: PlayerTableRootProps) => {
     const [order, setOrder] = React.useState<Order>('desc');
     const [orderBy, setOrderBy] = React.useState<keyof Player>('name');
@@ -166,7 +208,7 @@ export const PlayerTable = ({ players, matchesOnly }: PlayerTableRootProps) => {
     const visibleRows = useMemo(
         () =>
             stableSort(
-                players.filter((p) => !matchesOnly || p.match),
+                players.filter((p) => !matchesOnly || p.matches.length),
                 getComparator(order, orderBy)
             ),
         [order, orderBy, players, matchesOnly]
@@ -186,7 +228,7 @@ export const PlayerTable = ({ players, matchesOnly }: PlayerTableRootProps) => {
                         }
                     }}
                 >
-                    <EnhancedTableHead
+                    <PlayerTableHead
                         players={players}
                         order={order}
                         orderBy={orderBy}
