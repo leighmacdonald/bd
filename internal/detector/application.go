@@ -8,7 +8,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/cache"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
@@ -33,19 +32,19 @@ import (
 var ErrInvalidReadyState = errors.New("Invalid ready state")
 
 var (
-	players           model.PlayerCollection
+	players           store.PlayerCollection
 	playersMu         *sync.RWMutex
 	logChan           chan string
-	eventChan         chan model.LogEvent
+	eventChan         chan LogEvent
 	gameProcessActive *atomic.Bool
 	startupTime       time.Time
-	server            model.Server
+	server            Server
 	serverMu          *sync.RWMutex
 	reader            *logReader
 	parser            *logParser
 	rulesEngine       *rules.Engine
-	rconConn          *rcon.RemoteConsole
-	settings          *model.Settings
+	rconConn          rconConnection
+	settings          *UserSettings
 	dataStore         store.DataStore
 	//triggerUpdate     chan any
 	gameStateUpdate chan updateStateEvent
@@ -64,7 +63,7 @@ func init() {
 	gameHasStartedOnce.Store(isRunning)
 	playersMu = &sync.RWMutex{}
 	logChan = make(chan string)
-	eventChan = make(chan model.LogEvent)
+	eventChan = make(chan LogEvent)
 	serverMu = &sync.RWMutex{}
 	//triggerUpdate = make(chan any)
 	gameStateUpdate = make(chan updateStateEvent, 50)
@@ -90,8 +89,8 @@ func mustCreateLogger(logFile string) *zap.Logger {
 	return logger
 }
 
-func Setup(versionInfo model.Version) {
-	userSettings, errSettings := model.NewSettings()
+func Setup(versionInfo Version) {
+	userSettings, errSettings := NewSettings()
 	if errSettings != nil {
 		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
 		os.Exit(1)
@@ -154,7 +153,7 @@ func Setup(versionInfo model.Version) {
 		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
 	}
 	dataStore = newDataStore
-	fsCache = cache.New(rootLogger, settings.ConfigRoot(), model.DurationCacheTimeout)
+	fsCache = cache.New(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
 	parser = newLogParser(rootLogger, logChan, eventChan)
 	lr, errLogReader := createLogReader()
 	if errLogReader != nil {
@@ -188,9 +187,9 @@ func fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	if errCache != nil && !errors.Is(errCache, cache.ErrCacheExpired) {
 		return nil, errors.Wrap(errCache, "unexpected cache error")
 	}
-	localCtx, cancel := context.WithTimeout(ctx, model.DurationWebRequestTimeout)
+	localCtx, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 	defer cancel()
-	req, reqErr := http.NewRequestWithContext(localCtx, "GET", model.AvatarUrl(hash), nil)
+	req, reqErr := http.NewRequestWithContext(localCtx, "GET", store.AvatarUrl(hash), nil)
 	if reqErr != nil {
 		return nil, errors.Wrap(reqErr, "Failed to create avatar download request")
 	}
@@ -270,7 +269,7 @@ func Store() store.DataStore {
 	return dataStore
 }
 
-func Settings() *model.Settings {
+func Settings() *UserSettings {
 	return settings
 }
 
@@ -279,8 +278,8 @@ func Logger() *zap.Logger {
 }
 
 // Players returns a copy of the current player states
-func Players() []model.Player {
-	var p []model.Player
+func Players() []store.Player {
+	var p []store.Player
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, plr := range players {
@@ -380,7 +379,7 @@ func updatePlayerState() (string, error) {
 
 func statusUpdater(ctx context.Context) {
 	defer rootLogger.Debug("status updater exited")
-	statusTimer := time.NewTicker(model.DurationStatusUpdateTimer)
+	statusTimer := time.NewTicker(DurationStatusUpdateTimer)
 	for {
 		select {
 		case <-statusTimer.C:
@@ -398,7 +397,7 @@ func statusUpdater(ctx context.Context) {
 	}
 }
 
-func GetPlayer(sid64 steamid.SID64) *model.Player {
+func GetPlayer(sid64 steamid.SID64) *store.Player {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -409,7 +408,7 @@ func GetPlayer(sid64 steamid.SID64) *model.Player {
 	return nil
 }
 
-func getPlayerByName(name string) *model.Player {
+func getPlayerByName(name string) *store.Player {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -422,7 +421,7 @@ func getPlayerByName(name string) *model.Player {
 
 func checkHandler(ctx context.Context) {
 	defer rootLogger.Debug("checkHandler exited")
-	checkTimer := time.NewTicker(model.DurationCheckTimer)
+	checkTimer := time.NewTicker(DurationCheckTimer)
 	for {
 		select {
 		case <-ctx.Done():
@@ -440,7 +439,7 @@ func checkHandler(ctx context.Context) {
 
 func cleanupHandler(ctx context.Context) {
 	defer rootLogger.Debug("cleanupHandler exited")
-	deleteTimer := time.NewTicker(model.DurationPlayerExpired)
+	deleteTimer := time.NewTicker(time.Second * time.Duration(settings.playerExpiredTimeout))
 	for {
 		select {
 		case <-ctx.Done():
@@ -448,11 +447,11 @@ func cleanupHandler(ctx context.Context) {
 		case <-deleteTimer.C:
 			rootLogger.Debug("Delete update input received", zap.String("state", "start"))
 			serverMu.Lock()
-			if time.Since(server.LastUpdate) > model.DurationDisconnected {
-				server = model.Server{}
+			if time.Since(server.LastUpdate) > time.Second*time.Duration(settings.playerDisconnectTimeout) {
+				server = Server{}
 			}
 			serverMu.Unlock()
-			var valid model.PlayerCollection
+			var valid store.PlayerCollection
 			expired := 0
 			for _, ps := range players {
 				if ps.IsExpired() {
@@ -487,7 +486,7 @@ func performAvatarDownload(ctx context.Context, sid64 steamid.SID64, hash string
 func gameStateUpdater(ctx context.Context) {
 	defer rootLogger.Debug("gameStateUpdater exited")
 	var queuedUpdates steamid.Collection
-	updateTimer := time.NewTicker(model.DurationUpdateTimer)
+	updateTimer := time.NewTicker(DurationUpdateTimer)
 	queueAvatars := make(chan steamid.SID64, 32)
 	for {
 		select {
@@ -527,7 +526,7 @@ func gameStateUpdater(ctx context.Context) {
 			go performAvatarDownload(ctx, sid64, p.AvatarHash)
 		case update := <-gameStateUpdate:
 			rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
-			var sourcePlayer *model.Player
+			var sourcePlayer *store.Player
 			if update.source.Valid() {
 				sourcePlayer = GetPlayer(update.source)
 				if sourcePlayer == nil && update.kind != updateStatus && update.kind != updateMark {
@@ -537,7 +536,7 @@ func gameStateUpdater(ctx context.Context) {
 			}
 			switch update.kind {
 			case updateMessage:
-				if errUm := onUpdateMessage(ctx, update.data.(messageEvent), dataStore); errUm != nil {
+				if errUm := onUpdateMessage(ctx, update.data.(messageEvent)); errUm != nil {
 					rootLogger.Error("Failed to handle user message", zap.Error(errUm))
 					continue
 				}
@@ -552,7 +551,7 @@ func gameStateUpdater(ctx context.Context) {
 				onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
 				queueAvatars <- update.source
 			case updateStatus:
-				if errUpdate := onUpdateStatus(ctx, dataStore, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
+				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
 					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
 				}
 			case updateMark:
@@ -599,7 +598,7 @@ func onUpdateHostname(event hostnameEvent) {
 	serverMu.Unlock()
 }
 
-func nameToSid(players model.PlayerCollection, name string) steamid.SID64 {
+func nameToSid(players store.PlayerCollection, name string) steamid.SID64 {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -619,13 +618,13 @@ func onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStore) error {
+func onUpdateMessage(ctx context.Context, msg messageEvent) error {
 	player := getPlayerByName(msg.name)
 	if player == nil {
 		return errors.Errorf("Unknown name: %v", msg.name)
 	}
 
-	um := model.UserMessage{}
+	um := store.UserMessage{}
 	playersMu.RLock()
 	um.Player = player.Name
 	um.Team = player.Team
@@ -637,7 +636,7 @@ func onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStor
 	um.Dead = msg.dead
 	um.TeamOnly = msg.teamOnly
 
-	if errSaveMsg := store.SaveMessage(ctx, &um); errSaveMsg != nil {
+	if errSaveMsg := dataStore.SaveMessage(ctx, &um); errSaveMsg != nil {
 		rootLogger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
 	}
 	if match := rulesEngine.MatchMessage(um.Message); match != nil {
@@ -701,7 +700,7 @@ func onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
 	player := GetPlayer(steamID)
 	playersMu.Lock()
 	defer playersMu.Unlock()
-	player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
+	player.Visibility = store.ProfileVisibility(summary.CommunityVisibilityState)
 	player.AvatarHash = summary.AvatarHash
 	player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
 	player.RealName = summary.RealName
@@ -709,15 +708,15 @@ func onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
 	player.Touch()
 }
 
-func onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
+func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
 	player := GetPlayer(steamID)
 	if player == nil {
-		player = model.NewPlayer(steamID, update.name)
-		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
+		player = store.NewPlayer(steamID, update.name)
+		if errCreate := dataStore.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
 			return errors.Wrap(errCreate, "Error trying to load/create player\n")
 		}
 		if update.name != "" && update.name != player.NamePrevious {
-			if errSaveName := store.SaveName(ctx, steamID, player.Name); errSaveName != nil {
+			if errSaveName := dataStore.SaveName(ctx, steamID, player.Name); errSaveName != nil {
 				return errors.Wrap(errSaveName, "Failed to save name")
 			}
 		}
@@ -731,7 +730,7 @@ func onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.
 	player.Name = update.name
 	player.Connected = update.connected.Seconds()
 	player.UpdatedOn = time.Now()
-	if time.Since(player.ProfileUpdatedOn) > model.DurationCacheTimeout {
+	if time.Since(player.ProfileUpdatedOn) > DurationCacheTimeout {
 		*queuedUpdates = append(*queuedUpdates, steamID)
 	}
 	playersMu.Unlock()
@@ -755,7 +754,7 @@ func onUpdateWhitelist(event updateWhitelistEvent) error {
 func onUpdateMark(status updateMarkEvent) error {
 	player := GetPlayer(status.target)
 	if player == nil {
-		player = model.NewPlayer(status.target, "")
+		player = store.NewPlayer(status.target, "")
 		if err := dataStore.GetPlayer(context.Background(), status.target, player); err != nil {
 			return err
 		}
@@ -821,7 +820,7 @@ func refreshLists(ctx context.Context) {
 	}
 }
 
-func checkPlayerStates(ctx context.Context, validTeam model.Team) {
+func checkPlayerStates(ctx context.Context, validTeam store.Team) {
 	for _, ps := range players {
 		if ps.IsDisconnected() {
 			continue
@@ -849,10 +848,10 @@ func checkPlayerStates(ctx context.Context, validTeam model.Team) {
 	}
 }
 
-func triggerMatch(ps *model.Player, match *rules.MatchResult) {
+func triggerMatch(ps *store.Player, match *rules.MatchResult) {
 	announceGeneralLast := ps.AnnouncedGeneralLast
 	announcePartyLast := ps.AnnouncedPartyLast
-	if time.Since(announceGeneralLast) >= model.DurationAnnounceMatchTimeout {
+	if time.Since(announceGeneralLast) >= DurationAnnounceMatchTimeout {
 		msg := "Matched player"
 		if ps.Whitelisted {
 			msg = "Matched whitelisted player"
@@ -864,9 +863,9 @@ func triggerMatch(ps *model.Player, match *rules.MatchResult) {
 	if ps.Whitelisted {
 		return
 	}
-	if settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= model.DurationAnnounceMatchTimeout {
+	if settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := SendChat(model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
+		if errLog := SendChat(ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
 			rootLogger.Error("Failed to send party log message", zap.Error(errLog))
 			return
 		}
@@ -883,7 +882,7 @@ func triggerMatch(ps *model.Player, match *rules.MatchResult) {
 			}
 		}
 		if kickTag {
-			if errVote := CallVote(ps.UserId, model.KickReasonCheating); errVote != nil {
+			if errVote := CallVote(ps.UserId, KickReasonCheating); errVote != nil {
 				rootLogger.Error("Error calling vote", zap.Error(errVote))
 			}
 		} else {
@@ -917,17 +916,17 @@ func ready() bool {
 	return true
 }
 
-func SendChat(destination model.ChatDest, format string, args ...any) error {
+func SendChat(destination ChatDest, format string, args ...any) error {
 	if !ready() {
 		return ErrInvalidReadyState
 	}
 	cmd := ""
 	switch destination {
-	case model.ChatDestAll:
+	case ChatDestAll:
 		cmd = fmt.Sprintf("say %s", fmt.Sprintf(format, args...))
-	case model.ChatDestTeam:
+	case ChatDestTeam:
 		cmd = fmt.Sprintf("say_team %s", fmt.Sprintf(format, args...))
-	case model.ChatDestParty:
+	case ChatDestParty:
 		cmd = fmt.Sprintf("say_party %s", fmt.Sprintf(format, args...))
 	default:
 		return errors.Errorf("Invalid destination: %s", destination)
@@ -939,7 +938,7 @@ func SendChat(destination model.ChatDest, format string, args ...any) error {
 	return nil
 }
 
-func CallVote(userID int64, reason model.KickReason) error {
+func CallVote(userID int64, reason KickReason) error {
 	if !ready() {
 		return ErrInvalidReadyState
 	}
@@ -951,7 +950,7 @@ func CallVote(userID int64, reason model.KickReason) error {
 }
 
 func processChecker(ctx context.Context) {
-	ticker := time.NewTicker(model.DurationProcessTimeout)
+	ticker := time.NewTicker(DurationProcessTimeout)
 	for {
 		select {
 		case <-ctx.Done():
@@ -986,10 +985,11 @@ func Shutdown() {
 	}
 	defer util.LogClose(rootLogger, dataStore)
 	rootLogger.Info("Goodbye")
-	if errSync := rootLogger.Sync(); errSync != nil {
-		fmt.Printf("Failed to sync log: %v\n", errSync)
+	if settings.GetDebugLogEnabled() {
+		if errSync := rootLogger.Sync(); errSync != nil {
+			fmt.Printf("Failed to sync log: %v\n", errSync)
+		}
 	}
-
 }
 
 func Start(ctx context.Context) {

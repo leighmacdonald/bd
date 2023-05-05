@@ -3,6 +3,7 @@ package util
 import (
 	"go.uber.org/zap"
 	"io"
+	"math/rand"
 	"os"
 )
 
@@ -21,4 +22,14 @@ func LogClose(logger *zap.Logger, closer io.Closer) {
 
 func IgnoreClose(closer io.Closer) {
 	_ = closer.Close()
+}
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandomString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }

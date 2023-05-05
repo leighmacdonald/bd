@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -39,7 +39,7 @@ func newMenuButton(menu *fyne.Menu) *menuButton {
 
 const newItemLabel = "New..."
 
-func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList binding.StringList, markFunc model.MarkFunc) *fyne.Menu {
+func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList binding.StringList, markFunc detector.MarkFunc) *fyne.Menu {
 	mkAttr := func(attrName string) func() {
 		clsAttribute := attrName
 		clsSteamId := sid64
@@ -93,20 +93,20 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 	return markAsMenu
 }
 
-func generateExternalLinksMenu(logger *zap.Logger, steamId steamid.SID64, links model.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
-	lk := func(link *model.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
+func generateExternalLinksMenu(logger *zap.Logger, steamId steamid.SID64, links detector.LinkConfigCollection, urlOpener func(url *url.URL) error) *fyne.Menu {
+	lk := func(link *detector.LinkConfig, sid64 steamid.SID64, urlOpener func(url *url.URL) error) func() {
 		clsLinkValue := link
 		clsSteamId := sid64
 		return func() {
 			u := clsLinkValue.URL
-			switch model.SteamIdFormat(clsLinkValue.IdFormat) {
-			case model.Steam:
+			switch detector.SteamIdFormat(clsLinkValue.IdFormat) {
+			case detector.Steam:
 				u = fmt.Sprintf(u, steamid.SID64ToSID(clsSteamId))
-			case model.Steam3:
+			case detector.Steam3:
 				u = fmt.Sprintf(u, steamid.SID64ToSID3(clsSteamId))
-			case model.Steam32:
+			case detector.Steam32:
 				u = fmt.Sprintf(u, steamid.SID64ToSID32(clsSteamId))
-			case model.Steam64:
+			case detector.Steam64:
 				u = fmt.Sprintf(u, clsSteamId.Int64())
 			default:
 				logger.Error("Got unhandled steamid format, trying steam64", zap.String("format", clsLinkValue.IdFormat))
@@ -177,8 +177,8 @@ func generateWhitelistMenu(parent fyne.Window, steamID steamid.SID64) *fyne.Menu
 	return m
 }
 
-func generateKickMenu(parent fyne.Window, userId int64, kickFunc model.KickFunc) *fyne.Menu {
-	fn := func(reason model.KickReason) func() {
+func generateKickMenu(parent fyne.Window, userId int64, kickFunc detector.KickFunc) *fyne.Menu {
+	fn := func(reason detector.KickReason) func() {
 		return func() {
 			showUserError(kickFunc(userId, reason), parent)
 		}
@@ -189,10 +189,10 @@ func generateKickMenu(parent fyne.Window, userId int64, kickFunc model.KickFunc)
 	labelScamming := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_scamming", Other: "Scamming"}})
 	labelOther := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_call_vote_other", Other: "Other"}})
 	return fyne.NewMenu(title,
-		&fyne.MenuItem{Label: labelCheating, Action: fn(model.KickReasonCheating)},
-		&fyne.MenuItem{Label: labelIdle, Action: fn(model.KickReasonIdle)},
-		&fyne.MenuItem{Label: labelScamming, Action: fn(model.KickReasonScamming)},
-		&fyne.MenuItem{Label: labelOther, Action: fn(model.KickReasonOther)},
+		&fyne.MenuItem{Label: labelCheating, Action: fn(detector.KickReasonCheating)},
+		&fyne.MenuItem{Label: labelIdle, Action: fn(detector.KickReasonIdle)},
+		&fyne.MenuItem{Label: labelScamming, Action: fn(detector.KickReasonScamming)},
+		&fyne.MenuItem{Label: labelOther, Action: fn(detector.KickReasonOther)},
 	)
 }
 
@@ -260,7 +260,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 				offline := false
 				player := detector.GetPlayer(steamId)
 				if player == nil {
-					player = model.NewPlayer(steamId, "")
+					player = store.NewPlayer(steamId, "")
 					if errOffline := detector.Store().GetPlayer(ctx, steamId, player); errOffline != nil {
 						showUserError(errors.Errorf("Unknown player: %v", errOffline), window)
 						return

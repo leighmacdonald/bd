@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"go.uber.org/zap"
@@ -19,10 +19,10 @@ type ruleListConfigDialog struct {
 
 	list      *widget.List
 	boundList binding.UntypedList
-	settings  *model.Settings
+	settings  *detector.UserSettings
 }
 
-func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *model.Settings) dialog.Dialog {
+func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *detector.UserSettings) dialog.Dialog {
 	buttonEdit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_edit", Other: "Edit"}})
 	buttonDelete := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "lists_button_delete", Other: "Delete"}})
 	boundList := binding.BindUntypedList(&[]interface{}{})
@@ -40,7 +40,7 @@ func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *m
 	}, func(i binding.DataItem, o fyne.CanvasObject) {
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
-		lc := obj.(*model.ListConfig)
+		lc := obj.(*detector.ListConfig)
 		rootContainer := o.(*fyne.Container)
 
 		name := rootContainer.Objects[0].(*widget.Label)
@@ -90,7 +90,7 @@ func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *m
 				if !b {
 					return
 				}
-				var lists model.ListConfigCollection
+				var lists detector.ListConfigCollection
 				for _, list := range settings.GetLists() {
 					if list == lc {
 						continue
@@ -114,8 +114,8 @@ func newRuleListConfigDialog(parent fyne.Window, logger *zap.Logger, settings *m
 		nil, container.NewHBox(
 			widget.NewButtonWithIcon(buttonAdd, theme.ContentAddIcon(), func() {
 				newLists := settings.GetLists()
-				newLists = append(newLists, &model.ListConfig{
-					ListType: model.ListTypeTF2BDPlayerList,
+				newLists = append(newLists, &detector.ListConfig{
+					ListType: detector.ListTypeTF2BDPlayerList,
 					Name:     fmt.Sprintf("New List %d", listCount),
 					Enabled:  false,
 					URL:      "",

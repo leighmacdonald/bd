@@ -3,9 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -32,12 +30,12 @@ func TestStore(t *testing.T) {
 
 func testStoreImpl(t *testing.T, ds DataStore) {
 	require.NoError(t, ds.Init(), "Failed to migrate default schema")
-	player1 := model.NewPlayer(steamid.SID64(76561197961279983), golib.RandomString(10))
+	player1 := NewPlayer(steamid.SID64(76561197961279983), util.RandomString(10))
 
 	ctx := context.Background()
 	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, player1), "Failed to create player")
-	randName := golib.RandomString(10)
-	randNameLast := golib.RandomString(10)
+	randName := util.RandomString(10)
+	randNameLast := util.RandomString(10)
 	require.NoError(t, ds.SaveName(ctx, player1.SteamId, randName))
 	require.NoError(t, ds.SaveName(ctx, player1.SteamId, randName))
 	require.NoError(t, ds.SaveName(ctx, player1.SteamId, randNameLast))
@@ -45,12 +43,12 @@ func testStoreImpl(t *testing.T, ds DataStore) {
 	require.NoError(t, errNames)
 	require.Equal(t, 3, len(names))
 
-	var player2 model.Player
+	var player2 Player
 	require.NoError(t, ds.LoadOrCreatePlayer(ctx, player1.SteamId, &player2), "Failed to create player2")
 	require.Equal(t, player1.Visibility, player2.Visibility)
 	require.Equal(t, randNameLast, player2.NamePrevious)
-	require.NoError(t, ds.SaveMessage(ctx, &model.UserMessage{PlayerSID: player1.SteamId, Message: golib.RandomString(40)}))
-	require.NoError(t, ds.SaveMessage(ctx, &model.UserMessage{PlayerSID: player1.SteamId, Message: golib.RandomString(40)}))
+	require.NoError(t, ds.SaveMessage(ctx, &UserMessage{PlayerSID: player1.SteamId, Message: util.RandomString(40)}))
+	require.NoError(t, ds.SaveMessage(ctx, &UserMessage{PlayerSID: player1.SteamId, Message: util.RandomString(40)}))
 	messages, errMessages := ds.FetchMessages(ctx, player1.SteamId)
 	require.NoError(t, errMessages)
 	require.Equal(t, 2, len(messages))

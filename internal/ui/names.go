@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -29,7 +29,7 @@ type userNameWindow struct {
 	logger            *zap.Logger
 }
 
-func (nameList *userNameWindow) Reload(rr []model.UserNameHistory) error {
+func (nameList *userNameWindow) Reload(rr []store.UserNameHistory) error {
 	bl := make([]interface{}, len(rr))
 	for i, r := range rr {
 		bl[i] = r
@@ -51,7 +51,7 @@ func (nameList *userNameWindow) Widget() *widget.List {
 	return nameList.list
 }
 
-func newUserNameWindow(ctx context.Context, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
+func newUserNameWindow(ctx context.Context, namesFunc store.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "names_title", Other: "Username History: {{ .SteamID }}"},
 		TemplateData: map[string]interface{}{
@@ -85,7 +85,7 @@ func newUserNameWindow(ctx context.Context, namesFunc model.QueryNamesFunc, sid6
 		func(i binding.DataItem, o fyne.CanvasObject) {
 			value := i.(binding.Untyped)
 			obj, _ := value.Get()
-			um := obj.(model.UserNameHistory)
+			um := obj.(store.UserNameHistory)
 			unl.objectMu.Lock()
 			rootContainer := o.(*fyne.Container)
 			timeStamp := rootContainer.Objects[1].(*widget.Label)
@@ -107,7 +107,7 @@ func newUserNameWindow(ctx context.Context, namesFunc model.QueryNamesFunc, sid6
 			TemplateData: map[string]interface{}{
 				"SteamId": sid64,
 			}})
-		names = append(names, model.UserNameHistory{Name: msg, FirstSeen: time.Now()})
+		names = append(names, store.UserNameHistory{Name: msg, FirstSeen: time.Now()})
 	}
 	if errSet := unl.boundList.Set(names.AsAny()); errSet != nil {
 		unl.logger.Error("Failed to set names list", zap.Error(errSet))

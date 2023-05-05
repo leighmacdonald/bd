@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/ui"
 	"github.com/leighmacdonald/bd/internal/web"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,7 +18,7 @@ var (
 
 func main() {
 	ctx := context.Background()
-	versionInfo := model.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	detector.Setup(versionInfo)
 	if !(detector.Settings().GetHttpEnabled() || detector.Settings().GetGuiEnabled()) {
 		panic("Must enable at least one of the gui or http packages")

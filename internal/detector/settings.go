@@ -1,4 +1,4 @@
-package model
+package detector
 
 import (
 	"crypto/rand"
@@ -8,7 +8,6 @@ import (
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/golib"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -80,250 +79,252 @@ func (list ListConfigCollection) AsAny() []any {
 	return bl
 }
 
-type Settings struct {
+type UserSettings struct {
 	*sync.RWMutex `yaml:"-"`
-	// Path to config used when reading Settings
+	// Path to config used when reading UserSettings
 	configPath string `yaml:"-"`
 	steamID    string `yaml:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	steamDir string `yaml:"steam_dir"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	tf2Dir                 string               `yaml:"tf2_dir"`
-	autoLaunchGame         bool                 `yaml:"auto_launch_game_auto"`
-	autoCloseOnGameExit    bool                 `yaml:"auto_close_on_game_exit"`
-	apiKey                 string               `yaml:"api_key"`
-	disconnectedTimeout    string               `yaml:"disconnected_timeout"`
-	discordPresenceEnabled bool                 `yaml:"discord_presence_enabled"`
-	kickerEnabled          bool                 `yaml:"kicker_enabled"`
-	chatWarningsEnabled    bool                 `yaml:"chat_warnings_enabled"`
-	partyWarningsEnabled   bool                 `yaml:"party_warnings_enabled"`
-	kickTags               []string             `yaml:"kick_tags"`
-	voiceBansEnabled       bool                 `yaml:"voice_bans_enabled"`
-	debugLogEnabled        bool                 `yaml:"debug_log_enabled"`
-	lists                  ListConfigCollection `yaml:"lists"`
-	links                  []*LinkConfig        `yaml:"links"`
-	rconStatic             bool                 `yaml:"rcon_static"`
-	guiEnabled             bool                 `yaml:"gui_enabled"`
-	httpEnabled            bool                 `yaml:"http_enabled"`
-	httpListenAddr         string               `yaml:"http_listen_addr"`
-	rcon                   RCONConfigProvider   `yaml:"-"`
+	tf2Dir                  string               `yaml:"tf2_dir"`
+	autoLaunchGame          bool                 `yaml:"auto_launch_game_auto"`
+	autoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit"`
+	apiKey                  string               `yaml:"api_key"`
+	disconnectedTimeout     string               `yaml:"disconnected_timeout"`
+	discordPresenceEnabled  bool                 `yaml:"discord_presence_enabled"`
+	kickerEnabled           bool                 `yaml:"kicker_enabled"`
+	chatWarningsEnabled     bool                 `yaml:"chat_warnings_enabled"`
+	partyWarningsEnabled    bool                 `yaml:"party_warnings_enabled"`
+	kickTags                []string             `yaml:"kick_tags"`
+	voiceBansEnabled        bool                 `yaml:"voice_bans_enabled"`
+	debugLogEnabled         bool                 `yaml:"debug_log_enabled"`
+	lists                   ListConfigCollection `yaml:"lists"`
+	links                   []*LinkConfig        `yaml:"links"`
+	rconStatic              bool                 `yaml:"rcon_static"`
+	guiEnabled              bool                 `yaml:"gui_enabled"`
+	httpEnabled             bool                 `yaml:"http_enabled"`
+	httpListenAddr          string               `yaml:"http_listen_addr"`
+	playerExpiredTimeout    int                  `yaml:"player_expired_timeout"`
+	playerDisconnectTimeout int                  `yaml:"player_disconnect_timeout"`
+	rcon                    RCONConfigProvider   `yaml:"-"`
 }
 
-func (s *Settings) GetVoiceBansEnabled() bool {
+func (s *UserSettings) GetVoiceBansEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.voiceBansEnabled
 }
 
-func (s *Settings) SetVoiceBansEnabled(enabled bool) {
+func (s *UserSettings) SetVoiceBansEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.voiceBansEnabled = enabled
 }
 
-func (s *Settings) GetDebugLogEnabled() bool {
+func (s *UserSettings) GetDebugLogEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.debugLogEnabled
 }
 
-func (s *Settings) SetDebugLogEnabled(enabled bool) {
+func (s *UserSettings) SetDebugLogEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.debugLogEnabled = enabled
 }
 
-func (s *Settings) GetHttpEnabled() bool {
+func (s *UserSettings) GetHttpEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.httpEnabled
 }
 
-func (s *Settings) SetHttpEnabled(enabled bool) {
+func (s *UserSettings) SetHttpEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.httpEnabled = enabled
 }
 
-func (s *Settings) GetGuiEnabled() bool {
+func (s *UserSettings) GetGuiEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.guiEnabled
 }
 
-func (s *Settings) SetGuiEnabled(enabled bool) {
+func (s *UserSettings) SetGuiEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.guiEnabled = enabled
 }
 
-func (s *Settings) GetRcon() RCONConfigProvider {
+func (s *UserSettings) GetRcon() RCONConfigProvider {
 	s.RLock()
 	defer s.RUnlock()
 	return s.rcon
 }
 
-func (s *Settings) GetRCONStatic() bool {
+func (s *UserSettings) GetRCONStatic() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.rconStatic
 }
 
-func (s *Settings) GetKickerEnabled() bool {
+func (s *UserSettings) GetKickerEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.kickerEnabled
 }
 
-func (s *Settings) GetAutoCloseOnGameExit() bool {
+func (s *UserSettings) GetAutoCloseOnGameExit() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.autoCloseOnGameExit
 }
 
-func (s *Settings) SetSteamID(steamID string) {
+func (s *UserSettings) SetSteamID(steamID string) {
 	s.Lock()
 	defer s.Unlock()
 	s.steamID = steamID
 }
-func (s *Settings) SetAutoCloseOnGameExit(autoClose bool) {
+func (s *UserSettings) SetAutoCloseOnGameExit(autoClose bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.autoCloseOnGameExit = autoClose
 }
 
-func (s *Settings) SetAutoLaunchGame(autoLaunch bool) {
+func (s *UserSettings) SetAutoLaunchGame(autoLaunch bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.autoLaunchGame = autoLaunch
 }
 
-func (s *Settings) SetRconStatic(static bool) {
+func (s *UserSettings) SetRconStatic(static bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.rconStatic = static
 }
 
-func (s *Settings) SetChatWarningsEnabled(enabled bool) {
+func (s *UserSettings) SetChatWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.chatWarningsEnabled = enabled
 }
 
-func (s *Settings) SetPartyWarningsEnabled(enabled bool) {
+func (s *UserSettings) SetPartyWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.partyWarningsEnabled = enabled
 }
 
-func (s *Settings) SetKickerEnabled(enabled bool) {
+func (s *UserSettings) SetKickerEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.kickerEnabled = enabled
 }
 
-func (s *Settings) SetTF2Dir(dir string) {
+func (s *UserSettings) SetTF2Dir(dir string) {
 	s.Lock()
 	defer s.Unlock()
 	s.tf2Dir = dir
 }
 
-func (s *Settings) SetSteamDir(dir string) {
+func (s *UserSettings) SetSteamDir(dir string) {
 	s.Lock()
 	defer s.Unlock()
 	s.steamID = dir
 }
 
-func (s *Settings) SetKickTags(tags []string) {
+func (s *UserSettings) SetKickTags(tags []string) {
 	s.Lock()
 	defer s.Unlock()
 	s.kickTags = tags
 }
 
-func (s *Settings) SetAPIKey(key string) {
+func (s *UserSettings) SetAPIKey(key string) {
 	s.Lock()
 	defer s.Unlock()
 	s.apiKey = key
 }
 
-func (s *Settings) SetLists(lists ListConfigCollection) {
+func (s *UserSettings) SetLists(lists ListConfigCollection) {
 	s.Lock()
 	defer s.Unlock()
 	s.lists = lists
 }
 
-func (s *Settings) SetLinks(links []*LinkConfig) {
+func (s *UserSettings) SetLinks(links []*LinkConfig) {
 	s.Lock()
 	defer s.Unlock()
 	s.links = links
 }
 
-func (s *Settings) GetAutoLaunchGame() bool {
+func (s *UserSettings) GetAutoLaunchGame() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.autoLaunchGame
 }
 
-func (s *Settings) SetDiscordPresenceEnabled(enabled bool) {
+func (s *UserSettings) SetDiscordPresenceEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.discordPresenceEnabled = enabled
 }
 
-func (s *Settings) GetDiscordPresenceEnabled() bool {
+func (s *UserSettings) GetDiscordPresenceEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.discordPresenceEnabled
 }
 
-func (s *Settings) GetPartyWarningsEnabled() bool {
+func (s *UserSettings) GetPartyWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.partyWarningsEnabled
 }
 
-func (s *Settings) GetChatWarningsEnabled() bool {
+func (s *UserSettings) GetChatWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.chatWarningsEnabled
 }
 
-func (s *Settings) GetAPIKey() string {
+func (s *UserSettings) GetAPIKey() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.apiKey
 }
-func (s *Settings) GetConfigPath() string {
+func (s *UserSettings) GetConfigPath() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.configPath
 }
-func (s *Settings) GetTF2Dir() string {
+func (s *UserSettings) GetTF2Dir() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.tf2Dir
 }
 
-func (s *Settings) GetSteamDir() string {
+func (s *UserSettings) GetSteamDir() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.steamDir
 }
 
-func (s *Settings) GetLists() ListConfigCollection {
+func (s *UserSettings) GetLists() ListConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
 	return s.lists
 }
 
-func (s *Settings) GetKickTags() []string {
+func (s *UserSettings) GetKickTags() []string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.kickTags
 }
 
-func (s *Settings) GetSteamId() steamid.SID64 {
+func (s *UserSettings) GetSteamId() steamid.SID64 {
 	value, err := steamid.StringToSID64(s.steamID)
 	if err != nil {
 		return 0
@@ -331,7 +332,7 @@ func (s *Settings) GetSteamId() steamid.SID64 {
 	return value
 }
 
-func (s *Settings) AddList(config *ListConfig) error {
+func (s *UserSettings) AddList(config *ListConfig) error {
 	s.Lock()
 	defer s.Unlock()
 	for _, known := range s.lists {
@@ -344,31 +345,33 @@ func (s *Settings) AddList(config *ListConfig) error {
 	return nil
 }
 
-func (s *Settings) GetLinks() LinkConfigCollection {
+func (s *UserSettings) GetLinks() LinkConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
 	return s.links
 }
 
-func NewSettings() (*Settings, error) {
-	settings := Settings{
-		RWMutex:                &sync.RWMutex{},
-		configPath:             "",
-		steamID:                "",
-		steamDir:               platform.DefaultSteamRoot,
-		tf2Dir:                 platform.DefaultTF2Root,
-		autoLaunchGame:         false,
-		autoCloseOnGameExit:    false,
-		apiKey:                 "",
-		disconnectedTimeout:    "60s",
-		discordPresenceEnabled: true,
-		kickerEnabled:          false,
-		chatWarningsEnabled:    false,
-		partyWarningsEnabled:   true,
-		kickTags:               []string{"cheater", "bot", "trigger_name", "trigger_msg"},
-		voiceBansEnabled:       false,
-		guiEnabled:             true,
-		debugLogEnabled:        false,
+func NewSettings() (*UserSettings, error) {
+	newSettings := UserSettings{
+		RWMutex:                 &sync.RWMutex{},
+		configPath:              "",
+		steamID:                 "",
+		steamDir:                platform.DefaultSteamRoot,
+		tf2Dir:                  platform.DefaultTF2Root,
+		autoLaunchGame:          false,
+		autoCloseOnGameExit:     false,
+		apiKey:                  "",
+		disconnectedTimeout:     "60s",
+		discordPresenceEnabled:  true,
+		kickerEnabled:           false,
+		chatWarningsEnabled:     false,
+		partyWarningsEnabled:    true,
+		kickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
+		voiceBansEnabled:        false,
+		guiEnabled:              true,
+		debugLogEnabled:         false,
+		playerExpiredTimeout:    6,
+		playerDisconnectTimeout: 20,
 		lists: []*ListConfig{
 			{
 				Name:     "Uncletopia",
@@ -458,17 +461,17 @@ func NewSettings() (*Settings, error) {
 	}
 	if !util.Exists(settings.ListRoot()) {
 		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
-			return nil, errors.Wrap(err, "Failed to initialize Settings directory")
+			return nil, errors.Wrap(err, "Failed to initialize UserSettings directory")
 		}
 	}
-	return &settings, nil
+	return &newSettings, nil
 }
 
-func (s *Settings) LogFilePath() string {
+func (s *UserSettings) LogFilePath() string {
 	return filepath.Join(configdir.LocalConfig(configRoot), "bd.log")
 }
 
-func (s *Settings) ReadDefaultOrCreate() error {
+func (s *UserSettings) ReadDefaultOrCreate() error {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
 		return err
@@ -481,11 +484,11 @@ func (s *Settings) ReadDefaultOrCreate() error {
 	return errRead
 }
 
-func (s *Settings) ListRoot() string {
+func (s *UserSettings) ListRoot() string {
 	return filepath.Join(s.ConfigRoot(), "lists")
 }
 
-func (s *Settings) ConfigRoot() string {
+func (s *UserSettings) ConfigRoot() string {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
 		return ""
@@ -493,19 +496,19 @@ func (s *Settings) ConfigRoot() string {
 	return configPath
 }
 
-func (s *Settings) DBPath() string {
+func (s *UserSettings) DBPath() string {
 	return filepath.Join(s.ConfigRoot(), "bd.sqlite?cache=shared")
 }
 
-func (s *Settings) LocalPlayerListPath() string {
+func (s *UserSettings) LocalPlayerListPath() string {
 	return filepath.Join(s.ListRoot(), fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
 }
 
-func (s *Settings) LocalRulesListPath() string {
+func (s *UserSettings) LocalRulesListPath() string {
 	return filepath.Join(s.ListRoot(), fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
 }
 
-func (s *Settings) ReadFilePath(filePath string) error {
+func (s *UserSettings) ReadFilePath(filePath string) error {
 	if !util.Exists(filePath) {
 		// Use defaults
 		s.configPath = filePath
@@ -523,7 +526,7 @@ func (s *Settings) ReadFilePath(filePath string) error {
 	return nil
 }
 
-func (s *Settings) Read(inputFile io.Reader) error {
+func (s *UserSettings) Read(inputFile io.Reader) error {
 	s.Lock()
 	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
 		s.Unlock()
@@ -534,7 +537,7 @@ func (s *Settings) Read(inputFile io.Reader) error {
 	return nil
 }
 
-func (s *Settings) Save() error {
+func (s *UserSettings) Save() error {
 	if errWrite := s.WriteFilePath(s.GetConfigPath()); errWrite != nil {
 		return errWrite
 	}
@@ -542,23 +545,23 @@ func (s *Settings) Save() error {
 	return nil
 }
 
-func (s *Settings) reload() {
+func (s *UserSettings) reload() {
 	newCfg := NewRconConfig(s.GetRCONStatic())
 	s.Lock()
 	s.rcon = newCfg
 	s.Unlock()
 }
 
-func (s *Settings) WriteFilePath(filePath string) error {
+func (s *UserSettings) WriteFilePath(filePath string) error {
 	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if errOpen != nil {
-		return errors.Wrapf(errOpen, "Failed to open Settings file for writing")
+		return errors.Wrapf(errOpen, "Failed to open UserSettings file for writing")
 	}
 	defer util.IgnoreClose(settingsFile)
 	return s.Write(settingsFile)
 }
 
-func (s *Settings) Write(outputFile io.Writer) error {
+func (s *UserSettings) Write(outputFile io.Writer) error {
 	s.RLock()
 	defer s.RUnlock()
 	return yaml.NewEncoder(outputFile).Encode(s)
@@ -619,6 +622,6 @@ func NewRconConfig(static bool) RCONConfigProvider {
 	return RCONConfig{
 		address:  rconDefaultListenAddr,
 		port:     randPort(),
-		password: golib.RandomString(10),
+		password: util.RandomString(10),
 	}
 }

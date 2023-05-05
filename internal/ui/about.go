@@ -5,7 +5,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"net/url"
@@ -21,7 +21,7 @@ type aboutDialog struct {
 	labelGo      *widget.RichText
 }
 
-func newAboutDialog(parent fyne.Window, version model.Version) *aboutDialog {
+func newAboutDialog(parent fyne.Window, version detector.Version) *aboutDialog {
 	u, _ := url.Parse(urlHome)
 	about := aboutDialog{
 		labelBuiltBy: widget.NewRichTextWithText(tr.Localizer.MustLocalize(

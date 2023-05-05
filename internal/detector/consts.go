@@ -1,15 +1,15 @@
-package model
+package detector
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"time"
 )
 
 const (
-	DurationStatusUpdateTimer    = time.Second * 2
-	DurationDisconnected         = DurationStatusUpdateTimer * 3
-	DurationPlayerExpired        = DurationStatusUpdateTimer * 10
+	DurationStatusUpdateTimer = time.Second * 2
+
 	DurationCheckTimer           = time.Second * 3
 	DurationUpdateTimer          = time.Second * 1
 	DurationAnnounceMatchTimeout = time.Minute * 5
@@ -17,15 +17,6 @@ const (
 	DurationWebRequestTimeout    = time.Second * 5
 	DurationRCONRequestTimeout   = time.Second
 	DurationProcessTimeout       = time.Second * 3
-)
-
-type Team int
-
-const (
-	Spec Team = iota
-	Unassigned
-	Red
-	Blu
 )
 
 type EventType int
@@ -43,21 +34,17 @@ const (
 	EvtLobby
 )
 
-type SteamIDFunc func(sid64 steamid.SID64)
+type SteamIDFn func(sid64 steamid.SID64)
 
-type SteamIDErrFunc func(sid64 steamid.SID64) error
+type SteamIDErrFn func(sid64 steamid.SID64) error
 
-type GetPlayer func(sid64 steamid.SID64) *Player
+type GetPlayerFm func(sid64 steamid.SID64) *store.Player
 
-type GetPlayerOffline func(ctx context.Context, sid64 steamid.SID64, player *Player) error
+type GetPlayerOffline func(ctx context.Context, sid64 steamid.SID64, player *store.Player) error
 
-type SearchOpts struct {
-	Query string
-}
+type SavePlayer func(ctx context.Context, state *store.Player) error
 
-type SavePlayer func(ctx context.Context, state *Player) error
-
-type SearchPlayers func(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
+type SearchPlayers func(ctx context.Context, opts store.SearchOpts) (store.PlayerCollection, error)
 
 type MarkFunc func(sid64 steamid.SID64, attrs []string) error
 
@@ -85,10 +72,6 @@ const (
 type ChatFunc func(destination ChatDest, format string, args ...any) error
 
 type LaunchFunc func()
-
-type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
-
-type QueryUserMessagesFunc func(ctx context.Context, sid64 steamid.SID64) (UserMessageCollection, error)
 
 type Version struct {
 	Version string

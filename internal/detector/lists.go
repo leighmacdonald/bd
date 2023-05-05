@@ -3,7 +3,6 @@ package detector
 import (
 	"context"
 	"encoding/json"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
@@ -22,9 +21,9 @@ func fixSteamIdFormat(body []byte) []byte {
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
-func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
-		timeout, cancel := context.WithTimeout(ctx, model.DurationWebRequestTimeout)
+		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
 		req, reqErr := http.NewRequestWithContext(timeout, "GET", url, nil)
 		if reqErr != nil {
@@ -45,7 +44,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConf
 	var rulesLists []rules.RuleSchema
 	mu := &sync.RWMutex{}
 	client := http.Client{}
-	downloadFn := func(u *model.ListConfig) error {
+	downloadFn := func(u *ListConfig) error {
 		start := time.Now()
 		body, errFetch := fetchURL(ctx, client, u.URL)
 		if errFetch != nil {
@@ -54,7 +53,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConf
 		body = fixSteamIdFormat(body)
 		dur := time.Since(start)
 		switch u.ListType {
-		case model.ListTypeTF2BDPlayerList:
+		case ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
@@ -63,7 +62,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConf
 			playerLists = append(playerLists, result)
 			mu.Unlock()
 			logger.Info("Downloaded players successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
-		case model.ListTypeTF2BDRules:
+		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
@@ -81,7 +80,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists model.ListConf
 			continue
 		}
 		wg.Add(1)
-		go func(lc *model.ListConfig) {
+		go func(lc *ListConfig) {
 			defer wg.Done()
 			if errDL := downloadFn(lc); errDL != nil {
 				logger.Error("Failed to download list: %v", zap.Error(errDL))
