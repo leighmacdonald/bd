@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	clone "github.com/huandu/go-clone/generic"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/util"
@@ -20,9 +21,9 @@ import (
 	"strings"
 )
 
-func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *model.Settings) dialog.Dialog {
+func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 	const testSteamId = 76561197961279983
-
+	origSettings := detector.Settings()
 	settings := clone.Clone[*model.Settings](origSettings)
 
 	var createSelectorRow = func(label string, icon fyne.Resource, entry *widget.Entry, defaultPath string) *container.Split {
@@ -160,7 +161,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window, origSettings *mod
 	labelDiscordPresence := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled", Other: "Discord Presence"}})
 	labelDiscordPresenceHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
-		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled_hint", Other: "Enables discord rich presence if discordutil is running"}})
+		DefaultMessage: &i18n.Message{ID: "settings_label_discord_presence_enabled_hint", Other: "Enables discord rich presence if discord is running"}})
 	labelAutoLaunch := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "settings_label_auto_launch", Other: "Auto Launch TF2"}})
 	labelAutoLaunchHint := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{

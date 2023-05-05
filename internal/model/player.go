@@ -100,11 +100,11 @@ type Player struct {
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
 
-	Match *rules.MatchResult `json:"match"`
+	Matches []*rules.MatchResult `json:"matches"`
 }
 
 func (ps *Player) IsMatched() bool {
-	return ps.Match != nil
+	return len(ps.Matches) > 0
 }
 
 func (ps *Player) GetSteamID() steamid.SID64 {

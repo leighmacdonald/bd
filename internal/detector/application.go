@@ -3,12 +3,16 @@ package detector
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/bd/pkg/voiceban"
@@ -17,6 +21,7 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"io"
 	"net/http"
 	"os"
@@ -30,97 +35,219 @@ import (
 var ErrInvalidReadyState = errors.New("Invalid ready state")
 
 var (
-	players   model.PlayerCollection
-	playersMu *sync.RWMutex
-	logChan   chan string
-	eventChan chan model.LogEvent
+	players           model.PlayerCollection
+	playersMu         *sync.RWMutex
+	logChan           chan string
+	eventChan         chan model.LogEvent
+	httpServer        *http.Server
+	gameProcessActive *atomic.Bool
+	startupTime       time.Time
+	server            model.Server
+	serverMu          *sync.RWMutex
+	reader            *logReader
+	parser            *logParser
+	rulesEngine       *rules.Engine
+	rconConn          *rcon.RemoteConsole
+	settings          *model.Settings
+	dataStore         store.DataStore
+	//triggerUpdate     chan any
+	gameStateUpdate chan updateStateEvent
+	fsCache         cache.FsCache
+
+	gameHasStartedOnce *atomic.Bool
+	rootLogger         *zap.Logger
+	router             *gin.Engine
 )
 
 func init() {
+	startupTime = time.Now()
+	isRunning, _ := platform.IsGameRunning()
+	gameProcessActive = &atomic.Bool{}
+	gameProcessActive.Store(isRunning)
+	gameHasStartedOnce = &atomic.Bool{}
+	gameHasStartedOnce.Store(isRunning)
 	playersMu = &sync.RWMutex{}
 	logChan = make(chan string)
 	eventChan = make(chan model.LogEvent)
+	serverMu = &sync.RWMutex{}
+	//triggerUpdate = make(chan any)
+	gameStateUpdate = make(chan updateStateEvent, 50)
 }
 
-// BD is the main application container
-type BD struct {
-	// TODO
-	// - estimate private steam account ages (find nearby non-private account)
-	// - "unmark" players, overriding any lists that may match
-	// - track rage quits
-	// - install vote fail mod
-	// - wipe map session stats k/d
-	// - track k/d over entire session?
-	// - track history of interactions with players
-	// - colourise messages that trigger
-	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
-	ctx context.Context // TODO detach from struct
-
-	server             model.Server
-	serverMu           *sync.RWMutex
-	logReader          *logReader
-	logParser          *logParser
-	rules              *rules.Engine
-	rconConnection     rconConnection
-	settings           *model.Settings
-	store              store.DataStore
-	gui                model.UserInterface
-	triggerUpdate      chan any
-	gameStateUpdate    chan updateStateEvent
-	cache              cache.FsCache
-	startupTime        time.Time
-	gameHasStartedOnce bool
-	logger             *zap.Logger
-	gameProcessActive  *atomic.Bool
-	api                *Api
+func mustCreateLogger(logFile string) *zap.Logger {
+	loggingConfig := zap.NewProductionConfig()
+	loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	if logFile != "" {
+		if util.Exists(logFile) {
+			if err := os.Remove(logFile); err != nil {
+				panic(fmt.Sprintf("Failed to remove log file: %v", err))
+			}
+		}
+		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
+		//loggingConfig.Level.SetLevel(zap.DebugLevel)
+	}
+	logger, errLogger := loggingConfig.Build()
+	if errLogger != nil {
+		fmt.Printf("Failed to create logger: %v\n", errLogger)
+		os.Exit(1)
+	}
+	return logger
 }
 
-// New allocates a new bot detector application instance
-func New(ctx context.Context, logger *zap.Logger, settings *model.Settings, store store.DataStore, rules *rules.Engine, cache cache.FsCache) BD {
-
-	isRunning, _ := platform.IsGameRunning()
-
-	rootApp := BD{
-		ctx:                ctx,
-		logger:             logger,
-		store:              store,
-		rules:              rules,
-		settings:           settings,
-		serverMu:           &sync.RWMutex{},
-		triggerUpdate:      make(chan any),
-		gameStateUpdate:    make(chan updateStateEvent, 50),
-		cache:              cache,
-		logParser:          newLogParser(logger, logChan, eventChan),
-		startupTime:        time.Now(),
-		gameHasStartedOnce: isRunning,
-		gameProcessActive:  &atomic.Bool{},
+func Setup(versionInfo model.Version) {
+	userSettings, errSettings := model.NewSettings()
+	if errSettings != nil {
+		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
+		os.Exit(1)
+	}
+	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
+		fmt.Printf("Failed to read settings: %v", errReadSettings)
 	}
 
-	rootApp.api = NewApi(&rootApp)
-
-	rootApp.gameProcessActive.Store(isRunning)
-
-	rootApp.createLogReader()
-
-	return rootApp
+	settings = userSettings
+	logFilePath := ""
+	if settings.DebugLogEnabled {
+		logFilePath = settings.LogFilePath()
+	}
+	rootLogger = mustCreateLogger(logFilePath)
+	rootLogger.Info("bd starting", zap.String("Version", versionInfo.Version))
+	if errTranslations := tr.Init(); errTranslations != nil {
+		rootLogger.Error("Failed to load translations", zap.Error(errTranslations))
+	}
+	if settings.GetAPIKey() != "" {
+		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
+			rootLogger.Error("Failed to set steam api key", zap.Error(errAPIKey))
+		}
+	}
+	localRules := rules.NewRuleSchema()
+	localPlayersList := rules.NewPlayerListSchema()
+	// Try and load our existing custom players/rules
+	if util.Exists(settings.LocalPlayerListPath()) {
+		input, errInput := os.Open(settings.LocalPlayerListPath())
+		if errInput != nil {
+			rootLogger.Error("Failed to open local player list", zap.Error(errInput))
+		} else {
+			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
+				rootLogger.Error("Failed to parse local player list", zap.Error(errRead))
+			} else {
+				rootLogger.Debug("Loaded local player list", zap.Int("count", len(localPlayersList.Players)))
+			}
+			util.LogClose(rootLogger, input)
+		}
+	}
+	if util.Exists(settings.LocalRulesListPath()) {
+		input, errInput := os.Open(settings.LocalRulesListPath())
+		if errInput != nil {
+			rootLogger.Error("Failed to open local rules list", zap.Error(errInput))
+		} else {
+			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
+				rootLogger.Error("Failed to parse local rules list", zap.Error(errRead))
+			} else {
+				rootLogger.Debug("Loaded local rules list", zap.Int("count", len(localRules.Rules)))
+			}
+			util.LogClose(rootLogger, input)
+		}
+	}
+	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
+	if ruleEngineErr != nil {
+		rootLogger.Panic("Failed to setup rules engine", zap.Error(ruleEngineErr))
+	}
+	rulesEngine = engine
+	newDataStore := store.New(settings.DBPath(), rootLogger)
+	if errMigrate := newDataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
+		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
+	}
+	dataStore = newDataStore
+	fsCache = cache.New(rootLogger, settings.ConfigRoot(), model.DurationCacheTimeout)
+	parser = newLogParser(rootLogger, logChan, eventChan)
+	lr, errLogReader := createLogReader()
+	if errLogReader != nil {
+		rootLogger.Panic("Failed to create logreader", zap.Error(errLogReader))
+	}
+	reader = lr
+	if errApi := setupApi(rootLogger); errApi != nil {
+		rootLogger.Panic("Failed to start api server", zap.Error(errApi))
+	}
 }
 
-func (bd *BD) StartApi(ctx context.Context) error {
-	return bd.api.ListenAndServe(ctx)
+func setupApi(rootLogger *zap.Logger) error {
+	apiLogger := rootLogger.Named("api")
+	engine := createRouter(apiLogger)
+	if errRoutes := setupRoutes(engine); errRoutes != nil {
+		return errors.Wrap(errRoutes, "Failed to setup routes")
+	}
+	router = engine
+	return nil
 }
 
-func (bd *BD) Settings() *model.Settings {
-	return bd.settings
+func createRouter(logger *zap.Logger) *gin.Engine {
+	engine := gin.New()
+	engine.Use(ErrorHandler(logger))
+	engine.Use(gin.Recovery())
+	return engine
 }
 
-func (bd *BD) Store() store.DataStore {
-	return bd.store
+func setupRoutes(engine *gin.Engine) error {
+	absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
+	if errStaticPath != nil {
+		return errors.Wrap(errStaticPath, "Failed to setup static paths")
+	}
+
+	engine.StaticFS("/dist", http.Dir(absStaticPath))
+	engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
+	engine.GET("/players", getPlayers())
+	// These should match routes defined in the frontend. This allows us to use the browser
+	// based routing
+	jsRoutes := []string{"/"}
+	for _, rt := range jsRoutes {
+		engine.GET(rt, func(c *gin.Context) {
+			c.HTML(http.StatusOK, "index.html", jsConfig{
+				SiteName: "bd",
+			})
+		})
+	}
+	return nil
 }
 
-func (bd *BD) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
+func startApiListener(ctx context.Context) error {
+	httpServer = &http.Server{
+		Addr:         "localhost:8900",
+		Handler:      router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	rootLogger.Info("Service status changed", zap.String("state", "ready"))
+	defer rootLogger.Info("Service status changed", zap.String("state", "stopped"))
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		if errShutdown := httpServer.Shutdown(shutdownCtx); errShutdown != nil {
+			rootLogger.Error("Error shutting down http service", zap.Error(errShutdown))
+		}
+	}()
+	return httpServer.ListenAndServe()
+}
+
+//// BD is the main application container
+//type BD struct {
+//	// TODO
+//	// - estimate private steam account ages (find nearby non-private account)
+//	// - "unmark" players, overriding any lists that may match
+//	// - track rage quits
+//	// - install vote fail mod
+//	// - wipe map session stats k/d
+//	// - track k/d over entire session?
+//	// - track history of interactions with players
+//	// - colourise messages that trigger
+//	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
+//
+//}
+
+func fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
 	buf := bytes.NewBuffer(nil)
-	errCache := bd.cache.Get(cache.TypeAvatar, hash, buf)
+	errCache := fsCache.Get(cache.TypeAvatar, hash, buf)
 	if errCache == nil {
 		return buf.Bytes(), nil
 	}
@@ -144,30 +271,26 @@ func (bd *BD) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	if bodyErr != nil {
 		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
 	}
-	defer util.LogClose(bd.logger, resp.Body)
+	defer util.LogClose(rootLogger, resp.Body)
 
-	if errSet := bd.cache.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
+	if errSet := fsCache.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
 	}
 
 	return body, nil
 }
 
-func (bd *BD) createLogReader() {
-	consoleLogPath := filepath.Join(bd.settings.GetTF2Dir(), "console.log")
-	reader, errLogReader := newLogReader(bd.logger, consoleLogPath, logChan, true)
-	if errLogReader != nil {
-		bd.logger.Panic("Failed to create log reader", zap.Error(errLogReader))
-	}
-	bd.logReader = reader
+func createLogReader() (*logReader, error) {
+	consoleLogPath := filepath.Join(settings.GetTF2Dir(), "console.log")
+	return newLogReader(rootLogger, consoleLogPath, logChan, true)
 }
 
-func (bd *BD) ExportVoiceBans() error {
-	bannedIds := bd.rules.FindNewestEntries(200, bd.settings.GetKickTags())
+func exportVoiceBans() error {
+	bannedIds := rulesEngine.FindNewestEntries(200, settings.GetKickTags())
 	if len(bannedIds) == 0 {
 		return nil
 	}
-	vbPath := filepath.Join(bd.settings.GetTF2Dir(), "voice_ban.dt")
+	vbPath := filepath.Join(settings.GetTF2Dir(), "voice_ban.dt")
 	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, 0755)
 	if errOpen != nil {
 		return errOpen
@@ -175,45 +298,50 @@ func (bd *BD) ExportVoiceBans() error {
 	if errWrite := voiceban.Write(vbFile, bannedIds); errWrite != nil {
 		return errWrite
 	}
-	bd.logger.Info("Generated voice_ban.dt successfully")
+	rootLogger.Info("Generated voice_ban.dt successfully")
 	return nil
 }
 
-func (bd *BD) LaunchGameAndWait() {
+func LaunchGameAndWait() {
 	defer func() {
-		bd.gameProcessActive.Store(false)
-		bd.rconConnection = nil
+		gameProcessActive.Store(false)
+		rconConn = nil
 	}()
-	if errInstall := addons.Install(bd.settings.GetTF2Dir()); errInstall != nil {
-		bd.logger.Error("Error trying to install addon", zap.Error(errInstall))
+	if errInstall := addons.Install(settings.GetTF2Dir()); errInstall != nil {
+		rootLogger.Error("Error trying to install addon", zap.Error(errInstall))
 	}
-	if bd.settings.GetVoiceBansEnabled() {
-		if errVB := bd.ExportVoiceBans(); errVB != nil {
-			bd.logger.Error("Failed to export voiceban list", zap.Error(errVB))
+	if settings.GetVoiceBansEnabled() {
+		if errVB := exportVoiceBans(); errVB != nil {
+			rootLogger.Error("Failed to export voiceban list", zap.Error(errVB))
 		}
 	}
-	rconConfig := bd.settings.GetRcon()
+	rconConfig := settings.GetRcon()
 	args, errArgs := getLaunchArgs(
-		bd.logger,
 		rconConfig.Password(),
 		rconConfig.Port(),
-		bd.settings.GetSteamDir(),
-		bd.settings.GetSteamId())
+		settings.GetSteamDir(),
+		settings.GetSteamId())
 	if errArgs != nil {
-		bd.logger.Error("Failed to get TF2 launch args", zap.Error(errArgs))
+		rootLogger.Error("Failed to get TF2 launch args", zap.Error(errArgs))
 		return
 	}
-	bd.gameHasStartedOnce = true
+	gameHasStartedOnce.Store(true)
 
-	if errLaunch := platform.LaunchTF2(bd.logger, bd.settings.GetTF2Dir(), args); errLaunch != nil {
-		bd.logger.Error("Failed to launch game", zap.Error(errLaunch))
+	if errLaunch := platform.LaunchTF2(rootLogger, settings.GetTF2Dir(), args); errLaunch != nil {
+		rootLogger.Error("Failed to launch game", zap.Error(errLaunch))
 	}
 }
 
-func (bd *BD) OnUnMark(sid64 steamid.SID64) error {
-	bd.gameStateUpdate <- updateStateEvent{
+func Store() store.DataStore {
+	return dataStore
+}
+func Settings() *model.Settings {
+	return settings
+}
+func OnUnMark(sid64 steamid.SID64) error {
+	gameStateUpdate <- updateStateEvent{
 		kind:   updateMark,
-		source: bd.settings.GetSteamId(),
+		source: settings.GetSteamId(),
 		data: updateMarkEvent{
 			target: sid64,
 			delete: true,
@@ -222,10 +350,10 @@ func (bd *BD) OnUnMark(sid64 steamid.SID64) error {
 	return nil
 }
 
-func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
-	bd.gameStateUpdate <- updateStateEvent{
+func OnMark(sid64 steamid.SID64, attrs []string) error {
+	gameStateUpdate <- updateStateEvent{
 		kind:   updateMark,
-		source: bd.settings.GetSteamId(),
+		source: settings.GetSteamId(),
 		data: updateMarkEvent{
 			target: sid64,
 			attrs:  attrs,
@@ -234,10 +362,10 @@ func (bd *BD) OnMark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
-func (bd *BD) OnWhitelist(sid64 steamid.SID64, enabled bool) error {
-	bd.gameStateUpdate <- updateStateEvent{
+func OnWhitelist(sid64 steamid.SID64, enabled bool) error {
+	gameStateUpdate <- updateStateEvent{
 		kind:   updateWhitelist,
-		source: bd.settings.GetSteamId(),
+		source: settings.GetSteamId(),
 		data: updateWhitelistEvent{
 			target:  sid64,
 			enabled: enabled,
@@ -281,37 +409,37 @@ func fetchSteamWebUpdates(updates steamid.Collection) ([]updateStateEvent, error
 	return results, nil
 }
 
-func (bd *BD) updatePlayerState() (string, error) {
-	if !bd.ready() {
+func updatePlayerState() (string, error) {
+	if !ready() {
 		return "", ErrInvalidReadyState
 	}
 	// Sent to client, response via log output
-	_, errStatus := bd.rconConnection.Exec("status")
+	_, errStatus := rconConn.Exec("status")
 	if errStatus != nil {
 		return "", errors.Wrap(errStatus, "Failed to get status results")
 
 	}
 	// Sent to client, response via direct rcon response
-	lobbyStatus, errDebug := bd.rconConnection.Exec("tf_lobby_debug")
+	lobbyStatus, errDebug := rconConn.Exec("tf_lobby_debug")
 	if errDebug != nil {
 		return "", errors.Wrap(errDebug, "Failed to get debug results")
 	}
 	return lobbyStatus, nil
 }
 
-func (bd *BD) statusUpdater(ctx context.Context) {
-	defer bd.logger.Debug("status updater exited")
+func statusUpdater(ctx context.Context) {
+	defer rootLogger.Debug("status updater exited")
 	statusTimer := time.NewTicker(model.DurationStatusUpdateTimer)
 	for {
 		select {
 		case <-statusTimer.C:
-			lobbyStatus, errUpdate := bd.updatePlayerState()
+			lobbyStatus, errUpdate := updatePlayerState()
 			if errUpdate != nil {
-				bd.logger.Debug("Failed to query state", zap.Error(errUpdate))
+				rootLogger.Debug("Failed to query state", zap.Error(errUpdate))
 				continue
 			}
 			for _, line := range strings.Split(lobbyStatus, "\n") {
-				bd.logParser.ReadChannel <- line
+				parser.ReadChannel <- line
 			}
 		case <-ctx.Done():
 			return
@@ -319,7 +447,7 @@ func (bd *BD) statusUpdater(ctx context.Context) {
 	}
 }
 
-func (bd *BD) GetPlayer(sid64 steamid.SID64) *model.Player {
+func GetPlayer(sid64 steamid.SID64) *model.Player {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -330,7 +458,7 @@ func (bd *BD) GetPlayer(sid64 steamid.SID64) *model.Player {
 	return nil
 }
 
-func (bd *BD) getPlayerByName(name string) *model.Player {
+func getPlayerByName(name string) *model.Player {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -341,44 +469,44 @@ func (bd *BD) getPlayerByName(name string) *model.Player {
 	return nil
 }
 
-func (bd *BD) checkHandler(ctx context.Context) {
-	defer bd.logger.Debug("checkHandler exited")
+func checkHandler(ctx context.Context) {
+	defer rootLogger.Debug("checkHandler exited")
 	checkTimer := time.NewTicker(model.DurationCheckTimer)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-checkTimer.C:
-			p := bd.GetPlayer(bd.settings.GetSteamId())
+			p := GetPlayer(settings.GetSteamId())
 			if p == nil {
 				// We have not connected yet.
 				continue
 			}
-			bd.checkPlayerStates(ctx, p.Team)
+			checkPlayerStates(ctx, p.Team)
 		}
 	}
 }
 
-func (bd *BD) cleanupHandler(ctx context.Context) {
-	defer bd.logger.Debug("cleanupHandler exited")
+func cleanupHandler(ctx context.Context) {
+	defer rootLogger.Debug("cleanupHandler exited")
 	deleteTimer := time.NewTicker(model.DurationPlayerExpired)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-deleteTimer.C:
-			bd.logger.Debug("Delete update input received", zap.String("state", "start"))
-			bd.serverMu.Lock()
-			if time.Since(bd.server.LastUpdate) > model.DurationDisconnected {
-				bd.server = model.Server{}
+			rootLogger.Debug("Delete update input received", zap.String("state", "start"))
+			serverMu.Lock()
+			if time.Since(server.LastUpdate) > model.DurationDisconnected {
+				server = model.Server{}
 			}
-			bd.serverMu.Unlock()
+			serverMu.Unlock()
 			var valid model.PlayerCollection
 			expired := 0
 			for _, ps := range players {
 				if ps.IsExpired() {
-					if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
-						bd.logger.Error("Failed to save expired player state", zap.Error(errSave))
+					if errSave := dataStore.SavePlayer(ctx, ps); errSave != nil {
+						rootLogger.Error("Failed to save expired player state", zap.Error(errSave))
 					}
 					expired++
 				} else {
@@ -390,30 +518,23 @@ func (bd *BD) cleanupHandler(ctx context.Context) {
 			players = valid
 			playersMu.Unlock()
 			if expired > 0 {
-				bd.logger.Debug("Flushing expired players", zap.Int("count", expired))
+				rootLogger.Debug("Flushing expired players", zap.Int("count", expired))
 			}
-			if bd.gui != nil {
-				bd.gui.UpdatePlayerState(players)
-				bd.gui.UpdateServerState(bd.server)
-			}
-			bd.logger.Debug("Delete update input received", zap.String("state", "end"))
+			rootLogger.Debug("Delete update input received", zap.String("state", "end"))
 		}
 	}
 }
 
-func (bd *BD) performAvatarDownload(ctx context.Context, sid64 steamid.SID64, hash string) {
-	avatar, errDownload := bd.fetchAvatar(ctx, hash)
+func performAvatarDownload(ctx context.Context, sid64 steamid.SID64, hash string) {
+	_, errDownload := fetchAvatar(ctx, hash)
 	if errDownload != nil {
-		bd.logger.Error("Failed to download avatar", zap.String("hash", hash), zap.Error(errDownload))
+		rootLogger.Error("Failed to download avatar", zap.String("hash", hash), zap.Error(errDownload))
 		return
-	}
-	if bd.gui != nil {
-		bd.gui.SetAvatar(sid64, avatar)
 	}
 }
 
-func (bd *BD) gameStateUpdater(ctx context.Context) {
-	defer bd.logger.Debug("gameStateUpdater exited")
+func gameStateUpdater(ctx context.Context) {
+	defer rootLogger.Debug("gameStateUpdater exited")
 	var queuedUpdates steamid.Collection
 	updateTimer := time.NewTicker(model.DurationUpdateTimer)
 	queueAvatars := make(chan steamid.SID64, 32)
@@ -422,7 +543,7 @@ func (bd *BD) gameStateUpdater(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-updateTimer.C:
-			if len(queuedUpdates) == 0 || bd.settings.GetAPIKey() == "" {
+			if len(queuedUpdates) == 0 || settings.GetAPIKey() == "" {
 				continue
 			}
 			if len(queuedUpdates) > 100 {
@@ -432,32 +553,32 @@ func (bd *BD) gameStateUpdater(ctx context.Context) {
 				}
 				queuedUpdates = trimmed
 			}
-			bd.logger.Info("Updating profiles", zap.Int("count", len(queuedUpdates)))
+			rootLogger.Info("Updating profiles", zap.Int("count", len(queuedUpdates)))
 			results, errUpdates := fetchSteamWebUpdates(queuedUpdates)
 			if errUpdates != nil {
-				bd.logger.Error("Failed to fetch profiles from steam api", zap.Error(errUpdates))
+				rootLogger.Error("Failed to fetch profiles from steam api", zap.Error(errUpdates))
 				continue
 			}
 			for _, r := range results {
 				select {
-				case bd.gameStateUpdate <- r:
+				case gameStateUpdate <- r:
 				default:
-					bd.logger.Error("Game update channel full")
+					rootLogger.Error("Game update channel full")
 				}
 			}
 			queuedUpdates = nil
 		case sid64 := <-queueAvatars:
-			bd.logger.Debug("Avatar update input received")
-			p := bd.GetPlayer(sid64)
+			rootLogger.Debug("Avatar update input received")
+			p := GetPlayer(sid64)
 			if p == nil || p.AvatarHash == "" {
 				continue
 			}
-			go bd.performAvatarDownload(ctx, sid64, p.AvatarHash)
-		case update := <-bd.gameStateUpdate:
-			bd.logger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
+			go performAvatarDownload(ctx, sid64, p.AvatarHash)
+		case update := <-gameStateUpdate:
+			rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
 			var sourcePlayer *model.Player
 			if update.source.Valid() {
-				sourcePlayer = bd.GetPlayer(update.source)
+				sourcePlayer = GetPlayer(update.source)
 				if sourcePlayer == nil && update.kind != updateStatus && update.kind != updateMark {
 					// Only register a new user to track once we received a status line
 					continue
@@ -465,74 +586,69 @@ func (bd *BD) gameStateUpdater(ctx context.Context) {
 			}
 			switch update.kind {
 			case updateMessage:
-				if errUm := bd.onUpdateMessage(ctx, update.data.(messageEvent), bd.store); errUm != nil {
-					bd.logger.Error("Failed to handle user message", zap.Error(errUm))
+				if errUm := onUpdateMessage(ctx, update.data.(messageEvent), dataStore); errUm != nil {
+					rootLogger.Error("Failed to handle user message", zap.Error(errUm))
 					continue
 				}
 			case updateKill:
 				e, ok := update.data.(killEvent)
 				if ok {
-					bd.onUpdateKill(e)
+					onUpdateKill(e)
 				}
 			case updateBans:
-				bd.onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
+				onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
 			case updateProfile:
-				bd.onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
+				onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
 				queueAvatars <- update.source
 			case updateStatus:
-				if errUpdate := bd.onUpdateStatus(ctx, bd.store, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
-					bd.logger.Error("updateStatus error", zap.Error(errUpdate))
+				if errUpdate := onUpdateStatus(ctx, dataStore, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
+					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
 				}
 			case updateMark:
 				d := update.data.(updateMarkEvent)
-				if errUpdate := bd.onUpdateMark(d); errUpdate != nil {
-					bd.logger.Error("updateMark error", zap.Error(errUpdate))
+				if errUpdate := onUpdateMark(d); errUpdate != nil {
+					rootLogger.Error("updateMark error", zap.Error(errUpdate))
 				}
 			case updateWhitelist:
-				if errUpdate := bd.onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
-					bd.logger.Error("updateWhitelist error", zap.Error(errUpdate))
+				if errUpdate := onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
+					rootLogger.Error("updateWhitelist error", zap.Error(errUpdate))
 				}
 			case updateLobby:
-				bd.onUpdateLobby(update.source, update.data.(lobbyEvent))
+				onUpdateLobby(update.source, update.data.(lobbyEvent))
 			case updateTags:
-				bd.onUpdateTags(update.data.(tagsEvent))
+				onUpdateTags(update.data.(tagsEvent))
 			case updateHostname:
-				bd.onUpdateHostname(update.data.(hostnameEvent))
+				onUpdateHostname(update.data.(hostnameEvent))
 			case updateMap:
-				bd.onUpdateMap(update.data.(mapEvent))
+				onUpdateMap(update.data.(mapEvent))
 			case changeMap:
-				bd.onMapChange()
+				onMapChange()
 			}
-			bd.logger.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
+			rootLogger.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
 		}
 	}
 }
 
-func (bd *BD) onUpdateTags(event tagsEvent) {
-	bd.serverMu.Lock()
-	bd.server.Tags = event.tags
-	bd.server.LastUpdate = time.Now()
-	bd.serverMu.Unlock()
-	if bd.gui != nil {
-		bd.serverMu.RLock()
-		bd.gui.UpdateServerState(bd.server)
-		bd.serverMu.RUnlock()
-	}
+func onUpdateTags(event tagsEvent) {
+	serverMu.Lock()
+	server.Tags = event.tags
+	server.LastUpdate = time.Now()
+	serverMu.Unlock()
 }
 
-func (bd *BD) onUpdateMap(event mapEvent) {
-	bd.serverMu.Lock()
-	bd.server.CurrentMap = event.mapName
-	bd.serverMu.Unlock()
+func onUpdateMap(event mapEvent) {
+	serverMu.Lock()
+	server.CurrentMap = event.mapName
+	serverMu.Unlock()
 }
 
-func (bd *BD) onUpdateHostname(event hostnameEvent) {
-	bd.serverMu.Lock()
-	bd.server.ServerName = event.hostname
-	bd.serverMu.Unlock()
+func onUpdateHostname(event hostnameEvent) {
+	serverMu.Lock()
+	server.ServerName = event.hostname
+	serverMu.Unlock()
 }
 
-func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID64 {
+func nameToSid(players model.PlayerCollection, name string) steamid.SID64 {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
@@ -543,8 +659,8 @@ func (bd *BD) nameToSid(players model.PlayerCollection, name string) steamid.SID
 	return 0
 }
 
-func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
-	player := bd.GetPlayer(steamID)
+func onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
+	player := GetPlayer(steamID)
 	if player != nil {
 		playersMu.Lock()
 		player.Team = evt.team
@@ -552,8 +668,8 @@ func (bd *BD) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStore) error {
-	player := bd.getPlayerByName(msg.name)
+func onUpdateMessage(ctx context.Context, msg messageEvent, store store.DataStore) error {
+	player := getPlayerByName(msg.name)
 	if player == nil {
 		return errors.Errorf("Unknown name: %v", msg.name)
 	}
@@ -571,27 +687,23 @@ func (bd *BD) onUpdateMessage(ctx context.Context, msg messageEvent, store store
 	um.TeamOnly = msg.teamOnly
 
 	if errSaveMsg := store.SaveMessage(ctx, &um); errSaveMsg != nil {
-		bd.logger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
+		rootLogger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
 	}
-	if match := bd.rules.MatchMessage(um.Message); match != nil {
-		bd.triggerMatch(player, match)
-	}
-	if bd.gui != nil {
-		bd.gui.AddUserMessage(um)
-		bd.gui.Refresh()
+	if match := rulesEngine.MatchMessage(um.Message); match != nil {
+		triggerMatch(player, match)
 	}
 	return nil
 }
 
-func (bd *BD) onUpdateKill(kill killEvent) {
-	source := bd.nameToSid(players, kill.sourceName)
-	target := bd.nameToSid(players, kill.victimName)
+func onUpdateKill(kill killEvent) {
+	source := nameToSid(players, kill.sourceName)
+	target := nameToSid(players, kill.victimName)
 	if !source.Valid() || !target.Valid() {
 		return
 	}
-	ourSid := bd.settings.GetSteamId()
-	sourcePlayer := bd.GetPlayer(source)
-	targetPlayer := bd.GetPlayer(target)
+	ourSid := settings.GetSteamId()
+	sourcePlayer := GetPlayer(source)
+	targetPlayer := GetPlayer(target)
 	playersMu.Lock()
 	sourcePlayer.Kills++
 	targetPlayer.Deaths++
@@ -606,21 +718,21 @@ func (bd *BD) onUpdateKill(kill killEvent) {
 	playersMu.Unlock()
 }
 
-func (bd *BD) onMapChange() {
+func onMapChange() {
 	playersMu.Lock()
 	for _, player := range players {
 		player.Kills = 0
 		player.Deaths = 0
 	}
 	playersMu.Unlock()
-	bd.serverMu.Lock()
-	bd.server.CurrentMap = ""
-	bd.server.ServerName = ""
-	bd.serverMu.Unlock()
+	serverMu.Lock()
+	server.CurrentMap = ""
+	server.ServerName = ""
+	serverMu.Unlock()
 }
 
-func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
-	player := bd.GetPlayer(steamID)
+func onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
+	player := GetPlayer(steamID)
 	playersMu.Lock()
 	defer playersMu.Unlock()
 	player.NumberOfVACBans = ban.NumberOfVACBans
@@ -634,8 +746,8 @@ func (bd *BD) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	player.Touch()
 }
 
-func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
-	player := bd.GetPlayer(steamID)
+func onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
+	player := GetPlayer(steamID)
 	playersMu.Lock()
 	defer playersMu.Unlock()
 	player.Visibility = model.ProfileVisibility(summary.CommunityVisibilityState)
@@ -646,8 +758,8 @@ func (bd *BD) onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSumm
 	player.Touch()
 }
 
-func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
-	player := bd.GetPlayer(steamID)
+func onUpdateStatus(ctx context.Context, store store.DataStore, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
+	player := GetPlayer(steamID)
 	if player == nil {
 		player = model.NewPlayer(steamID, update.name)
 		if errCreate := store.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
@@ -675,8 +787,8 @@ func (bd *BD) onUpdateStatus(ctx context.Context, store store.DataStore, steamID
 	return nil
 }
 
-func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
-	player := bd.GetPlayer(event.target)
+func onUpdateWhitelist(event updateWhitelistEvent) error {
+	player := GetPlayer(event.target)
 	if player == nil {
 		return errors.New("Unknown player, cannot update whitelist")
 	}
@@ -684,16 +796,16 @@ func (bd *BD) onUpdateWhitelist(event updateWhitelistEvent) error {
 	player.Whitelisted = event.enabled
 	player.Touch()
 	playersMu.Unlock()
-	bd.logger.Info("Update player whitelist status successfully",
+	rootLogger.Info("Update player whitelist status successfully",
 		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", event.enabled))
 	return nil
 }
 
-func (bd *BD) onUpdateMark(status updateMarkEvent) error {
-	player := bd.GetPlayer(status.target)
+func onUpdateMark(status updateMarkEvent) error {
+	player := GetPlayer(status.target)
 	if player == nil {
 		player = model.NewPlayer(status.target, "")
-		if err := bd.store.GetPlayer(context.Background(), status.target, player); err != nil {
+		if err := dataStore.GetPlayer(context.Background(), status.target, player); err != nil {
 			return err
 		}
 	}
@@ -702,18 +814,24 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 		name = player.NamePrevious
 	}
 	if status.delete {
-		bd.rules.Unmark(status.target)
+		rulesEngine.Unmark(status.target)
 		playersMu.Lock()
 		for idx := range players {
 			if players[idx].SteamId == status.target {
-				players[idx].Match = nil
+				var valid []*rules.MatchResult
+				for _, m := range players[idx].Matches {
+					if m.Origin == "local" {
+						continue
+					}
+					valid = append(valid, m)
+				}
+				players[idx].Matches = valid
 				break
 			}
 		}
 		playersMu.Unlock()
-		bd.gui.UpdatePlayerState(players)
 	} else {
-		if errMark := bd.rules.Mark(rules.MarkOpts{
+		if errMark := rulesEngine.Mark(rules.MarkOpts{
 			SteamID:    status.target,
 			Attributes: status.attrs,
 			Name:       name,
@@ -721,80 +839,66 @@ func (bd *BD) onUpdateMark(status updateMarkEvent) error {
 			return errors.Wrap(errMark, "Failed to add mark")
 		}
 	}
-	of, errOf := os.OpenFile(bd.settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	of, errOf := os.OpenFile(settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if errOf != nil {
 		return errors.Wrap(errOf, "Failed to open player list for updating")
 	}
-	if errExport := bd.rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
-		bd.logger.Error("Failed to export player list", zap.Error(errExport))
+	defer util.LogClose(rootLogger, of)
+	if errExport := rulesEngine.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
+		rootLogger.Error("Failed to export player list", zap.Error(errExport))
 	}
-	util.LogClose(bd.logger, of)
 	return nil
 }
 
-// AttachGui connects the backend functions to the frontend gui
-// TODO Use channels for communicating instead
-func (bd *BD) AttachGui(gui model.UserInterface) {
-	gui.UpdateAttributes(bd.rules.UniqueTags())
-	bd.gui = gui
-}
-
-func (bd *BD) refreshLists(ctx context.Context) {
-	playerLists, ruleLists := downloadLists(ctx, bd.logger, bd.settings.GetLists())
+func refreshLists(ctx context.Context) {
+	playerLists, ruleLists := downloadLists(ctx, rootLogger, settings.GetLists())
 	for _, list := range playerLists {
-		count, errImport := bd.rules.ImportPlayers(&list)
+		count, errImport := rulesEngine.ImportPlayers(&list)
 		if errImport != nil {
-			bd.logger.Error("Failed to import player list", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
+			rootLogger.Error("Failed to import player list", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
 		} else {
-			bd.logger.Info("Imported player list", zap.String("name", list.FileInfo.Title), zap.Int("count", count))
+			rootLogger.Info("Imported player list", zap.String("name", list.FileInfo.Title), zap.Int("count", count))
 		}
 	}
 	for _, list := range ruleLists {
-		count, errImport := bd.rules.ImportRules(&list)
+		count, errImport := rulesEngine.ImportRules(&list)
 		if errImport != nil {
-			bd.logger.Error("Failed to import rules list (%s): %v\n", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
+			rootLogger.Error("Failed to import rules list (%s): %v\n", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
 		} else {
-			bd.logger.Info("Imported rules list", zap.String("name", list.FileInfo.Title), zap.Int("count", count))
+			rootLogger.Info("Imported rules list", zap.String("name", list.FileInfo.Title), zap.Int("count", count))
 		}
-	}
-	// TODO move
-	if bd.gui != nil {
-		bd.gui.UpdateAttributes(bd.rules.UniqueTags())
 	}
 }
 
-func (bd *BD) checkPlayerStates(ctx context.Context, validTeam model.Team) {
+func checkPlayerStates(ctx context.Context, validTeam model.Team) {
 	for _, ps := range players {
 		if ps.IsDisconnected() {
 			continue
 		}
-		if matchSteam := bd.rules.MatchSteam(ps.GetSteamID()); matchSteam != nil {
-			ps.Match = matchSteam
+		if matchSteam := rulesEngine.MatchSteam(ps.GetSteamID()); matchSteam != nil {
+			ps.Matches = append(ps.Matches, matchSteam)
 			if validTeam == ps.Team {
-				bd.triggerMatch(ps, matchSteam)
+				triggerMatch(ps, matchSteam)
 			}
 		} else if ps.Name != "" {
-			if matchName := bd.rules.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
-				ps.Match = matchSteam
+			if matchName := rulesEngine.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
+				ps.Matches = append(ps.Matches, matchSteam)
 				if validTeam == ps.Team {
-					bd.triggerMatch(ps, matchSteam)
+					triggerMatch(ps, matchSteam)
 				}
 			}
 		}
 		if ps.Dirty {
-			if errSave := bd.store.SavePlayer(ctx, ps); errSave != nil {
-				bd.logger.Error("Failed to save dirty player state", zap.Error(errSave))
+			if errSave := dataStore.SavePlayer(ctx, ps); errSave != nil {
+				rootLogger.Error("Failed to save dirty player state", zap.Error(errSave))
 				continue
 			}
 			ps.Dirty = false
 		}
 	}
-	if bd.gui != nil {
-		bd.gui.UpdatePlayerState(players)
-	}
 }
 
-func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
+func triggerMatch(ps *model.Player, match *rules.MatchResult) {
 	ps.Lock()
 	defer ps.Unlock()
 	announceGeneralLast := ps.AnnouncedGeneralLast
@@ -804,25 +908,25 @@ func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
 		if ps.Whitelisted {
 			msg = "Matched whitelisted player"
 		}
-		bd.logger.Info(msg, zap.String("match_type", match.MatcherType),
+		rootLogger.Info(msg, zap.String("match_type", match.MatcherType),
 			zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
 		ps.AnnouncedGeneralLast = time.Now()
 	}
 	if ps.Whitelisted {
 		return
 	}
-	if bd.settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= model.DurationAnnounceMatchTimeout {
+	if settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= model.DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := bd.SendChat(model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
-			bd.logger.Error("Failed to send party log message", zap.Error(errLog))
+		if errLog := SendChat(model.ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
+			rootLogger.Error("Failed to send party log message", zap.Error(errLog))
 			return
 		}
 		ps.AnnouncedPartyLast = time.Now()
 	}
-	if bd.settings.GetKickerEnabled() {
+	if settings.GetKickerEnabled() {
 		kickTag := false
 		for _, tag := range match.Attributes {
-			for _, allowedTag := range bd.settings.GetKickTags() {
+			for _, allowedTag := range settings.GetKickTags() {
 				if strings.EqualFold(tag, allowedTag) {
 					kickTag = true
 					break
@@ -830,42 +934,42 @@ func (bd *BD) triggerMatch(ps *model.Player, match *rules.MatchResult) {
 			}
 		}
 		if kickTag {
-			if errVote := bd.CallVote(ps.UserId, model.KickReasonCheating); errVote != nil {
-				bd.logger.Error("Error calling vote", zap.Error(errVote))
+			if errVote := CallVote(ps.UserId, model.KickReasonCheating); errVote != nil {
+				rootLogger.Error("Error calling vote", zap.Error(errVote))
 			}
 		} else {
-			bd.logger.Info("Skipping kick, no acceptable tag found")
+			rootLogger.Info("Skipping kick, no acceptable tag found")
 		}
 	}
 	ps.KickAttemptCount++
 }
 
-func (bd *BD) ensureRcon() error {
-	if bd.rconConnection != nil {
+func ensureRcon() error {
+	if rconConn != nil {
 		return nil
 	}
-	rconConfig := bd.settings.GetRcon()
-	conn, errConn := rcon.Dial(bd.ctx, rconConfig.String(), rconConfig.Password(), time.Second*5)
+	rconConfig := settings.GetRcon()
+	conn, errConn := rcon.Dial(context.TODO(), rconConfig.String(), rconConfig.Password(), time.Second*5)
 	if errConn != nil {
 		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
 	}
-	bd.rconConnection = conn
+	rconConn = conn
 	return nil
 }
 
-func (bd *BD) ready() bool {
-	if !bd.gameProcessActive.Load() {
+func ready() bool {
+	if !gameProcessActive.Load() {
 		return false
 	}
-	if errRcon := bd.ensureRcon(); errRcon != nil {
-		bd.logger.Debug("RCON is not ready yet", zap.Error(errRcon))
+	if errRcon := ensureRcon(); errRcon != nil {
+		rootLogger.Debug("RCON is not ready yet", zap.Error(errRcon))
 		return false
 	}
 	return true
 }
 
-func (bd *BD) SendChat(destination model.ChatDest, format string, args ...any) error {
-	if !bd.ready() {
+func SendChat(destination model.ChatDest, format string, args ...any) error {
+	if !ready() {
 		return ErrInvalidReadyState
 	}
 	cmd := ""
@@ -879,78 +983,88 @@ func (bd *BD) SendChat(destination model.ChatDest, format string, args ...any) e
 	default:
 		return errors.Errorf("Invalid destination: %s", destination)
 	}
-	_, errExec := bd.rconConnection.Exec(cmd)
+	_, errExec := rconConn.Exec(cmd)
 	if errExec != nil {
 		return errors.Wrap(errExec, "Failed to send rcon chat message")
 	}
 	return nil
 }
 
-func (bd *BD) CallVote(userID int64, reason model.KickReason) error {
-	if !bd.ready() {
+func CallVote(userID int64, reason model.KickReason) error {
+	if !ready() {
 		return ErrInvalidReadyState
 	}
-	_, errExec := bd.rconConnection.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
+	_, errExec := rconConn.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
 	if errExec != nil {
 		return errors.Wrap(errExec, "Failed to send rcon callvote")
 	}
 	return nil
 }
 
-func (bd *BD) processChecker(ctx context.Context) {
+func processChecker(ctx context.Context) {
 	ticker := time.NewTicker(model.DurationProcessTimeout)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			existingState := bd.gameProcessActive.Load()
+			existingState := gameProcessActive.Load()
 			newState, errRunningStatus := platform.IsGameRunning()
 			if errRunningStatus != nil {
-				bd.logger.Error("Failed to get process run status", zap.Error(errRunningStatus))
+				rootLogger.Error("Failed to get process run status", zap.Error(errRunningStatus))
 				continue
 			}
 			if existingState != newState {
-				bd.gameProcessActive.Store(newState)
-				bd.logger.Info("Game process state changed", zap.Bool("is_running", newState))
+				gameProcessActive.Store(newState)
+				rootLogger.Info("Game process state changed", zap.Bool("is_running", newState))
 			}
 			// Handle auto closing the app on game close if enabled
-			if !bd.gameHasStartedOnce || !bd.settings.GetAutoCloseOnGameExit() {
+			if !gameHasStartedOnce.Load() || !settings.GetAutoCloseOnGameExit() {
 				continue
 			}
 			if !newState {
-				bd.logger.Info("Auto-closing on game exit", zap.Duration("uptime", time.Since(bd.startupTime)))
-				bd.gui.Quit()
+				rootLogger.Info("Auto-closing on game exit", zap.Duration("uptime", time.Since(startupTime)))
+				os.Exit(0)
 			}
 		}
 	}
 }
 
 // Shutdown closes any open rcon connection and will flush any player list to disk
-func (bd *BD) Shutdown() {
-	if bd.rconConnection != nil {
-		util.LogClose(bd.logger, bd.rconConnection)
+func Shutdown() {
+	if rconConn != nil {
+		util.LogClose(rootLogger, rconConn)
 	}
-	util.LogClose(bd.logger, bd.store)
-	bd.logger.Info("Goodbye")
+	defer util.LogClose(rootLogger, dataStore)
+	rootLogger.Info("Goodbye")
+	if errSync := rootLogger.Sync(); errSync != nil {
+		fmt.Printf("Failed to sync log: %v\n", errSync)
+	}
+
 }
 
-func (bd *BD) Start(ctx context.Context) {
-	go bd.logReader.start(ctx)
-	defer bd.logReader.tail.Cleanup()
-	go bd.logParser.start(ctx)
-	go bd.refreshLists(ctx)
-	go bd.incomingLogEventHandler(ctx)
-	go bd.gameStateUpdater(ctx)
-	go bd.cleanupHandler(ctx)
-	go bd.checkHandler(ctx)
-	go bd.statusUpdater(ctx)
-	go bd.processChecker(ctx)
-	go bd.discordStateUpdater(ctx)
+func Start(ctx context.Context) {
+	go reader.start(ctx)
+	defer reader.tail.Cleanup()
+	go parser.start(ctx)
+	go refreshLists(ctx)
+	go incomingLogEventHandler(ctx)
+	go gameStateUpdater(ctx)
+	go cleanupHandler(ctx)
+	go checkHandler(ctx)
+	go statusUpdater(ctx)
+	go processChecker(ctx)
+	go discordStateUpdater(ctx)
 	if running, errRunning := platform.IsGameRunning(); errRunning == nil && !running {
-		if !bd.gameHasStartedOnce && bd.settings.GetAutoLaunchGame() {
-			go bd.LaunchGameAndWait()
+		if !gameHasStartedOnce.Load() && settings.GetAutoLaunchGame() {
+			go LaunchGameAndWait()
 		}
 	}
+
+	go func() {
+		if errApi := startApiListener(ctx); errApi != nil {
+			rootLogger.Panic("Failed to start api service", zap.Error(errApi))
+		}
+	}()
 	<-ctx.Done()
 }

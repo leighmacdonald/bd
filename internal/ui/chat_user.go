@@ -20,8 +20,6 @@ import (
 
 type userChatWindow struct {
 	fyne.Window
-
-	app               fyne.App
 	list              *widget.List
 	boundList         binding.UntypedList
 	objectMu          sync.RWMutex
@@ -32,8 +30,8 @@ type userChatWindow struct {
 	logger *zap.Logger
 }
 
-func newUserChatWindow(ctx context.Context, logger *zap.Logger, app fyne.App, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
-	appWindow := app.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+func newUserChatWindow(ctx context.Context, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
+	appWindow := application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
 			ID:    "userchat_title",
 			Other: "User Chat History: {{ .SteamId }}"},
@@ -45,8 +43,7 @@ func newUserChatWindow(ctx context.Context, logger *zap.Logger, app fyne.App, qu
 	})
 	window := userChatWindow{
 		Window:            appWindow,
-		app:               app,
-		logger:            logger,
+		logger:            logger.Named("user_chat"),
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),

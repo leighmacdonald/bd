@@ -63,12 +63,12 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 	if errTail != nil {
 		return nil, errors.Wrap(errTail, "Failed to configure tail")
 	}
-	reader := logReader{
+	lr := logReader{
 		tail:    t,
 		outChan: outChan,
-		logger:  logger,
+		logger:  logger.Named("logreader"),
 	}
-	return &reader, nil
+	return &lr, nil
 }
 
 var (

@@ -22,7 +22,6 @@ type searchWindow struct {
 	fyne.Window
 	ctx         context.Context
 	app         fyne.App
-	bd          *detector.BD
 	list        *widget.Table
 	boundList   binding.ExternalUntypedList
 	queryString binding.String
@@ -50,9 +49,9 @@ func (screen *searchWindow) Reload(results model.PlayerCollection) error {
 	return nil
 }
 
-func newSearchWindow(ctx context.Context, ui *Ui) *searchWindow {
+func newSearchWindow(ctx context.Context) *searchWindow {
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "player_search_title", Other: "Player Search"}})
-	window := ui.application.NewWindow(title)
+	window := application.NewWindow(title)
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
 		func(shortcut fyne.Shortcut) {
@@ -65,13 +64,10 @@ func newSearchWindow(ctx context.Context, ui *Ui) *searchWindow {
 	sw := searchWindow{
 		Window:      window,
 		ctx:         ctx,
-		app:         ui.application,
-		bd:          ui.bd,
 		list:        nil,
 		boundList:   binding.BindUntypedList(&[]interface{}{}),
 		objectMu:    &sync.RWMutex{},
 		boundListMu: &sync.RWMutex{},
-		avatarCache: ui.avatarCache,
 		queryString: binding.NewString(),
 		resultCount: binding.NewInt(),
 	}
@@ -135,7 +131,7 @@ func newSearchWindow(ctx context.Context, ui *Ui) *searchWindow {
 			label.Bind(binding.BindString(&ps.Name))
 			label.Show()
 		case 3:
-			ctxMenu.menu = generateUserMenu(sw.ctx, window, ui, ps.SteamId, ps.UserId, ui.knownAttributes)
+			ctxMenu.menu = generateUserMenu(sw.ctx, window, ps.SteamId, ps.UserId)
 			ctxMenu.Show()
 		}
 	})
@@ -148,7 +144,7 @@ func newSearchWindow(ctx context.Context, ui *Ui) *searchWindow {
 	sw.queryEntry = widget.NewEntryWithData(sw.queryString)
 	sw.queryEntry.PlaceHolder = "SteamID or Name"
 	sw.queryEntry.OnSubmitted = func(s string) {
-		results, errSearch := ui.bd.Store().SearchPlayers(sw.ctx, model.SearchOpts{Query: s})
+		results, errSearch := detector.Store().SearchPlayers(sw.ctx, model.SearchOpts{Query: s})
 		if errSearch != nil {
 			showUserError(errSearch, window)
 			return

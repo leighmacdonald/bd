@@ -22,7 +22,6 @@ import (
 type gameChatWindow struct {
 	fyne.Window
 	ctx               context.Context
-	app               fyne.App
 	list              *widget.List
 	boundList         binding.UntypedList
 	objectMu          *sync.RWMutex
@@ -30,12 +29,11 @@ type gameChatWindow struct {
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
 	avatarCache       *avatarCache
-	bd                *detector.BD
 	logger            *zap.Logger
 }
 
-func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
-	window := ui.application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
+func newGameChatWindow(ctx context.Context) *gameChatWindow {
+	window := application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "gamechat_title", Other: "Game Chat"}}))
 	window.Canvas().AddShortcut(
 		&desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl},
@@ -48,19 +46,16 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 	gcw := gameChatWindow{
 		Window:            window,
 		ctx:               ctx,
-		logger:            ui.logger,
-		app:               ui.application,
+		logger:            logger.Named("game_chat"),
 		boundList:         binding.BindUntypedList(&[]interface{}{}),
 		autoScrollEnabled: binding.NewBool(),
 		messageCount:      binding.NewInt(),
 		boundListMu:       &sync.RWMutex{},
 		objectMu:          &sync.RWMutex{},
-		avatarCache:       ui.avatarCache,
-		bd:                ui.bd,
 	}
 
 	if errSet := gcw.autoScrollEnabled.Set(true); errSet != nil {
-		ui.logger.Error("Failed to set default autoscroll for game chat window", zap.Error(errSet))
+		gcw.logger.Error("Failed to set default autoscroll for game chat window", zap.Error(errSet))
 	}
 
 	createFunc := func() fyne.CanvasObject {
@@ -75,7 +70,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 		value := i.(binding.Untyped)
 		obj, errObj := value.Get()
 		if errObj != nil {
-			ui.logger.Error("Failed to get bound value message value", zap.Error(errObj))
+			gcw.logger.Error("Failed to get bound value message value", zap.Error(errObj))
 			return
 		}
 		um := obj.(model.UserMessage)
@@ -89,7 +84,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
 		profileButton.SetText(um.Player)
 		profileButton.SetIcon(gcw.avatarCache.GetAvatar(um.PlayerSID))
-		profileButton.menu = generateUserMenu(gcw.ctx, window, ui, um.PlayerSID, um.UserId, ui.knownAttributes)
+		profileButton.menu = generateUserMenu(gcw.ctx, window, um.PlayerSID, um.UserId)
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline
@@ -124,7 +119,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 	chatEntryData := binding.NewString()
 	messageEntry := widget.NewEntryWithData(chatEntryData)
 	messageEntry.OnSubmitted = func(s string) {
-		showUserError(gcw.bd.SendChat(model.ChatDest(selected), s), gcw)
+		showUserError(detector.SendChat(model.ChatDest(selected), s), gcw)
 		_ = chatEntryData.Set("")
 	}
 	bottomContainer := container.NewBorder(
@@ -138,7 +133,7 @@ func newGameChatWindow(ctx context.Context, ui *Ui) *gameChatWindow {
 				if err != nil {
 					return
 				}
-				showUserError(gcw.bd.SendChat(model.ChatDest(selected), msg), gcw)
+				showUserError(detector.SendChat(model.ChatDest(selected), msg), gcw)
 				_ = chatEntryData.Set("")
 			})),
 		messageEntry)

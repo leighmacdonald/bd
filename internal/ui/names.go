@@ -51,13 +51,13 @@ func (nameList *userNameWindow) Widget() *widget.List {
 	return nameList.list
 }
 
-func newUserNameWindow(ctx context.Context, logger *zap.Logger, app fyne.App, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
+func newUserNameWindow(ctx context.Context, namesFunc model.QueryNamesFunc, sid64 steamid.SID64) *userNameWindow {
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "names_title", Other: "Username History: {{ .SteamID }}"},
 		TemplateData: map[string]interface{}{
 			"SteamId": sid64,
 		}})
-	appWindow := app.NewWindow(title)
+	appWindow := application.NewWindow(title)
 	appWindow.SetCloseIntercept(func() {
 		appWindow.Hide()
 	})

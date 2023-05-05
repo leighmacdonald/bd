@@ -130,9 +130,9 @@ func discordAssetNameMap(mapName string) string {
 	return mapName
 }
 
-func (bd *BD) discordUpdateActivity(cnt int) {
-	bd.serverMu.RLock()
-	defer bd.serverMu.RUnlock()
+func discordUpdateActivity(cnt int) {
+	serverMu.RLock()
+	defer serverMu.RUnlock()
 
 	buttons := []*client.Button{
 		{
@@ -140,21 +140,21 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 			Url:   "https://github.com/leighmacdonald/bd",
 		},
 	}
-	if !bd.server.Addr.IsLinkLocalUnicast() /*SDR*/ && !bd.server.Addr.IsPrivate() && bd.server.Addr != nil && bd.server.Port > 0 {
-		u := fmt.Sprintf("steam://connect/%s:%d", bd.server.Addr.String(), bd.server.Port)
+	if !server.Addr.IsLinkLocalUnicast() /*SDR*/ && !server.Addr.IsPrivate() && server.Addr != nil && server.Port > 0 {
+		u := fmt.Sprintf("steam://connect/%s:%d", server.Addr.String(), server.Port)
 		buttons = append(buttons, &client.Button{
 			Label: "Connect",
 			Url:   u,
 		})
 	}
-	currentMap := discordAssetNameMap(bd.server.CurrentMap)
+	currentMap := discordAssetNameMap(server.CurrentMap)
 	state := "Offline"
-	if bd.gameProcessActive.Load() {
+	if gameProcessActive.Load() {
 		state = "In-Game"
 	}
 	details := "Idle"
-	if bd.server.ServerName != "" {
-		details = bd.server.ServerName
+	if server.ServerName != "" {
+		details = server.ServerName
 	}
 	var party *client.Party
 	if cnt > 0 {
@@ -173,27 +173,27 @@ func (bd *BD) discordUpdateActivity(cnt int) {
 		SmallText:  "",
 		Party:      party,
 		Timestamps: &client.Timestamps{
-			Start: &bd.startupTime,
+			Start: &startupTime,
 		},
 		Buttons: buttons,
 	}); errSetActivity != nil {
-		bd.logger.Error("Failed to set discord activity", zap.Error(errSetActivity))
+		rootLogger.Error("Failed to set discord activity", zap.Error(errSetActivity))
 	}
 }
 
-func (bd *BD) discordStateUpdater(ctx context.Context) {
+func discordStateUpdater(ctx context.Context) {
 	const discordAppID = "1076716221162082364"
-	defer bd.logger.Debug("discordStateUpdater exited")
+	defer rootLogger.Debug("discordStateUpdater exited")
 	timer := time.NewTicker(time.Second * 10)
 	isRunning := false
 	for {
 		select {
 		case <-timer.C:
-			if !bd.settings.GetDiscordPresenceEnabled() {
+			if !settings.GetDiscordPresenceEnabled() {
 				if isRunning {
 					// Logout of existing connection on settings change
 					if errLogout := client.Logout(); errLogout != nil {
-						bd.logger.Error("Failed to logout of discord client", zap.Error(errLogout))
+						rootLogger.Error("Failed to logout of discord client", zap.Error(errLogout))
 						// continue?
 					}
 					isRunning = false
@@ -202,13 +202,13 @@ func (bd *BD) discordStateUpdater(ctx context.Context) {
 			}
 			if !isRunning {
 				if errLogin := client.Login(discordAppID); errLogin != nil {
-					bd.logger.Debug("Failed to login to discord", zap.Error(errLogin))
+					rootLogger.Debug("Failed to login to discord", zap.Error(errLogin))
 					continue
 				}
 				isRunning = true
 			}
 			if isRunning {
-				bd.discordUpdateActivity(len(players))
+				discordUpdateActivity(len(players))
 			}
 		case <-ctx.Done():
 			return
