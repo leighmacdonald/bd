@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 export const call = async <TRequest = null, TResponse = null>(
     method: string,
     path: string,
@@ -73,14 +75,8 @@ export interface Player {
     kills: number;
     deaths: number;
     our_friend: boolean;
-    match: null | Match;
+    matches: Match[];
 }
-
-// export const formatSeconds = (seconds: number): string => {
-//     const date = new Date(0);
-//     date.setSeconds(seconds / 1000 / 10000);
-//     return date.toISOString().substring(11, 19);
-// };
 
 export const formatSeconds = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -90,6 +86,24 @@ export const formatSeconds = (seconds: number): string => {
         .filter(Boolean)
         .join(':');
 };
+
 export const getPlayers = async () => {
     return await call<null, Player[]>('GET', 'players');
+};
+
+export const usePlayers = () => {
+    const [players, setPlayers] = useState<Player[]>([]);
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                setPlayers(await getPlayers());
+            } catch (e) {
+                console.log(e);
+            }
+        }, 1000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, []);
+    return players;
 };
