@@ -5,8 +5,13 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"math/rand"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -18,6 +23,10 @@ var (
 	logger     *zap.Logger
 )
 
+func init() {
+	gin.SetMode(gin.ReleaseMode)
+}
+
 func Setup() {
 	logger = detector.Logger().Named("api")
 	engine := createRouter()
@@ -25,6 +34,24 @@ func Setup() {
 		logger.Panic("Failed to setup routes", zap.Error(errRoutes))
 	}
 	router = engine
+}
+
+func bind(ctx *gin.Context, receiver any) bool {
+	if errBind := ctx.BindJSON(&receiver); errBind != nil {
+		responseErr(ctx, http.StatusBadRequest, gin.H{
+			"error": "Invalid request parameters",
+		})
+		return false
+	}
+	return true
+}
+
+func responseErr(ctx *gin.Context, status int, data any) {
+	ctx.JSON(status, data)
+}
+
+func responseOK(ctx *gin.Context, status int, data any) {
+	ctx.JSON(status, data)
 }
 
 func createRouter() *gin.Engine {
@@ -47,6 +74,7 @@ func setupRoutes(engine *gin.Engine) error {
 	engine.StaticFS("/dist", http.Dir(absStaticPath))
 	engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	engine.GET("/players", getPlayers())
+	engine.POST("/mark", postMarkPlayer())
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}
@@ -58,6 +86,76 @@ func setupRoutes(engine *gin.Engine) error {
 		})
 	}
 	return nil
+}
+
+type jsConfig struct {
+	SiteName string `json:"siteName"`
+}
+
+func createTestPlayer() store.PlayerCollection {
+	var randPlayer = func(userId int64) *store.Player {
+		team := store.Blu
+		if userId%2 == 0 {
+			team = store.Red
+		}
+		sid := steamid.SID64(76561197960265728 + userId)
+		return &store.Player{
+			SteamIdString:    sid.String(),
+			Name:             util.RandomString(40),
+			CreatedOn:        time.Now(),
+			UpdatedOn:        time.Now(),
+			ProfileUpdatedOn: time.Now(),
+			KillsOn:          rand.Intn(20),
+			RageQuits:        rand.Intn(10),
+			DeathsBy:         rand.Intn(20),
+			Notes:            "User notes \ngo here",
+			Whitelisted:      false,
+			RealName:         "Real Name Goes Here",
+			NamePrevious:     "",
+			AccountCreatedOn: time.Time{},
+			Visibility:       0,
+			AvatarHash:       "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb",
+			CommunityBanned:  false,
+			NumberOfVACBans:  0,
+			LastVACBanOn:     nil,
+			NumberOfGameBans: 0,
+			EconomyBan:       false,
+			Team:             team,
+			Connected:        float64(rand.Intn(3600)),
+			UserId:           userId,
+			Ping:             rand.Intn(150),
+			Kills:            rand.Intn(50),
+			Deaths:           rand.Intn(300),
+			Matches:          []*rules.MatchResult{},
+		}
+	}
+	var testPlayers store.PlayerCollection
+	for i := int64(0); i < 24; i++ {
+		p := randPlayer(i)
+		switch i {
+		case 1:
+			p.NumberOfVACBans = 2
+			last := time.Now().AddDate(-1, 0, 0)
+			p.LastVACBanOn = &last
+		case 4:
+			p.Matches = append(p.Matches, &rules.MatchResult{
+				Origin:      "Test Rules List",
+				Attributes:  []string{"cheater"},
+				MatcherType: "string",
+			})
+		case 6:
+			p.Matches = append(p.Matches, &rules.MatchResult{
+				Origin:      "Test Rules List",
+				Attributes:  []string{"other"},
+				MatcherType: "string",
+			})
+
+		case 7:
+			p.Team = store.Spec
+		}
+		testPlayers = append(testPlayers, p)
+	}
+	return testPlayers
 }
 
 func Start(ctx context.Context) {

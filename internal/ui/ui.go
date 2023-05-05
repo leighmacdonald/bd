@@ -12,8 +12,8 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -48,7 +48,7 @@ var (
 	windows          *windowMap
 	knownAttributes  binding.StringList
 	localAvatarCache *avatarCache
-	version          model.Version
+	version          detector.Version
 	logger           *zap.Logger
 )
 
@@ -69,15 +69,15 @@ type windowMap struct {
 
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
 
-func UpdateServerState(state model.Server) {
+func UpdateServerState(state detector.Server) {
 	windows.player.UpdateServerState(state)
 }
 
-func UpdatePlayerState(collection model.PlayerCollection) {
+func UpdatePlayerState(collection store.PlayerCollection) {
 	windows.player.updatePlayerState(collection)
 }
 
-func Setup(ctx context.Context, versionInfo model.Version) {
+func Setup(ctx context.Context, versionInfo detector.Version) {
 	guiLogger, _ := zap.NewProduction()
 	logger = guiLogger.Named("bd.gui")
 	version = versionInfo
@@ -137,7 +137,7 @@ const (
 
 var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus, playerSortTeam, playerSortTime}
 
-func AddUserMessage(msg model.UserMessage) {
+func AddUserMessage(msg store.UserMessage) {
 	if errAppend := windows.chat.append(msg); errAppend != nil {
 		logger.Error("Failed to append game message", zap.Error(errAppend))
 	}

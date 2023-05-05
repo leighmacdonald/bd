@@ -2,7 +2,7 @@ package detector
 
 import (
 	"context"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"go.uber.org/zap"
 	"net"
@@ -35,7 +35,7 @@ type killEvent struct {
 }
 
 type lobbyEvent struct {
-	team model.Team
+	team store.Team
 }
 
 type statusEvent struct {
@@ -101,13 +101,13 @@ func incomingLogEventHandler(ctx context.Context) {
 		case evt := <-eventChan:
 			var update updateStateEvent
 			switch evt.Type {
-			case model.EvtMap:
+			case EvtMap:
 				update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
-			case model.EvtHostname:
+			case EvtHostname:
 				update = updateStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
-			case model.EvtTags:
+			case EvtTags:
 				update = updateStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
-			case model.EvtAddress:
+			case EvtAddress:
 				pcs := strings.Split(evt.MetaData, ":")
 				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
 				if errPort != nil {
@@ -120,15 +120,15 @@ func incomingLogEventHandler(ctx context.Context) {
 					continue
 				}
 				update = updateStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
-			case model.EvtDisconnect:
+			case EvtDisconnect:
 				update = updateStateEvent{kind: changeMap, source: evt.PlayerSID, data: mapChangeEvent{}}
-			case model.EvtKill:
+			case EvtKill:
 				update = updateStateEvent{
 					kind:   updateKill,
 					source: evt.PlayerSID,
 					data:   killEvent{victimName: evt.Victim, sourceName: evt.Player},
 				}
-			case model.EvtMsg:
+			case EvtMsg:
 				update = updateStateEvent{
 					kind:   updateMessage,
 					source: evt.PlayerSID,
@@ -140,7 +140,7 @@ func incomingLogEventHandler(ctx context.Context) {
 						dead:      evt.Dead,
 					},
 				}
-			case model.EvtStatusId:
+			case EvtStatusId:
 				update = updateStateEvent{
 					kind:   updateStatus,
 					source: evt.PlayerSID,
@@ -152,7 +152,7 @@ func incomingLogEventHandler(ctx context.Context) {
 						connected: evt.PlayerConnected,
 					},
 				}
-			case model.EvtLobby:
+			case EvtLobby:
 				update = updateStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
 			}
 			gameStateUpdate <- update

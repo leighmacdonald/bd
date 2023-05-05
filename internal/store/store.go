@@ -9,7 +9,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
@@ -25,13 +24,13 @@ type DataStore interface {
 	Connect() error
 	Init() error
 	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
-	SaveMessage(ctx context.Context, message *model.UserMessage) error
-	SavePlayer(ctx context.Context, state *model.Player) error
-	SearchPlayers(ctx context.Context, opts model.SearchOpts) (model.PlayerCollection, error)
-	FetchNames(ctx context.Context, sid64 steamid.SID64) (model.UserNameHistoryCollection, error)
-	FetchMessages(ctx context.Context, sid steamid.SID64) (model.UserMessageCollection, error)
-	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
-	GetPlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error
+	SaveMessage(ctx context.Context, message *UserMessage) error
+	SavePlayer(ctx context.Context, state *Player) error
+	SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
+	FetchNames(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
+	FetchMessages(ctx context.Context, sid steamid.SID64) (UserMessageCollection, error)
+	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *Player) error
+	GetPlayer(ctx context.Context, steamID steamid.SID64, player *Player) error
 }
 
 type SqliteStore struct {
@@ -116,7 +115,7 @@ func (store *SqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, n
 	return nil
 }
 
-func (store *SqliteStore) SaveMessage(ctx context.Context, message *model.UserMessage) error {
+func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage) error {
 	query := sq.
 		Insert("player_messages").
 		Columns("steam_id", "message", "created_on").
@@ -129,7 +128,7 @@ func (store *SqliteStore) SaveMessage(ctx context.Context, message *model.UserMe
 	return nil
 }
 
-func (store *SqliteStore) insertPlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error {
 	query, args, errSql := sq.
 		Insert("player").
 		Columns("steam_id", "visibility", "real_name", "account_created_on", "avatar_hash",
@@ -150,7 +149,7 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *model.Player)
 	return nil
 }
 
-func (store *SqliteStore) updatePlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error {
 	state.UpdatedOn = time.Now()
 	query, args, errSql := sq.
 		Update("player").
@@ -180,7 +179,7 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *model.Player)
 	return nil
 }
 
-func (store *SqliteStore) SavePlayer(ctx context.Context, state *model.Player) error {
+func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
 	if !state.SteamId.Valid() {
 		return errors.New("Invalid steam id")
 	}
@@ -190,7 +189,11 @@ func (store *SqliteStore) SavePlayer(ctx context.Context, state *model.Player) e
 	return store.updatePlayer(ctx, state)
 }
 
-func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOpts) (model.PlayerCollection, error) {
+type SearchOpts struct {
+	Query string
+}
+
+func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error) {
 	qb := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -215,10 +218,10 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 		return nil, rowErr
 	}
 	defer util.LogClose(store.logger, rows)
-	var col model.PlayerCollection
+	var col PlayerCollection
 	for rows.Next() {
 		var prevName *string
-		var player model.Player
+		var player Player
 		if errScan := rows.Scan(&player.SteamId, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
@@ -236,7 +239,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts model.SearchOp
 	return col, nil
 }
 
-func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
+func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, player *Player) error {
 	query, args, errSql := sq.
 		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -273,7 +276,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	return nil
 }
 
-func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *model.Player) error {
+func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *Player) error {
 	query, args, errSql := sq.
 		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -311,7 +314,7 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 	return nil
 }
 
-func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (model.UserNameHistoryCollection, error) {
+func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (UserNameHistoryCollection, error) {
 	query, args, errSql := sq.
 		Select("name_id", "name", "created_on").
 		From("player_names").
@@ -328,9 +331,9 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		return nil, errQuery
 	}
 	defer util.LogClose(store.logger, rows)
-	var hist model.UserNameHistoryCollection
+	var hist UserNameHistoryCollection
 	for rows.Next() {
-		var h model.UserNameHistory
+		var h UserNameHistory
 		if errScan := rows.Scan(&h.NameId, &h.Name, &h.FirstSeen); errScan != nil {
 			return nil, errScan
 		}
@@ -339,7 +342,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	return hist, nil
 }
 
-func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (model.UserMessageCollection, error) {
+func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (UserMessageCollection, error) {
 	query, args, errSql := sq.
 		Select("message_id", "message", "created_on").
 		From("player_messages").
@@ -356,9 +359,9 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		return nil, errQuery
 	}
 	defer util.LogClose(store.logger, rows)
-	var messages model.UserMessageCollection
+	var messages UserMessageCollection
 	for rows.Next() {
-		var m model.UserMessage
+		var m UserMessage
 		if errScan := rows.Scan(&m.MessageId, &m.Message, &m.Created); errScan != nil {
 			return nil, errScan
 		}

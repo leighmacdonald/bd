@@ -1,4 +1,4 @@
-package model
+package store
 
 import (
 	"fmt"
@@ -118,11 +118,11 @@ func (ps *Player) GetAvatarHash() string {
 }
 
 func (ps *Player) IsDisconnected() bool {
-	return time.Since(ps.UpdatedOn) > DurationDisconnected
+	return time.Since(ps.UpdatedOn) > time.Second*6
 }
 
 func (ps *Player) IsExpired() bool {
-	return time.Since(ps.UpdatedOn) > DurationPlayerExpired
+	return time.Since(ps.UpdatedOn) > time.Second*20
 }
 
 func (ps *Player) Touch() {

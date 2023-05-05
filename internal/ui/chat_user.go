@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -25,12 +25,12 @@ type userChatWindow struct {
 	objectMu          sync.RWMutex
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
-	queryFunc         model.QueryUserMessagesFunc
+	queryFunc         store.QueryUserMessagesFunc
 
 	logger *zap.Logger
 }
 
-func newUserChatWindow(ctx context.Context, queryFunc model.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
+func newUserChatWindow(ctx context.Context, queryFunc store.QueryUserMessagesFunc, sid64 steamid.SID64) *userChatWindow {
 	appWindow := application.NewWindow(tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{
 			ID:    "userchat_title",
@@ -71,7 +71,7 @@ func newUserChatWindow(ctx context.Context, queryFunc model.QueryUserMessagesFun
 		defer window.objectMu.Unlock()
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
-		um := obj.(model.UserMessage)
+		um := obj.(store.UserMessage)
 		rootContainer := o.(*fyne.Container)
 		timeStamp := rootContainer.Objects[1].(*widget.Label)
 		timeStamp.SetText(um.Created.Format(time.RFC822))
@@ -109,7 +109,7 @@ func newUserChatWindow(ctx context.Context, queryFunc model.QueryUserMessagesFun
 
 	messages, errMessage := queryFunc(ctx, sid64)
 	if errMessage != nil {
-		messages = append(messages, model.UserMessage{
+		messages = append(messages, store.UserMessage{
 			MessageId: 0,
 			Team:      0,
 			Player:    "Bot Detector",

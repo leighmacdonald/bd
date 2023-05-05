@@ -3,7 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
@@ -76,7 +76,7 @@ var (
 )
 
 type logParser struct {
-	evtChan     chan model.LogEvent
+	evtChan     chan LogEvent
 	ReadChannel chan string
 	rx          []*regexp.Regexp
 	logger      *zap.Logger
@@ -86,22 +86,22 @@ const teamPrefix = "(TEAM) "
 const deadPrefix = "*DEAD* "
 const deadTeamPrefix = "*DEAD*(TEAM) "
 
-func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error {
+func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range parser.rx {
 		if match := rxMatcher.FindStringSubmatch(msg); match != nil {
-			outEvent.Type = model.EventType(i)
-			if outEvent.Type != model.EvtLobby {
+			outEvent.Type = EventType(i)
+			if outEvent.Type != EvtLobby {
 				if errTs := outEvent.ApplyTimestamp(match[1]); errTs != nil {
 					parser.logger.Error("Failed to parse timestamp", zap.Error(errTs))
 				}
 			}
 			switch outEvent.Type {
-			case model.EvtConnect:
+			case EvtConnect:
 				outEvent.Player = match[2]
-			case model.EvtDisconnect:
+			case EvtDisconnect:
 				outEvent.MetaData = match[2]
-			case model.EvtMsg:
+			case EvtMsg:
 				name := match[2]
 				dead := false
 				team := false
@@ -121,7 +121,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error 
 				outEvent.Dead = dead
 				outEvent.Player = name
 				outEvent.Message = match[3]
-			case model.EvtStatusId:
+			case EvtStatusId:
 				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
 					parser.logger.Error("Failed to parse status userid", zap.Error(errUserID))
@@ -142,23 +142,23 @@ func (parser *logParser) parseEvent(msg string, outEvent *model.LogEvent) error 
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
 				outEvent.PlayerConnected = dur
 				outEvent.PlayerPing = int(ping)
-			case model.EvtKill:
+			case EvtKill:
 				outEvent.Player = match[2]
 				outEvent.Victim = match[3]
-			case model.EvtHostname:
+			case EvtHostname:
 				outEvent.MetaData = match[2]
-			case model.EvtMap:
+			case EvtMap:
 				outEvent.MetaData = match[2]
-			case model.EvtTags:
+			case EvtTags:
 				outEvent.MetaData = match[2]
-			case model.EvtAddress:
+			case EvtAddress:
 				outEvent.MetaData = match[2]
-			case model.EvtLobby:
+			case EvtLobby:
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[2]))
 				if match[3] == "INVADERS" {
-					outEvent.Team = model.Blu
+					outEvent.Team = store.Blu
 				} else {
-					outEvent.Team = model.Red
+					outEvent.Team = store.Red
 				}
 			}
 			return nil
@@ -188,7 +188,7 @@ func (parser *logParser) start(ctx context.Context) {
 	for {
 		select {
 		case msg := <-parser.ReadChannel:
-			var logEvent model.LogEvent
+			var logEvent LogEvent
 			if err := parser.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
 				continue
 			}
@@ -204,7 +204,7 @@ func (parser *logParser) start(ctx context.Context) {
 	}
 }
 
-func newLogParser(logger *zap.Logger, readChannel chan string, evtChan chan model.LogEvent) *logParser {
+func newLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogEvent) *logParser {
 	return &logParser{
 		logger:      logger,
 		evtChan:     evtChan,

@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
@@ -21,7 +21,6 @@ import (
 type searchWindow struct {
 	fyne.Window
 	ctx         context.Context
-	app         fyne.App
 	list        *widget.Table
 	boundList   binding.ExternalUntypedList
 	queryString binding.String
@@ -32,7 +31,7 @@ type searchWindow struct {
 	queryEntry  *widget.Entry
 }
 
-func (screen *searchWindow) Reload(results model.PlayerCollection) error {
+func (screen *searchWindow) Reload(results store.PlayerCollection) error {
 	bl := results.AsAny()
 	screen.boundListMu.Lock()
 	if errSet := screen.boundList.Set(bl); errSet != nil {
@@ -115,7 +114,7 @@ func newSearchWindow(ctx context.Context) *searchWindow {
 		if valueErr != nil {
 			return
 		}
-		ps := value.(*model.Player)
+		ps := value.(*store.Player)
 		label.Hide()
 		icon.Hide()
 		ctxMenu.Hide()
@@ -144,7 +143,7 @@ func newSearchWindow(ctx context.Context) *searchWindow {
 	sw.queryEntry = widget.NewEntryWithData(sw.queryString)
 	sw.queryEntry.PlaceHolder = "SteamID or Name"
 	sw.queryEntry.OnSubmitted = func(s string) {
-		results, errSearch := detector.Store().SearchPlayers(sw.ctx, model.SearchOpts{Query: s})
+		results, errSearch := detector.Store().SearchPlayers(sw.ctx, store.SearchOpts{Query: s})
 		if errSearch != nil {
 			showUserError(errSearch, window)
 			return

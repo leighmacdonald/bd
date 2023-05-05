@@ -1,8 +1,9 @@
-package model
+package detector
 
 import (
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"strings"
+	"net"
 	"time"
 )
 
@@ -18,7 +19,7 @@ type LogEvent struct {
 	Player          string
 	PlayerPing      int
 	PlayerConnected time.Duration
-	Team            Team
+	Team            store.Team
 	UserId          int64
 	PlayerSID       steamid.SID64
 	Victim          string
@@ -44,36 +45,11 @@ type Event struct {
 	Value any
 }
 
-type UserMessage struct {
-	MessageId int64
-	Team      Team
-	Player    string
-	PlayerSID steamid.SID64
-	UserId    int64
-	Message   string
-	Created   time.Time
-	Dead      bool
-	TeamOnly  bool
-}
-
-func (um UserMessage) Formatted() string {
-	var msg []string
-	if um.TeamOnly {
-		msg = append(msg, "(TEAM)")
-	}
-	if um.Dead {
-		msg = append(msg, "(DEAD)")
-	}
-	msg = append(msg, um.Message)
-	return strings.Join(msg, " ")
-}
-
-type UserMessageCollection []UserMessage
-
-func (messages UserMessageCollection) AsAny() []any {
-	bl := make([]any, len(messages))
-	for i, r := range messages {
-		bl[i] = r
-	}
-	return bl
+type Server struct {
+	ServerName string
+	Addr       net.IP
+	Port       uint16
+	CurrentMap string
+	Tags       []string
+	LastUpdate time.Time
 }

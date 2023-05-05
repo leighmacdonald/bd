@@ -9,8 +9,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/platform"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -24,7 +24,6 @@ import (
 )
 
 type playerWindow struct {
-	app         fyne.App
 	logger      *zap.Logger
 	window      fyne.Window
 	list        *widget.List
@@ -60,7 +59,7 @@ func (screen *playerWindow) showSettings() {
 	d.Show()
 }
 
-func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
+func (screen *playerWindow) updatePlayerState(players store.PlayerCollection) {
 	// Sort by name first
 	sort.Slice(players, func(i, j int) bool {
 		return strings.ToLower(players[i].Name) < strings.ToLower(players[j].Name)
@@ -125,7 +124,7 @@ func (screen *playerWindow) updatePlayerState(players model.PlayerCollection) {
 	}
 }
 
-func (screen *playerWindow) UpdateServerState(state model.Server) {
+func (screen *playerWindow) UpdateServerState(state detector.Server) {
 	serverName := "n/a"
 	if state.ServerName != "" {
 		serverName = state.ServerName
@@ -146,7 +145,7 @@ func (screen *playerWindow) UpdateServerState(state model.Server) {
 	screen.labelMap.Refresh()
 }
 
-func (screen *playerWindow) Reload(rr model.PlayerCollection) error {
+func (screen *playerWindow) Reload(rr store.PlayerCollection) error {
 	bl := make([]interface{}, len(rr))
 	for i, r := range rr {
 		bl[i] = r
@@ -212,7 +211,7 @@ func (screen *playerWindow) createMainMenu() {
 	labelLaunch := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_launch", Other: "Launch TF2"}})
 	labelChatLog := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_chat_log", Other: "Chat Log"}})
 	labelConfigFolder := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_config_folder", Other: "Open Config Folder"}})
-	labelSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_settings", Other: "Settings"}})
+	labelSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_settings", Other: "UserSettings"}})
 	labelQuit := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_menu_quit", Other: "Quit"}})
 	fm := fyne.NewMenu(labelMainMenu,
 		&fyne.MenuItem{
@@ -282,7 +281,7 @@ const symbolBad = "x"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.Version) *playerWindow {
+func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version detector.Version) *playerWindow {
 	hostname := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_hostname", Other: "Hostname: "}})
 	mapName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_map", Other: "Map: "}})
 	screen := &playerWindow{
@@ -339,9 +338,9 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.
 	sortSelect := widget.NewSelect(dirNames, func(s string) {
 		showUserError(screen.playerSortDir.Set(s), screen.window)
 		v, _ := screen.boundList.Get()
-		var sorted model.PlayerCollection
+		var sorted store.PlayerCollection
 		for _, p := range v {
-			sorted = append(sorted, p.(*model.Player))
+			sorted = append(sorted, p.(*store.Player))
 		}
 		screen.updatePlayerState(sorted)
 	})
@@ -374,7 +373,7 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.
 		screen.objectMu.Lock()
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
-		ps := obj.(*model.Player)
+		ps := obj.(*store.Player)
 		//ps.RLock()
 
 		rootContainer := o.(*fyne.Container)
@@ -442,7 +441,7 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.
 	return screen
 }
 
-func generateRightSegments(ps *model.Player) []*widget.TextSegment {
+func generateRightSegments(ps *store.Player) []*widget.TextSegment {
 	var rightSegments []*widget.TextSegment
 	banStateMsg, banStateStyle := generateBanStateMsg(ps)
 	if ps.Notes != "" {
@@ -467,7 +466,7 @@ func generateRightSegments(ps *model.Player) []*widget.TextSegment {
 	return rightSegments
 }
 
-func generateBanStateMsg(ps *model.Player) (string, widget.RichTextStyle) {
+func generateBanStateMsg(ps *store.Player) (string, widget.RichTextStyle) {
 	style := widget.RichTextStyleStrong
 	style.ColorName = theme.ColorNameSuccess
 
@@ -500,7 +499,7 @@ func generateBanStateMsg(ps *model.Player) (string, widget.RichTextStyle) {
 	return vacMsgFull, style
 }
 
-func calcNameStyle(player *model.Player, ownSid steamid.SID64) widget.RichTextStyle {
+func calcNameStyle(player *store.Player, ownSid steamid.SID64) widget.RichTextStyle {
 	style := widget.RichTextStyleStrong
 	style.ColorName = theme.ColorNameSuccess
 	if player.GetSteamID() == ownSid {
@@ -511,7 +510,7 @@ func calcNameStyle(player *model.Player, ownSid steamid.SID64) widget.RichTextSt
 		style.ColorName = theme.ColorNameWarning
 	} else if player.NumberOfGameBans > 0 || player.CommunityBanned || player.EconomyBan {
 		style.ColorName = theme.ColorNameWarning
-	} else if player.Team == model.Red {
+	} else if player.Team == store.Red {
 		style.ColorName = theme.ColorNameError
 	} else {
 		style.ColorName = theme.ColorNamePrimary

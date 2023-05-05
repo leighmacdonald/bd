@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	clone "github.com/huandu/go-clone/generic"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -24,7 +23,7 @@ import (
 func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 	const testSteamId = 76561197961279983
 	origSettings := detector.Settings()
-	settings := clone.Clone[*model.Settings](origSettings)
+	settings := clone.Clone[*detector.UserSettings](origSettings)
 
 	var createSelectorRow = func(label string, icon fyne.Resource, entry *widget.Entry, defaultPath string) *container.Split {
 		fileInputContainer := container.NewHSplit(widget.NewButtonWithIcon("Edit", icon, func() {
@@ -134,7 +133,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 	debugLogEnabled := settings.GetDebugLogEnabled()
 	debugLogEnabledEntry := widget.NewCheckWithData("", binding.BindBool(&debugLogEnabled))
 
-	staticConfig := model.NewRconConfig(true)
+	staticConfig := detector.NewRconConfig(true)
 	boundTags := binding.NewString()
 	if errSet := boundTags.Set(strings.Join(settings.GetKickTags(), ",")); errSet != nil {
 		logger.Error("Failed to set tags", zap.Error(errSet))
@@ -297,7 +296,7 @@ func newSettingsDialog(logger *zap.Logger, parent fyne.Window) dialog.Dialog {
 			logger.Error("Failed to save settings", zap.Error(errSave))
 		}
 	}
-	titleSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_title", Other: "Edit Settings"}})
+	titleSettings := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_title", Other: "Edit UserSettings"}})
 	buttonSave := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_apply", Other: "Save"}})
 	buttonCancel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "settings_button_cancel", Other: "Cancel"}})
 	settingsWindow := dialog.NewCustomConfirm(titleSettings, buttonSave, buttonCancel, container.NewVScroll(settingsForm), onSave, parent)

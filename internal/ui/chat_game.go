@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
@@ -73,7 +73,7 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 			gcw.logger.Error("Failed to get bound value message value", zap.Error(errObj))
 			return
 		}
-		um := obj.(model.UserMessage)
+		um := obj.(store.UserMessage)
 		gcw.objectMu.Lock()
 		rootContainer := o.(*fyne.Container)
 		timeAndProfileContainer := rootContainer.Objects[1].(*fyne.Container)
@@ -88,7 +88,7 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline
-		if um.Team == model.Red {
+		if um.Team == store.Red {
 			nameStyle.ColorName = theme.ColorNameError
 		} else {
 			nameStyle.ColorName = theme.ColorNamePrimary
@@ -104,9 +104,9 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 	gcw.list = widget.NewListWithData(gcw.boundList, createFunc, updateFunc)
 	selected := "all"
 	chatTypeEntry := widget.NewSelect([]string{
-		string(model.ChatDestAll),
-		string(model.ChatDestTeam),
-		string(model.ChatDestParty),
+		string(detector.ChatDestAll),
+		string(detector.ChatDestTeam),
+		string(detector.ChatDestParty),
 	}, func(s string) {
 		selected = s
 	})
@@ -119,7 +119,7 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 	chatEntryData := binding.NewString()
 	messageEntry := widget.NewEntryWithData(chatEntryData)
 	messageEntry.OnSubmitted = func(s string) {
-		showUserError(detector.SendChat(model.ChatDest(selected), s), gcw)
+		showUserError(detector.SendChat(detector.ChatDest(selected), s), gcw)
 		_ = chatEntryData.Set("")
 	}
 	bottomContainer := container.NewBorder(
@@ -133,7 +133,7 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 				if err != nil {
 					return
 				}
-				showUserError(detector.SendChat(model.ChatDest(selected), msg), gcw)
+				showUserError(detector.SendChat(detector.ChatDest(selected), msg), gcw)
 				_ = chatEntryData.Set("")
 			})),
 		messageEntry)

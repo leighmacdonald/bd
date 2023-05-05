@@ -8,7 +8,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/leighmacdonald/bd/internal/model"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"go.uber.org/zap"
@@ -25,7 +25,7 @@ type linksConfigDialog struct {
 	selectOpts  []string
 }
 
-func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *model.Settings) *linksConfigDialog {
+func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *detector.UserSettings) *linksConfigDialog {
 	var links []any
 	for _, l := range settings.GetLinks() {
 		links = append(links, l)
@@ -52,7 +52,7 @@ func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *model.Sett
 		defer lcd.objectMu.Unlock()
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
-		linkConfig := obj.(*model.LinkConfig)
+		linkConfig := obj.(*detector.LinkConfig)
 
 		rootContainer := object.(*fyne.Container)
 		labelName := rootContainer.Objects[0].(*widget.Label)
@@ -114,8 +114,8 @@ func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *model.Sett
 	addButton := widget.NewButtonWithIcon(addMsg, theme.ContentAddIcon(), func() {
 		lcd.boundListMu.Lock()
 		newLinks := settings.GetLinks()
-		newLinks = append(newLinks, &model.LinkConfig{
-			IdFormat: string(model.Steam64),
+		newLinks = append(newLinks, &detector.LinkConfig{
+			IdFormat: string(detector.Steam64),
 			Enabled:  true,
 			Name:     fmt.Sprintf("New Link %d", count)})
 		settings.SetLinks(newLinks)
@@ -133,7 +133,7 @@ func newLinksDialog(parent fyne.Window, logger *zap.Logger, settings *model.Sett
 			if !b {
 				return
 			}
-			var updatedLinks model.LinkConfigCollection
+			var updatedLinks detector.LinkConfigCollection
 			for idx, link := range settings.GetLinks() {
 				if idx == selectedId {
 					continue
