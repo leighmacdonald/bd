@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/cache"
@@ -21,7 +20,6 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"io"
 	"net/http"
 	"os"
@@ -39,7 +37,6 @@ var (
 	playersMu         *sync.RWMutex
 	logChan           chan string
 	eventChan         chan model.LogEvent
-	httpServer        *http.Server
 	gameProcessActive *atomic.Bool
 	startupTime       time.Time
 	server            model.Server
@@ -56,7 +53,6 @@ var (
 
 	gameHasStartedOnce *atomic.Bool
 	rootLogger         *zap.Logger
-	router             *gin.Engine
 )
 
 func init() {
@@ -76,7 +72,7 @@ func init() {
 
 func mustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
-	loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
 		if util.Exists(logFile) {
 			if err := os.Remove(logFile); err != nil {
@@ -106,7 +102,7 @@ func Setup(versionInfo model.Version) {
 
 	settings = userSettings
 	logFilePath := ""
-	if settings.DebugLogEnabled {
+	if settings.GetDebugLogEnabled() {
 		logFilePath = settings.LogFilePath()
 	}
 	rootLogger = mustCreateLogger(logFilePath)
@@ -165,68 +161,6 @@ func Setup(versionInfo model.Version) {
 		rootLogger.Panic("Failed to create logreader", zap.Error(errLogReader))
 	}
 	reader = lr
-	if errApi := setupApi(rootLogger); errApi != nil {
-		rootLogger.Panic("Failed to start api server", zap.Error(errApi))
-	}
-}
-
-func setupApi(rootLogger *zap.Logger) error {
-	apiLogger := rootLogger.Named("api")
-	engine := createRouter(apiLogger)
-	if errRoutes := setupRoutes(engine); errRoutes != nil {
-		return errors.Wrap(errRoutes, "Failed to setup routes")
-	}
-	router = engine
-	return nil
-}
-
-func createRouter(logger *zap.Logger) *gin.Engine {
-	engine := gin.New()
-	engine.Use(ErrorHandler(logger))
-	engine.Use(gin.Recovery())
-	return engine
-}
-
-func setupRoutes(engine *gin.Engine) error {
-	absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
-	if errStaticPath != nil {
-		return errors.Wrap(errStaticPath, "Failed to setup static paths")
-	}
-
-	engine.StaticFS("/dist", http.Dir(absStaticPath))
-	engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
-	engine.GET("/players", getPlayers())
-	// These should match routes defined in the frontend. This allows us to use the browser
-	// based routing
-	jsRoutes := []string{"/"}
-	for _, rt := range jsRoutes {
-		engine.GET(rt, func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", jsConfig{
-				SiteName: "bd",
-			})
-		})
-	}
-	return nil
-}
-
-func startApiListener(ctx context.Context) error {
-	httpServer = &http.Server{
-		Addr:         "localhost:8900",
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-	rootLogger.Info("Service status changed", zap.String("state", "ready"))
-	defer rootLogger.Info("Service status changed", zap.String("state", "stopped"))
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		if errShutdown := httpServer.Shutdown(shutdownCtx); errShutdown != nil {
-			rootLogger.Error("Error shutting down http service", zap.Error(errShutdown))
-		}
-	}()
-	return httpServer.ListenAndServe()
 }
 
 //// BD is the main application container
@@ -335,9 +269,26 @@ func LaunchGameAndWait() {
 func Store() store.DataStore {
 	return dataStore
 }
+
 func Settings() *model.Settings {
 	return settings
 }
+
+func Logger() *zap.Logger {
+	return rootLogger
+}
+
+// Players returns a copy of the current player states
+func Players() []model.Player {
+	var p []model.Player
+	playersMu.RLock()
+	defer playersMu.RUnlock()
+	for _, plr := range players {
+		p = append(p, *plr)
+	}
+	return p
+}
+
 func OnUnMark(sid64 steamid.SID64) error {
 	gameStateUpdate <- updateStateEvent{
 		kind:   updateMark,
@@ -899,8 +850,6 @@ func checkPlayerStates(ctx context.Context, validTeam model.Team) {
 }
 
 func triggerMatch(ps *model.Player, match *rules.MatchResult) {
-	ps.Lock()
-	defer ps.Unlock()
 	announceGeneralLast := ps.AnnouncedGeneralLast
 	announcePartyLast := ps.AnnouncedPartyLast
 	if time.Since(announceGeneralLast) >= model.DurationAnnounceMatchTimeout {
@@ -1061,10 +1010,5 @@ func Start(ctx context.Context) {
 		}
 	}
 
-	go func() {
-		if errApi := startApiListener(ctx); errApi != nil {
-			rootLogger.Panic("Failed to start api service", zap.Error(errApi))
-		}
-	}()
 	<-ctx.Done()
 }

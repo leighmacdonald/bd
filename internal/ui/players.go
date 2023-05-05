@@ -375,7 +375,7 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.
 		value := i.(binding.Untyped)
 		obj, _ := value.Get()
 		ps := obj.(*model.Player)
-		ps.RLock()
+		//ps.RLock()
 
 		rootContainer := o.(*fyne.Container)
 		upperContainer := rootContainer.Objects[0].(*fyne.Container)
@@ -411,7 +411,7 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.
 		rightLabels.Refresh()
 		lc.Refresh()
 		rootContainer.Refresh()
-		ps.RUnlock()
+		//ps.RUnlock()
 		screen.objectMu.Unlock()
 	}
 	screen.containerHeading = container.NewBorder(

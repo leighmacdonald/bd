@@ -269,9 +269,9 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 				}
 				entry := widget.NewMultiLineEntry()
 				entry.SetMinRowsVisible(30)
-				player.RLock()
+				//player.RLock()
 				entry.SetText(player.Notes)
-				player.RUnlock()
+				//player.RUnlock()
 				item := widget.NewFormItem("", entry)
 				sz := item.Widget.Size()
 				sz.Height = sizeDialogueHeight
@@ -285,10 +285,10 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 					if !b {
 						return
 					}
-					player.Lock()
+					//player.Lock()
 					player.Notes = entry.Text
 					player.Touch()
-					player.Unlock()
+					//player.Unlock()
 					if offline {
 						if errSave := detector.Store().SavePlayer(ctx, player); errSave != nil {
 							logger.Error("Failed to save player note", zap.Error(errSave))
