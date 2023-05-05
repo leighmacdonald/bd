@@ -1,7 +1,6 @@
 package detector
 
 import (
-	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/pkg/rules"
@@ -11,52 +10,11 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
 
 type jsConfig struct {
 	SiteName string `json:"siteName"`
-}
-
-func NewApi(bd *BD) *Api {
-	logger := bd.logger.Named("api")
-
-	absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
-	if errStaticPath != nil {
-		logger.Fatal("Invalid static path", zap.Error(errStaticPath))
-	}
-
-	router := gin.New()
-
-	router.Use(ErrorHandler(logger))
-	router.Use(gin.Recovery())
-
-	router.StaticFS("/dist", http.Dir(absStaticPath))
-	router.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
-	router.GET("/players", getPlayers())
-	// These should match routes defined in the frontend. This allows us to use the browser
-	// based routing
-	jsRoutes := []string{"/"}
-	for _, rt := range jsRoutes {
-		router.GET(rt, func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", jsConfig{
-				SiteName: "bd",
-			})
-		})
-	}
-	httpServer := &http.Server{
-		Addr:         "localhost:8900",
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-	api := Api{
-		bd:         bd,
-		logger:     logger,
-		httpServer: httpServer,
-	}
-	return &api
 }
 
 func createTestPlayer() model.PlayerCollection {
@@ -93,7 +51,7 @@ func createTestPlayer() model.PlayerCollection {
 			Ping:             rand.Intn(150),
 			Kills:            rand.Intn(50),
 			Deaths:           rand.Intn(300),
-			Match:            nil,
+			Matches:          []*rules.MatchResult{},
 		}
 	}
 	var testPlayers model.PlayerCollection
@@ -105,17 +63,17 @@ func createTestPlayer() model.PlayerCollection {
 			last := time.Now().AddDate(-1, 0, 0)
 			p.LastVACBanOn = &last
 		case 4:
-			p.Match = &rules.MatchResult{
+			p.Matches = append(p.Matches, &rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"cheater"},
 				MatcherType: "string",
-			}
+			})
 		case 6:
-			p.Match = &rules.MatchResult{
+			p.Matches = append(p.Matches, &rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"other"},
 				MatcherType: "string",
-			}
+			})
 
 		case 7:
 			p.Team = model.Spec
@@ -142,6 +100,16 @@ func getPlayers() gin.HandlerFunc {
 	}
 }
 
+func postMarkPlayer() gin.HandlerFunc {
+	type postOpts struct {
+		SteamID steamid.SID64 `json:"steamID"`
+		Attrs   []string      `json:"attrs"`
+	}
+	return func(ctx *gin.Context) {
+
+	}
+}
+
 func responseErr(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }
@@ -150,32 +118,11 @@ func responseOK(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }
 
-type Api struct {
-	bd         *BD
-	logger     *zap.Logger
-	httpServer *http.Server
-}
-
-func (api *Api) ListenAndServe(ctx context.Context) error {
-	api.logger.Info("Service status changed", zap.String("state", "ready"))
-	defer api.logger.Info("Service status changed", zap.String("state", "stopped"))
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		if errShutdown := api.httpServer.Shutdown(shutdownCtx); errShutdown != nil {
-			api.logger.Error("Error shutting down http service", zap.Error(errShutdown))
-		}
-	}()
-	return api.httpServer.ListenAndServe()
-}
-
-func (api *Api) bind(ctx *gin.Context, recveiver any) bool {
-	if errBind := ctx.BindJSON(&recveiver); errBind != nil {
+func bind(ctx *gin.Context, receiver any) bool {
+	if errBind := ctx.BindJSON(&receiver); errBind != nil {
 		responseErr(ctx, http.StatusBadRequest, gin.H{
 			"error": "Invalid request parameters",
 		})
-		api.logger.Error("Invalid request", zap.Error(errBind))
 		return false
 	}
 	return true

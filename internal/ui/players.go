@@ -25,16 +25,13 @@ import (
 
 type playerWindow struct {
 	app         fyne.App
-	ui          *Ui
 	logger      *zap.Logger
 	window      fyne.Window
 	list        *widget.List
-	bd          *detector.BD
 	boundList   binding.ExternalUntypedList
 	content     fyne.CanvasObject
 	objectMu    sync.RWMutex
 	boundListMu sync.RWMutex
-	settings    *model.Settings
 
 	aboutDialog *aboutDialog
 
@@ -58,8 +55,8 @@ type playerWindow struct {
 	avatarCache *avatarCache
 }
 
-func (screen *playerWindow) showSettings(settings *model.Settings) {
-	d := newSettingsDialog(screen.logger, screen.window, settings)
+func (screen *playerWindow) showSettings() {
+	d := newSettingsDialog(screen.logger, screen.window)
 	d.Show()
 }
 
@@ -182,25 +179,31 @@ func (screen *playerWindow) createMainMenu() {
 	shortCutAbout := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}
 
 	screen.window.Canvas().AddShortcut(shortCutLaunch, func(shortcut fyne.Shortcut) {
-		screen.bd.LaunchGameAndWait()
+		go detector.LaunchGameAndWait()
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutChat, func(shortcut fyne.Shortcut) {
-		screen.ui.windows.chat.Show()
+		windows.chat.Show()
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutFolder, func(shortcut fyne.Shortcut) {
-		showUserError(platform.OpenFolder(screen.settings.ConfigRoot()), screen.window)
+		showUserError(platform.OpenFolder(detector.Settings().ConfigRoot()), screen.window)
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutSettings, func(shortcut fyne.Shortcut) {
-		screen.showSettings(screen.settings)
+		screen.showSettings()
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutQuit, func(shortcut fyne.Shortcut) {
-		screen.app.Quit()
+		application.Quit()
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutHelp, func(shortcut fyne.Shortcut) {
-		if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
+		if errOpenHelp := application.OpenURL(wikiUrl); errOpenHelp != nil {
 			screen.logger.Error("Failed to open help url", zap.Error(errOpenHelp))
 		}
 	})
+
 	screen.window.Canvas().AddShortcut(shortCutAbout, func(shortcut fyne.Shortcut) {
 		screen.aboutDialog.Show()
 	})
@@ -216,21 +219,21 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutLaunch,
 			Label:    labelLaunch,
 			Action: func() {
-				go screen.bd.LaunchGameAndWait()
+				go detector.LaunchGameAndWait()
 			},
 			Icon: resourceTf2Png,
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutChat,
 			Label:    labelChatLog,
-			Action:   screen.ui.windows.chat.Show,
+			Action:   windows.chat.Show,
 			Icon:     theme.MailComposeIcon(),
 		},
 		&fyne.MenuItem{
 			Shortcut: shortCutFolder,
 			Label:    labelConfigFolder,
 			Action: func() {
-				showUserError(platform.OpenFolder(screen.settings.ConfigRoot()), screen.window)
+				showUserError(platform.OpenFolder(detector.Settings().ConfigRoot()), screen.window)
 			},
 			Icon: theme.FolderOpenIcon(),
 		},
@@ -238,7 +241,7 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutSettings,
 			Label:    labelSettings,
 			Action: func() {
-				screen.showSettings(screen.settings)
+				screen.showSettings()
 			},
 			Icon: theme.SettingsIcon(),
 		},
@@ -248,7 +251,7 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutQuit,
 			Label:    labelQuit,
 			IsQuit:   true,
-			Action:   screen.app.Quit,
+			Action:   application.Quit,
 		},
 	)
 
@@ -261,7 +264,7 @@ func (screen *playerWindow) createMainMenu() {
 			Shortcut: shortCutHelp,
 			Icon:     theme.HelpIcon(),
 			Action: func() {
-				if errOpenHelp := screen.app.OpenURL(wikiUrl); errOpenHelp != nil {
+				if errOpenHelp := application.OpenURL(wikiUrl); errOpenHelp != nil {
 					screen.logger.Error("Failed to open help url", zap.Error(errOpenHelp), zap.String("url", wikiUrl.String()))
 				}
 			}},
@@ -279,21 +282,17 @@ const symbolBad = "x"
 // ┌─────┬───────────────────────────────────────────────────┐
 // │  P  │ profile name                          │   Vac..   │
 // │─────────────────────────────────────────────────────────┤
-func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.Version) *playerWindow {
+func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version model.Version) *playerWindow {
 	hostname := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_hostname", Other: "Hostname: "}})
 	mapName := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "main_label_map", Other: "Map: "}})
 	screen := &playerWindow{
 		logger:             logger,
-		app:                ui.application,
-		ui:                 ui,
-		window:             ui.application.NewWindow("Bot Detector"),
+		window:             application.NewWindow("Bot Detector"),
 		boundList:          binding.BindUntypedList(&[]interface{}{}),
 		bindingPlayerCount: binding.NewInt(),
 		labelHostnameLabel: hostname,
 		labelMapLabel:      mapName,
 		menuCreator:        menuCreator,
-		avatarCache:        ui.avatarCache,
-		settings:           ui.settings,
 		labelHostname: widget.NewRichText(
 			&widget.TextSegment{Text: hostname, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
@@ -302,7 +301,7 @@ func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, versi
 			&widget.TextSegment{Text: mapName, Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: "n/a", Style: widget.RichTextStyleStrong},
 		),
-		playerSortDir: binding.BindPreferenceString("sort_dir", ui.application.Preferences()),
+		playerSortDir: binding.BindPreferenceString("sort_dir", application.Preferences()),
 	}
 	if sortDir, getErr := screen.playerSortDir.Get(); getErr != nil && sortDir == "" {
 		if errSetSort := screen.playerSortDir.Set(string(playerSortTeam)); errSetSort != nil {
@@ -317,22 +316,20 @@ func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, versi
 		}
 	}
 	screen.toolbar = newToolbar(
-		ui.application,
+		application,
 		screen.window,
-		logger,
-		ui.settings,
 		func() {
-			ui.windows.chat.Show()
+			windows.chat.Show()
 		}, func() {
-			screen.showSettings(ui.settings)
+			screen.showSettings()
 		}, func() {
 			screen.aboutDialog.Show()
 		},
 		func() {
-			go ui.bd.LaunchGameAndWait()
+			go detector.LaunchGameAndWait()
 		},
 		func() {
-			ui.windows.search.Show()
+			windows.search.Show()
 		})
 
 	var dirNames []string
@@ -394,7 +391,7 @@ func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, versi
 		styleKDAllTIme := calcKDStyle(ps.KillsOn, ps.DeathsBy)
 
 		profileLabel.Segments = []widget.RichTextSegment{
-			&widget.TextSegment{Text: ps.Name, Style: calcNameStyle(ps, ui.settings.GetSteamId())},
+			&widget.TextSegment{Text: ps.Name, Style: calcNameStyle(ps, detector.Settings().GetSteamId())},
 			&widget.TextSegment{Text: fmt.Sprintf("  %d", ps.Kills), Style: styleKD},
 			&widget.TextSegment{Text: ":", Style: styleKD},
 			&widget.TextSegment{Text: fmt.Sprintf("%d", ps.Deaths), Style: styleKD},
@@ -431,7 +428,7 @@ func (ui *Ui) newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, versi
 	screen.createMainMenu()
 	screen.window.Resize(fyne.NewSize(sizeWindowMainWidth, sizeWindowMainHeight))
 	screen.window.SetCloseIntercept(func() {
-		screen.app.Quit()
+		application.Quit()
 	})
 	screen.list = widget.NewListWithData(screen.boundList, createItem, updateItem)
 	screen.content = container.NewVScroll(screen.list)
@@ -458,8 +455,10 @@ func generateRightSegments(ps *model.Player) []*widget.TextSegment {
 		if ps.Whitelisted {
 			suffix = " (WL)"
 		}
-		rightSegments = append(rightSegments,
-			&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s]%s", ps.Match.Origin, ps.Match.MatcherType, strings.Join(ps.Match.Attributes, ","), suffix), Style: banStateStyle})
+		for _, match := range ps.Matches {
+			rightSegments = append(rightSegments,
+				&widget.TextSegment{Text: fmt.Sprintf("%s [%s] [%s]%s", match.Origin, match.MatcherType, strings.Join(match.Attributes, ","), suffix), Style: banStateStyle})
+		}
 	}
 	if banStateMsg != "" {
 		rightSegments = append(rightSegments, &widget.TextSegment{Text: banStateMsg, Style: banStateStyle})
@@ -544,11 +543,11 @@ func calcKDStyle(kills int, deaths int) widget.RichTextStyle {
 	return style
 }
 
-func newToolbar(app fyne.App, parent fyne.Window, logger *zap.Logger, settings *model.Settings, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
+func newToolbar(app fyne.App, parent fyne.Window, chatFunc func(), settingsFunc func(), aboutFunc func(), launchFunc func(), showSearchFunc func()) *widget.Toolbar {
 	wikiUrl, _ := url.Parse(urlHelp)
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(resourceTf2Png, func() {
-			sid := settings.GetSteamId()
+			sid := detector.Settings().GetSteamId()
 			if !sid.Valid() {
 				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "error_steam_id_misconfigured", Other: "Invalid steamid configuration"}})
 				showUserError(errors.New(msg), parent)
@@ -561,7 +560,7 @@ func newToolbar(app fyne.App, parent fyne.Window, logger *zap.Logger, settings *
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.SettingsIcon(), settingsFunc),
 		widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
-			showUserError(platform.OpenFolder(settings.ConfigRoot()), parent)
+			showUserError(platform.OpenFolder(detector.Settings().ConfigRoot()), parent)
 		}),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.HelpIcon(), func() {

@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
@@ -153,7 +154,7 @@ func generateSteamIdMenu(window fyne.Window, steamId steamid.SID64) *fyne.Menu {
 	return m
 }
 
-func generateWhitelistMenu(parent fyne.Window, ui *Ui, steamID steamid.SID64) *fyne.Menu {
+func generateWhitelistMenu(parent fyne.Window, steamID steamid.SID64) *fyne.Menu {
 	title := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_title_whitelist", Other: "Whitelist"}})
 	labelAdd := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_whitelist_add", Other: "Enable"}})
 	labelRemove := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "menu_whitelist_remove", Other: "Disable"}})
@@ -162,14 +163,14 @@ func generateWhitelistMenu(parent fyne.Window, ui *Ui, steamID steamid.SID64) *f
 			Icon:  theme.ContentAddIcon(),
 			Label: labelAdd,
 			Action: func() {
-				showUserError(ui.bd.OnWhitelist(steamID, true), parent)
+				showUserError(detector.OnWhitelist(steamID, true), parent)
 			},
 		},
 		&fyne.MenuItem{
 			Icon:  theme.ContentRemoveIcon(),
 			Label: labelRemove,
 			Action: func() {
-				showUserError(ui.bd.OnWhitelist(steamID, false), parent)
+				showUserError(detector.OnWhitelist(steamID, false), parent)
 			},
 		},
 	)
@@ -195,7 +196,7 @@ func generateKickMenu(parent fyne.Window, userId int64, kickFunc model.KickFunc)
 	)
 }
 
-func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId steamid.SID64, userId int64, knownAttributes binding.StringList) *fyne.Menu {
+func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
 	kickTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_call_vote", Other: "Call Vote..."}})
 	markTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_mark", Other: "Mark As..."}})
 	unMarkTitle := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{DefaultMessage: &i18n.Message{ID: "user_menu_unmark", Other: "Unmark"}})
@@ -209,19 +210,19 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 	if userId > 0 {
 		items = append(items, &fyne.MenuItem{
 			Icon:      theme.CheckButtonCheckedIcon(),
-			ChildMenu: generateKickMenu(window, userId, ui.bd.CallVote),
+			ChildMenu: generateKickMenu(window, userId, detector.CallVote),
 			Label:     kickTitle})
 	}
 	unMarkFn := func(steamID steamid.SID64) func() {
 		clsSteamId := steamID
 		return func() {
-			showUserError(ui.bd.OnUnMark(clsSteamId), window)
+			showUserError(detector.OnUnMark(clsSteamId), window)
 		}
 	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, ui.bd.OnMark),
+			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, detector.OnMark),
 			Label:     markTitle,
 		},
 		{
@@ -231,7 +232,7 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 		},
 		{
 			Icon:      theme.SearchIcon(),
-			ChildMenu: generateExternalLinksMenu(ui.logger, steamId, ui.settings.GetLinks(), ui.application.OpenURL),
+			ChildMenu: generateExternalLinksMenu(logger, steamId, detector.Settings().GetLinks(), application.OpenURL),
 			Label:     externalTitle},
 		{
 			Icon:      theme.ContentCopyIcon(),
@@ -240,27 +241,27 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 		{
 			Icon: theme.ListIcon(),
 			Action: func() {
-				ui.createChatHistoryWindow(ctx, steamId)
+				createChatHistoryWindow(ctx, steamId)
 			},
 			Label: chatHistoryTitle},
 		{
 			Icon: theme.VisibilityIcon(),
 			Action: func() {
-				ui.createNameHistoryWindow(ctx, steamId)
+				createNameHistoryWindow(ctx, steamId)
 			},
 			Label: nameHistoryTitle},
 		{
 			Icon:      theme.VisibilityOffIcon(),
-			ChildMenu: generateWhitelistMenu(window, ui, steamId),
+			ChildMenu: generateWhitelistMenu(window, steamId),
 			Label:     whitelistTitle},
 		{
 			Icon: theme.DocumentCreateIcon(),
 			Action: func() {
 				offline := false
-				player := ui.bd.GetPlayer(steamId)
+				player := detector.GetPlayer(steamId)
 				if player == nil {
 					player = model.NewPlayer(steamId, "")
-					if errOffline := ui.bd.Store().GetPlayer(ctx, steamId, player); errOffline != nil {
+					if errOffline := detector.Store().GetPlayer(ctx, steamId, player); errOffline != nil {
 						showUserError(errors.Errorf("Unknown player: %v", errOffline), window)
 						return
 					}
@@ -289,8 +290,8 @@ func generateUserMenu(ctx context.Context, window fyne.Window, ui *Ui, steamId s
 					player.Touch()
 					player.Unlock()
 					if offline {
-						if errSave := ui.bd.Store().SavePlayer(ctx, player); errSave != nil {
-							ui.logger.Error("Failed to save player note", zap.Error(errSave))
+						if errSave := detector.Store().SavePlayer(ctx, player); errSave != nil {
+							logger.Error("Failed to save player note", zap.Error(errSave))
 						}
 					}
 

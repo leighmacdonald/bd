@@ -20,18 +20,18 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 	return fp, nil
 }
 
-func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID64) ([]string, error) {
+func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
 	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamID)
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
-	logger.Info("Reading userdata", zap.String("path", localConfigPath))
+	rootLogger.Info("Reading userdata", zap.String("path", localConfigPath))
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
 	}
-	parser := vdf.NewParser(openVDF)
-	result, errParse := parser.Parse()
+	newParser := vdf.NewParser(openVDF)
+	result, errParse := newParser.Parse()
 	if errParse != nil {
 		return nil, errors.Wrap(errOpen, "failed to parse vdf")
 	}
@@ -56,7 +56,7 @@ func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID
 		}
 
 		if i == len(pathKeys)-1 {
-			logger.Info("Raw args via userdata", zap.String("args", result["LaunchOptions"].(string)))
+			rootLogger.Info("Raw args via userdata", zap.String("args", result["LaunchOptions"].(string)))
 			launchOpts = strings.Split(result["LaunchOptions"].(string), " ")
 			found = true
 		}
@@ -67,8 +67,8 @@ func getUserLaunchArgs(logger *zap.Logger, steamRoot string, steamID steamid.SID
 	return launchOpts, nil
 }
 
-func getLaunchArgs(logger *zap.Logger, rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
-	userArgs, errUserArgs := getUserLaunchArgs(logger, steamRoot, steamID)
+func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
+	userArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}

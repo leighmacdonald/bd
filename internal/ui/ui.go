@@ -43,14 +43,23 @@ const (
 	sizeWindowChatHeight = 500
 )
 
+var (
+	application      fyne.App
+	windows          *windowMap
+	knownAttributes  binding.StringList
+	localAvatarCache *avatarCache
+	version          model.Version
+	logger           *zap.Logger
+)
+
 func defaultApp() fyne.App {
-	application := app.NewWithID(AppId)
-	application.Settings().SetTheme(&bdTheme{})
-	application.SetIcon(resourceIconPng)
-	return application
+	newApplication := app.NewWithID(AppId)
+	newApplication.Settings().SetTheme(&bdTheme{})
+	newApplication.SetIcon(resourceIconPng)
+	return newApplication
 }
 
-type windows struct {
+type windowMap struct {
 	player      *playerWindow
 	chat        *gameChatWindow
 	search      *searchWindow
@@ -60,73 +69,58 @@ type windows struct {
 
 type MenuCreator func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu
 
-type Ui struct {
-	bd              *detector.BD
-	application     fyne.App
-	settings        *model.Settings
-	windows         *windows
-	knownAttributes binding.StringList
-	avatarCache     *avatarCache
-	version         model.Version
-	logger          *zap.Logger
+func UpdateServerState(state model.Server) {
+	windows.player.UpdateServerState(state)
 }
 
-func (ui *Ui) UpdateServerState(state model.Server) {
-	ui.windows.player.UpdateServerState(state)
+func UpdatePlayerState(collection model.PlayerCollection) {
+	windows.player.updatePlayerState(collection)
 }
 
-func (ui *Ui) UpdatePlayerState(collection model.PlayerCollection) {
-	ui.windows.player.updatePlayerState(collection)
-}
-
-func New(ctx context.Context, logger *zap.Logger, bd *detector.BD, settings *model.Settings, version model.Version) model.UserInterface {
-	ui := Ui{
-		bd:              bd,
-		logger:          logger,
-		version:         version,
-		application:     defaultApp(),
-		settings:        settings,
-		knownAttributes: binding.NewStringList(),
-		windows: &windows{
-			chatHistory: map[steamid.SID64]*userChatWindow{},
-			nameHistory: map[steamid.SID64]*userNameWindow{},
-		},
-		avatarCache: &avatarCache{
-			RWMutex:    &sync.RWMutex{},
-			userAvatar: make(map[steamid.SID64]fyne.Resource),
-		},
+func Setup(ctx context.Context, versionInfo model.Version) {
+	guiLogger, _ := zap.NewProduction()
+	logger = guiLogger.Named("bd.gui")
+	version = versionInfo
+	application = defaultApp()
+	knownAttributes = binding.NewStringList()
+	windows = &windowMap{
+		chatHistory: map[steamid.SID64]*userChatWindow{},
+		nameHistory: map[steamid.SID64]*userNameWindow{},
+	}
+	localAvatarCache = &avatarCache{
+		RWMutex:    &sync.RWMutex{},
+		userAvatar: make(map[steamid.SID64]fyne.Resource),
 	}
 
-	ui.windows.chat = newGameChatWindow(ctx, &ui)
+	windows.chat = newGameChatWindow(ctx)
 
-	ui.windows.search = newSearchWindow(ctx, &ui)
+	windows.search = newSearchWindow(ctx)
 
-	ui.windows.player = ui.newPlayerWindow(
-		ui.logger,
+	windows.player = newPlayerWindow(
+		logger,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
-			return generateUserMenu(ctx, window, &ui, steamId, userId, ui.knownAttributes)
+			return generateUserMenu(ctx, window, steamId, userId)
 		}, version)
 
-	return &ui
 }
 
-func (ui *Ui) SetAvatar(sid64 steamid.SID64, data []byte) {
+func SetAvatar(sid64 steamid.SID64, data []byte) {
 	if !sid64.Valid() || data == nil {
 		return
 	}
-	ui.avatarCache.SetAvatar(sid64, data)
+	localAvatarCache.SetAvatar(sid64, data)
 }
 
-func (ui *Ui) Refresh() {
-	ui.windows.chat.Content().Refresh()
-	if ui.windows.player != nil {
-		ui.windows.player.content.Refresh()
+func Refresh() {
+	windows.chat.Content().Refresh()
+	if windows.player != nil {
+		windows.player.content.Refresh()
 	}
 }
 
-func (ui *Ui) UpdateAttributes(attrs []string) {
-	if err := ui.knownAttributes.Set(attrs); err != nil {
-		ui.logger.Error("Failed to update known attribute", zap.Error(err))
+func UpdateAttributes(attrs []string) {
+	if err := knownAttributes.Set(attrs); err != nil {
+		logger.Error("Failed to update known attribute", zap.Error(err))
 	}
 }
 
@@ -143,45 +137,43 @@ const (
 
 var sortDirections = []playerSortType{playerSortName, playerSortKills, playerSortKD, playerSortStatus, playerSortTeam, playerSortTime}
 
-func (ui *Ui) AddUserMessage(msg model.UserMessage) {
-	if errAppend := ui.windows.chat.append(msg); errAppend != nil {
-		ui.logger.Error("Failed to append game message", zap.Error(errAppend))
+func AddUserMessage(msg model.UserMessage) {
+	if errAppend := windows.chat.append(msg); errAppend != nil {
+		logger.Error("Failed to append game message", zap.Error(errAppend))
 	}
-	if userChat, found := ui.windows.chatHistory[msg.PlayerSID]; found {
+	if userChat, found := windows.chatHistory[msg.PlayerSID]; found {
 		if errAppend := userChat.boundList.Append(msg); errAppend != nil {
-			ui.logger.Error("Failed to append user history message", zap.Error(errAppend))
+			logger.Error("Failed to append user history message", zap.Error(errAppend))
 		}
 		userChat.Content().Refresh()
 	}
 }
 
-func (ui *Ui) createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
-	_, found := ui.windows.chatHistory[sid64]
+func createChatHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
+	_, found := windows.chatHistory[sid64]
 	if !found {
-		ui.windows.chatHistory[sid64] = newUserChatWindow(ctx, ui.logger, ui.application, ui.bd.Store().FetchMessages, sid64)
+		windows.chatHistory[sid64] = newUserChatWindow(ctx, detector.Store().FetchMessages, sid64)
 	}
-	ui.windows.chatHistory[sid64].Show()
+	windows.chatHistory[sid64].Show()
 }
 
-func (ui *Ui) createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
-	_, found := ui.windows.nameHistory[sid64]
+func createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
+	_, found := windows.nameHistory[sid64]
 	if !found {
-		ui.windows.nameHistory[sid64] = newUserNameWindow(ctx, ui.logger, ui.application, ui.bd.Store().FetchNames, sid64)
+		windows.nameHistory[sid64] = newUserNameWindow(ctx, detector.Store().FetchNames, sid64)
 	}
-	ui.windows.nameHistory[sid64].Show()
+	windows.nameHistory[sid64].Show()
 }
 
-func (ui *Ui) Start(ctx context.Context) {
-	defer ui.bd.Shutdown()
-	ui.bd.AttachGui(ui)
-	go ui.bd.Start(ctx)
-	ui.windows.player.window.Show()
-	ui.application.Run()
+func Start(ctx context.Context) {
+	defer detector.Shutdown()
+	windows.player.window.Show()
+	application.Run()
 	ctx.Done()
 }
 
-func (ui *Ui) Quit() {
-	ui.application.Quit()
+func Quit() {
+	application.Quit()
 }
 
 func showUserError(err error, parent fyne.Window) {

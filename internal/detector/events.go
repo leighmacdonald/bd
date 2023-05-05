@@ -92,8 +92,8 @@ type addressEvent struct {
 
 // incomingLogEventHandler handles mapping incoming LogEvent payloads into the more generalized
 // updateStateEvent used for all state updates.
-func (bd *BD) incomingLogEventHandler(ctx context.Context) {
-	defer bd.logger.Info("log event handler exited")
+func incomingLogEventHandler(ctx context.Context) {
+	defer rootLogger.Info("log event handler exited")
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,12 +111,12 @@ func (bd *BD) incomingLogEventHandler(ctx context.Context) {
 				pcs := strings.Split(evt.MetaData, ":")
 				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
 				if errPort != nil {
-					bd.logger.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
+					rootLogger.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
 					continue
 				}
 				ip := net.ParseIP(pcs[0])
 				if ip == nil {
-					bd.logger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
+					rootLogger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
 					continue
 				}
 				update = updateStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
@@ -155,7 +155,7 @@ func (bd *BD) incomingLogEventHandler(ctx context.Context) {
 			case model.EvtLobby:
 				update = updateStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
 			}
-			bd.gameStateUpdate <- update
+			gameStateUpdate <- update
 		}
 	}
 }
