@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
     Box,
+    ButtonGroup,
     IconButton,
     Paper,
     Popover,
@@ -12,12 +13,17 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TableSortLabel
+    TableSortLabel,
+    ToggleButton,
+    ToggleButtonGroup,
+    Tooltip
 } from '@mui/material';
-import { Player } from '../api';
+import { Player, usePlayers } from '../api';
 import { TableRowContextMenu } from './TableRowContextMenu';
 import { visuallyHidden } from '@mui/utils';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
+import Typography from '@mui/material/Typography';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -26,6 +32,7 @@ export interface PlayerTableProps {
     ) => void;
     order: Order;
     orderBy: string;
+    enabledColumns: validColumns[];
     readonly players?: Player[];
     readonly matchesOnly?: boolean;
 }
@@ -67,10 +74,18 @@ const stableSort = <T extends any>(
 
 interface HeadCell {
     disablePadding: boolean;
-    id: keyof Player;
+    id: validColumns;
     label: string;
     numeric: boolean;
 }
+
+export type validColumns =
+    | 'user_id'
+    | 'name'
+    | 'kills'
+    | 'deaths'
+    | 'connected'
+    | 'ping';
 
 const headCells: readonly HeadCell[] = [
     {
@@ -111,7 +126,15 @@ const headCells: readonly HeadCell[] = [
     }
 ];
 
-export const ColumnConfigButton = () => {
+interface ColumnConfigButtonProps {
+    enabledColumns: validColumns[];
+    setEnabledColumns: (columns: validColumns[]) => void;
+}
+
+export const ColumnConfigButton = ({
+    setEnabledColumns,
+    enabledColumns
+}: ColumnConfigButtonProps) => {
     const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(
         null
     );
@@ -124,11 +147,18 @@ export const ColumnConfigButton = () => {
         setAnchorEl(null);
     };
 
+    const handleColumnsChange = (
+        _: React.MouseEvent<HTMLElement>,
+        newFormats: validColumns[]
+    ) => {
+        setEnabledColumns(newFormats);
+    };
+
     const open = Boolean(anchorEl);
     return (
         <>
             <IconButton onClick={handleClick}>
-                <FilterListOutlinedIcon color={'primary'} />
+                <SettingsOutlinedIcon color={'primary'} />
             </IconButton>
             <Popover
                 open={open}
@@ -141,15 +171,40 @@ export const ColumnConfigButton = () => {
                 }}
             >
                 <Paper>
-                    <Stack spacing={1}></Stack>
+                    <Stack>
+                        <ToggleButtonGroup
+                            color="primary"
+                            orientation={'vertical'}
+                            value={enabledColumns}
+                            onChange={handleColumnsChange}
+                            aria-label="Visible Columns"
+                        >
+                            {headCells.map((r) => {
+                                return (
+                                    <ToggleButton
+                                        color={'secondary'}
+                                        name={r.label}
+                                        value={r.id}
+                                        key={`column-toggle-${r.id}`}
+                                    >
+                                        {r.label}
+                                    </ToggleButton>
+                                );
+                            })}
+                        </ToggleButtonGroup>
+                    </Stack>
                 </Paper>
             </Popover>
         </>
     );
 };
 
-const PlayerTableHead = (props: PlayerTableProps) => {
-    const { order, orderBy, onRequestSort } = props;
+const PlayerTableHead = ({
+    order,
+    orderBy,
+    onRequestSort,
+    enabledColumns
+}: PlayerTableProps) => {
     const createSortHandler =
         (property: keyof Player) => (event: React.MouseEvent<unknown>) => {
             onRequestSort(event, property);
@@ -158,42 +213,83 @@ const PlayerTableHead = (props: PlayerTableProps) => {
     return (
         <TableHead>
             <TableRow>
-                {headCells.map((headCell) => (
-                    <TableCell
-                        key={headCell.id}
-                        align={headCell.numeric ? 'right' : 'left'}
-                        padding={headCell.disablePadding ? 'none' : 'normal'}
-                        sortDirection={orderBy === headCell.id ? order : false}
-                    >
-                        <TableSortLabel
-                            active={orderBy === headCell.id}
-                            direction={orderBy === headCell.id ? order : 'asc'}
-                            onClick={createSortHandler(headCell.id)}
+                {headCells
+                    .filter(
+                        (c) => enabledColumns.includes(c.id) || !enabledColumns
+                    )
+                    .map((headCell) => (
+                        <TableCell
+                            key={headCell.id}
+                            align={headCell.numeric ? 'right' : 'left'}
+                            padding={
+                                headCell.disablePadding ? 'none' : 'normal'
+                            }
+                            sortDirection={
+                                orderBy === headCell.id ? order : false
+                            }
                         >
-                            {headCell.label}
-                            {orderBy === headCell.id ? (
-                                <Box component="span" sx={visuallyHidden}>
-                                    {order === 'desc'
-                                        ? 'sorted descending'
-                                        : 'sorted ascending'}
-                                </Box>
-                            ) : null}
-                        </TableSortLabel>
-                    </TableCell>
-                ))}
+                            <TableSortLabel
+                                active={orderBy === headCell.id}
+                                direction={
+                                    orderBy === headCell.id ? order : 'asc'
+                                }
+                                onClick={createSortHandler(headCell.id)}
+                            >
+                                {headCell.label}
+                                {orderBy === headCell.id ? (
+                                    <Box component="span" sx={visuallyHidden}>
+                                        {order === 'desc'
+                                            ? 'sorted descending'
+                                            : 'sorted ascending'}
+                                    </Box>
+                                ) : null}
+                            </TableSortLabel>
+                        </TableCell>
+                    ))}
             </TableRow>
         </TableHead>
     );
 };
 
-interface PlayerTableRootProps {
-    players: Player[];
-    matchesOnly?: boolean;
-}
+interface PlayerTableRootProps {}
 
-export const PlayerTable = ({ players, matchesOnly }: PlayerTableRootProps) => {
+const getDefaultColumns = (): validColumns[] => {
+    const defaultCols: validColumns[] = [
+        'user_id',
+        'name',
+        'kills',
+        'deaths',
+        'connected',
+        'ping'
+    ];
+
+    let val = localStorage.getItem('enabledColumns');
+    if (!val) {
+        return defaultCols;
+    }
+    try {
+        const cols = JSON.parse(val);
+        if (!cols) {
+            return defaultCols;
+        }
+        return cols;
+    } catch (_) {
+        return defaultCols;
+    }
+};
+
+export const PlayerTable = ({}: PlayerTableRootProps) => {
     const [order, setOrder] = React.useState<Order>('desc');
     const [orderBy, setOrderBy] = React.useState<keyof Player>('name');
+    const [matchesOnly, setMatchesOnly] = useState(
+        // Surely strings are the only types
+        JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
+    );
+    const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
+        getDefaultColumns()
+    );
+
+    const players = usePlayers();
 
     const handleRequestSort = (
         _: React.MouseEvent<unknown>,
@@ -214,37 +310,79 @@ export const PlayerTable = ({ players, matchesOnly }: PlayerTableRootProps) => {
         [order, orderBy, players, matchesOnly]
     );
 
+    const updateSelectedColumns = useCallback(
+        (columns: validColumns[]) => {
+            setEnabledColumns(columns);
+            localStorage.setItem('enabledColumns', JSON.stringify(columns));
+        },
+        [setEnabledColumns]
+    );
+
     return (
         <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-            <TableContainer>
-                <Table
-                    stickyHeader
-                    aria-label="sticky table"
-                    size="small"
-                    padding={'none'}
-                    sx={{
-                        '& .MuiTableRow-root:hover': {
-                            backgroundColor: 'primary.light'
-                        }
-                    }}
-                >
-                    <PlayerTableHead
-                        players={players}
-                        order={order}
-                        orderBy={orderBy}
-                        onRequestSort={handleRequestSort}
-                    />
+            <Stack>
+                <Stack direction={'row'}>
+                    <ButtonGroup>
+                        <Tooltip
+                            title={
+                                'Show only players with some sort of negative status'
+                            }
+                        >
+                            <IconButton
+                                onClick={() => {
+                                    setMatchesOnly((prevState) => {
+                                        localStorage.setItem(
+                                            'matchesOnly',
+                                            `${!prevState}`
+                                        );
+                                        return !prevState;
+                                    });
+                                }}
+                            >
+                                <FilterListOutlinedIcon color={'primary'} />
+                            </IconButton>
+                        </Tooltip>
+                        <ColumnConfigButton
+                            enabledColumns={enabledColumns}
+                            setEnabledColumns={updateSelectedColumns}
+                        />
+                    </ButtonGroup>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography variant={'overline'}></Typography>
+                    </Box>
+                </Stack>
+                <TableContainer>
+                    <Table
+                        stickyHeader
+                        aria-label="sticky table"
+                        size="small"
+                        padding={'none'}
+                        sx={{
+                            '& .MuiTableRow-root:hover': {
+                                backgroundColor: 'primary.light'
+                            }
+                        }}
+                    >
+                        <PlayerTableHead
+                            players={players}
+                            order={order}
+                            orderBy={orderBy}
+                            onRequestSort={handleRequestSort}
+                            enabledColumns={enabledColumns}
+                        />
 
-                    <TableBody>
-                        {visibleRows.map((player, i) => (
-                            <TableRowContextMenu
-                                player={player}
-                                key={`row-${i}-${player.steam_id}`}
-                            />
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                        <TableBody>
+                            {visibleRows.map((player, i) => (
+                                <TableRowContextMenu
+                                    enabledColumns={enabledColumns}
+                                    player={player}
+                                    key={`row-${i}-${player.steam_id}`}
+                                />
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Stack>
         </Paper>
     );
 };

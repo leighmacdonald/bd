@@ -3,8 +3,10 @@ import { Paper, Popover, Stack, TableCell, TableRow } from '@mui/material';
 import { formatSeconds, Player, Team } from '../api';
 import Typography from '@mui/material/Typography';
 import Grid2 from '@mui/material/Unstable_Grid2';
+import { validColumns } from './PlayerTable';
 
 export interface TableRowContextMenuProps {
+    enabledColumns: validColumns[];
     player: Player;
 }
 
@@ -64,7 +66,8 @@ export const rowColour = (player: Player): string => {
 };
 
 export const TableRowContextMenu = ({
-    player
+    player,
+    enabledColumns
 }: TableRowContextMenuProps): JSX.Element => {
     const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
@@ -120,35 +123,52 @@ export const TableRowContextMenu = ({
                     setOpen(false);
                 }}
             >
-                <TableCell align={'right'} style={{ paddingRight: 6 }}>
-                    <Typography variant={'overline'}>
-                        {player.user_id}
-                    </Typography>
-                </TableCell>
-                <TableCell>
-                    <Typography
-                        sx={{ fontFamily: 'Monospace' }}
-                        overflow={'ellipsis'}
-                    >
-                        {player.name}
-                    </Typography>
-                </TableCell>
-                <TableCell align={'right'}>
-                    <Typography variant={'overline'}>{player.kills}</Typography>
-                </TableCell>
-                <TableCell align={'right'}>
-                    <Typography variant={'overline'}>
-                        {player.deaths}
-                    </Typography>
-                </TableCell>
-                <TableCell align={'right'}>
-                    <Typography variant={'overline'}>
-                        {formatSeconds(player.connected)}
-                    </Typography>
-                </TableCell>
-                <TableCell align={'right'} style={{ paddingRight: 6 }}>
-                    <Typography variant={'overline'}> {player.ping}</Typography>
-                </TableCell>
+                {enabledColumns.includes('user_id') && (
+                    <TableCell align={'right'} style={{ paddingRight: 6 }}>
+                        <Typography variant={'overline'}>
+                            {player.user_id}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('name') && (
+                    <TableCell>
+                        <Typography
+                            sx={{ fontFamily: 'Monospace' }}
+                            overflow={'ellipsis'}
+                        >
+                            {player.name}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('kills') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {player.kills}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('deaths') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {player.deaths}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('connected') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {formatSeconds(player.connected)}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('ping') && (
+                    <TableCell align={'right'} style={{ paddingRight: 6 }}>
+                        <Typography variant={'overline'}>
+                            {' '}
+                            {player.ping}
+                        </Typography>
+                    </TableCell>
+                )}
             </TableRow>
 
             <Popover
