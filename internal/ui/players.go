@@ -51,7 +51,6 @@ type playerWindow struct {
 
 	menuCreator MenuCreator
 	onReload    func(count int)
-	avatarCache *avatarCache
 }
 
 func (screen *playerWindow) showSettings() {
@@ -381,7 +380,7 @@ func newPlayerWindow(logger *zap.Logger, menuCreator MenuCreator, version detect
 
 		btn := upperContainer.Objects[1].(*menuButton)
 		btn.menu = screen.menuCreator(screen.window, ps.SteamId, ps.UserId)
-		btn.Icon = screen.avatarCache.GetAvatar(ps.SteamId)
+		btn.Icon = GetAvatar(ps.SteamId)
 		btn.Refresh()
 
 		profileLabel := upperContainer.Objects[0].(*widget.RichText)

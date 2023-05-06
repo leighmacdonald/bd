@@ -27,7 +27,6 @@ type searchWindow struct {
 	objectMu    *sync.RWMutex
 	boundListMu *sync.RWMutex
 	resultCount binding.Int
-	avatarCache *avatarCache
 	queryEntry  *widget.Entry
 }
 
@@ -125,7 +124,7 @@ func newSearchWindow(ctx context.Context) *searchWindow {
 			label.Show()
 		case 1:
 			icon.Show()
-			icon.SetResource(sw.avatarCache.GetAvatar(ps.SteamId))
+			icon.SetResource(GetAvatar(ps.SteamId))
 		case 2:
 			label.Bind(binding.BindString(&ps.Name))
 			label.Show()

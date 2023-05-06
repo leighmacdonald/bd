@@ -94,10 +94,11 @@ const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
 	const testSteamID = 76561197961279983
-	registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
+	list := userPlayerList()
+	list.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
 	steamMatch := MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
-	require.Equal(t, customListTitle, steamMatch.Origin)
+	require.Equal(t, customListTitle, steamMatch[0].Origin)
 	require.Nil(t, MatchSteam(testSteamID+1), "Matched invalid steamid")
 }
 
@@ -106,11 +107,12 @@ func TestTextRules(t *testing.T) {
 	_, errImport := ImportRules(&tr)
 	require.NoError(t, errImport)
 	testAttrs := []string{"test_attr"}
-	registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
+	list := userRuleList()
+	list.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
 
 	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, testAttrs, `^test.+?`)
 	require.NoError(t, eRm)
-	registerTextMatcher(rm)
+	list.registerTextMatcher(rm)
 
 	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, testAttrs, `^t\s\x\t`)
 	require.Error(t, badRegex)
@@ -146,9 +148,9 @@ func TestAvatarRules(t *testing.T) {
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-
-	registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
+	list := userRuleList()
+	list.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
 	result := matchAvatar(buf.Bytes())
 	require.NotNil(t, result)
-	require.Equal(t, listName, result.Origin)
+	require.Equal(t, listName, result[0].Origin)
 }

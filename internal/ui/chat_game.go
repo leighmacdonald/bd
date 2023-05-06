@@ -28,7 +28,6 @@ type gameChatWindow struct {
 	boundListMu       *sync.RWMutex
 	messageCount      binding.Int
 	autoScrollEnabled binding.Bool
-	avatarCache       *avatarCache
 	logger            *zap.Logger
 }
 
@@ -83,7 +82,7 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
 		profileButton.SetText(um.Player)
-		profileButton.SetIcon(gcw.avatarCache.GetAvatar(um.PlayerSID))
+		profileButton.SetIcon(GetAvatar(um.PlayerSID))
 		profileButton.menu = generateUserMenu(gcw.ctx, window, um.PlayerSID, um.UserId)
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()

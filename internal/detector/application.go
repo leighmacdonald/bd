@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/addons"
-	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
@@ -42,13 +41,12 @@ var (
 	serverMu          *sync.RWMutex
 	reader            *logReader
 	parser            *logParser
-	rulesEngine       *rules.Engine
 	rconConn          rconConnection
 	settings          *UserSettings
 	dataStore         store.DataStore
 	//triggerUpdate     chan any
 	gameStateUpdate chan updateStateEvent
-	fsCache         cache.FsCache
+	fsCache         FsCache
 
 	gameHasStartedOnce *atomic.Bool
 	rootLogger         *zap.Logger
@@ -114,46 +112,53 @@ func Setup(versionInfo Version) {
 			rootLogger.Error("Failed to set steam api key", zap.Error(errAPIKey))
 		}
 	}
-	localRules := rules.NewRuleSchema()
-	localPlayersList := rules.NewPlayerListSchema()
+
 	// Try and load our existing custom players/rules
 	if util.Exists(settings.LocalPlayerListPath()) {
 		input, errInput := os.Open(settings.LocalPlayerListPath())
 		if errInput != nil {
 			rootLogger.Error("Failed to open local player list", zap.Error(errInput))
 		} else {
+			var localPlayersList rules.PlayerListSchema
 			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
 				rootLogger.Error("Failed to parse local player list", zap.Error(errRead))
 			} else {
-				rootLogger.Debug("Loaded local player list", zap.Int("count", len(localPlayersList.Players)))
+				count, errPlayerImport := rules.ImportPlayers(&localPlayersList)
+				if errPlayerImport != nil {
+					rootLogger.Error("Failed to import local player list", zap.Error(errPlayerImport))
+				} else {
+					rootLogger.Info("Loaded local player list", zap.Int("count", count))
+				}
 			}
 			util.LogClose(rootLogger, input)
 		}
 	}
+
 	if util.Exists(settings.LocalRulesListPath()) {
 		input, errInput := os.Open(settings.LocalRulesListPath())
 		if errInput != nil {
 			rootLogger.Error("Failed to open local rules list", zap.Error(errInput))
 		} else {
+			var localRules rules.RuleSchema
 			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
 				rootLogger.Error("Failed to parse local rules list", zap.Error(errRead))
 			} else {
-				rootLogger.Debug("Loaded local rules list", zap.Int("count", len(localRules.Rules)))
+				count, errRulesImport := rules.ImportRules(&localRules)
+				if errRulesImport != nil {
+					rootLogger.Error("Failed to import local rules list", zap.Error(errRulesImport))
+				}
+				rootLogger.Debug("Loaded local rules list", zap.Int("count", count))
 			}
 			util.LogClose(rootLogger, input)
 		}
 	}
-	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
-	if ruleEngineErr != nil {
-		rootLogger.Panic("Failed to setup rules engine", zap.Error(ruleEngineErr))
-	}
-	rulesEngine = engine
+
 	newDataStore := store.New(settings.DBPath(), rootLogger)
 	if errMigrate := newDataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
 		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
 	}
 	dataStore = newDataStore
-	fsCache = cache.New(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
+	fsCache = newCache(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
 	parser = newLogParser(rootLogger, logChan, eventChan)
 	lr, errLogReader := createLogReader()
 	if errLogReader != nil {
@@ -180,11 +185,11 @@ func Setup(versionInfo Version) {
 func fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
 	buf := bytes.NewBuffer(nil)
-	errCache := fsCache.Get(cache.TypeAvatar, hash, buf)
+	errCache := fsCache.Get(TypeAvatar, hash, buf)
 	if errCache == nil {
 		return buf.Bytes(), nil
 	}
-	if errCache != nil && !errors.Is(errCache, cache.ErrCacheExpired) {
+	if errCache != nil && !errors.Is(errCache, ErrCacheExpired) {
 		return nil, errors.Wrap(errCache, "unexpected cache error")
 	}
 	localCtx, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
@@ -206,7 +211,7 @@ func fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	}
 	defer util.LogClose(rootLogger, resp.Body)
 
-	if errSet := fsCache.Set(cache.TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
+	if errSet := fsCache.Set(TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
 		return nil, errors.Wrap(errSet, "failed to set cached value")
 	}
 
@@ -219,7 +224,7 @@ func createLogReader() (*logReader, error) {
 }
 
 func exportVoiceBans() error {
-	bannedIds := rulesEngine.FindNewestEntries(200, settings.GetKickTags())
+	bannedIds := rules.FindNewestEntries(200, settings.GetKickTags())
 	if len(bannedIds) == 0 {
 		return nil
 	}
@@ -639,7 +644,7 @@ func onUpdateMessage(ctx context.Context, msg messageEvent) error {
 	if errSaveMsg := dataStore.SaveMessage(ctx, &um); errSaveMsg != nil {
 		rootLogger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
 	}
-	if match := rulesEngine.MatchMessage(um.Message); match != nil {
+	if match := rules.MatchMessage(um.Message); match != nil {
 		triggerMatch(player, match)
 	}
 	return nil
@@ -764,7 +769,7 @@ func onUpdateMark(status updateMarkEvent) error {
 		name = player.NamePrevious
 	}
 	if status.delete {
-		rulesEngine.Unmark(status.target)
+		rules.Unmark(status.target)
 		playersMu.Lock()
 		for idx := range players {
 			if players[idx].SteamId == status.target {
@@ -781,7 +786,7 @@ func onUpdateMark(status updateMarkEvent) error {
 		}
 		playersMu.Unlock()
 	} else {
-		if errMark := rulesEngine.Mark(rules.MarkOpts{
+		if errMark := rules.Mark(rules.MarkOpts{
 			SteamID:    status.target,
 			Attributes: status.attrs,
 			Name:       name,
@@ -794,7 +799,7 @@ func onUpdateMark(status updateMarkEvent) error {
 		return errors.Wrap(errOf, "Failed to open player list for updating")
 	}
 	defer util.LogClose(rootLogger, of)
-	if errExport := rulesEngine.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
+	if errExport := rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
 		rootLogger.Error("Failed to export player list", zap.Error(errExport))
 	}
 	return nil
@@ -803,7 +808,7 @@ func onUpdateMark(status updateMarkEvent) error {
 func refreshLists(ctx context.Context) {
 	playerLists, ruleLists := downloadLists(ctx, rootLogger, settings.GetLists())
 	for _, list := range playerLists {
-		count, errImport := rulesEngine.ImportPlayers(&list)
+		count, errImport := rules.ImportPlayers(&list)
 		if errImport != nil {
 			rootLogger.Error("Failed to import player list", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
 		} else {
@@ -811,7 +816,7 @@ func refreshLists(ctx context.Context) {
 		}
 	}
 	for _, list := range ruleLists {
-		count, errImport := rulesEngine.ImportRules(&list)
+		count, errImport := rules.ImportRules(&list)
 		if errImport != nil {
 			rootLogger.Error("Failed to import rules list (%s): %v\n", zap.String("name", list.FileInfo.Title), zap.Error(errImport))
 		} else {
@@ -825,14 +830,15 @@ func checkPlayerStates(ctx context.Context, validTeam store.Team) {
 		if ps.IsDisconnected() {
 			continue
 		}
-		if matchSteam := rulesEngine.MatchSteam(ps.GetSteamID()); matchSteam != nil {
-			ps.Matches = append(ps.Matches, matchSteam)
+
+		if matchSteam := rules.MatchSteam(ps.GetSteamID()); matchSteam != nil {
+			ps.Matches = append(ps.Matches, matchSteam...)
 			if validTeam == ps.Team {
 				triggerMatch(ps, matchSteam)
 			}
 		} else if ps.Name != "" {
-			if matchName := rulesEngine.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
-				ps.Matches = append(ps.Matches, matchSteam)
+			if matchName := rules.MatchName(ps.GetName()); matchName != nil && validTeam == ps.Team {
+				ps.Matches = append(ps.Matches, matchSteam...)
 				if validTeam == ps.Team {
 					triggerMatch(ps, matchSteam)
 				}
@@ -848,7 +854,7 @@ func checkPlayerStates(ctx context.Context, validTeam store.Team) {
 	}
 }
 
-func triggerMatch(ps *store.Player, match *rules.MatchResult) {
+func triggerMatch(ps *store.Player, matches []*rules.MatchResult) {
 	announceGeneralLast := ps.AnnouncedGeneralLast
 	announcePartyLast := ps.AnnouncedPartyLast
 	if time.Since(announceGeneralLast) >= DurationAnnounceMatchTimeout {
@@ -856,8 +862,10 @@ func triggerMatch(ps *store.Player, match *rules.MatchResult) {
 		if ps.Whitelisted {
 			msg = "Matched whitelisted player"
 		}
-		rootLogger.Info(msg, zap.String("match_type", match.MatcherType),
-			zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
+		for _, match := range matches {
+			rootLogger.Info(msg, zap.String("match_type", match.MatcherType),
+				zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
+		}
 		ps.AnnouncedGeneralLast = time.Now()
 	}
 	if ps.Whitelisted {
@@ -865,19 +873,23 @@ func triggerMatch(ps *store.Player, match *rules.MatchResult) {
 	}
 	if settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
-		if errLog := SendChat(ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
-			rootLogger.Error("Failed to send party log message", zap.Error(errLog))
-			return
+		for _, match := range matches {
+			if errLog := SendChat(ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
+				rootLogger.Error("Failed to send party log message", zap.Error(errLog))
+				return
+			}
 		}
 		ps.AnnouncedPartyLast = time.Now()
 	}
 	if settings.GetKickerEnabled() {
 		kickTag := false
-		for _, tag := range match.Attributes {
-			for _, allowedTag := range settings.GetKickTags() {
-				if strings.EqualFold(tag, allowedTag) {
-					kickTag = true
-					break
+		for _, match := range matches {
+			for _, tag := range match.Attributes {
+				for _, allowedTag := range settings.GetKickTags() {
+					if strings.EqualFold(tag, allowedTag) {
+						kickTag = true
+						break
+					}
 				}
 			}
 		}

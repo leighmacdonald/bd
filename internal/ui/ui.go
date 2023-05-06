@@ -19,11 +19,11 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
+	"github.com/puzpuzpuz/xsync/v2"
 	"go.uber.org/zap"
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 const (
@@ -44,12 +44,12 @@ const (
 )
 
 var (
-	application      fyne.App
-	windows          *windowMap
-	knownAttributes  binding.StringList
-	localAvatarCache *avatarCache
-	version          detector.Version
-	logger           *zap.Logger
+	application     fyne.App
+	windows         *windowMap
+	knownAttributes binding.StringList
+	avatarCache     *xsync.MapOf[string, fyne.Resource]
+	version         detector.Version
+	logger          *zap.Logger
 )
 
 func defaultApp() fyne.App {
@@ -81,34 +81,22 @@ func Setup(ctx context.Context, versionInfo detector.Version) {
 	guiLogger, _ := zap.NewProduction()
 	logger = guiLogger.Named("bd.gui")
 	version = versionInfo
-	application = defaultApp()
 	knownAttributes = binding.NewStringList()
 	windows = &windowMap{
 		chatHistory: map[steamid.SID64]*userChatWindow{},
 		nameHistory: map[steamid.SID64]*userNameWindow{},
 	}
-	localAvatarCache = &avatarCache{
-		RWMutex:    &sync.RWMutex{},
-		userAvatar: make(map[steamid.SID64]fyne.Resource),
-	}
+	avatarCache = xsync.NewMapOf[fyne.Resource]()
 
+	application = defaultApp()
 	windows.chat = newGameChatWindow(ctx)
-
 	windows.search = newSearchWindow(ctx)
-
 	windows.player = newPlayerWindow(
 		logger,
 		func(window fyne.Window, steamId steamid.SID64, userId int64) *fyne.Menu {
 			return generateUserMenu(ctx, window, steamId, userId)
 		}, version)
 
-}
-
-func SetAvatar(sid64 steamid.SID64, data []byte) {
-	if !sid64.Valid() || data == nil {
-		return
-	}
-	localAvatarCache.SetAvatar(sid64, data)
 }
 
 func Refresh() {

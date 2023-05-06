@@ -15,17 +15,18 @@ import (
 
 var (
 	errDuplicateSteamID = errors.New("duplicate steam id")
-	matchersSteam       []SteamIDMatcher
-	matchersText        []TextMatcher
-	matchersAvatar      []AvatarMatcher
-	rulesLists          []*RuleSchema
-	playerLists         []*PlayerListSchema
-	knownTags           []string
-	mu                  *sync.RWMutex
+
+	rulesLists  []*RuleSchema
+	playerLists []*PlayerListSchema
+	knownTags   []string
+	mu          *sync.RWMutex
 )
 
 func init() {
 	mu = &sync.RWMutex{}
+	playerLists = append(playerLists, NewPlayerListSchema())
+	rulesLists = append(rulesLists, NewRuleSchema())
+
 }
 
 const (
@@ -65,21 +66,23 @@ func FindNewestEntries(max int, validAttrs []string) steamid.Collection {
 	mu.RLock()
 	defer mu.RUnlock()
 	var matchers []steamIDMatcher
-	for _, m := range matchersSteam {
-		sm := m.(steamIDMatcher)
-		valid := false
-		for _, tag := range sm.attributes {
-			for _, okTags := range validAttrs {
-				if strings.EqualFold(tag, okTags) {
-					valid = true
-					break
+	for _, list := range playerLists {
+		for _, m := range list.matchersSteam {
+			sm := m.(steamIDMatcher)
+			valid := false
+			for _, tag := range sm.attributes {
+				for _, okTags := range validAttrs {
+					if strings.EqualFold(tag, okTags) {
+						valid = true
+						break
+					}
 				}
 			}
+			if !valid {
+				continue
+			}
+			matchers = append(matchers, sm)
 		}
-		if !valid {
-			continue
-		}
-		matchers = append(matchers, sm)
 	}
 	sort.Slice(matchers, func(i, j int) bool {
 		return matchers[i].lastSeen.Time > matchers[j].lastSeen.Time
@@ -92,6 +95,24 @@ func FindNewestEntries(max int, validAttrs []string) steamid.Collection {
 		valid = append(valid, s.steamID)
 	}
 	return valid
+}
+
+func userPlayerList() *PlayerListSchema {
+	for _, list := range playerLists {
+		if list.FileInfo.Title == LocalRuleName {
+			return list
+		}
+	}
+	panic("User player list schema not found")
+}
+
+func userRuleList() *RuleSchema {
+	for _, list := range rulesLists {
+		if list.FileInfo.Title == LocalRuleName {
+			return list
+		}
+	}
+	panic("User rules schema not found")
 }
 
 func Unmark(steamID steamid.SID64) bool {
@@ -111,14 +132,15 @@ func Unmark(steamID steamid.SID64) bool {
 		players = append(players, knownPlayer)
 	}
 	playerLists[0].Players = players
+	userList := userPlayerList()
 	// Remove the matcher from memory
 	var validMatchers []SteamIDMatcher
-	for _, matcher := range matchersSteam {
+	for _, matcher := range userList.matchersSteam {
 		if match := matcher.Match(steamID); match == nil {
 			validMatchers = append(validMatchers, matcher)
 		}
 	}
-	matchersSteam = validMatchers
+	userList.matchersSteam = validMatchers
 	return found
 }
 
@@ -128,7 +150,8 @@ func Mark(opts MarkOpts) error {
 	}
 	mu.Lock()
 	updatedAttributes := false
-	for idx, knownPlayer := range playerLists[0].Players {
+	userList := userPlayerList()
+	for idx, knownPlayer := range userList.Players {
 		knownSid64, errSid64 := steamid.StringToSID64(knownPlayer.SteamID)
 		if errSid64 != nil {
 			continue
@@ -156,7 +179,7 @@ func Mark(opts MarkOpts) error {
 		}
 	}
 	if !updatedAttributes {
-		playerLists[0].Players = append(playerLists[0].Players, playerDefinition{
+		userList.Players = append(userList.Players, playerDefinition{
 			Attributes: opts.Attributes,
 			LastSeen: playerLastSeen{
 				Time:       int(time.Now().Unix()),
@@ -168,7 +191,7 @@ func Mark(opts MarkOpts) error {
 	}
 	mu.Unlock()
 	if !updatedAttributes {
-		registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
+		userList.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
 	}
 	return nil
 }
@@ -219,7 +242,7 @@ func ImportRules(list *RuleSchema) (int, error) {
 			if len(attrs) == 0 {
 				attrs = append(attrs, "trigger_name")
 			}
-			registerTextMatcher(newGeneralTextMatcher(
+			list.registerTextMatcher(newGeneralTextMatcher(
 				list.FileInfo.Title,
 				textMatchTypeName,
 				rule.Triggers.UsernameTextMatch.Mode,
@@ -234,7 +257,7 @@ func ImportRules(list *RuleSchema) (int, error) {
 			if len(attrs) == 0 {
 				attrs = append(attrs, "trigger_msg")
 			}
-			registerTextMatcher(newGeneralTextMatcher(
+			list.registerTextMatcher(newGeneralTextMatcher(
 				list.FileInfo.Title,
 				textMatchTypeMessage,
 				rule.Triggers.ChatMsgTextMatch.Mode,
@@ -251,7 +274,7 @@ func ImportRules(list *RuleSchema) (int, error) {
 				}
 				hashes = append(hashes, h.AvatarHash)
 			}
-			registerAvatarMatcher(newAvatarMatcher(
+			list.registerAvatarMatcher(newAvatarMatcher(
 				list.FileInfo.Title,
 				avatarMatchExact,
 				hashes...))
@@ -274,11 +297,20 @@ func ImportPlayers(list *PlayerListSchema) (int, error) {
 		if !steamID.Valid() {
 			return 0, errors.Errorf("Received malformed steamid: %v", steamID)
 		}
-		registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID, player.Attributes))
+		list.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID, player.Attributes))
 		playerAttrs = append(playerAttrs, player.Attributes...)
 		count++
 	}
 	mu.Lock()
+	defer mu.Unlock()
+	var newLists []*PlayerListSchema
+	for _, lst := range playerLists {
+		if lst.FileInfo.Title != list.FileInfo.Title {
+			newLists = append(newLists, lst)
+		}
+	}
+	newLists = append(newLists, list)
+
 	for _, newTag := range playerAttrs {
 		found := false
 		for _, known := range knownTags {
@@ -291,31 +323,25 @@ func ImportPlayers(list *PlayerListSchema) (int, error) {
 			knownTags = append(knownTags, newTag)
 		}
 	}
-	playerLists = append(playerLists, list)
-	mu.Unlock()
+	playerLists = newLists
+
 	return count, nil
 }
 
-func registerSteamIDMatcher(matcher SteamIDMatcher) {
-	mu.Lock()
-	matchersSteam = append(matchersSteam, matcher)
-	mu.Unlock()
+func (pls *PlayerListSchema) registerSteamIDMatcher(matcher SteamIDMatcher) {
+	pls.matchersSteam = append(pls.matchersSteam, matcher)
 }
 
-func registerAvatarMatcher(matcher AvatarMatcher) {
-	mu.Lock()
-	matchersAvatar = append(matchersAvatar, matcher)
-	mu.Unlock()
+func (rs *RuleSchema) registerAvatarMatcher(matcher AvatarMatcher) {
+	rs.matchersAvatar = append(rs.matchersAvatar, matcher)
 }
 
-func registerTextMatcher(matcher TextMatcher) {
-	mu.Lock()
-	matchersText = append(matchersText, matcher)
-	mu.Unlock()
+func (rs *RuleSchema) registerTextMatcher(matcher TextMatcher) {
+	rs.matchersText = append(rs.matchersText, matcher)
 }
 
-func matchTextType(text string, matchType textMatchType) *MatchResult {
-	for _, matcher := range matchersText {
+func (rs *RuleSchema) matchTextType(text string, matchType textMatchType) *MatchResult {
+	for _, matcher := range rs.matchersText {
 		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
 			continue
 		}
@@ -327,40 +353,64 @@ func matchTextType(text string, matchType textMatchType) *MatchResult {
 	return nil
 }
 
-func MatchSteam(steamID steamid.SID64) *MatchResult {
-	for _, sm := range matchersSteam {
-		match := sm.Match(steamID)
-		if match != nil {
-			return match
+func MatchSteam(steamID steamid.SID64) []*MatchResult {
+	var matches []*MatchResult
+	for _, list := range playerLists {
+		for _, sm := range list.matchersSteam {
+			match := sm.Match(steamID)
+			if match != nil {
+				matches = append(matches, match)
+				break
+			}
 		}
 	}
-	return nil
+	return matches
 }
 
-func MatchName(name string) *MatchResult {
-	return matchTextType(name, textMatchTypeName)
+func MatchName(name string) []*MatchResult {
+	var found []*MatchResult
+	for _, list := range rulesLists {
+		match := list.matchTextType(name, textMatchTypeName)
+		if match != nil {
+			found = append(found, match)
+			continue
+		}
+	}
+	return found
 }
 
-func MatchMessage(text string) *MatchResult {
-	return matchTextType(text, textMatchTypeMessage)
+func MatchMessage(text string) []*MatchResult {
+	var found []*MatchResult
+	for _, list := range rulesLists {
+		match := list.matchTextType(text, textMatchTypeMessage)
+		if match != nil {
+			found = append(found, match)
+			continue
+		}
+	}
+	return found
 }
 
 //func (e *Engine) matchAny(text string) *MatchResult {
 //	return e.matchTextType(text, textMatchTypeAny)
 //}
 
-func matchAvatar(avatar []byte) *MatchResult {
+func matchAvatar(avatar []byte) []*MatchResult {
 	if avatar == nil {
 		return nil
 	}
 	hexDigest := HashBytes(avatar)
-	for _, matcher := range matchersAvatar {
-		match := matcher.Match(hexDigest)
-		if match != nil {
-			return match
+	var matches []*MatchResult
+	for _, list := range rulesLists {
+		for _, matcher := range list.matchersAvatar {
+			match := matcher.Match(hexDigest)
+			if match != nil {
+				matches = append(matches, match)
+				break
+			}
 		}
 	}
-	return nil
+	return matches
 }
 
 func HashBytes(b []byte) string {
