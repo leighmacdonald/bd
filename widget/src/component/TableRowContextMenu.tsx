@@ -1,9 +1,25 @@
-import React, { Fragment, useState } from 'react';
-import { Paper, Popover, Stack, TableCell, TableRow } from '@mui/material';
-import { formatSeconds, Player, Team } from '../api';
+import React, { Fragment } from 'react';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Paper from '@mui/material/Paper';
+import Popover from '@mui/material/Popover';
+import Stack from '@mui/material/Stack';
+import TableCell from '@mui/material/TableCell';
+import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import Grid2 from '@mui/material/Unstable_Grid2';
+import FlagIcon from '@mui/icons-material/Flag';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
+import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
+import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';
+import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
 import { validColumns } from './PlayerTable';
+import { formatSeconds, Player, Team } from '../api';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -69,27 +85,54 @@ export const TableRowContextMenu = ({
     player,
     enabledColumns
 }: TableRowContextMenuProps): JSX.Element => {
-    const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
+    //const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
-    const [open, setOpen] = useState(false);
 
-    // const handleContextMenu = (
-    //     event: React.MouseEvent<HTMLTableRowElement>
-    // ) => {
-    //     event.preventDefault();
-    //     setContextMenu(
-    //         contextMenu === null
-    //             ? {
-    //                   mouseX: event.clientX + 2,
-    //                   mouseY: event.clientY - 6
-    //               }
-    //             : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
-    //               // Other native context menus might behave different.
-    //               // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
-    //               null
-    //     );
-    //     setAnchorEl(event.currentTarget);
-    // };
+    const [hoverMenuPos, setHoverMenuPos] = React.useState<{
+        mouseX: number;
+        mouseY: number;
+    } | null>(null);
+
+    const [contextMenuPos, setContextMenuPos] = React.useState<{
+        mouseX: number;
+        mouseY: number;
+    } | null>(null);
+
+    const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
+        setContextMenuPos(
+            contextMenuPos === null
+                ? {
+                      mouseX: event.clientX + 2,
+                      mouseY: event.clientY - 6
+                  }
+                : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
+                  // Other native context menus might behave different.
+                  // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
+                  null
+        );
+    };
+
+    const handleMenuClose = () => {
+        setContextMenuPos(null);
+    };
+
+    const mouseEnter = (event: React.MouseEvent<HTMLTableRowElement>) => {
+        setHoverMenuPos(
+            contextMenuPos === null
+                ? {
+                      mouseX: event.clientX + 2,
+                      mouseY: event.clientY - 6
+                  }
+                : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
+                  // Other native context menus might behave different.
+                  // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
+                  null
+        );
+    };
+
+    const mouseLeave = () => {
+        setHoverMenuPos(null);
+    };
 
     const makeInfoRow = (key: string, value: any): JSX.Element[] => {
         return [
@@ -110,17 +153,18 @@ export const TableRowContextMenu = ({
                 hover
                 //onClick={handleClick}
                 //onContextMenu={handleContextMenu}
-                style={{ backgroundColor: rowColour(player) }}
-                key={`row-${player.steam_id}`}
-                onMouseEnter={(
-                    event: React.MouseEvent<HTMLTableRowElement>
-                ) => {
-                    setAnchorEl(event.currentTarget);
-                    setOpen(true);
+                style={{
+                    backgroundColor: rowColour(player),
+                    cursor: 'pointer'
                 }}
-                onMouseLeave={() => {
-                    setAnchorEl(null);
-                    setOpen(false);
+                key={`row-${player.steam_id}`}
+                onMouseEnter={mouseEnter}
+                onMouseLeave={mouseLeave}
+                onClick={handleRowClick}
+                sx={{
+                    '&:hover': {
+                        backgroundColor: 'primary'
+                    }
                 }}
             >
                 {enabledColumns.includes('user_id') && (
@@ -170,23 +214,90 @@ export const TableRowContextMenu = ({
                     </TableCell>
                 )}
             </TableRow>
-
+            <Menu
+                open={contextMenuPos !== null}
+                onClose={handleMenuClose}
+                anchorReference="anchorPosition"
+                anchorPosition={
+                    contextMenuPos !== null
+                        ? {
+                              top: contextMenuPos.mouseY,
+                              left: contextMenuPos.mouseX
+                          }
+                        : undefined
+                }
+            >
+                <MenuItem disableRipple>
+                    <img
+                        alt={`Avatar`}
+                        src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
+                    />
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <FlagIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Mark As...</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <DeleteOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Unmark</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <LinkOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Open External</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <ContentCopyOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Copy SteamID</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <ForumOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Chat History</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <BadgeOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Name History</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <NotificationsPausedOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Whitelist</ListItemText>
+                </MenuItem>
+                <MenuItem>
+                    <ListItemIcon>
+                        <NoteAltOutlinedIcon color={'primary'} />
+                    </ListItemIcon>
+                    <ListItemText>Edit Notes</ListItemText>
+                </MenuItem>
+            </Menu>
             <Popover
-                open={open}
+                open={hoverMenuPos !== null}
                 sx={{
                     pointerEvents: 'none'
                 }}
-                anchorEl={anchorEl}
-                anchorOrigin={{
-                    vertical: 'bottom',
-                    horizontal: 'left'
-                }}
-                transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'left'
-                }}
-                disablePortal={false}
-                disableRestoreFocus
+                anchorReference="anchorPosition"
+                anchorPosition={
+                    hoverMenuPos !== null
+                        ? {
+                              top: hoverMenuPos.mouseY,
+                              left: hoverMenuPos.mouseX
+                          }
+                        : undefined
+                }
+                disablePortal={true}
+                //disableRestoreFocus
             >
                 <Paper style={{ maxWidth: 650 }}>
                     <Stack padding={1} direction={'row'} spacing={1}>

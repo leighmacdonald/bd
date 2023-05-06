@@ -17,7 +17,6 @@ func getPlayers() gin.HandlerFunc {
 			return
 		}
 		players := detector.Players()
-
 		var p []store.Player
 		if players != nil {
 			p = players
@@ -36,6 +35,5 @@ func postMarkPlayer() gin.HandlerFunc {
 		if !bind(ctx, &po) {
 			return
 		}
-
 	}
 }

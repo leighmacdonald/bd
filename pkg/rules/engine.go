@@ -33,28 +33,6 @@ const (
 	exportIndentSize = 4
 )
 
-//
-//func New(localRules *RuleSchema, localPlayers *PlayerListSchema) (*Engine, error) {
-//	if localRules != nil {
-//		if _, errImport := ImportRules(localRules); errImport != nil {
-//			return nil, errors.Wrap(errImport, "Failed to load local rules")
-//		}
-//	} else {
-//		ls := NewRuleSchema()
-//		rulesLists = append(rulesLists, &ls)
-//	}
-//	if localPlayers != nil {
-//		_, errImport := ImportPlayers(localPlayers)
-//		if errImport != nil {
-//			return nil, errors.Wrap(errImport, "Failed to load local players")
-//		}
-//	} else {
-//		ls := NewPlayerListSchema()
-//		playerLists = append(playerLists, &ls)
-//	}
-//	return &re, nil
-//}
-
 type MarkOpts struct {
 	SteamID    steamid.SID64
 	Attributes []string
