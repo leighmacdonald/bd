@@ -37,12 +37,12 @@ type fileInfo struct {
 	UpdateURL   string   `json:"update_url"`
 }
 
-func NewPlayerListSchema(players ...playerDefinition) PlayerListSchema {
+func NewPlayerListSchema(players ...playerDefinition) *PlayerListSchema {
 	if players == nil {
 		// Prevents json encoder outputting `null` value instead of empty array `[]`
 		players = []playerDefinition{}
 	}
-	return PlayerListSchema{
+	return &PlayerListSchema{
 		baseSchema: baseSchema{
 			Schema: urlPlayerSchema,
 			FileInfo: fileInfo{
@@ -55,11 +55,12 @@ func NewPlayerListSchema(players ...playerDefinition) PlayerListSchema {
 		Players: players,
 	}
 }
-func NewRuleSchema(rules ...ruleDefinition) RuleSchema {
+
+func NewRuleSchema(rules ...ruleDefinition) *RuleSchema {
 	if rules == nil {
 		rules = []ruleDefinition{}
 	}
-	return RuleSchema{
+	return &RuleSchema{
 		baseSchema: baseSchema{
 			Schema: urlRuleSchema,
 			FileInfo: fileInfo{
@@ -75,7 +76,9 @@ func NewRuleSchema(rules ...ruleDefinition) RuleSchema {
 
 type RuleSchema struct {
 	baseSchema
-	Rules []ruleDefinition `json:"rules" yaml:"rules"`
+	Rules          []ruleDefinition `json:"rules" yaml:"rules"`
+	matchersText   []TextMatcher    `json:"-" yaml:"-"`
+	matchersAvatar []AvatarMatcher  `json:"-" yaml:"-"`
 }
 
 type ruleTriggerNameMatch struct {
@@ -117,7 +120,8 @@ type ruleDefinition struct {
 
 type PlayerListSchema struct {
 	baseSchema
-	Players []playerDefinition `json:"players"`
+	Players       []playerDefinition `json:"players"`
+	matchersSteam []SteamIDMatcher   `json:"-" yaml:"-"`
 }
 
 type playerLastSeen struct {

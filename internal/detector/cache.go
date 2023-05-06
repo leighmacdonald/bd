@@ -1,4 +1,4 @@
-package cache
+package detector
 
 import (
 	"fmt"
@@ -25,6 +25,7 @@ type FsCache struct {
 	maxAge   time.Duration
 	logger   *zap.Logger
 }
+
 type Type int
 
 const (
@@ -32,7 +33,7 @@ const (
 	TypeLists
 )
 
-func New(logger *zap.Logger, rootDir string, maxAge time.Duration) FsCache {
+func newCache(logger *zap.Logger, rootDir string, maxAge time.Duration) FsCache {
 	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger}
 	cache.init()
 	return cache
