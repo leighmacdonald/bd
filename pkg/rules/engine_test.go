@@ -94,26 +94,23 @@ const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
 	const testSteamID = 76561197961279983
-	re, _ := New(nil, nil)
-	re.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
-	steamMatch := re.MatchSteam(testSteamID)
+	registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
+	steamMatch := MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
 	require.Equal(t, customListTitle, steamMatch.Origin)
-	require.Nil(t, re.MatchSteam(testSteamID+1), "Matched invalid steamid")
+	require.Nil(t, MatchSteam(testSteamID+1), "Matched invalid steamid")
 }
 
 func TestTextRules(t *testing.T) {
-	re, reErr := New(nil, nil)
-	require.NoError(t, reErr)
 	tr := genTestRules()
-	_, errImport := re.ImportRules(&tr)
+	_, errImport := ImportRules(&tr)
 	require.NoError(t, errImport)
 	testAttrs := []string{"test_attr"}
-	re.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
+	registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
 
 	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, testAttrs, `^test.+?`)
 	require.NoError(t, eRm)
-	re.registerTextMatcher(rm)
+	registerTextMatcher(rm)
 
 	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, testAttrs, `^t\s\x\t`)
 	require.Error(t, badRegex)
@@ -136,12 +133,12 @@ func TestTextRules(t *testing.T) {
 	for num, tc := range testCases {
 		switch tc.mt {
 		case textMatchTypeName:
-			require.Equal(t, tc.matched, re.MatchName(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, tc.matched, MatchName(tc.text) != nil, "Test %d failed", num)
 		case textMatchTypeMessage:
-			require.Equal(t, tc.matched, re.MatchMessage(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, tc.matched, MatchMessage(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-	require.Error(t, re.Mark(MarkOpts{}))
+	require.Error(t, Mark(MarkOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {
@@ -149,10 +146,9 @@ func TestAvatarRules(t *testing.T) {
 	var buf bytes.Buffer
 	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-	re, reErr := New(nil, nil)
-	require.NoError(t, reErr)
-	re.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
-	result := re.matchAvatar(buf.Bytes())
+
+	registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
+	result := matchAvatar(buf.Bytes())
 	require.NotNil(t, result)
 	require.Equal(t, listName, result.Origin)
 }
