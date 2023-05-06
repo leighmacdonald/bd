@@ -282,7 +282,7 @@ func Logger() *zap.Logger {
 	return rootLogger
 }
 
-// Players returns a copy of the current player states
+// Players creates and returns a copy of the current player states
 func Players() []store.Player {
 	var p []store.Player
 	playersMu.RLock()

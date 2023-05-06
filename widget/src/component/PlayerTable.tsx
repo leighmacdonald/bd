@@ -1,29 +1,26 @@
 import React, { useCallback, useMemo, useState } from 'react';
-
-import {
-    Box,
-    ButtonGroup,
-    IconButton,
-    Paper,
-    Popover,
-    Stack,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TableSortLabel,
-    ToggleButton,
-    ToggleButtonGroup,
-    Tooltip
-} from '@mui/material';
-import { Player, usePlayers } from '../api';
-import { TableRowContextMenu } from './TableRowContextMenu';
-import { visuallyHidden } from '@mui/utils';
+import Box from '@mui/material/Box';
+import ButtonGroup from '@mui/material/ButtonGroup';
+import IconButton from '@mui/material/IconButton';
+import Paper from '@mui/material/Paper';
+import Popover from '@mui/material/Popover';
+import Stack from '@mui/material/Stack';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TableSortLabel from '@mui/material/TableSortLabel';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
+import visuallyHidden from '@mui/utils/visuallyHidden';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import Typography from '@mui/material/Typography';
+import { TableRowContextMenu } from './TableRowContextMenu';
+import { Player, usePlayers } from '../api';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -182,7 +179,6 @@ export const ColumnConfigButton = ({
                             {headCells.map((r) => {
                                 return (
                                     <ToggleButton
-                                        color={'secondary'}
                                         name={r.label}
                                         value={r.id}
                                         key={`column-toggle-${r.id}`}
@@ -357,11 +353,6 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
                         aria-label="sticky table"
                         size="small"
                         padding={'none'}
-                        sx={{
-                            '& .MuiTableRow-root:hover': {
-                                backgroundColor: 'primary.light'
-                            }
-                        }}
                     >
                         <PlayerTableHead
                             players={players}
