@@ -43,8 +43,8 @@ var (
 	parser            *logParser
 	rconConn          rconConnection
 	settings          *UserSettings
-	settingsMu        *sync.RWMutex
-	dataStore         store.DataStore
+
+	dataStore store.DataStore
 	//triggerUpdate     chan any
 	gameStateUpdate chan updateStateEvent
 	fsCache         FsCache
@@ -84,26 +84,28 @@ func mustCreateLogger(logFile string) *zap.Logger {
 			}
 		}
 		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
-		//loggingConfig.Level.SetLevel(zap.DebugLevel)
 	}
 	logger, errLogger := loggingConfig.Build()
 	if errLogger != nil {
 		fmt.Printf("Failed to create logger: %v\n", errLogger)
 		os.Exit(1)
 	}
-	return logger
+	return logger.Named("bd")
 }
 
-func Setup(versionInfo Version) {
+// Setup allocates and configured the core application. Start must should be called after this.
+// If testMode is enabled, a temporary database is used and no user settings or lists get used.
+func Setup(versionInfo Version, testMode bool) {
 	userSettings, errSettings := NewSettings()
 	if errSettings != nil {
 		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
 		os.Exit(1)
 	}
-	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
-		fmt.Printf("Failed to read settings: %v", errReadSettings)
+	if !testMode {
+		if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
+			fmt.Printf("Failed to read settings: %v", errReadSettings)
+		}
 	}
-
 	settings = userSettings
 	logFilePath := ""
 	if settings.GetDebugLogEnabled() {
@@ -119,52 +121,57 @@ func Setup(versionInfo Version) {
 			rootLogger.Error("Failed to set steam api key", zap.Error(errAPIKey))
 		}
 	}
-
-	// Try and load our existing custom players/rules
-	if util.Exists(settings.LocalPlayerListPath()) {
-		input, errInput := os.Open(settings.LocalPlayerListPath())
-		if errInput != nil {
-			rootLogger.Error("Failed to open local player list", zap.Error(errInput))
-		} else {
-			var localPlayersList rules.PlayerListSchema
-			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
-				rootLogger.Error("Failed to parse local player list", zap.Error(errRead))
+	if !testMode {
+		// Try and load our existing custom players/rules
+		if util.Exists(settings.LocalPlayerListPath()) {
+			input, errInput := os.Open(settings.LocalPlayerListPath())
+			if errInput != nil {
+				rootLogger.Error("Failed to open local player list", zap.Error(errInput))
 			} else {
-				count, errPlayerImport := rules.ImportPlayers(&localPlayersList)
-				if errPlayerImport != nil {
-					rootLogger.Error("Failed to import local player list", zap.Error(errPlayerImport))
+				var localPlayersList rules.PlayerListSchema
+				if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
+					rootLogger.Error("Failed to parse local player list", zap.Error(errRead))
 				} else {
-					rootLogger.Info("Loaded local player list", zap.Int("count", count))
+					count, errPlayerImport := rules.ImportPlayers(&localPlayersList)
+					if errPlayerImport != nil {
+						rootLogger.Error("Failed to import local player list", zap.Error(errPlayerImport))
+					} else {
+						rootLogger.Info("Loaded local player list", zap.Int("count", count))
+					}
 				}
+				util.LogClose(rootLogger, input)
 			}
-			util.LogClose(rootLogger, input)
 		}
-	}
 
-	if util.Exists(settings.LocalRulesListPath()) {
-		input, errInput := os.Open(settings.LocalRulesListPath())
-		if errInput != nil {
-			rootLogger.Error("Failed to open local rules list", zap.Error(errInput))
-		} else {
-			var localRules rules.RuleSchema
-			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
-				rootLogger.Error("Failed to parse local rules list", zap.Error(errRead))
+		if util.Exists(settings.LocalRulesListPath()) {
+			input, errInput := os.Open(settings.LocalRulesListPath())
+			if errInput != nil {
+				rootLogger.Error("Failed to open local rules list", zap.Error(errInput))
 			} else {
-				count, errRulesImport := rules.ImportRules(&localRules)
-				if errRulesImport != nil {
-					rootLogger.Error("Failed to import local rules list", zap.Error(errRulesImport))
+				var localRules rules.RuleSchema
+				if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
+					rootLogger.Error("Failed to parse local rules list", zap.Error(errRead))
+				} else {
+					count, errRulesImport := rules.ImportRules(&localRules)
+					if errRulesImport != nil {
+						rootLogger.Error("Failed to import local rules list", zap.Error(errRulesImport))
+					}
+					rootLogger.Debug("Loaded local rules list", zap.Int("count", count))
 				}
-				rootLogger.Debug("Loaded local rules list", zap.Int("count", count))
+				util.LogClose(rootLogger, input)
 			}
-			util.LogClose(rootLogger, input)
 		}
 	}
-
-	newDataStore := store.New(settings.DBPath(), rootLogger)
+	dbPath := settings.DBPath()
+	if testMode {
+		dbPath = ":memory:"
+	}
+	newDataStore := store.New(dbPath, rootLogger)
 	if errMigrate := newDataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
 		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
 	}
 	dataStore = newDataStore
+
 	fsCache = newCache(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
 	parser = newLogParser(rootLogger, logChan, eventChan)
 	lr, errLogReader := createLogReader()
@@ -304,31 +311,75 @@ func Players() []store.Player {
 	return p
 }
 
-func OnUnMark(sid64 steamid.SID64) error {
-	gameStateUpdate <- updateStateEvent{
-		kind:   updateMark,
-		source: settings.GetSteamId(),
-		data: updateMarkEvent{
-			target: sid64,
-			delete: true,
-		},
+func AddPlayer(p *store.Player) {
+	playersMu.Lock()
+	defer playersMu.Unlock()
+	players = append(players, p)
+}
+
+func UnMark(sid64 steamid.SID64) error {
+	player := GetPlayer(sid64)
+	if player == nil {
+		player = store.NewPlayer(sid64, "")
+		if err := dataStore.GetPlayer(context.Background(), sid64, player); err != nil {
+			return err
+		}
+	}
+	if !rules.Unmark(sid64) {
+		return errors.New("Mark does not exist")
+	}
+	// Remove existing mark data
+	playersMu.Lock()
+	defer playersMu.Unlock()
+	for idx := range players {
+		if players[idx].SteamId == sid64 {
+			var valid []*rules.MatchResult
+			for _, m := range players[idx].Matches {
+				if m.Origin == "local" {
+					continue
+				}
+				valid = append(valid, m)
+			}
+			players[idx].Matches = valid
+			break
+		}
 	}
 	return nil
 }
 
-func OnMark(sid64 steamid.SID64, attrs []string) error {
-	gameStateUpdate <- updateStateEvent{
-		kind:   updateMark,
-		source: settings.GetSteamId(),
-		data: updateMarkEvent{
-			target: sid64,
-			attrs:  attrs,
-		},
+func Mark(sid64 steamid.SID64, attrs []string) error {
+	player := GetPlayer(sid64)
+	if player == nil {
+		player = store.NewPlayer(sid64, "")
+		if err := dataStore.GetPlayer(context.Background(), sid64, player); err != nil {
+			return err
+		}
+	}
+	name := player.Name
+	if name == "" {
+		name = player.NamePrevious
+	}
+
+	if errMark := rules.Mark(rules.MarkOpts{
+		SteamID:    sid64,
+		Attributes: attrs,
+		Name:       name,
+	}); errMark != nil {
+		return errors.Wrap(errMark, "Failed to add mark")
+	}
+
+	of, errOf := os.OpenFile(settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	if errOf != nil {
+		return errors.Wrap(errOf, "Failed to open player list for updating")
+	}
+	defer util.LogClose(rootLogger, of)
+	if errExport := rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
+		rootLogger.Error("Failed to export player list", zap.Error(errExport))
 	}
 	return nil
 }
 
-func OnWhitelist(sid64 steamid.SID64, enabled bool) error {
+func Whitelist(sid64 steamid.SID64, enabled bool) error {
 	gameStateUpdate <- updateStateEvent{
 		kind:   updateWhitelist,
 		source: settings.GetSteamId(),
@@ -545,7 +596,7 @@ func gameStateUpdater(ctx context.Context) {
 			var sourcePlayer *store.Player
 			if update.source.Valid() {
 				sourcePlayer = GetPlayer(update.source)
-				if sourcePlayer == nil && update.kind != updateStatus && update.kind != updateMark {
+				if sourcePlayer == nil && update.kind != updateStatus {
 					// Only register a new user to track once we received a status line
 					continue
 				}
@@ -569,11 +620,6 @@ func gameStateUpdater(ctx context.Context) {
 			case updateStatus:
 				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
 					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
-				}
-			case updateMark:
-				d := update.data.(updateMarkEvent)
-				if errUpdate := onUpdateMark(d); errUpdate != nil {
-					rootLogger.Error("updateMark error", zap.Error(errUpdate))
 				}
 			case updateWhitelist:
 				if errUpdate := onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
@@ -764,55 +810,6 @@ func onUpdateWhitelist(event updateWhitelistEvent) error {
 	playersMu.Unlock()
 	rootLogger.Info("Update player whitelist status successfully",
 		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", event.enabled))
-	return nil
-}
-
-func onUpdateMark(status updateMarkEvent) error {
-	player := GetPlayer(status.target)
-	if player == nil {
-		player = store.NewPlayer(status.target, "")
-		if err := dataStore.GetPlayer(context.Background(), status.target, player); err != nil {
-			return err
-		}
-	}
-	name := player.Name
-	if name == "" {
-		name = player.NamePrevious
-	}
-	if status.delete {
-		rules.Unmark(status.target)
-		playersMu.Lock()
-		for idx := range players {
-			if players[idx].SteamId == status.target {
-				var valid []*rules.MatchResult
-				for _, m := range players[idx].Matches {
-					if m.Origin == "local" {
-						continue
-					}
-					valid = append(valid, m)
-				}
-				players[idx].Matches = valid
-				break
-			}
-		}
-		playersMu.Unlock()
-	} else {
-		if errMark := rules.Mark(rules.MarkOpts{
-			SteamID:    status.target,
-			Attributes: status.attrs,
-			Name:       name,
-		}); errMark != nil {
-			return errors.Wrap(errMark, "Failed to add mark")
-		}
-	}
-	of, errOf := os.OpenFile(settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
-	if errOf != nil {
-		return errors.Wrap(errOf, "Failed to open player list for updating")
-	}
-	defer util.LogClose(rootLogger, of)
-	if errExport := rules.ExportPlayers(rules.LocalRuleName, of); errExport != nil {
-		rootLogger.Error("Failed to export player list", zap.Error(errExport))
-	}
 	return nil
 }
 

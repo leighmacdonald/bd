@@ -18,7 +18,6 @@ const (
 	updateProfile
 	updateBans
 	updateStatus
-	updateMark
 	updateMessage
 	updateLobby
 	updateMap

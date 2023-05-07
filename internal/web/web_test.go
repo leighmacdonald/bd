@@ -3,25 +3,25 @@ package web
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/stretchr/testify/require"
-	_ "go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
-func testRouter(t *testing.T) *gin.Engine {
-	r := createRouter()
-	require.NoError(t, setupRoutes(r, true))
-	return r
+func TestMain(m *testing.M) {
+	detector.Setup(detector.Version{}, true)
+	Setup(detector.Logger(), true)
+	retCode := m.Run()
+	os.Exit(retCode)
 }
 
 func fetchIntoWithStatus(t *testing.T, method string, path string, status int, out any, body any) {
-	r := testRouter(t)
 	var bodyReader io.Reader
 	if body != nil {
 		bodyJson, errEncode := json.Marshal(body)
@@ -30,13 +30,24 @@ func fetchIntoWithStatus(t *testing.T, method string, path string, status int, o
 	}
 	req, _ := http.NewRequest(method, path, bodyReader)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 	if out != nil {
 		responseData, errBody := io.ReadAll(w.Body)
 		require.NoError(t, errBody)
 		require.NoError(t, json.Unmarshal(responseData, out))
 	}
 	require.Equal(t, status, w.Code)
+}
+
+func TestGetPlayers(t *testing.T) {
+	tp := createTestPlayers(5)
+	for _, p := range tp {
+		detector.AddPlayer(p)
+	}
+	var ps []store.Player
+	fetchIntoWithStatus(t, "GET", "/players", http.StatusOK, &ps, nil)
+	known := detector.Players()
+	require.Equal(t, len(known), len(ps))
 }
 
 func TestGetSettingsHandler(t *testing.T) {
@@ -70,7 +81,19 @@ func TestPostSettingsHandler(t *testing.T) {
 	s := detector.Settings()
 	newSettings := *s
 	newSettings.TF2Dir = "new/dir"
-	fetchIntoWithStatus(t, "POST", "/settings", http.StatusOK, nil, newSettings)
+	fetchIntoWithStatus(t, "POST", "/settings", http.StatusNoContent, nil, newSettings)
 	s2 := detector.Settings()
 	require.Equal(t, newSettings.TF2Dir, s2.TF2Dir)
+}
+
+func TestPostMarkPlayerHandler(t *testing.T) {
+	pls := createTestPlayers(1)
+	p := pls[0]
+	req := postMarkPlayerOpts{
+		SteamID: p.SteamIdString,
+		Attrs:   []string{"cheater", "test"},
+	}
+	fetchIntoWithStatus(t, "POST", "/mark", http.StatusNoContent, nil, req)
+	matches := rules.MatchSteam(p.SteamId)
+	require.True(t, len(matches) > 0)
 }

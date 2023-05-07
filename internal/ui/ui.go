@@ -77,9 +77,8 @@ func UpdatePlayerState(collection store.PlayerCollection) {
 	windows.player.updatePlayerState(collection)
 }
 
-func Setup(ctx context.Context, versionInfo detector.Version) {
-	guiLogger, _ := zap.NewProduction()
-	logger = guiLogger.Named("bd.gui")
+func Setup(ctx context.Context, rootLogger *zap.Logger, versionInfo detector.Version) {
+	logger = rootLogger.Named("bd.gui")
 	version = versionInfo
 	knownAttributes = binding.NewStringList()
 	windows = &windowMap{
