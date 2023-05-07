@@ -179,6 +179,9 @@ func Mark(opts MarkOpts) error {
 func UniqueTags() []string {
 	mu.RLock()
 	defer mu.RUnlock()
+	if knownTags == nil {
+		return []string{}
+	}
 	return knownTags
 }
 
