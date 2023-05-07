@@ -75,6 +75,7 @@ func setupRoutes(engine *gin.Engine) error {
 	engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	engine.GET("/players", getPlayers())
 	engine.POST("/mark", postMarkPlayer())
+	engine.GET("/settings", getSettings())
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}

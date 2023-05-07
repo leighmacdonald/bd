@@ -36,10 +36,10 @@ const (
 )
 
 type ListConfig struct {
-	ListType ListType `yaml:"type"`
-	Name     string   `yaml:"name"`
-	Enabled  bool     `yaml:"enabled"`
-	URL      string   `yaml:"url"`
+	ListType ListType `yaml:"type" json:"list_type"`
+	Name     string   `yaml:"name" json:"name"`
+	Enabled  bool     `yaml:"enabled" json:"enabled"`
+	URL      string   `yaml:"url" json:"url"`
 }
 
 // TODO add to steamid pkg
@@ -53,11 +53,11 @@ const (
 )
 
 type LinkConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Name     string `yaml:"name"`
-	URL      string `yaml:"url"`
-	IdFormat string `yaml:"id_format"`
-	Deleted  bool   `yaml:"-"`
+	Enabled  bool   `yaml:"enabled" json:"enabled"`
+	Name     string `yaml:"name" json:"name"`
+	URL      string `yaml:"url" json:"url"`
+	IdFormat string `yaml:"id_format" json:"id_format"`
+	Deleted  bool   `yaml:"-" json:"deleted"`
 }
 type LinkConfigCollection []*LinkConfig
 
@@ -83,80 +83,80 @@ type UserSettings struct {
 	*sync.RWMutex `yaml:"-"`
 	// Path to config used when reading UserSettings
 	configPath string `yaml:"-"`
-	steamID    string `yaml:"steam_id"`
+	SteamID    string `yaml:"steam_id" json:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
-	steamDir string `yaml:"steam_dir"`
+	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	tf2Dir                  string               `yaml:"tf2_dir"`
-	autoLaunchGame          bool                 `yaml:"auto_launch_game_auto"`
-	autoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit"`
-	apiKey                  string               `yaml:"api_key"`
-	disconnectedTimeout     string               `yaml:"disconnected_timeout"`
-	discordPresenceEnabled  bool                 `yaml:"discord_presence_enabled"`
-	kickerEnabled           bool                 `yaml:"kicker_enabled"`
-	chatWarningsEnabled     bool                 `yaml:"chat_warnings_enabled"`
-	partyWarningsEnabled    bool                 `yaml:"party_warnings_enabled"`
-	kickTags                []string             `yaml:"kick_tags"`
-	voiceBansEnabled        bool                 `yaml:"voice_bans_enabled"`
-	debugLogEnabled         bool                 `yaml:"debug_log_enabled"`
-	lists                   ListConfigCollection `yaml:"lists"`
-	links                   []*LinkConfig        `yaml:"links"`
-	rconStatic              bool                 `yaml:"rcon_static"`
-	guiEnabled              bool                 `yaml:"gui_enabled"`
-	httpEnabled             bool                 `yaml:"http_enabled"`
-	httpListenAddr          string               `yaml:"http_listen_addr"`
-	playerExpiredTimeout    int                  `yaml:"player_expired_timeout"`
-	playerDisconnectTimeout int                  `yaml:"player_disconnect_timeout"`
-	rcon                    RCONConfigProvider   `yaml:"-"`
+	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
+	AutoLaunchGame          bool                 `yaml:"auto_launch_game_auto" json:"auto_launch_game"`
+	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`
+	APIKey                  string               `yaml:"api_key" json:"api_key"`
+	DisconnectedTimeout     string               `yaml:"disconnected_timeout" json:"disconnected_timeout"`
+	DiscordPresenceEnabled  bool                 `yaml:"discord_presence_enabled" json:"discord_presence_enabled"`
+	KickerEnabled           bool                 `yaml:"kicker_enabled" json:"kicker_enabled"`
+	ChatWarningsEnabled     bool                 `yaml:"chat_warnings_enabled" json:"chat_warnings_enabled"`
+	PartyWarningsEnabled    bool                 `yaml:"party_warnings_enabled" json:"party_warnings_enabled"`
+	KickTags                []string             `yaml:"kick_tags" json:"kick_tags"`
+	VoiceBansEnabled        bool                 `yaml:"voice_bans_enabled" json:"voice_bans_enabled"`
+	DebugLogEnabled         bool                 `yaml:"debug_log_enabled" json:"debug_log_enabled"`
+	Lists                   ListConfigCollection `yaml:"lists" json:"lists"`
+	Links                   []*LinkConfig        `yaml:"links" json:"links"`
+	RCONStatic              bool                 `yaml:"rcon_static" json:"rcon_static"`
+	GUIEnabled              bool                 `yaml:"gui_enabled" json:"gui_enabled"`
+	HTTPEnabled             bool                 `yaml:"http_enabled" json:"http_enabled"`
+	HTTPListenAddr          string               `yaml:"http_listen_addr" json:"http_listen_addr"`
+	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
+	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
+	rcon                    RCONConfigProvider   `yaml:"-" `
 }
 
 func (s *UserSettings) GetVoiceBansEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.voiceBansEnabled
+	return s.VoiceBansEnabled
 }
 
 func (s *UserSettings) SetVoiceBansEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.voiceBansEnabled = enabled
+	s.VoiceBansEnabled = enabled
 }
 
 func (s *UserSettings) GetDebugLogEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.debugLogEnabled
+	return s.DebugLogEnabled
 }
 
 func (s *UserSettings) SetDebugLogEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.debugLogEnabled = enabled
+	s.DebugLogEnabled = enabled
 }
 
 func (s *UserSettings) GetHttpEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.httpEnabled
+	return s.HTTPEnabled
 }
 
 func (s *UserSettings) SetHttpEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.httpEnabled = enabled
+	s.HTTPEnabled = enabled
 }
 
 func (s *UserSettings) GetGuiEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.guiEnabled
+	return s.GUIEnabled
 }
 
 func (s *UserSettings) SetGuiEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.guiEnabled = enabled
+	s.GUIEnabled = enabled
 }
 
 func (s *UserSettings) GetRcon() RCONConfigProvider {
@@ -168,132 +168,132 @@ func (s *UserSettings) GetRcon() RCONConfigProvider {
 func (s *UserSettings) GetRCONStatic() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.rconStatic
+	return s.RCONStatic
 }
 
 func (s *UserSettings) GetKickerEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.kickerEnabled
+	return s.KickerEnabled
 }
 
 func (s *UserSettings) GetAutoCloseOnGameExit() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.autoCloseOnGameExit
+	return s.AutoCloseOnGameExit
 }
 
 func (s *UserSettings) SetSteamID(steamID string) {
 	s.Lock()
 	defer s.Unlock()
-	s.steamID = steamID
+	s.SteamID = steamID
 }
 func (s *UserSettings) SetAutoCloseOnGameExit(autoClose bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.autoCloseOnGameExit = autoClose
+	s.AutoCloseOnGameExit = autoClose
 }
 
 func (s *UserSettings) SetAutoLaunchGame(autoLaunch bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.autoLaunchGame = autoLaunch
+	s.AutoLaunchGame = autoLaunch
 }
 
 func (s *UserSettings) SetRconStatic(static bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.rconStatic = static
+	s.RCONStatic = static
 }
 
 func (s *UserSettings) SetChatWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.chatWarningsEnabled = enabled
+	s.ChatWarningsEnabled = enabled
 }
 
 func (s *UserSettings) SetPartyWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.partyWarningsEnabled = enabled
+	s.PartyWarningsEnabled = enabled
 }
 
 func (s *UserSettings) SetKickerEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.kickerEnabled = enabled
+	s.KickerEnabled = enabled
 }
 
 func (s *UserSettings) SetTF2Dir(dir string) {
 	s.Lock()
 	defer s.Unlock()
-	s.tf2Dir = dir
+	s.TF2Dir = dir
 }
 
 func (s *UserSettings) SetSteamDir(dir string) {
 	s.Lock()
 	defer s.Unlock()
-	s.steamID = dir
+	s.SteamID = dir
 }
 
 func (s *UserSettings) SetKickTags(tags []string) {
 	s.Lock()
 	defer s.Unlock()
-	s.kickTags = tags
+	s.KickTags = tags
 }
 
 func (s *UserSettings) SetAPIKey(key string) {
 	s.Lock()
 	defer s.Unlock()
-	s.apiKey = key
+	s.APIKey = key
 }
 
 func (s *UserSettings) SetLists(lists ListConfigCollection) {
 	s.Lock()
 	defer s.Unlock()
-	s.lists = lists
+	s.Lists = lists
 }
 
 func (s *UserSettings) SetLinks(links []*LinkConfig) {
 	s.Lock()
 	defer s.Unlock()
-	s.links = links
+	s.Links = links
 }
 
 func (s *UserSettings) GetAutoLaunchGame() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.autoLaunchGame
+	return s.AutoLaunchGame
 }
 
 func (s *UserSettings) SetDiscordPresenceEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
-	s.discordPresenceEnabled = enabled
+	s.DiscordPresenceEnabled = enabled
 }
 
 func (s *UserSettings) GetDiscordPresenceEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.discordPresenceEnabled
+	return s.DiscordPresenceEnabled
 }
 
 func (s *UserSettings) GetPartyWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.partyWarningsEnabled
+	return s.PartyWarningsEnabled
 }
 
 func (s *UserSettings) GetChatWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.chatWarningsEnabled
+	return s.ChatWarningsEnabled
 }
 
 func (s *UserSettings) GetAPIKey() string {
 	s.RLock()
 	defer s.RUnlock()
-	return s.apiKey
+	return s.APIKey
 }
 func (s *UserSettings) GetConfigPath() string {
 	s.RLock()
@@ -303,29 +303,29 @@ func (s *UserSettings) GetConfigPath() string {
 func (s *UserSettings) GetTF2Dir() string {
 	s.RLock()
 	defer s.RUnlock()
-	return s.tf2Dir
+	return s.TF2Dir
 }
 
 func (s *UserSettings) GetSteamDir() string {
 	s.RLock()
 	defer s.RUnlock()
-	return s.steamDir
+	return s.SteamDir
 }
 
 func (s *UserSettings) GetLists() ListConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
-	return s.lists
+	return s.Lists
 }
 
 func (s *UserSettings) GetKickTags() []string {
 	s.RLock()
 	defer s.RUnlock()
-	return s.kickTags
+	return s.KickTags
 }
 
 func (s *UserSettings) GetSteamId() steamid.SID64 {
-	value, err := steamid.StringToSID64(s.steamID)
+	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
 		return 0
 	}
@@ -335,44 +335,44 @@ func (s *UserSettings) GetSteamId() steamid.SID64 {
 func (s *UserSettings) AddList(config *ListConfig) error {
 	s.Lock()
 	defer s.Unlock()
-	for _, known := range s.lists {
+	for _, known := range s.Lists {
 		if config.ListType == known.ListType &&
 			strings.EqualFold(config.URL, known.URL) {
 			return errDuplicateList
 		}
 	}
-	s.lists = append(s.lists, config)
+	s.Lists = append(s.Lists, config)
 	return nil
 }
 
 func (s *UserSettings) GetLinks() LinkConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
-	return s.links
+	return s.Links
 }
 
 func NewSettings() (*UserSettings, error) {
 	newSettings := UserSettings{
 		RWMutex:                 &sync.RWMutex{},
 		configPath:              "",
-		steamID:                 "",
-		steamDir:                platform.DefaultSteamRoot,
-		tf2Dir:                  platform.DefaultTF2Root,
-		autoLaunchGame:          false,
-		autoCloseOnGameExit:     false,
-		apiKey:                  "",
-		disconnectedTimeout:     "60s",
-		discordPresenceEnabled:  true,
-		kickerEnabled:           false,
-		chatWarningsEnabled:     false,
-		partyWarningsEnabled:    true,
-		kickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
-		voiceBansEnabled:        false,
-		guiEnabled:              true,
-		debugLogEnabled:         false,
-		playerExpiredTimeout:    6,
-		playerDisconnectTimeout: 20,
-		lists: []*ListConfig{
+		SteamID:                 "",
+		SteamDir:                platform.DefaultSteamRoot,
+		TF2Dir:                  platform.DefaultTF2Root,
+		AutoLaunchGame:          false,
+		AutoCloseOnGameExit:     false,
+		APIKey:                  "",
+		DisconnectedTimeout:     "60s",
+		DiscordPresenceEnabled:  true,
+		KickerEnabled:           false,
+		ChatWarningsEnabled:     false,
+		PartyWarningsEnabled:    true,
+		KickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
+		VoiceBansEnabled:        false,
+		GUIEnabled:              true,
+		DebugLogEnabled:         false,
+		PlayerExpiredTimeout:    6,
+		PlayerDisconnectTimeout: 20,
+		Lists: []*ListConfig{
 			{
 				Name:     "Uncletopia",
 				ListType: "tf2bd_playerlist",
@@ -398,7 +398,7 @@ func NewSettings() (*UserSettings, error) {
 				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/rules.official.json",
 			},
 		},
-		links: []*LinkConfig{
+		Links: []*LinkConfig{
 			{
 				Enabled:  true,
 				Name:     "RGL",
@@ -454,9 +454,9 @@ func NewSettings() (*UserSettings, error) {
 				IdFormat: "steam64",
 			},
 		},
-		rconStatic:     false,
-		httpEnabled:    true,
-		httpListenAddr: "localhost:8900",
+		RCONStatic:     false,
+		HTTPEnabled:    true,
+		HTTPListenAddr: "localhost:8900",
 		rcon:           NewRconConfig(false),
 	}
 	if !util.Exists(settings.ListRoot()) {

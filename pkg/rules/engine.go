@@ -81,7 +81,7 @@ func userPlayerList() *PlayerListSchema {
 			return list
 		}
 	}
-	panic("User player list schema not found")
+	panic("User player list schema doesn't exist")
 }
 
 func userRuleList() *RuleSchema {
@@ -90,7 +90,7 @@ func userRuleList() *RuleSchema {
 			return list
 		}
 	}
-	panic("User rules schema not found")
+	panic("User rules schema doesn't exist")
 }
 
 func Unmark(steamID steamid.SID64) bool {
@@ -100,8 +100,9 @@ func Unmark(steamID steamid.SID64) bool {
 		return false
 	}
 	found := false
+	list := userPlayerList()
 	var players []playerDefinition
-	for _, knownPlayer := range playerLists[0].Players {
+	for _, knownPlayer := range list.Players {
 		strId := steamID.String()
 		if knownPlayer.SteamID == strId {
 			found = true
@@ -109,7 +110,7 @@ func Unmark(steamID steamid.SID64) bool {
 		}
 		players = append(players, knownPlayer)
 	}
-	playerLists[0].Players = players
+	list.Players = players
 	userList := userPlayerList()
 	// Remove the matcher from memory
 	var validMatchers []SteamIDMatcher
