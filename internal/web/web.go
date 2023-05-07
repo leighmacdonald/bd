@@ -30,7 +30,7 @@ func init() {
 func Setup() {
 	logger = detector.Logger().Named("api")
 	engine := createRouter()
-	if errRoutes := setupRoutes(engine); errRoutes != nil {
+	if errRoutes := setupRoutes(engine, false); errRoutes != nil {
 		logger.Panic("Failed to setup routes", zap.Error(errRoutes))
 	}
 	router = engine
@@ -65,17 +65,19 @@ func createRouter() *gin.Engine {
 	return engine
 }
 
-func setupRoutes(engine *gin.Engine) error {
-	absStaticPath, errStaticPath := filepath.Abs("./internal/web/dist")
-	if errStaticPath != nil {
-		return errors.Wrap(errStaticPath, "Failed to setup static paths")
+func setupRoutes(engine *gin.Engine, apiOnly bool) error {
+	if !apiOnly {
+		absStaticPath, errStaticPath := filepath.Abs("./internal/web/dist")
+		if errStaticPath != nil {
+			return errors.Wrap(errStaticPath, "Failed to setup static paths")
+		}
+		engine.StaticFS("/dist", http.Dir(absStaticPath))
+		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	}
-
-	engine.StaticFS("/dist", http.Dir(absStaticPath))
-	engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	engine.GET("/players", getPlayers())
 	engine.POST("/mark", postMarkPlayer())
 	engine.GET("/settings", getSettings())
+	engine.POST("/settings", postSettings())
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}

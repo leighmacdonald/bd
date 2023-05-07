@@ -8,6 +8,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"net/http"
 	"os"
+	"sync"
 )
 
 func getPlayers() gin.HandlerFunc {
@@ -26,11 +27,12 @@ func getPlayers() gin.HandlerFunc {
 	}
 }
 
+type webUserSettings struct {
+	*detector.UserSettings
+	UniqueTags []string `json:"unique_tags"`
+}
+
 func getSettings() gin.HandlerFunc {
-	type webUserSettings struct {
-		*detector.UserSettings
-		UniqueTags []string `json:"unique_tags"`
-	}
 	return func(ctx *gin.Context) {
 		wus := webUserSettings{
 			UserSettings: detector.Settings(),
@@ -40,11 +42,24 @@ func getSettings() gin.HandlerFunc {
 	}
 }
 
-func postMarkPlayer() gin.HandlerFunc {
-	type postOpts struct {
-		SteamID steamid.SID64 `json:"steamID"`
-		Attrs   []string      `json:"attrs"`
+func postSettings() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var wus webUserSettings
+		if !bind(ctx, &wus) {
+			return
+		}
+		wus.RWMutex = &sync.RWMutex{}
+		detector.SetSettings(wus.UserSettings)
+		responseOK(ctx, http.StatusOK, gin.H{})
 	}
+}
+
+type postOpts struct {
+	SteamID steamid.SID64 `json:"steamID"`
+	Attrs   []string      `json:"attrs"`
+}
+
+func postMarkPlayer() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var po postOpts
 		if !bind(ctx, &po) {

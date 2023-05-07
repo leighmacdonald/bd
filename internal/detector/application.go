@@ -43,6 +43,7 @@ var (
 	parser            *logParser
 	rconConn          rconConnection
 	settings          *UserSettings
+	settingsMu        *sync.RWMutex
 	dataStore         store.DataStore
 	//triggerUpdate     chan any
 	gameStateUpdate chan updateStateEvent
@@ -54,6 +55,7 @@ var (
 
 func init() {
 	startupTime = time.Now()
+	serverMu = &sync.RWMutex{}
 	isRunning, _ := platform.IsGameRunning()
 	gameProcessActive = &atomic.Bool{}
 	gameProcessActive.Store(isRunning)
@@ -65,6 +67,11 @@ func init() {
 	serverMu = &sync.RWMutex{}
 	//triggerUpdate = make(chan any)
 	gameStateUpdate = make(chan updateStateEvent, 50)
+	newSettings, errSettings := NewSettings()
+	if errSettings != nil {
+		panic(errSettings)
+	}
+	settings = newSettings
 }
 
 func mustCreateLogger(logFile string) *zap.Logger {
@@ -276,6 +283,10 @@ func Store() store.DataStore {
 
 func Settings() *UserSettings {
 	return settings
+}
+
+func SetSettings(newSettings *UserSettings) {
+	settings = newSettings
 }
 
 func Logger() *zap.Logger {

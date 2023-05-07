@@ -354,7 +354,7 @@ func (s *UserSettings) GetLinks() LinkConfigCollection {
 func NewSettings() (*UserSettings, error) {
 	newSettings := UserSettings{
 		RWMutex:                 &sync.RWMutex{},
-		configPath:              "",
+		configPath:              ".",
 		SteamID:                 "",
 		SteamDir:                platform.DefaultSteamRoot,
 		TF2Dir:                  platform.DefaultTF2Root,
