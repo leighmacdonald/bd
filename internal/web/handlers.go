@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"net/http"
 	"os"
@@ -22,6 +23,20 @@ func getPlayers() gin.HandlerFunc {
 			p = players
 		}
 		responseOK(ctx, http.StatusOK, p)
+	}
+}
+
+func getSettings() gin.HandlerFunc {
+	type webUserSettings struct {
+		*detector.UserSettings
+		UniqueTags []string `json:"unique_tags"`
+	}
+	return func(ctx *gin.Context) {
+		wus := webUserSettings{
+			UserSettings: detector.Settings(),
+			UniqueTags:   rules.UniqueTags(),
+		}
+		responseOK(ctx, http.StatusOK, wus)
 	}
 }
 

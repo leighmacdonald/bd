@@ -1,6 +1,4 @@
 import React, { Fragment } from 'react';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -18,8 +16,12 @@ import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';
 import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
+import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import { validColumns } from './PlayerTable';
-import { formatSeconds, Player, Team } from '../api';
+import { formatSeconds, Player, Team, useUserSettings } from '../api';
+import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
+import SteamID from 'steamid';
+import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -98,6 +100,8 @@ export const TableRowContextMenu = ({
         mouseY: number;
     } | null>(null);
 
+    const { settings, loading } = useUserSettings();
+
     const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
         setContextMenuPos(
             contextMenuPos === null
@@ -146,7 +150,9 @@ export const TableRowContextMenu = ({
             </Grid2>
         ];
     };
-
+    if (loading || !settings) {
+        return <></>;
+    }
     return (
         <Fragment key={`${player.steam_id}`}>
             <TableRow
@@ -208,7 +214,6 @@ export const TableRowContextMenu = ({
                 {enabledColumns.includes('ping') && (
                     <TableCell align={'right'} style={{ paddingRight: 6 }}>
                         <Typography variant={'overline'}>
-                            {' '}
                             {player.ping}
                         </Typography>
                     </TableCell>
@@ -233,54 +238,109 @@ export const TableRowContextMenu = ({
                         src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
                     />
                 </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <FlagIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Mark As...</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <DeleteOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Unmark</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <LinkOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Open External</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <ContentCopyOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Copy SteamID</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <ForumOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Chat History</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <BadgeOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Name History</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
+                <NestedMenuItem
+                    rightIcon={<ArrowRightOutlinedIcon />}
+                    leftIcon={<FlagIcon color={'primary'} />}
+                    label="Mark Player As"
+                    parentMenuOpen={contextMenuPos !== null}
+                >
+                    {[...settings.unique_tags, 'new'].map((tag) => {
+                        return (
+                            <IconMenuItem
+                                leftIcon={<FlagIcon color={'primary'} />}
+                                onClick={() => {
+                                    console.log(`tag as ${tag}`);
+                                }}
+                                label={tag}
+                                key={`tag-${player.steam_id}-${tag}`}
+                            />
+                        );
+                    })}
+                </NestedMenuItem>
+                <IconMenuItem
+                    leftIcon={<DeleteOutlinedIcon color={'primary'} />}
+                    label={'Unmark'}
+                    disabled
+                />
+                <NestedMenuItem
+                    rightIcon={<ArrowRightOutlinedIcon />}
+                    leftIcon={<LinkOutlinedIcon color={'primary'} />}
+                    label="Open External Link"
+                    parentMenuOpen={contextMenuPos !== null}
+                >
+                    {settings.links.map((l) => (
+                        <IconMenuItem
+                            leftIcon={<FlagIcon color={'primary'} />}
+                            onClick={() => {
+                                openInNewTab(
+                                    formatExternalLink(player.steam_id, l)
+                                );
+                            }}
+                            label={l.name}
+                            key={`link-${player.steam_id}-${l.name}`}
+                        />
+                    ))}
+                </NestedMenuItem>
+                <NestedMenuItem
+                    rightIcon={<ArrowRightOutlinedIcon />}
+                    leftIcon={<ContentCopyOutlinedIcon color={'primary'} />}
+                    label="Copy SteamID"
+                    parentMenuOpen={contextMenuPos !== null}
+                >
+                    <IconMenuItem
+                        leftIcon={<FlagIcon color={'primary'} />}
+                        onClick={async () => {
+                            await writeToClipboard(
+                                new SteamID(
+                                    player.steam_id
+                                ).getSteam2RenderedID()
+                            );
+                        }}
+                        label={new SteamID(
+                            player.steam_id
+                        ).getSteam2RenderedID()}
+                    />
+                    <IconMenuItem
+                        leftIcon={<FlagIcon color={'primary'} />}
+                        onClick={async () => {
+                            await writeToClipboard(
+                                new SteamID(
+                                    player.steam_id
+                                ).getSteam3RenderedID()
+                            );
+                        }}
+                        label={new SteamID(
+                            player.steam_id
+                        ).getSteam3RenderedID()}
+                    />
+                    <IconMenuItem
+                        leftIcon={<FlagIcon color={'primary'} />}
+                        onClick={async () => {
+                            await writeToClipboard(
+                                new SteamID(player.steam_id).getSteamID64()
+                            );
+                        }}
+                        label={new SteamID(player.steam_id).getSteamID64()}
+                    />
+                </NestedMenuItem>
+                <IconMenuItem
+                    leftIcon={<ForumOutlinedIcon color={'primary'} />}
+                    label={'Chat History'}
+                />
+                <IconMenuItem
+                    leftIcon={<BadgeOutlinedIcon color={'primary'} />}
+                    label={'Name History'}
+                />
+                <IconMenuItem
+                    leftIcon={
                         <NotificationsPausedOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Whitelist</ListItemText>
-                </MenuItem>
-                <MenuItem>
-                    <ListItemIcon>
-                        <NoteAltOutlinedIcon color={'primary'} />
-                    </ListItemIcon>
-                    <ListItemText>Edit Notes</ListItemText>
-                </MenuItem>
+                    }
+                    label={'Whitelist'}
+                />
+                <IconMenuItem
+                    leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
+                    label={'Edit Notes'}
+                />
             </Menu>
             <Popover
                 open={hoverMenuPos !== null}
@@ -296,7 +356,7 @@ export const TableRowContextMenu = ({
                           }
                         : undefined
                 }
-                disablePortal={true}
+                disablePortal={false}
                 //disableRestoreFocus
             >
                 <Paper style={{ maxWidth: 650 }}>

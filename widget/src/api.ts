@@ -29,6 +29,8 @@ export const call = async <TRequest = null, TResponse = null>(
     return json;
 };
 
+export type steamIdFormat = 'steam64' | 'steam3' | 'steam32' | 'steam';
+
 enum ProfileVisibility {
     ProfileVisibilityPrivate = 1,
     ProfileVisibilityFriendsOnly = 2,
@@ -87,8 +89,69 @@ export const formatSeconds = (seconds: number): string => {
         .join(':');
 };
 
+interface List {
+    list_type: string;
+    name: string;
+    enabled: boolean;
+    url: string;
+}
+
+export interface Link {
+    enabled: boolean;
+    name: string;
+    url: string;
+    id_format: steamIdFormat;
+    deleted: boolean;
+}
+
+export interface UserSettings {
+    steam_id: string;
+    steam_dir: string;
+    tf2_dir: string;
+    auto_launch_game: boolean;
+    auto_close_on_game_exit: boolean;
+    api_key: string;
+    disconnected_timeout: string;
+    discord_presence_enabled: boolean;
+    kicker_enabled: boolean;
+    chat_warnings_enabled: boolean;
+    party_warnings_enabled: boolean;
+    kick_tags: string[];
+    voice_bans_enabled: boolean;
+    debug_log_enabled: boolean;
+    lists: List[];
+    links: Link[];
+    rcon_static: boolean;
+    gui_enabled: boolean;
+    http_enabled: boolean;
+    http_listen_addr: string;
+    player_expired_timeout: number;
+    player_disconnect_timeout: number;
+    unique_tags: string[];
+}
+
 export const getPlayers = async () => {
     return await call<null, Player[]>('GET', 'players');
+};
+
+export const getUserSettings = async () => {
+    return await call<null, UserSettings>('GET', 'settings');
+};
+
+export const useUserSettings = () => {
+    const [settings, setSettings] = useState<UserSettings>();
+    const [error, setError] = useState<unknown>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        setLoading(true);
+        getUserSettings()
+            .then((resp) => resp)
+            .then(setSettings)
+            .catch(setError)
+            .finally(() => setLoading(false));
+    }, []);
+    return { settings, error, loading };
 };
 
 export const usePlayers = () => {

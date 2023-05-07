@@ -444,7 +444,7 @@ func checkHandler(ctx context.Context) {
 
 func cleanupHandler(ctx context.Context) {
 	defer rootLogger.Debug("cleanupHandler exited")
-	deleteTimer := time.NewTicker(time.Second * time.Duration(settings.playerExpiredTimeout))
+	deleteTimer := time.NewTicker(time.Second * time.Duration(settings.PlayerExpiredTimeout))
 	for {
 		select {
 		case <-ctx.Done():
@@ -452,7 +452,7 @@ func cleanupHandler(ctx context.Context) {
 		case <-deleteTimer.C:
 			rootLogger.Debug("Delete update input received", zap.String("state", "start"))
 			serverMu.Lock()
-			if time.Since(server.LastUpdate) > time.Second*time.Duration(settings.playerDisconnectTimeout) {
+			if time.Since(server.LastUpdate) > time.Second*time.Duration(settings.PlayerDisconnectTimeout) {
 				server = Server{}
 			}
 			serverMu.Unlock()
