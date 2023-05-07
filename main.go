@@ -19,17 +19,18 @@ var (
 func main() {
 	ctx := context.Background()
 	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
-	detector.Setup(versionInfo)
-	if !(detector.Settings().GetHttpEnabled() || detector.Settings().GetGuiEnabled()) {
+	detector.Setup(versionInfo, false)
+	userSettings := detector.Settings()
+	if !(userSettings.GetHttpEnabled() || userSettings.GetGuiEnabled()) {
 		panic("Must enable at least one of the gui or http packages")
 	}
-	if detector.Settings().GetHttpEnabled() {
-		web.Setup()
+	if userSettings.GetHttpEnabled() {
+		web.Setup(detector.Logger(), false)
 		go web.Start(ctx)
 	}
-	if detector.Settings().GetGuiEnabled() {
+	if userSettings.GetGuiEnabled() {
 		go detector.Start(ctx)
-		ui.Setup(ctx, versionInfo)
+		ui.Setup(ctx, detector.Logger(), versionInfo)
 		ui.Start(ctx) // *must* be called from main goroutine
 	} else {
 		detector.Start(ctx)

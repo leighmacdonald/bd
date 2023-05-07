@@ -12,7 +12,7 @@ import (
 )
 
 func getPlayers() gin.HandlerFunc {
-	testPlayers := createTestPlayer()
+	testPlayers := createTestPlayers(24)
 	return func(ctx *gin.Context) {
 		if _, isTest := os.LookupEnv("TEST"); isTest {
 			responseOK(ctx, http.StatusOK, testPlayers)
@@ -50,20 +50,30 @@ func postSettings() gin.HandlerFunc {
 		}
 		wus.RWMutex = &sync.RWMutex{}
 		detector.SetSettings(wus.UserSettings)
-		responseOK(ctx, http.StatusOK, gin.H{})
+		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }
 
-type postOpts struct {
-	SteamID steamid.SID64 `json:"steamID"`
-	Attrs   []string      `json:"attrs"`
+type postMarkPlayerOpts struct {
+	SteamID string   `json:"steam_id"`
+	Attrs   []string `json:"attrs"`
 }
 
 func postMarkPlayer() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var po postOpts
-		if !bind(ctx, &po) {
+		var opts postMarkPlayerOpts
+		if !bind(ctx, &opts) {
 			return
 		}
+		sid, errSid := steamid.StringToSID64(opts.SteamID)
+		if errSid != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		if errMark := detector.Mark(sid, opts.Attrs); errMark != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }

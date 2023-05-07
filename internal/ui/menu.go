@@ -163,14 +163,14 @@ func generateWhitelistMenu(parent fyne.Window, steamID steamid.SID64) *fyne.Menu
 			Icon:  theme.ContentAddIcon(),
 			Label: labelAdd,
 			Action: func() {
-				showUserError(detector.OnWhitelist(steamID, true), parent)
+				showUserError(detector.Whitelist(steamID, true), parent)
 			},
 		},
 		&fyne.MenuItem{
 			Icon:  theme.ContentRemoveIcon(),
 			Label: labelRemove,
 			Action: func() {
-				showUserError(detector.OnWhitelist(steamID, false), parent)
+				showUserError(detector.Whitelist(steamID, false), parent)
 			},
 		},
 	)
@@ -216,13 +216,13 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 	unMarkFn := func(steamID steamid.SID64) func() {
 		clsSteamId := steamID
 		return func() {
-			showUserError(detector.OnUnMark(clsSteamId), window)
+			showUserError(detector.UnMark(clsSteamId), window)
 		}
 	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, detector.OnMark),
+			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, detector.Mark),
 			Label:     markTitle,
 		},
 		{

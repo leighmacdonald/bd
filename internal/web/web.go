@@ -4,7 +4,6 @@ import (
 	"context"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
@@ -27,10 +26,10 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-func Setup() {
-	logger = detector.Logger().Named("api")
-	engine := createRouter()
-	if errRoutes := setupRoutes(engine, false); errRoutes != nil {
+func Setup(rootLogger *zap.Logger, testMode bool) {
+	logger = rootLogger.Named("api")
+	engine := createRouter(testMode)
+	if errRoutes := setupRoutes(engine, testMode); errRoutes != nil {
 		logger.Panic("Failed to setup routes", zap.Error(errRoutes))
 	}
 	router = engine
@@ -54,19 +53,22 @@ func responseOK(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }
 
-func createRouter() *gin.Engine {
+func createRouter(testMode bool) *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.Recovery(), ginzap.GinzapWithConfig(logger, &ginzap.Config{
-		TimeFormat: time.RFC3339,
-		UTC:        true,
-		SkipPaths:  []string{"/players"},
-	}))
+	engine.Use(gin.Recovery())
+	if !testMode {
+		engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
+			TimeFormat: time.RFC3339,
+			UTC:        true,
+			SkipPaths:  []string{"/players"},
+		}))
+	}
 	_ = engine.SetTrustedProxies(nil)
 	return engine
 }
 
-func setupRoutes(engine *gin.Engine, apiOnly bool) error {
-	if !apiOnly {
+func setupRoutes(engine *gin.Engine, testMode bool) error {
+	if !testMode {
 		absStaticPath, errStaticPath := filepath.Abs("./internal/web/dist")
 		if errStaticPath != nil {
 			return errors.Wrap(errStaticPath, "Failed to setup static paths")
@@ -95,14 +97,15 @@ type jsConfig struct {
 	SiteName string `json:"siteName"`
 }
 
-func createTestPlayer() store.PlayerCollection {
+func createTestPlayers(count int) store.PlayerCollection {
 	var randPlayer = func(userId int64) *store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red
 		}
-		sid := steamid.SID64(76561197960265728 + userId)
+		sid := steamid.SID64(76561197960265728 + 1 + userId)
 		return &store.Player{
+			SteamId:          sid,
 			SteamIdString:    sid.String(),
 			Name:             util.RandomString(40),
 			CreatedOn:        time.Now(),
@@ -133,8 +136,8 @@ func createTestPlayer() store.PlayerCollection {
 		}
 	}
 	var testPlayers store.PlayerCollection
-	for i := int64(0); i < 24; i++ {
-		p := randPlayer(i)
+	for i := 0; i < count; i++ {
+		p := randPlayer(int64(i))
 		switch i {
 		case 1:
 			p.NumberOfVACBans = 2
