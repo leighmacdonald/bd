@@ -26,7 +26,7 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-func Setup(rootLogger *zap.Logger, testMode bool) {
+func Init(rootLogger *zap.Logger, testMode bool) {
 	logger = rootLogger.Named("api")
 	engine := createRouter(testMode)
 	if errRoutes := setupRoutes(engine, testMode); errRoutes != nil {
@@ -80,6 +80,8 @@ func setupRoutes(engine *gin.Engine, testMode bool) error {
 	engine.POST("/mark", postMarkPlayer())
 	engine.GET("/settings", getSettings())
 	engine.POST("/settings", postSettings())
+	engine.POST("/whitelist", updateWhitelistPlayer(true))
+	engine.DELETE("/whitelist", updateWhitelistPlayer(false))
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}

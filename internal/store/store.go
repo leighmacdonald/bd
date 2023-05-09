@@ -89,15 +89,13 @@ func (store *SqliteStore) Init() error {
 	if errMigrate := migrator.Up(); errMigrate != nil {
 		return errors.Wrap(errMigrate, "Failed to migrate database")
 	}
-
-	errSource, errDatabase := migrator.Close()
-	if errSource != nil {
-		return errors.Wrap(errSource, "Failed to Close source driver")
+	// Note that we do not call migrator.Close and instead close the fsDriver manually.
+	// This is because sqlite will wipe the db when :memory: is used and the connection closes
+	// for any reason, which the migrator does when called.
+	if errClose := fsDriver.Close(); errClose != nil {
+		return errors.Wrap(errClose, "Failed to close fs driver")
 	}
-	if errDatabase != nil {
-		return errors.Wrap(errDatabase, "Failed to Close database driver")
-	}
-	return store.Connect()
+	return nil
 }
 
 func (store *SqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
@@ -145,7 +143,7 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
-	state.Dangling = false
+	state.IsInDatabase = false
 	return nil
 }
 
@@ -183,7 +181,7 @@ func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
 	if !state.SteamId.Valid() {
 		return errors.New("Invalid steam id")
 	}
-	if state.Dangling {
+	if state.IsInDatabase {
 		return store.insertPlayer(ctx, state)
 	}
 	return store.updatePlayer(ctx, state)
@@ -261,15 +259,16 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
+	player.SteamId = steamID
+	player.SteamIdString = steamID.String()
+	player.IsInDatabase = false
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr
 		}
-		player.Dangling = true
+		player.IsInDatabase = true
 	}
-	player.SteamId = steamID
-	player.SteamIdString = steamID.String()
-	player.Dangling = false
+
 	if prevName != nil {
 		player.NamePrevious = *prevName
 	}
@@ -304,10 +303,10 @@ func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steami
 		if rowErr != sql.ErrNoRows {
 			return rowErr
 		}
-		player.Dangling = true
+		player.IsInDatabase = true
 		return store.SavePlayer(ctx, player)
 	}
-	player.Dangling = false
+	player.IsInDatabase = false
 	if prevName != nil {
 		player.NamePrevious = *prevName
 	}

@@ -24,7 +24,6 @@ const (
 	updateHostname
 	updateTags
 	updateAddress
-	updateWhitelist
 	changeMap
 )
 
@@ -49,17 +48,6 @@ type updateStateEvent struct {
 	kind   updateType
 	source steamid.SID64
 	data   any
-}
-
-type updateMarkEvent struct {
-	target steamid.SID64
-	attrs  []string
-	delete bool
-}
-
-type updateWhitelistEvent struct {
-	target  steamid.SID64
-	enabled bool
 }
 
 type messageEvent struct {
