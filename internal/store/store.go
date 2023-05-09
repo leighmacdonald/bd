@@ -9,6 +9,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
@@ -18,6 +19,11 @@ import (
 
 //go:embed migrations/*.sql
 var migrations embed.FS
+
+var (
+	ErrInvalidSid = errors.New("Invalid steamid")
+	ErrEmptyValue = errors.New("value cannot be empty")
+)
 
 type DataStore interface {
 	Close() error
@@ -29,8 +35,7 @@ type DataStore interface {
 	SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
 	FetchNames(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) (UserMessageCollection, error)
-	LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *Player) error
-	GetPlayer(ctx context.Context, steamID steamid.SID64, player *Player) error
+	GetPlayer(ctx context.Context, steamID steamid.SID64, create bool, player *Player) error
 }
 
 type SqliteStore struct {
@@ -117,7 +122,7 @@ func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage)
 	query := sq.
 		Insert("player_messages").
 		Columns("steam_id", "message", "created_on").
-		Values(message.PlayerSID, message.Message, time.Now()).
+		Values(message.PlayerSID, message.Message, message.Created).
 		Suffix("RETURNING \"message_id\"").
 		RunWith(store.db)
 	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageId); errExec != nil {
@@ -143,7 +148,6 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
-	state.IsInDatabase = false
 	return nil
 }
 
@@ -180,9 +184,6 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
 	if !state.SteamId.Valid() {
 		return errors.New("Invalid steam id")
-	}
-	if state.IsInDatabase {
-		return store.insertPlayer(ctx, state)
 	}
 	return store.updatePlayer(ctx, state)
 }
@@ -237,7 +238,10 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 	return col, nil
 }
 
-func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, player *Player) error {
+func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, create bool, player *Player) error {
+	if !steamID.Valid() {
+		return errors.New("Invalid steam id")
+	}
 	query, args, errSql := sq.
 		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -249,7 +253,13 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		Limit(1).
 		ToSql()
 	if errSql != nil {
-		return errSql
+		if !errors.Is(errSql, sql.ErrNoRows) || !create {
+			return errSql
+		}
+		player = NewPlayer(steamID, "")
+		if errSave := store.insertPlayer(ctx, player); errSave != nil {
+			return errSave
+		}
 	}
 	var prevName *string
 	rowErr := store.db.
@@ -261,52 +271,13 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		)
 	player.SteamId = steamID
 	player.SteamIdString = steamID.String()
-	player.IsInDatabase = false
+	player.Matches = []*rules.MatchResult{}
 	if rowErr != nil {
 		if rowErr != sql.ErrNoRows {
 			return rowErr
 		}
-		player.IsInDatabase = true
 	}
 
-	if prevName != nil {
-		player.NamePrevious = *prevName
-	}
-	return nil
-}
-
-func (store *SqliteStore) LoadOrCreatePlayer(ctx context.Context, steamID steamid.SID64, player *Player) error {
-	query, args, errSql := sq.
-		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
-			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
-			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
-		From("player p").
-		LeftJoin("player_names pn ON p.steam_id = pn.steam_id").
-		Where(sq.Eq{"p.steam_id": steamID}).
-		OrderBy("pn.created_on DESC").
-		Limit(1).
-		ToSql()
-	if errSql != nil {
-		return errSql
-	}
-	var prevName *string
-	rowErr := store.db.
-		QueryRowContext(ctx, query, args...).
-		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
-			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
-			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
-			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
-		)
-	player.SteamId = steamID
-	player.SteamIdString = steamID.String()
-	if rowErr != nil {
-		if rowErr != sql.ErrNoRows {
-			return rowErr
-		}
-		player.IsInDatabase = true
-		return store.SavePlayer(ctx, player)
-	}
-	player.IsInDatabase = false
 	if prevName != nil {
 		player.NamePrevious = *prevName
 	}

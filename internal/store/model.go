@@ -32,6 +32,22 @@ type UserMessage struct {
 	TeamOnly  bool
 }
 
+func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly bool) (*UserMessage, error) {
+	if !sid64.Valid() {
+		return nil, ErrInvalidSid
+	}
+	if message == "" {
+		return nil, ErrEmptyValue
+	}
+	return &UserMessage{
+		PlayerSID: sid64,
+		Message:   message,
+		Created:   time.Now(),
+		Dead:      dead,
+		TeamOnly:  teamOnly,
+	}, nil
+}
+
 func (um UserMessage) Formatted() string {
 	var msg []string
 	if um.TeamOnly {

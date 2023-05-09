@@ -43,17 +43,23 @@ type MarkOpts struct {
 func Whitelisted(sid64 steamid.SID64) bool {
 	mu.RLock()
 	defer mu.RUnlock()
-	return whitelist.Contains(sid64)
+	for _, entry := range whitelist {
+		if entry == sid64 {
+			return true
+		}
+	}
+	return false
 }
 
 func WhitelistAdd(sid64 steamid.SID64) bool {
+	if Whitelisted(sid64) {
+		return false
+	}
 	mu.Lock()
 	defer mu.Unlock()
-	if !whitelist.Contains(sid64) {
-		whitelist = append(whitelist, sid64)
-		return true
-	}
-	return false
+	whitelist = append(whitelist, sid64)
+	return true
+
 }
 
 func WhitelistRemove(sid64 steamid.SID64) bool {

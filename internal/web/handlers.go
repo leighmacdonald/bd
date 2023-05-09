@@ -12,6 +12,21 @@ import (
 	"sync"
 )
 
+func getMessages() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
+		if errSid != nil {
+			responseErr(ctx, http.StatusBadRequest, nil)
+			return
+		}
+		messages, errMsgs := detector.Store().FetchMessages(ctx, steamId)
+		if errMsgs != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		responseOK(ctx, http.StatusOK, messages)
+	}
+}
 func getPlayers() gin.HandlerFunc {
 	testPlayers := createTestPlayers(24)
 	return func(ctx *gin.Context) {
@@ -55,11 +70,11 @@ func postSettings() gin.HandlerFunc {
 	}
 }
 
-type steamIdOpt struct {
+type SteamIdOpt struct {
 	SteamID string `json:"steam_id"`
 }
 
-func (so steamIdOpt) ParseSid(ctx *gin.Context) (steamid.SID64, bool) {
+func (so SteamIdOpt) ParseSid(ctx *gin.Context) (steamid.SID64, bool) {
 	sid, errParse := steamid.StringToSID64(so.SteamID)
 	if errParse != nil || !sid.Valid() {
 		responseErr(ctx, http.StatusBadRequest, nil)
@@ -68,8 +83,38 @@ func (so steamIdOpt) ParseSid(ctx *gin.Context) (steamid.SID64, bool) {
 	return sid, true
 }
 
+type postNotesOpts struct {
+	SteamIdOpt
+	Note string `json:"note"`
+}
+
+func postNotes() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var opts postNotesOpts
+		if !bind(ctx, &opts) {
+			return
+		}
+		sid, errSid := steamid.StringToSID64(opts.SteamID)
+		if errSid != nil {
+			responseErr(ctx, http.StatusBadRequest, nil)
+			return
+		}
+		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid, false)
+		if errPlayer != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		player.Notes = opts.Note
+		if errSave := detector.Store().SavePlayer(ctx, player); errSave != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		responseOK(ctx, http.StatusNoContent, nil)
+	}
+}
+
 type postMarkPlayerOpts struct {
-	steamIdOpt
+	SteamIdOpt
 	Attrs []string `json:"attrs"`
 }
 
@@ -102,7 +147,7 @@ func postMarkPlayer() gin.HandlerFunc {
 
 func updateWhitelistPlayer(enable bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var opts steamIdOpt
+		var opts SteamIdOpt
 		if !bind(ctx, &opts) {
 			return
 		}
