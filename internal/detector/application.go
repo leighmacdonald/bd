@@ -300,7 +300,7 @@ func AddPlayer(p *store.Player) {
 }
 
 func UnMark(ctx context.Context, sid64 steamid.SID64) error {
-	_, errPlayer := GetPlayerOrCreate(ctx, sid64)
+	_, errPlayer := GetPlayerOrCreate(ctx, sid64, false)
 	if errPlayer != nil {
 		return errPlayer
 	}
@@ -327,7 +327,7 @@ func UnMark(ctx context.Context, sid64 steamid.SID64) error {
 }
 
 func Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
-	player, errPlayer := GetPlayerOrCreate(ctx, sid64)
+	player, errPlayer := GetPlayerOrCreate(ctx, sid64, false)
 	if errPlayer != nil {
 		return errPlayer
 	}
@@ -355,7 +355,7 @@ func Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
 }
 
 func Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
-	player, playerErr := GetPlayerOrCreate(ctx, sid64)
+	player, playerErr := GetPlayerOrCreate(ctx, sid64, false)
 	if playerErr != nil {
 		return playerErr
 	}
@@ -372,41 +372,6 @@ func Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
 	rootLogger.Info("Update player whitelist status successfully",
 		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", enabled))
 	return nil
-}
-
-func fetchSteamWebUpdates(updates steamid.Collection) ([]updateStateEvent, error) {
-	var results []updateStateEvent
-	summaries, errSummaries := steamweb.PlayerSummaries(updates)
-	if errSummaries != nil {
-		return nil, errors.Wrap(errSummaries, "Failed to fetch summaries: %v\n")
-	}
-	for _, sum := range summaries {
-		sid, errSid := steamid.SID64FromString(sum.Steamid)
-		if errSid != nil {
-			return nil, errors.Wrap(errSid, "Invalid sid from steam api?")
-		}
-		results = append(results, updateStateEvent{
-			kind:   updateProfile,
-			source: sid,
-			data:   sum,
-		})
-	}
-	bans, errBans := steamweb.GetPlayerBans(updates)
-	if errBans != nil {
-		return nil, errors.Wrap(errBans, "Failed to fetch bans: %v\n")
-	}
-	for _, ban := range bans {
-		sid, errSid := steamid.SID64FromString(ban.SteamID)
-		if errSid != nil {
-			return nil, errors.Wrap(errSummaries, "Invalid sid from api?: %v\n")
-		}
-		results = append(results, updateStateEvent{
-			kind:   updateBans,
-			source: sid,
-			data:   ban,
-		})
-	}
-	return results, nil
 }
 
 func updatePlayerState() (string, error) {
@@ -447,18 +412,23 @@ func statusUpdater(ctx context.Context) {
 	}
 }
 
-func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (*store.Player, error) {
+func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*store.Player, error) {
 	player := GetPlayer(sid64)
 	if player == nil {
 		player = store.NewPlayer(sid64, "")
-		if errGet := dataStore.GetPlayer(ctx, sid64, player); errGet != nil {
+		if errGet := dataStore.GetPlayer(ctx, sid64, true, player); errGet != nil {
 			if !errors.Is(errGet, sql.ErrNoRows) {
 				return nil, errors.Wrap(errGet, "Failed to fetch player record")
 			}
-			player.IsInDatabase = true
+			player.ProfileUpdatedOn.AddDate(-1, 0, 0)
+		}
+		if active {
+			playersMu.Lock()
+			players = append(players, player)
+			playersMu.Unlock()
 		}
 	}
-	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit {
+	if time.Since(player.ProfileUpdatedOn) > profileAgeLimit {
 		return player, nil
 	}
 	mu := sync.RWMutex{}
@@ -496,8 +466,9 @@ func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (*store.Player,
 			summary := summaries[0]
 			player.Visibility = store.ProfileVisibility(summary.CommunityVisibilityState)
 			if player.AvatarHash != summary.Avatar {
-				go performAvatarDownload(ctx, sid64, summary.Avatar)
+				go performAvatarDownload(ctx, summary.AvatarHash)
 			}
+			player.Name = summary.PersonaName
 			player.AvatarHash = summary.AvatarHash
 			player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
 			player.RealName = summary.RealName
@@ -591,7 +562,7 @@ func cleanupHandler(ctx context.Context) {
 	}
 }
 
-func performAvatarDownload(ctx context.Context, sid64 steamid.SID64, hash string) {
+func performAvatarDownload(ctx context.Context, hash string) {
 	_, errDownload := fetchAvatar(ctx, hash)
 	if errDownload != nil {
 		rootLogger.Error("Failed to download avatar", zap.String("hash", hash), zap.Error(errDownload))
@@ -601,42 +572,18 @@ func performAvatarDownload(ctx context.Context, sid64 steamid.SID64, hash string
 
 func gameStateUpdater(ctx context.Context) {
 	defer rootLogger.Debug("gameStateUpdater exited")
-	var queuedUpdates steamid.Collection
-	updateTimer := time.NewTicker(DurationUpdateTimer)
 	for {
 		select {
-		case <-ctx.Done():
-			return
-		case <-updateTimer.C:
-			if len(queuedUpdates) == 0 || settings.GetAPIKey() == "" {
-				continue
-			}
-			if len(queuedUpdates) > 100 {
-				var trimmed steamid.Collection
-				for i := len(queuedUpdates) - 1; len(trimmed) < 100; i-- {
-					trimmed = append(trimmed, queuedUpdates[i])
-				}
-				queuedUpdates = trimmed
-			}
-			rootLogger.Info("Updating profiles", zap.Int("count", len(queuedUpdates)))
-			results, errUpdates := fetchSteamWebUpdates(queuedUpdates)
-			if errUpdates != nil {
-				rootLogger.Error("Failed to fetch profiles from steam api", zap.Error(errUpdates))
-				continue
-			}
-			for _, r := range results {
-				select {
-				case gameStateUpdate <- r:
-				default:
-					rootLogger.Error("Game update channel full")
-				}
-			}
-			queuedUpdates = nil
 		case update := <-gameStateUpdate:
 			rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
 			var sourcePlayer *store.Player
+			var errSource error
 			if update.source.Valid() {
-				sourcePlayer = GetPlayer(update.source)
+				sourcePlayer, errSource = GetPlayerOrCreate(ctx, update.source, true)
+				if errSource != nil {
+					rootLogger.Error("failed to get source player", zap.Error(errSource))
+					return
+				}
 				if sourcePlayer == nil && update.kind != updateStatus {
 					// Only register a new user to track once we received a status line
 					continue
@@ -644,7 +591,8 @@ func gameStateUpdater(ctx context.Context) {
 			}
 			switch update.kind {
 			case updateMessage:
-				if errUm := onUpdateMessage(ctx, update.data.(messageEvent)); errUm != nil {
+				evt := update.data.(messageEvent)
+				if errUm := AddUserMessage(ctx, sourcePlayer.SteamId, evt.message, evt.dead, evt.teamOnly); errUm != nil {
 					rootLogger.Error("Failed to handle user message", zap.Error(errUm))
 					continue
 				}
@@ -656,7 +604,7 @@ func gameStateUpdater(ctx context.Context) {
 			case updateBans:
 				onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
 			case updateStatus:
-				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
+				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent)); errUpdate != nil {
 					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
 				}
 			case updateLobby:
@@ -714,26 +662,17 @@ func onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func onUpdateMessage(ctx context.Context, msg messageEvent) error {
-	player := getPlayerByName(msg.name)
-	if player == nil {
-		return errors.Errorf("Unknown name: %v", msg.name)
+func AddUserMessage(ctx context.Context, sid64 steamid.SID64, message string, dead bool, teamOnly bool) error {
+	player, playerErr := GetPlayerOrCreate(ctx, sid64, false)
+	if playerErr != nil {
+		return playerErr
 	}
-
-	um := store.UserMessage{}
-	playersMu.RLock()
-	um.Player = player.Name
-	um.Team = player.Team
-	um.PlayerSID = player.SteamId
-	um.UserId = player.UserId
-	playersMu.RUnlock()
-	um.Message = msg.message
-	um.Created = msg.createdAt
-	um.Dead = msg.dead
-	um.TeamOnly = msg.teamOnly
-
-	if errSaveMsg := dataStore.SaveMessage(ctx, &um); errSaveMsg != nil {
-		rootLogger.Error("Error trying to store user message log", zap.Error(errSaveMsg))
+	um, errMessage := store.NewUserMessage(player.SteamId, message, dead, teamOnly)
+	if errMessage != nil {
+		return errMessage
+	}
+	if errSave := dataStore.SaveMessage(ctx, um); errSave != nil {
+		return errSave
 	}
 	if match := rules.MatchMessage(um.Message); match != nil {
 		triggerMatch(player, match)
@@ -792,21 +731,10 @@ func onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	player.Touch()
 }
 
-func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
-	player := GetPlayer(steamID)
-	if player == nil {
-		player = store.NewPlayer(steamID, update.name)
-		if errCreate := dataStore.LoadOrCreatePlayer(ctx, steamID, player); errCreate != nil {
-			return errors.Wrap(errCreate, "Error trying to load/create player\n")
-		}
-		if update.name != "" && update.name != player.NamePrevious {
-			if errSaveName := dataStore.SaveName(ctx, steamID, player.Name); errSaveName != nil {
-				return errors.Wrap(errSaveName, "Failed to save name")
-			}
-		}
-		playersMu.Lock()
-		players = append(players, player)
-		playersMu.Unlock()
+func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEvent) error {
+	player, errPlayer := GetPlayerOrCreate(ctx, steamID, true)
+	if errPlayer != nil {
+		return errPlayer
 	}
 	playersMu.Lock()
 	player.Ping = update.ping
@@ -814,9 +742,6 @@ func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEve
 	player.Name = update.name
 	player.Connected = update.connected.Seconds()
 	player.UpdatedOn = time.Now()
-	if time.Since(player.ProfileUpdatedOn) > DurationCacheTimeout {
-		*queuedUpdates = append(*queuedUpdates, steamID)
-	}
 	playersMu.Unlock()
 	return nil
 }

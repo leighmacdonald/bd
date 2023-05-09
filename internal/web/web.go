@@ -4,9 +4,9 @@ import (
 	"context"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -77,11 +77,14 @@ func setupRoutes(engine *gin.Engine, testMode bool) error {
 		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	}
 	engine.GET("/players", getPlayers())
+	engine.GET("/messages/:steam_id", getMessages())
 	engine.POST("/mark", postMarkPlayer())
 	engine.GET("/settings", getSettings())
 	engine.POST("/settings", postSettings())
 	engine.POST("/whitelist", updateWhitelistPlayer(true))
 	engine.DELETE("/whitelist", updateWhitelistPlayer(false))
+	engine.POST("/notes", postNotes())
+
 	// These should match routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}
@@ -100,42 +103,36 @@ type jsConfig struct {
 }
 
 func createTestPlayers(count int) store.PlayerCollection {
+	idIdx := 0
+	knownIds := steamid.Collection{
+		76561197998365611, 76561197977133523, 76561198065825165, 76561198004429398, 76561198182505218,
+		76561197989961569, 76561198183927541, 76561198005026984, 76561197997861796, 76561198377596915,
+		76561198336028289, 76561198066637626, 76561198818013048, 76561198196411029, 76561198079544034,
+		76561198008337801, 76561198042902038, 76561198013287458, 76561198038487121, 76561198046766708,
+		76561197963310062, 76561198017314810, 76561197967842214, 76561197984047970, 76561198020124821,
+		76561198010868782, 76561198022397372, 76561198016314731, 76561198087124802, 76561198024022137,
+		76561198015577906, 76561197997861796,
+	}
 	var randPlayer = func(userId int64) *store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red
 		}
-		sid := steamid.SID64(76561197960265728 + 1 + userId)
-		return &store.Player{
-			SteamId:          sid,
-			SteamIdString:    sid.String(),
-			Name:             util.RandomString(40),
-			CreatedOn:        time.Now(),
-			UpdatedOn:        time.Now(),
-			ProfileUpdatedOn: time.Now(),
-			KillsOn:          rand.Intn(20),
-			RageQuits:        rand.Intn(10),
-			DeathsBy:         rand.Intn(20),
-			Notes:            "User notes \ngo here",
-			Whitelisted:      false,
-			RealName:         "Real Name Goes Here",
-			NamePrevious:     "",
-			AccountCreatedOn: time.Time{},
-			Visibility:       0,
-			AvatarHash:       "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb",
-			CommunityBanned:  false,
-			NumberOfVACBans:  0,
-			LastVACBanOn:     nil,
-			NumberOfGameBans: 0,
-			EconomyBan:       false,
-			Team:             team,
-			Connected:        float64(rand.Intn(3600)),
-			UserId:           userId,
-			Ping:             rand.Intn(150),
-			Kills:            rand.Intn(50),
-			Deaths:           rand.Intn(300),
-			Matches:          []*rules.MatchResult{},
+		p, errP := detector.GetPlayerOrCreate(context.TODO(), knownIds[idIdx], true)
+		if errP != nil {
+			panic(errP)
 		}
+		p.KillsOn = rand.Intn(20)
+		p.RageQuits = rand.Intn(10)
+		p.DeathsBy = rand.Intn(20)
+		p.Team = team
+		p.Connected = float64(rand.Intn(3600))
+		p.UserId = userId
+		p.Ping = rand.Intn(150)
+		p.Kills = rand.Intn(50)
+		p.Deaths = rand.Intn(300)
+		idIdx++
+		return p
 	}
 	var testPlayers store.PlayerCollection
 	for i := 0; i < count; i++ {
@@ -143,6 +140,7 @@ func createTestPlayers(count int) store.PlayerCollection {
 		switch i {
 		case 1:
 			p.NumberOfVACBans = 2
+			p.Notes = "User notes \ngo here"
 			last := time.Now().AddDate(-1, 0, 0)
 			p.LastVACBanOn = &last
 		case 4:

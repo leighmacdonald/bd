@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -260,11 +259,12 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 				offline := false
 				player := detector.GetPlayer(steamId)
 				if player == nil {
-					player = store.NewPlayer(steamId, "")
-					if errOffline := detector.Store().GetPlayer(ctx, steamId, player); errOffline != nil {
+					newPlayer, errOffline := detector.GetPlayerOrCreate(ctx, steamId, false)
+					if errOffline != nil {
 						showUserError(errors.Errorf("Unknown player: %v", errOffline), window)
 						return
 					}
+					player = newPlayer
 					offline = true
 				}
 				entry := widget.NewMultiLineEntry()

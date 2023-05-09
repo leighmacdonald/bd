@@ -90,9 +90,6 @@ type Player struct {
 
 	AnnouncedGeneralLast time.Time `json:"-"`
 
-	// IsInDatabase will be true when the user is new and doesn't have a physical entry in the database yet.
-	IsInDatabase bool `json:"-"`
-
 	OurFriend bool `json:"our_friend"`
 
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
@@ -173,7 +170,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		SteamIdString:    sid64.String(),
 		CreatedOn:        t0,
 		UpdatedOn:        t0,
-		IsInDatabase:     true,
+		ProfileUpdatedOn: t0.AddDate(-1, 0, 0),
 	}
 }
 
