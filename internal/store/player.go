@@ -90,8 +90,8 @@ type Player struct {
 
 	AnnouncedGeneralLast time.Time `json:"-"`
 
-	// Dangling will be true when the user is new and doesn't have a physical entry in the database yet.
-	Dangling bool `json:"-"`
+	// IsInDatabase will be true when the user is new and doesn't have a physical entry in the database yet.
+	IsInDatabase bool `json:"-"`
 
 	OurFriend bool `json:"our_friend"`
 
@@ -173,7 +173,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		SteamIdString:    sid64.String(),
 		CreatedOn:        t0,
 		UpdatedOn:        t0,
-		Dangling:         true,
+		IsInDatabase:     true,
 	}
 }
 

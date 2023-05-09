@@ -2,23 +2,50 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
-	detector.Setup(detector.Version{}, true)
-	Setup(detector.Logger(), true)
-	retCode := m.Run()
-	os.Exit(retCode)
+	testLogger, _ := zap.NewDevelopment()
+	settings, _ := detector.NewSettings()
+	var testDb store.DataStore
+	if false {
+		// Note that we are not using :memory: due to the fact that our migration will close the connection
+		dir, errDir := os.MkdirTemp("", "bd-test")
+		if errDir != nil {
+			panic(errDir)
+		}
+		localDbPath := filepath.Join(dir, "db.sqlite?cache=shared")
+		testDb = store.New(localDbPath, testLogger)
+		testLogger.Info("USing database", zap.String("path", localDbPath))
+		defer func() {
+			_ = testDb.Close()
+			if errRemove := os.RemoveAll(dir); errRemove != nil {
+				fmt.Print("Failed to remove temp db")
+			}
+		}()
+	} else {
+		testDb = store.New(":memory:", testLogger)
+	}
+	if errDb := testDb.Init(); errDb != nil {
+		panic(errDb)
+	}
+	detector.Init(detector.Version{}, settings, testLogger, testDb, true)
+	Init(detector.Logger(), true)
+	os.Exit(m.Run())
 }
 
 func fetchIntoWithStatus(t *testing.T, method string, path string, status int, out any, body any) {
@@ -51,49 +78,100 @@ func TestGetPlayers(t *testing.T) {
 }
 
 func TestGetSettingsHandler(t *testing.T) {
-	var wus webUserSettings
-	fetchIntoWithStatus(t, "GET", "/settings", http.StatusOK, &wus, nil)
-	s := webUserSettings{UserSettings: detector.Settings(), UniqueTags: rules.UniqueTags()}
-	require.Equal(t, s.SteamID, wus.SteamID)
-	require.Equal(t, s.SteamDir, wus.SteamDir)
-	require.Equal(t, s.AutoLaunchGame, wus.AutoLaunchGame)
-	require.Equal(t, s.AutoCloseOnGameExit, wus.AutoCloseOnGameExit)
-	require.Equal(t, s.APIKey, wus.APIKey)
-	require.Equal(t, s.DisconnectedTimeout, wus.DisconnectedTimeout)
-	require.Equal(t, s.DiscordPresenceEnabled, wus.DiscordPresenceEnabled)
-	require.Equal(t, s.KickerEnabled, wus.KickerEnabled)
-	require.Equal(t, s.ChatWarningsEnabled, wus.ChatWarningsEnabled)
-	require.Equal(t, s.PartyWarningsEnabled, wus.PartyWarningsEnabled)
-	require.Equal(t, s.KickTags, wus.KickTags)
-	require.Equal(t, s.VoiceBansEnabled, wus.VoiceBansEnabled)
-	require.Equal(t, s.DebugLogEnabled, wus.DebugLogEnabled)
-	require.Equal(t, s.Lists, wus.Lists)
-	require.Equal(t, s.Links, wus.Links)
-	require.Equal(t, s.RCONStatic, wus.RCONStatic)
-	require.Equal(t, s.GUIEnabled, wus.GUIEnabled)
-	require.Equal(t, s.HTTPEnabled, wus.HTTPEnabled)
-	require.Equal(t, s.HTTPListenAddr, wus.HTTPListenAddr)
-	require.Equal(t, s.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
-	require.Equal(t, s.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
-}
-
-func TestPostSettingsHandler(t *testing.T) {
-	s := detector.Settings()
-	newSettings := *s
-	newSettings.TF2Dir = "new/dir"
-	fetchIntoWithStatus(t, "POST", "/settings", http.StatusNoContent, nil, newSettings)
-	s2 := detector.Settings()
-	require.Equal(t, newSettings.TF2Dir, s2.TF2Dir)
+	t.Run("Get Settings", func(t *testing.T) {
+		var wus webUserSettings
+		fetchIntoWithStatus(t, "GET", "/settings", http.StatusOK, &wus, nil)
+		s := webUserSettings{UserSettings: detector.Settings(), UniqueTags: rules.UniqueTags()}
+		require.Equal(t, s.SteamID, wus.SteamID)
+		require.Equal(t, s.SteamDir, wus.SteamDir)
+		require.Equal(t, s.AutoLaunchGame, wus.AutoLaunchGame)
+		require.Equal(t, s.AutoCloseOnGameExit, wus.AutoCloseOnGameExit)
+		require.Equal(t, s.APIKey, wus.APIKey)
+		require.Equal(t, s.DisconnectedTimeout, wus.DisconnectedTimeout)
+		require.Equal(t, s.DiscordPresenceEnabled, wus.DiscordPresenceEnabled)
+		require.Equal(t, s.KickerEnabled, wus.KickerEnabled)
+		require.Equal(t, s.ChatWarningsEnabled, wus.ChatWarningsEnabled)
+		require.Equal(t, s.PartyWarningsEnabled, wus.PartyWarningsEnabled)
+		require.Equal(t, s.KickTags, wus.KickTags)
+		require.Equal(t, s.VoiceBansEnabled, wus.VoiceBansEnabled)
+		require.Equal(t, s.DebugLogEnabled, wus.DebugLogEnabled)
+		require.Equal(t, s.Lists, wus.Lists)
+		require.Equal(t, s.Links, wus.Links)
+		require.Equal(t, s.RCONStatic, wus.RCONStatic)
+		require.Equal(t, s.GUIEnabled, wus.GUIEnabled)
+		require.Equal(t, s.HTTPEnabled, wus.HTTPEnabled)
+		require.Equal(t, s.HTTPListenAddr, wus.HTTPListenAddr)
+		require.Equal(t, s.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
+		require.Equal(t, s.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
+	})
+	t.Run("Save Settings", func(t *testing.T) {
+		s := detector.Settings()
+		newSettings := *s
+		newSettings.TF2Dir = "new/dir"
+		fetchIntoWithStatus(t, "POST", "/settings", http.StatusNoContent, nil, newSettings)
+		s2 := detector.Settings()
+		require.Equal(t, newSettings.TF2Dir, s2.TF2Dir)
+	})
 }
 
 func TestPostMarkPlayerHandler(t *testing.T) {
 	pls := createTestPlayers(1)
 	p := pls[0]
 	req := postMarkPlayerOpts{
-		SteamID: p.SteamIdString,
-		Attrs:   []string{"cheater", "test"},
+		steamIdOpt: steamIdOpt{SteamID: p.SteamIdString},
+		Attrs:      []string{"cheater", "test"},
 	}
-	fetchIntoWithStatus(t, "POST", "/mark", http.StatusNoContent, nil, req)
-	matches := rules.MatchSteam(p.SteamId)
-	require.True(t, len(matches) > 0)
+	t.Run("Mark Player", func(t *testing.T) {
+		fetchIntoWithStatus(t, "POST", "/mark", http.StatusNoContent, nil, req)
+		matches := rules.MatchSteam(p.SteamId)
+		require.True(t, len(matches) > 0)
+	})
+	t.Run("Mark Duplicate Player", func(t *testing.T) {
+		fetchIntoWithStatus(t, "POST", "/mark", http.StatusConflict, nil, req)
+		matches := rules.MatchSteam(p.SteamId)
+		require.True(t, len(matches) > 0)
+	})
+	t.Run("Mark Without Attrs", func(t *testing.T) {
+		fetchIntoWithStatus(t, "POST", "/mark", http.StatusBadRequest, nil, postMarkPlayerOpts{
+			steamIdOpt: steamIdOpt{SteamID: p.SteamIdString},
+			Attrs:      []string{},
+		})
+		matches := rules.MatchSteam(p.SteamId)
+		require.True(t, len(matches) > 0)
+	})
+	t.Run("Mark bad steamid", func(t *testing.T) {
+		fetchIntoWithStatus(t, "POST", "/mark", http.StatusBadRequest, nil, postMarkPlayerOpts{
+			steamIdOpt: steamIdOpt{SteamID: "blah"},
+			Attrs:      []string{"cheater", "test"},
+		})
+		matches := rules.MatchSteam(p.SteamId)
+		require.True(t, len(matches) > 0)
+	})
+}
+
+func TestWhitelistPlayerHandler(t *testing.T) {
+	pls := createTestPlayers(1)
+	p := pls[0]
+	req := steamIdOpt{
+		SteamID: p.SteamIdString,
+	}
+	require.NoError(t, detector.Mark(context.TODO(), p.SteamId, []string{"test_mark"}))
+
+	t.Run("Whitelist Player", func(t *testing.T) {
+		fetchIntoWithStatus(t, "POST", "/whitelist", http.StatusNoContent, nil, req)
+		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamId)
+		require.NoError(t, e)
+		require.True(t, plr.Whitelisted)
+		require.Nil(t, rules.MatchSteam(pls[0].SteamId))
+		require.True(t, rules.Whitelisted(pls[0].SteamId))
+	})
+	t.Run("Remove Player Whitelist", func(t *testing.T) {
+		fetchIntoWithStatus(t, "DELETE", "/whitelist", http.StatusNoContent, nil, req)
+		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamId)
+		require.NoError(t, e)
+		require.False(t, plr.Whitelisted)
+		require.NotNil(t, rules.MatchSteam(pls[0].SteamId))
+		require.False(t, rules.Whitelisted(pls[0].SteamId))
+	})
+
 }

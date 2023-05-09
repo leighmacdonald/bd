@@ -6,6 +6,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/pkg/errors"
 	"net/http"
 	"os"
 	"sync"
@@ -54,9 +55,22 @@ func postSettings() gin.HandlerFunc {
 	}
 }
 
+type steamIdOpt struct {
+	SteamID string `json:"steam_id"`
+}
+
+func (so steamIdOpt) ParseSid(ctx *gin.Context) (steamid.SID64, bool) {
+	sid, errParse := steamid.StringToSID64(so.SteamID)
+	if errParse != nil || !sid.Valid() {
+		responseErr(ctx, http.StatusBadRequest, nil)
+		return 0, false
+	}
+	return sid, true
+}
+
 type postMarkPlayerOpts struct {
-	SteamID string   `json:"steam_id"`
-	Attrs   []string `json:"attrs"`
+	steamIdOpt
+	Attrs []string `json:"attrs"`
 }
 
 func postMarkPlayer() gin.HandlerFunc {
@@ -67,10 +81,36 @@ func postMarkPlayer() gin.HandlerFunc {
 		}
 		sid, errSid := steamid.StringToSID64(opts.SteamID)
 		if errSid != nil {
+			responseErr(ctx, http.StatusBadRequest, nil)
+			return
+		}
+		if len(opts.Attrs) == 0 {
+			responseErr(ctx, http.StatusBadRequest, nil)
+			return
+		}
+		if errMark := detector.Mark(ctx, sid, opts.Attrs); errMark != nil {
+			if errors.Is(errMark, rules.ErrDuplicateSteamID) {
+				responseErr(ctx, http.StatusConflict, nil)
+				return
+			}
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
 		}
-		if errMark := detector.Mark(sid, opts.Attrs); errMark != nil {
+		responseOK(ctx, http.StatusNoContent, nil)
+	}
+}
+
+func updateWhitelistPlayer(enable bool) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var opts steamIdOpt
+		if !bind(ctx, &opts) {
+			return
+		}
+		sid, sidOk := opts.ParseSid(ctx)
+		if !sidOk {
+			return
+		}
+		if errWl := detector.Whitelist(ctx, sid, enable); errWl != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
 		}

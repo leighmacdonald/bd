@@ -484,6 +484,12 @@ func (s *UserSettings) ReadDefaultOrCreate() error {
 	return errRead
 }
 
+func (s *UserSettings) MustValidate() {
+	if !(s.GetHttpEnabled() || s.GetGuiEnabled()) {
+		panic("Must enable at least one of the gui or http packages")
+	}
+}
+
 func (s *UserSettings) ListRoot() string {
 	return filepath.Join(s.ConfigRoot(), "lists")
 }

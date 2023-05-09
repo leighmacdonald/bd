@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	errDuplicateSteamID = errors.New("duplicate steam id")
+	ErrDuplicateSteamID = errors.New("duplicate steam id")
 
 	rulesLists  []*RuleSchema
 	playerLists []*PlayerListSchema
 	knownTags   []string
+	whitelist   steamid.Collection
 	mu          *sync.RWMutex
 )
 
@@ -26,7 +27,6 @@ func init() {
 	mu = &sync.RWMutex{}
 	playerLists = append(playerLists, NewPlayerListSchema())
 	rulesLists = append(rulesLists, NewRuleSchema())
-
 }
 
 const (
@@ -38,6 +38,38 @@ type MarkOpts struct {
 	Attributes []string
 	Proof      []string
 	Name       string
+}
+
+func Whitelisted(sid64 steamid.SID64) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return whitelist.Contains(sid64)
+}
+
+func WhitelistAdd(sid64 steamid.SID64) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if !whitelist.Contains(sid64) {
+		whitelist = append(whitelist, sid64)
+		return true
+	}
+	return false
+}
+
+func WhitelistRemove(sid64 steamid.SID64) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	removed := false
+	var newWl steamid.Collection
+	for _, wl := range whitelist {
+		if sid64 == wl {
+			removed = true
+			continue
+		}
+		newWl = append(newWl, wl)
+	}
+	whitelist = newWl
+	return removed
 }
 
 func FindNewestEntries(max int, validAttrs []string) steamid.Collection {
@@ -151,9 +183,9 @@ func Mark(opts MarkOpts) error {
 			}
 			if len(newAttr) == 0 {
 				mu.Unlock()
-				return errDuplicateSteamID
+				return ErrDuplicateSteamID
 			}
-			playerLists[0].Players[idx].Attributes = append(playerLists[0].Players[idx].Attributes, newAttr...)
+			userList.Players[idx].Attributes = append(userList.Players[idx].Attributes, newAttr...)
 			updatedAttributes = true
 		}
 	}
@@ -336,6 +368,11 @@ func (rs *RuleSchema) matchTextType(text string, matchType textMatchType) *Match
 }
 
 func MatchSteam(steamID steamid.SID64) []*MatchResult {
+	if Whitelisted(steamID) {
+		return nil
+	}
+	mu.RLock()
+	defer mu.RUnlock()
 	var matches []*MatchResult
 	for _, list := range playerLists {
 		for _, sm := range list.matchersSteam {

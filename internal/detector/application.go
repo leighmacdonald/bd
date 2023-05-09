@@ -3,9 +3,9 @@ package detector
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -29,6 +29,10 @@ import (
 )
 
 var ErrInvalidReadyState = errors.New("Invalid ready state")
+
+const (
+	profileAgeLimit = time.Hour * 24
+)
 
 var (
 	players           store.PlayerCollection
@@ -74,7 +78,7 @@ func init() {
 	settings = newSettings
 }
 
-func mustCreateLogger(logFile string) *zap.Logger {
+func MustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
 	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
@@ -93,25 +97,12 @@ func mustCreateLogger(logFile string) *zap.Logger {
 	return logger.Named("bd")
 }
 
-// Setup allocates and configured the core application. Start must should be called after this.
+// Init allocates and configured the core application. Start must should be called after this.
 // If testMode is enabled, a temporary database is used and no user settings or lists get used.
-func Setup(versionInfo Version, testMode bool) {
-	userSettings, errSettings := NewSettings()
-	if errSettings != nil {
-		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
-		os.Exit(1)
-	}
-	if !testMode {
-		if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
-			fmt.Printf("Failed to read settings: %v", errReadSettings)
-		}
-	}
-	settings = userSettings
-	logFilePath := ""
-	if settings.GetDebugLogEnabled() {
-		logFilePath = settings.LogFilePath()
-	}
-	rootLogger = mustCreateLogger(logFilePath)
+func Init(versionInfo Version, s *UserSettings, logger *zap.Logger, ds store.DataStore, testMode bool) {
+	settings = s
+	dataStore = ds
+	rootLogger = logger
 	rootLogger.Info("bd starting", zap.String("Version", versionInfo.Version))
 	if errTranslations := tr.Init(); errTranslations != nil {
 		rootLogger.Error("Failed to load translations", zap.Error(errTranslations))
@@ -162,15 +153,6 @@ func Setup(versionInfo Version, testMode bool) {
 			}
 		}
 	}
-	dbPath := settings.DBPath()
-	if testMode {
-		dbPath = ":memory:"
-	}
-	newDataStore := store.New(dbPath, rootLogger)
-	if errMigrate := newDataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
-	}
-	dataStore = newDataStore
 
 	fsCache = newCache(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
 	parser = newLogParser(rootLogger, logChan, eventChan)
@@ -317,13 +299,10 @@ func AddPlayer(p *store.Player) {
 	players = append(players, p)
 }
 
-func UnMark(sid64 steamid.SID64) error {
-	player := GetPlayer(sid64)
-	if player == nil {
-		player = store.NewPlayer(sid64, "")
-		if err := dataStore.GetPlayer(context.Background(), sid64, player); err != nil {
-			return err
-		}
+func UnMark(ctx context.Context, sid64 steamid.SID64) error {
+	_, errPlayer := GetPlayerOrCreate(ctx, sid64)
+	if errPlayer != nil {
+		return errPlayer
 	}
 	if !rules.Unmark(sid64) {
 		return errors.New("Mark does not exist")
@@ -347,19 +326,15 @@ func UnMark(sid64 steamid.SID64) error {
 	return nil
 }
 
-func Mark(sid64 steamid.SID64, attrs []string) error {
-	player := GetPlayer(sid64)
-	if player == nil {
-		player = store.NewPlayer(sid64, "")
-		if err := dataStore.GetPlayer(context.Background(), sid64, player); err != nil {
-			return err
-		}
+func Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
+	player, errPlayer := GetPlayerOrCreate(ctx, sid64)
+	if errPlayer != nil {
+		return errPlayer
 	}
 	name := player.Name
 	if name == "" {
 		name = player.NamePrevious
 	}
-
 	if errMark := rules.Mark(rules.MarkOpts{
 		SteamID:    sid64,
 		Attributes: attrs,
@@ -379,15 +354,23 @@ func Mark(sid64 steamid.SID64, attrs []string) error {
 	return nil
 }
 
-func Whitelist(sid64 steamid.SID64, enabled bool) error {
-	gameStateUpdate <- updateStateEvent{
-		kind:   updateWhitelist,
-		source: settings.GetSteamId(),
-		data: updateWhitelistEvent{
-			target:  sid64,
-			enabled: enabled,
-		},
+func Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
+	player, playerErr := GetPlayerOrCreate(ctx, sid64)
+	if playerErr != nil {
+		return playerErr
 	}
+	player.Whitelisted = enabled
+	player.Touch()
+	if errSave := dataStore.SavePlayer(ctx, player); errSave != nil {
+		return errSave
+	}
+	if enabled {
+		rules.WhitelistAdd(sid64)
+	} else {
+		rules.WhitelistRemove(sid64)
+	}
+	rootLogger.Info("Update player whitelist status successfully",
+		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", enabled))
 	return nil
 }
 
@@ -462,6 +445,72 @@ func statusUpdater(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (*store.Player, error) {
+	player := GetPlayer(sid64)
+	if player == nil {
+		player = store.NewPlayer(sid64, "")
+		if errGet := dataStore.GetPlayer(ctx, sid64, player); errGet != nil {
+			if !errors.Is(errGet, sql.ErrNoRows) {
+				return nil, errors.Wrap(errGet, "Failed to fetch player record")
+			}
+			player.IsInDatabase = true
+		}
+	}
+	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit {
+		return player, nil
+	}
+	mu := sync.RWMutex{}
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		bans, errBans := steamweb.GetPlayerBans(steamid.Collection{sid64})
+		if errBans != nil || len(bans) == 0 {
+			rootLogger.Error("Failed to fetch player bans", zap.Error(errBans))
+		} else {
+			mu.Lock()
+			defer mu.Unlock()
+			ban := bans[0]
+			player.NumberOfVACBans = ban.NumberOfVACBans
+			player.NumberOfGameBans = ban.NumberOfGameBans
+			player.CommunityBanned = ban.CommunityBanned
+			if ban.DaysSinceLastBan > 0 {
+				subTime := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
+				player.LastVACBanOn = &subTime
+			}
+			player.EconomyBan = ban.EconomyBan != "none"
+			player.ProfileUpdatedOn = time.Now()
+
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		summaries, errSummaries := steamweb.PlayerSummaries(steamid.Collection{sid64})
+		if errSummaries != nil || len(summaries) == 0 {
+			rootLogger.Error("Failed to fetch player summary", zap.Error(errSummaries))
+		} else {
+			mu.Lock()
+			defer mu.Unlock()
+			summary := summaries[0]
+			player.Visibility = store.ProfileVisibility(summary.CommunityVisibilityState)
+			if player.AvatarHash != summary.Avatar {
+				go performAvatarDownload(ctx, sid64, summary.Avatar)
+			}
+			player.AvatarHash = summary.AvatarHash
+			player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
+			player.RealName = summary.RealName
+			player.ProfileUpdatedOn = time.Now()
+		}
+	}()
+	wg.Wait()
+
+	if errSave := dataStore.SavePlayer(ctx, player); errSave != nil {
+		return nil, errors.Wrap(errSave, "Error trying to save player")
+	}
+
+	return player, nil
 }
 
 func GetPlayer(sid64 steamid.SID64) *store.Player {
@@ -554,7 +603,6 @@ func gameStateUpdater(ctx context.Context) {
 	defer rootLogger.Debug("gameStateUpdater exited")
 	var queuedUpdates steamid.Collection
 	updateTimer := time.NewTicker(DurationUpdateTimer)
-	queueAvatars := make(chan steamid.SID64, 32)
 	for {
 		select {
 		case <-ctx.Done():
@@ -584,13 +632,6 @@ func gameStateUpdater(ctx context.Context) {
 				}
 			}
 			queuedUpdates = nil
-		case sid64 := <-queueAvatars:
-			rootLogger.Debug("Avatar update input received")
-			p := GetPlayer(sid64)
-			if p == nil || p.AvatarHash == "" {
-				continue
-			}
-			go performAvatarDownload(ctx, sid64, p.AvatarHash)
 		case update := <-gameStateUpdate:
 			rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
 			var sourcePlayer *store.Player
@@ -614,16 +655,9 @@ func gameStateUpdater(ctx context.Context) {
 				}
 			case updateBans:
 				onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
-			case updateProfile:
-				onUpdateProfile(update.source, update.data.(steamweb.PlayerSummary))
-				queueAvatars <- update.source
 			case updateStatus:
 				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent), &queuedUpdates); errUpdate != nil {
 					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
-				}
-			case updateWhitelist:
-				if errUpdate := onUpdateWhitelist(update.data.(updateWhitelistEvent)); errUpdate != nil {
-					rootLogger.Error("updateWhitelist error", zap.Error(errUpdate))
 				}
 			case updateLobby:
 				onUpdateLobby(update.source, update.data.(lobbyEvent))
@@ -758,18 +792,6 @@ func onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
 	player.Touch()
 }
 
-func onUpdateProfile(steamID steamid.SID64, summary steamweb.PlayerSummary) {
-	player := GetPlayer(steamID)
-	playersMu.Lock()
-	defer playersMu.Unlock()
-	player.Visibility = store.ProfileVisibility(summary.CommunityVisibilityState)
-	player.AvatarHash = summary.AvatarHash
-	player.AccountCreatedOn = time.Unix(int64(summary.TimeCreated), 0)
-	player.RealName = summary.RealName
-	player.ProfileUpdatedOn = time.Now()
-	player.Touch()
-}
-
 func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEvent, queuedUpdates *steamid.Collection) error {
 	player := GetPlayer(steamID)
 	if player == nil {
@@ -796,20 +818,6 @@ func onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEve
 		*queuedUpdates = append(*queuedUpdates, steamID)
 	}
 	playersMu.Unlock()
-	return nil
-}
-
-func onUpdateWhitelist(event updateWhitelistEvent) error {
-	player := GetPlayer(event.target)
-	if player == nil {
-		return errors.New("Unknown player, cannot update whitelist")
-	}
-	playersMu.Lock()
-	player.Whitelisted = event.enabled
-	player.Touch()
-	playersMu.Unlock()
-	rootLogger.Info("Update player whitelist status successfully",
-		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", event.enabled))
 	return nil
 }
 

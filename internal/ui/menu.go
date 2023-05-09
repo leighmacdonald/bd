@@ -39,22 +39,22 @@ func newMenuButton(menu *fyne.Menu) *menuButton {
 
 const newItemLabel = "New..."
 
-func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList binding.StringList, markFunc detector.MarkFunc) *fyne.Menu {
+func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList binding.StringList) *fyne.Menu {
 	mkAttr := func(attrName string) func() {
 		clsAttribute := attrName
 		clsSteamId := sid64
 		return func() {
-			showUserError(markFunc(clsSteamId, []string{clsAttribute}), window)
+			showUserError(detector.Mark(context.TODO(), clsSteamId, []string{clsAttribute}), window)
 		}
 	}
 	markAsMenuLabel := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 		DefaultMessage: &i18n.Message{ID: "menu_markas_label", Other: "Mark As..."}})
 	markAsMenu := fyne.NewMenu(markAsMenuLabel)
-	knownAttributes, _ := attrList.Get()
-	sort.Slice(knownAttributes, func(i, j int) bool {
-		return strings.ToLower(knownAttributes[i]) < strings.ToLower(knownAttributes[j])
+	knownAttrs, _ := attrList.Get()
+	sort.Slice(knownAttrs, func(i, j int) bool {
+		return strings.ToLower(knownAttrs[i]) < strings.ToLower(knownAttrs[j])
 	})
-	for _, mi := range knownAttributes {
+	for _, mi := range knownAttrs {
 		markAsMenu.Items = append(markAsMenu.Items, fyne.NewMenuItem(mi, mkAttr(mi)))
 	}
 	entry := widget.NewEntry()
@@ -64,7 +64,7 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 				DefaultMessage: &i18n.Message{ID: "error_attribute_empty", Other: "Attribute cannot be empty"}})
 			return errors.New(msg)
 		}
-		for _, knownAttr := range knownAttributes {
+		for _, knownAttr := range knownAttrs {
 			if strings.EqualFold(knownAttr, s) {
 				msg := tr.Localizer.MustLocalize(&i18n.LocalizeConfig{
 					DefaultMessage: &i18n.Message{ID: "error_attribute_duplicate", Other: "Duplicate attribute: {{ .Attr }} "},
@@ -85,7 +85,7 @@ func generateAttributeMenu(window fyne.Window, sid64 steamid.SID64, attrList bin
 				if !success {
 					return
 				}
-				showUserError(markFunc(sid64, []string{entry.Text}), window)
+				showUserError(detector.Mark(context.TODO(), sid64, []string{entry.Text}), window)
 			}, window)
 		w.Show()
 	}))
@@ -163,14 +163,14 @@ func generateWhitelistMenu(parent fyne.Window, steamID steamid.SID64) *fyne.Menu
 			Icon:  theme.ContentAddIcon(),
 			Label: labelAdd,
 			Action: func() {
-				showUserError(detector.Whitelist(steamID, true), parent)
+				showUserError(detector.Whitelist(context.TODO(), steamID, true), parent)
 			},
 		},
 		&fyne.MenuItem{
 			Icon:  theme.ContentRemoveIcon(),
 			Label: labelRemove,
 			Action: func() {
-				showUserError(detector.Whitelist(steamID, false), parent)
+				showUserError(detector.Whitelist(context.TODO(), steamID, false), parent)
 			},
 		},
 	)
@@ -216,13 +216,13 @@ func generateUserMenu(ctx context.Context, window fyne.Window, steamId steamid.S
 	unMarkFn := func(steamID steamid.SID64) func() {
 		clsSteamId := steamID
 		return func() {
-			showUserError(detector.UnMark(clsSteamId), window)
+			showUserError(detector.UnMark(ctx, clsSteamId), window)
 		}
 	}
 	items = append(items, []*fyne.MenuItem{
 		{
 			Icon:      theme.ZoomFitIcon(),
-			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes, detector.Mark),
+			ChildMenu: generateAttributeMenu(window, steamId, knownAttributes),
 			Label:     markTitle,
 		},
 		{
