@@ -5,7 +5,6 @@ import (
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"net/http"
 	"os"
@@ -14,12 +13,11 @@ import (
 
 func getMessages() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
-		if errSid != nil {
-			responseErr(ctx, http.StatusBadRequest, nil)
+		sid, sidOk := steamIdParam(ctx)
+		if !sidOk {
 			return
 		}
-		messages, errMsgs := detector.Store().FetchMessages(ctx, steamId)
+		messages, errMsgs := detector.Store().FetchMessages(ctx, sid)
 		if errMsgs != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
@@ -30,12 +28,11 @@ func getMessages() gin.HandlerFunc {
 
 func getNames() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
-		if errSid != nil {
-			responseErr(ctx, http.StatusBadRequest, nil)
+		sid, sidOk := steamIdParam(ctx)
+		if !sidOk {
 			return
 		}
-		messages, errMsgs := detector.Store().FetchNames(ctx, steamId)
+		messages, errMsgs := detector.Store().FetchNames(ctx, sid)
 		if errMsgs != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
@@ -87,33 +84,18 @@ func postSettings() gin.HandlerFunc {
 	}
 }
 
-type SteamIdOpt struct {
-	SteamID string `json:"steam_id"`
-}
-
-func (so SteamIdOpt) ParseSid(ctx *gin.Context) (steamid.SID64, bool) {
-	sid, errParse := steamid.StringToSID64(so.SteamID)
-	if errParse != nil || !sid.Valid() {
-		responseErr(ctx, http.StatusBadRequest, nil)
-		return 0, false
-	}
-	return sid, true
-}
-
 type postNotesOpts struct {
-	SteamIdOpt
 	Note string `json:"note"`
 }
 
 func postNotes() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var opts postNotesOpts
-		if !bind(ctx, &opts) {
+		sid, sidOk := steamIdParam(ctx)
+		if !sidOk {
 			return
 		}
-		sid, errSid := steamid.StringToSID64(opts.SteamID)
-		if errSid != nil {
-			responseErr(ctx, http.StatusBadRequest, nil)
+		var opts postNotesOpts
+		if !bind(ctx, &opts) {
 			return
 		}
 		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid, false)
@@ -131,19 +113,17 @@ func postNotes() gin.HandlerFunc {
 }
 
 type postMarkPlayerOpts struct {
-	SteamIdOpt
 	Attrs []string `json:"attrs"`
 }
 
 func postMarkPlayer() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var opts postMarkPlayerOpts
-		if !bind(ctx, &opts) {
+		sid, sidOk := steamIdParam(ctx)
+		if !sidOk {
 			return
 		}
-		sid, errSid := steamid.StringToSID64(opts.SteamID)
-		if errSid != nil {
-			responseErr(ctx, http.StatusBadRequest, nil)
+		var opts postMarkPlayerOpts
+		if !bind(ctx, &opts) {
 			return
 		}
 		if len(opts.Attrs) == 0 {
@@ -164,11 +144,7 @@ func postMarkPlayer() gin.HandlerFunc {
 
 func updateWhitelistPlayer(enable bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var opts SteamIdOpt
-		if !bind(ctx, &opts) {
-			return
-		}
-		sid, sidOk := opts.ParseSid(ctx)
+		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
 			return
 		}

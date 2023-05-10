@@ -79,14 +79,14 @@ func setupRoutes(engine *gin.Engine, testMode bool) error {
 	engine.GET("/players", getPlayers())
 	engine.GET("/messages/:steam_id", getMessages())
 	engine.GET("/names/:steam_id", getNames())
-	engine.POST("/mark", postMarkPlayer())
+	engine.POST("/mark/:steam_id", postMarkPlayer())
 	engine.GET("/settings", getSettings())
 	engine.POST("/settings", postSettings())
-	engine.POST("/whitelist", updateWhitelistPlayer(true))
-	engine.DELETE("/whitelist", updateWhitelistPlayer(false))
-	engine.POST("/notes", postNotes())
+	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(true))
+	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(false))
+	engine.POST("/notes/:steam_id", postNotes())
 
-	// These should match routes defined in the frontend. This allows us to use the browser
+	// These should match any routes defined in the frontend. This allows us to use the browser
 	// based routing
 	jsRoutes := []string{"/"}
 	for _, rt := range jsRoutes {
@@ -163,6 +163,19 @@ func createTestPlayers(count int) store.PlayerCollection {
 		testPlayers = append(testPlayers, p)
 	}
 	return testPlayers
+}
+
+func steamIdParam(ctx *gin.Context) (steamid.SID64, bool) {
+	steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
+	if errSid != nil {
+		responseErr(ctx, http.StatusBadRequest, nil)
+		return 0, false
+	}
+	if !steamId.Valid() {
+		responseErr(ctx, http.StatusBadRequest, nil)
+		return 0, false
+	}
+	return steamId, true
 }
 
 func Start(ctx context.Context) {

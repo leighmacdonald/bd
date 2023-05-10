@@ -413,7 +413,7 @@ func statusUpdater(ctx context.Context) {
 func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*store.Player, error) {
 	player := GetPlayer(sid64)
 	if player == nil {
-		player = store.NewPlayer(sid64, "unknown")
+		player = store.NewPlayer(sid64, "")
 		if errGet := dataStore.GetPlayer(ctx, sid64, true, player); errGet != nil {
 			if !errors.Is(errGet, sql.ErrNoRows) {
 				return nil, errors.Wrap(errGet, "Failed to fetch player record")
