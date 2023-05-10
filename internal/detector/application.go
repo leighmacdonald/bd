@@ -592,7 +592,7 @@ func gameStateUpdater(ctx context.Context) {
 			switch update.kind {
 			case updateMessage:
 				evt := update.data.(messageEvent)
-				if errUm := AddUserMessage(ctx, sourcePlayer.SteamId, evt.message, evt.dead, evt.teamOnly); errUm != nil {
+				if errUm := AddUserMessage(ctx, sourcePlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
 					rootLogger.Error("Failed to handle user message", zap.Error(errUm))
 					continue
 				}
@@ -662,11 +662,21 @@ func onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 	}
 }
 
-func AddUserMessage(ctx context.Context, sid64 steamid.SID64, message string, dead bool, teamOnly bool) error {
-	player, playerErr := GetPlayerOrCreate(ctx, sid64, false)
-	if playerErr != nil {
-		return playerErr
+func AddUserName(ctx context.Context, player *store.Player, name string) error {
+	unh, errMessage := store.NewUserNameHistory(player.SteamId, name)
+	if errMessage != nil {
+		return errMessage
 	}
+	if errSave := dataStore.SaveUserNameHistory(ctx, unh); errSave != nil {
+		return errSave
+	}
+	if match := rules.MatchName(unh.Name); match != nil {
+		triggerMatch(player, match)
+	}
+	return nil
+}
+
+func AddUserMessage(ctx context.Context, player *store.Player, message string, dead bool, teamOnly bool) error {
 	um, errMessage := store.NewUserMessage(player.SteamId, message, dead, teamOnly)
 	if errMessage != nil {
 		return errMessage

@@ -20,16 +20,20 @@ const (
 	Blu
 )
 
+type BaseSID struct {
+	SteamId       steamid.SID64 `json:"-"`
+	SteamIdString string        `json:"steam_id"`
+}
+
 type UserMessage struct {
-	MessageId int64
-	Team      Team
-	Player    string
-	PlayerSID steamid.SID64
-	UserId    int64
-	Message   string
-	Created   time.Time
-	Dead      bool
-	TeamOnly  bool
+	BaseSID
+	MessageId int64     `json:"message_id"`
+	Team      Team      `json:"team"`
+	UserId    int64     `json:"user_id"`
+	Message   string    `json:"message"`
+	Created   time.Time `json:"created"`
+	Dead      bool      `json:"dead"`
+	TeamOnly  bool      `json:"team_only"`
 }
 
 func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly bool) (*UserMessage, error) {
@@ -40,11 +44,11 @@ func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly boo
 		return nil, ErrEmptyValue
 	}
 	return &UserMessage{
-		PlayerSID: sid64,
-		Message:   message,
-		Created:   time.Now(),
-		Dead:      dead,
-		TeamOnly:  teamOnly,
+		BaseSID:  BaseSID{SteamId: sid64, SteamIdString: sid64.String()},
+		Message:  message,
+		Created:  time.Now(),
+		Dead:     dead,
+		TeamOnly: teamOnly,
 	}, nil
 }
 

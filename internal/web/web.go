@@ -78,6 +78,7 @@ func setupRoutes(engine *gin.Engine, testMode bool) error {
 	}
 	engine.GET("/players", getPlayers())
 	engine.GET("/messages/:steam_id", getMessages())
+	engine.GET("/names/:steam_id", getNames())
 	engine.POST("/mark", postMarkPlayer())
 	engine.GET("/settings", getSettings())
 	engine.POST("/settings", postSettings())

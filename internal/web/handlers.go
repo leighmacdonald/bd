@@ -27,6 +27,23 @@ func getMessages() gin.HandlerFunc {
 		responseOK(ctx, http.StatusOK, messages)
 	}
 }
+
+func getNames() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
+		if errSid != nil {
+			responseErr(ctx, http.StatusBadRequest, nil)
+			return
+		}
+		messages, errMsgs := detector.Store().FetchNames(ctx, steamId)
+		if errMsgs != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			return
+		}
+		responseOK(ctx, http.StatusOK, messages)
+	}
+}
+
 func getPlayers() gin.HandlerFunc {
 	testPlayers := createTestPlayers(24)
 	return func(ctx *gin.Context) {
