@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useCallback } from 'react';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -18,7 +18,14 @@ import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPa
 import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import { validColumns } from './PlayerTable';
-import { formatSeconds, Player, Team, useUserSettings } from '../api';
+import {
+    addWhitelist,
+    deleteWhitelist,
+    formatSeconds,
+    Player,
+    Team,
+    useUserSettings
+} from '../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import SteamID from 'steamid';
 import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
@@ -26,6 +33,9 @@ import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
     player: Player;
+    onOpenNotes: (steamId: bigint, notes: string) => void;
+    onSaveNotes: (steamId: bigint, notes: string) => void;
+    onWhitelist: (steamId: bigint) => void;
 }
 
 interface userTheme {
@@ -85,7 +95,8 @@ export const rowColour = (player: Player): string => {
 
 export const TableRowContextMenu = ({
     player,
-    enabledColumns
+    enabledColumns,
+    onOpenNotes
 }: TableRowContextMenuProps): JSX.Element => {
     //const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
@@ -127,12 +138,17 @@ export const TableRowContextMenu = ({
                       mouseX: event.clientX + 2,
                       mouseY: event.clientY - 6
                   }
-                : // repeated contextmenu when it is already open closes it with Chrome 84 on Ubuntu
-                  // Other native context menus might behave different.
-                  // With this behavior we prevent contextmenu from the backdrop to re-locale existing context menus.
-                  null
+                : null
         );
     };
+
+    const onDeleteWhitelist = useCallback(async (steamId: bigint) => {
+        await deleteWhitelist(steamId);
+    }, []);
+
+    const onAddWhitelist = useCallback(async (steamId: bigint) => {
+        await addWhitelist(steamId);
+    }, []);
 
     const mouseLeave = () => {
         setHoverMenuPos(null);
@@ -331,17 +347,41 @@ export const TableRowContextMenu = ({
                     leftIcon={<BadgeOutlinedIcon color={'primary'} />}
                     label={'Name History'}
                 />
-                <IconMenuItem
-                    leftIcon={
-                        <NotificationsPausedOutlinedIcon color={'primary'} />
-                    }
-                    label={'Whitelist'}
-                />
+                {player.whitelisted ? (
+                    <IconMenuItem
+                        leftIcon={
+                            <NotificationsPausedOutlinedIcon
+                                color={'primary'}
+                            />
+                        }
+                        label={'Remove Whitelist'}
+                        onClick={async () => {
+                            await onDeleteWhitelist(player.steam_id);
+                        }}
+                    />
+                ) : (
+                    <IconMenuItem
+                        leftIcon={
+                            <NotificationsPausedOutlinedIcon
+                                color={'primary'}
+                            />
+                        }
+                        label={'Whitelist'}
+                        onClick={async () => {
+                            await onAddWhitelist(player.steam_id);
+                        }}
+                    />
+                )}
                 <IconMenuItem
                     leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
                     label={'Edit Notes'}
+                    onClick={() => {
+                        onOpenNotes(player.steam_id, player.notes);
+                        handleMenuClose();
+                    }}
                 />
             </Menu>
+
             <Popover
                 open={hoverMenuPos !== null}
                 sx={{

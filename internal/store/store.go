@@ -148,13 +148,14 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
-
-	name, errName := NewUserNameHistory(state.SteamId, state.Name)
-	if errName != nil {
-		return errName
-	}
-	if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
-		return errors.Wrap(errSaveName, "Could not save user name history")
+	if state.Name != "" {
+		name, errName := NewUserNameHistory(state.SteamId, state.Name)
+		if errName != nil {
+			return errName
+		}
+		if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
+			return errors.Wrap(errSaveName, "Could not save user name history")
+		}
 	}
 	return nil
 }
@@ -185,6 +186,19 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 	_, errExec := store.db.ExecContext(ctx, query, args...)
 	if errExec != nil {
 		return errors.Wrap(errExec, "Could not update player state")
+	}
+	var existing Player
+	if errExisting := store.GetPlayer(ctx, state.SteamId, false, &existing); errExisting != nil {
+		return errExisting
+	}
+	if existing.Name != state.Name {
+		name, errName := NewUserNameHistory(state.SteamId, state.Name)
+		if errName != nil {
+			return errName
+		}
+		if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
+			return errors.Wrap(errSaveName, "Could not save user name history")
+		}
 	}
 	return nil
 }

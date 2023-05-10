@@ -20,7 +20,8 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
-import { Player, usePlayers } from '../api';
+import { addWhitelist, Player, saveUserNote, usePlayers } from '../api';
+import { NoteEditor } from './NoteEditor';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -281,11 +282,35 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
         // Surely strings are the only types
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
+    const [openNotes, setOpenNotes] = useState(false);
+    const [notesValue, setNotesValue] = useState('');
+    const [notesSteamId, setNotesSteamId] = useState<bigint>(BigInt(0));
     const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
         getDefaultColumns()
     );
 
     const players = usePlayers();
+
+    const onOpenNotes = useCallback((steamId: bigint, notes: string) => {
+        setNotesSteamId(steamId);
+        setNotesValue(notes);
+        setOpenNotes(true);
+    }, []);
+
+    const onSaveNotes = useCallback(async (steamId: bigint, notes: string) => {
+        try {
+            await saveUserNote(steamId, notes);
+            setOpenNotes(false);
+            console.log('Updated note successfully');
+        } catch (e) {
+            console.log(`Error updating note: ${e}`);
+        }
+    }, []);
+
+    const onWhitelist = useCallback(async (steamId: bigint) => {
+        await addWhitelist(steamId);
+        console.log('Whitelist added');
+    }, []);
 
     const handleRequestSort = (
         _: React.MouseEvent<unknown>,
@@ -366,6 +391,9 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
                             {visibleRows.map((player, i) => (
                                 <TableRowContextMenu
                                     enabledColumns={enabledColumns}
+                                    onOpenNotes={onOpenNotes}
+                                    onSaveNotes={onSaveNotes}
+                                    onWhitelist={onWhitelist}
                                     player={player}
                                     key={`row-${i}-${player.steam_id}`}
                                 />
@@ -373,6 +401,15 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <NoteEditor
+                    notes={notesValue}
+                    setNotes={setNotesValue}
+                    steamId={notesSteamId}
+                    setSteamId={setNotesSteamId}
+                    open={openNotes}
+                    setOpen={setOpenNotes}
+                    onSave={onSaveNotes}
+                />
             </Stack>
         </Paper>
     );

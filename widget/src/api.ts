@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export const call = async <TRequest = null, TResponse = null>(
+const call = async <TRequest = emptyBody>(
     method: string,
     path: string,
     body?: TRequest
@@ -21,13 +21,19 @@ export const call = async <TRequest = null, TResponse = null>(
         `${location.protocol}//${location.host}`
     );
 
-    const resp = await fetch(url, opts);
-    if (!resp.ok) {
-        throw await resp.json();
-    }
-    const json: TResponse = await resp.json();
-    return json;
+    return await fetch(url, opts);
 };
+
+const callJson = async <TResponse, TRequest = emptyBody>(
+    method: string,
+    path: string,
+    body?: TRequest
+) => {
+    const resp = await call<TRequest>(method, path, body);
+    return (await resp.json()) as TResponse;
+};
+
+export interface emptyBody {}
 
 export type steamIdFormat = 'steam64' | 'steam3' | 'steam32' | 'steam';
 
@@ -129,14 +135,26 @@ export interface UserSettings {
     player_disconnect_timeout: number;
     unique_tags: string[];
 }
+export interface UserNote {
+    note: string;
+}
 
-export const getPlayers = async () => {
-    return await call<null, Player[]>('GET', 'players');
-};
+export const addWhitelist = async (steamId: bigint) =>
+    await call('POST', `whitelist/${steamId}`);
 
-export const getUserSettings = async () => {
-    return await call<null, UserSettings>('GET', 'settings');
-};
+export const deleteWhitelist = async (steamId: bigint) =>
+    await call('DELETE', `whitelist/${steamId}`);
+
+export const saveUserNote = async (steamId: bigint, notes: string) =>
+    await call<UserNote>('POST', `notes/${steamId}`, { note: notes });
+
+export const deleteUserNote = async (steamId: bigint) =>
+    await call<UserNote>('POST', `notes/${steamId}`, { note: '' });
+
+const getPlayers = async () => await callJson<Player[]>('GET', 'players');
+
+const getUserSettings = async () =>
+    await callJson<UserSettings>('GET', 'settings');
 
 export const useUserSettings = () => {
     const [settings, setSettings] = useState<UserSettings>();
