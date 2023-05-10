@@ -29,7 +29,7 @@ type DataStore interface {
 	Close() error
 	Connect() error
 	Init() error
-	SaveName(ctx context.Context, steamID steamid.SID64, name string) error
+	SaveUserNameHistory(ctx context.Context, hist *UserNameHistory) error
 	SaveMessage(ctx context.Context, message *UserMessage) error
 	SavePlayer(ctx context.Context, state *Player) error
 	SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
@@ -103,11 +103,11 @@ func (store *SqliteStore) Init() error {
 	return nil
 }
 
-func (store *SqliteStore) SaveName(ctx context.Context, steamID steamid.SID64, name string) error {
+func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNameHistory) error {
 	query, args, err := sq.
 		Insert("player_names").
 		Columns("steam_id", "name", "created_on").
-		Values(steamID, name, time.Now()).
+		Values(hist.SteamId, hist.Name, time.Now()).
 		ToSql()
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage)
 	query := sq.
 		Insert("player_messages").
 		Columns("steam_id", "message", "created_on").
-		Values(message.PlayerSID, message.Message, message.Created).
+		Values(message.SteamId, message.Message, message.Created).
 		Suffix("RETURNING \"message_id\"").
 		RunWith(store.db)
 	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageId); errExec != nil {
@@ -253,13 +253,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		Limit(1).
 		ToSql()
 	if errSql != nil {
-		if !errors.Is(errSql, sql.ErrNoRows) || !create {
-			return errSql
-		}
-		player = NewPlayer(steamID, "")
-		if errSave := store.insertPlayer(ctx, player); errSave != nil {
-			return errSave
-		}
+		return errSql
 	}
 	var prevName *string
 	rowErr := store.db.
@@ -273,8 +267,11 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	player.SteamIdString = steamID.String()
 	player.Matches = []*rules.MatchResult{}
 	if rowErr != nil {
-		if rowErr != sql.ErrNoRows {
+		if !errors.Is(rowErr, sql.ErrNoRows) || !create {
 			return rowErr
+		}
+		if errSave := store.insertPlayer(ctx, player); errSave != nil {
+			return errSave
 		}
 	}
 
@@ -314,7 +311,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 
 func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (UserMessageCollection, error) {
 	query, args, errSql := sq.
-		Select("message_id", "message", "created_on").
+		Select("steam_id", "message_id", "message", "created_on").
 		From("player_messages").
 		Where(sq.Eq{"steam_id": steamID}).
 		ToSql()
@@ -332,9 +329,10 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 	var messages UserMessageCollection
 	for rows.Next() {
 		var m UserMessage
-		if errScan := rows.Scan(&m.MessageId, &m.Message, &m.Created); errScan != nil {
+		if errScan := rows.Scan(&m.SteamId, &m.MessageId, &m.Message, &m.Created); errScan != nil {
 			return nil, errScan
 		}
+		m.SteamIdString = m.SteamId.String()
 		messages = append(messages, m)
 	}
 	return messages, nil

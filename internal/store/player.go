@@ -175,6 +175,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 }
 
 type UserNameHistory struct {
+	BaseSID
 	NameId    int64
 	Name      string
 	FirstSeen time.Time
@@ -188,4 +189,15 @@ func (names UserNameHistoryCollection) AsAny() []any {
 		bl[i] = r
 	}
 	return bl
+}
+
+func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, error) {
+	if name == "" {
+		return nil, ErrEmptyValue
+	}
+	return &UserNameHistory{
+		BaseSID:   BaseSID{SteamId: steamID, SteamIdString: steamID.String()},
+		Name:      name,
+		FirstSeen: time.Now(),
+	}, nil
 }

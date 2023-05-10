@@ -189,14 +189,29 @@ func TestPlayerNotes(t *testing.T) {
 func TestPlayerChatHistory(t *testing.T) {
 	pls := createTestPlayers(1)
 	for i := 0; i < 10; i++ {
-		require.NoError(t, detector.AddUserMessage(context.TODO(), pls[0].SteamId, util.RandomString(i+1*2), false, true))
+		require.NoError(t, detector.AddUserMessage(context.TODO(), pls[0], util.RandomString(i+1*2), false, true))
 	}
 	req := SteamIdOpt{
 		SteamID: pls[0].SteamIdString,
 	}
-	t.Run("Get History", func(t *testing.T) {
+	t.Run("Get Chat History", func(t *testing.T) {
 		var messages []*store.UserMessage
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%d", pls[0].SteamId), http.StatusOK, &messages, req)
+		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamIdString), http.StatusOK, &messages, req)
 		require.Equal(t, 10, len(messages))
+	})
+}
+
+func TestPlayerNameHistory(t *testing.T) {
+	pls := createTestPlayers(1)
+	for i := 0; i < 5; i++ {
+		require.NoError(t, detector.AddUserName(context.TODO(), pls[0], util.RandomString(i+1*2)))
+	}
+	req := SteamIdOpt{
+		SteamID: pls[0].SteamIdString,
+	}
+	t.Run("Get Name History", func(t *testing.T) {
+		var names store.UserMessageCollection
+		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[0].SteamIdString), http.StatusOK, &names, req)
+		require.Equal(t, 5, len(names))
 	})
 }
