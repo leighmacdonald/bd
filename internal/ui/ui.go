@@ -128,7 +128,7 @@ func AddUserMessage(msg store.UserMessage) {
 	if errAppend := windows.chat.append(msg); errAppend != nil {
 		logger.Error("Failed to append game message", zap.Error(errAppend))
 	}
-	if userChat, found := windows.chatHistory[msg.PlayerSID]; found {
+	if userChat, found := windows.chatHistory[msg.SteamId]; found {
 		if errAppend := userChat.boundList.Append(msg); errAppend != nil {
 			logger.Error("Failed to append user history message", zap.Error(errAppend))
 		}

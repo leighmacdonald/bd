@@ -81,9 +81,9 @@ func newGameChatWindow(ctx context.Context) *gameChatWindow {
 		messageRichText := rootContainer.Objects[0].(*widget.RichText)
 
 		timeStamp.SetText(um.Created.Format(time.Kitchen))
-		profileButton.SetText(um.Player)
-		profileButton.SetIcon(GetAvatar(um.PlayerSID))
-		profileButton.menu = generateUserMenu(gcw.ctx, window, um.PlayerSID, um.UserId)
+		profileButton.SetText(um.SteamIdString)
+		profileButton.SetIcon(GetAvatar(um.SteamId))
+		profileButton.menu = generateUserMenu(gcw.ctx, window, um.SteamId, um.UserId)
 		//profileButton.menu.Refresh()
 		profileButton.Refresh()
 		nameStyle := widget.RichTextStyleInline

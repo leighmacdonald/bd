@@ -69,7 +69,6 @@ func init() {
 	logChan = make(chan string)
 	eventChan = make(chan LogEvent)
 	serverMu = &sync.RWMutex{}
-	//triggerUpdate = make(chan any)
 	gameStateUpdate = make(chan updateStateEvent, 50)
 	newSettings, errSettings := NewSettings()
 	if errSettings != nil {
@@ -80,7 +79,6 @@ func init() {
 
 func MustCreateLogger(logFile string) *zap.Logger {
 	loggingConfig := zap.NewProductionConfig()
-	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	if logFile != "" {
 		if util.Exists(logFile) {
 			if err := os.Remove(logFile); err != nil {
@@ -415,12 +413,12 @@ func statusUpdater(ctx context.Context) {
 func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*store.Player, error) {
 	player := GetPlayer(sid64)
 	if player == nil {
-		player = store.NewPlayer(sid64, "")
+		player = store.NewPlayer(sid64, "unknown")
 		if errGet := dataStore.GetPlayer(ctx, sid64, true, player); errGet != nil {
 			if !errors.Is(errGet, sql.ErrNoRows) {
 				return nil, errors.Wrap(errGet, "Failed to fetch player record")
 			}
-			player.ProfileUpdatedOn.AddDate(-1, 0, 0)
+			player.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
 		}
 		if active {
 			playersMu.Lock()
@@ -428,7 +426,7 @@ func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*
 			playersMu.Unlock()
 		}
 	}
-	if time.Since(player.ProfileUpdatedOn) > profileAgeLimit {
+	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit {
 		return player, nil
 	}
 	mu := sync.RWMutex{}
@@ -495,16 +493,16 @@ func GetPlayer(sid64 steamid.SID64) *store.Player {
 	return nil
 }
 
-func getPlayerByName(name string) *store.Player {
-	playersMu.RLock()
-	defer playersMu.RUnlock()
-	for _, player := range players {
-		if player.Name == name {
-			return player
-		}
-	}
-	return nil
-}
+//func getPlayerByName(name string) *store.Player {
+//	playersMu.RLock()
+//	defer playersMu.RUnlock()
+//	for _, player := range players {
+//		if player.Name == name {
+//			return player
+//		}
+//	}
+//	return nil
+//}
 
 func checkHandler(ctx context.Context) {
 	defer rootLogger.Debug("checkHandler exited")
@@ -573,53 +571,52 @@ func performAvatarDownload(ctx context.Context, hash string) {
 func gameStateUpdater(ctx context.Context) {
 	defer rootLogger.Debug("gameStateUpdater exited")
 	for {
-		select {
-		case update := <-gameStateUpdate:
-			rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
-			var sourcePlayer *store.Player
-			var errSource error
-			if update.source.Valid() {
-				sourcePlayer, errSource = GetPlayerOrCreate(ctx, update.source, true)
-				if errSource != nil {
-					rootLogger.Error("failed to get source player", zap.Error(errSource))
-					return
-				}
-				if sourcePlayer == nil && update.kind != updateStatus {
-					// Only register a new user to track once we received a status line
-					continue
-				}
+		update := <-gameStateUpdate
+		rootLogger.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
+		var sourcePlayer *store.Player
+		var errSource error
+		if update.source.Valid() {
+			sourcePlayer, errSource = GetPlayerOrCreate(ctx, update.source, true)
+			if errSource != nil {
+				rootLogger.Error("failed to get source player", zap.Error(errSource))
+				return
 			}
-			switch update.kind {
-			case updateMessage:
-				evt := update.data.(messageEvent)
-				if errUm := AddUserMessage(ctx, sourcePlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
-					rootLogger.Error("Failed to handle user message", zap.Error(errUm))
-					continue
-				}
-			case updateKill:
-				e, ok := update.data.(killEvent)
-				if ok {
-					onUpdateKill(e)
-				}
-			case updateBans:
-				onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
-			case updateStatus:
-				if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent)); errUpdate != nil {
-					rootLogger.Error("updateStatus error", zap.Error(errUpdate))
-				}
-			case updateLobby:
-				onUpdateLobby(update.source, update.data.(lobbyEvent))
-			case updateTags:
-				onUpdateTags(update.data.(tagsEvent))
-			case updateHostname:
-				onUpdateHostname(update.data.(hostnameEvent))
-			case updateMap:
-				onUpdateMap(update.data.(mapEvent))
-			case changeMap:
-				onMapChange()
+			if sourcePlayer == nil && update.kind != updateStatus {
+				// Only register a new user to track once we received a status line
+				continue
 			}
-			rootLogger.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
 		}
+		switch update.kind {
+		case updateMessage:
+			evt := update.data.(messageEvent)
+			if errUm := AddUserMessage(ctx, sourcePlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
+				rootLogger.Error("Failed to handle user message", zap.Error(errUm))
+				continue
+			}
+		case updateKill:
+			e, ok := update.data.(killEvent)
+			if ok {
+				onUpdateKill(e)
+			}
+		case updateBans:
+			onUpdateBans(update.source, update.data.(steamweb.PlayerBanState))
+		case updateStatus:
+			if errUpdate := onUpdateStatus(ctx, update.source, update.data.(statusEvent)); errUpdate != nil {
+				rootLogger.Error("updateStatus error", zap.Error(errUpdate))
+			}
+		case updateLobby:
+			onUpdateLobby(update.source, update.data.(lobbyEvent))
+		case updateTags:
+			onUpdateTags(update.data.(tagsEvent))
+		case updateHostname:
+			onUpdateHostname(update.data.(hostnameEvent))
+		case updateMap:
+			onUpdateMap(update.data.(mapEvent))
+		case changeMap:
+			onMapChange()
+		}
+		rootLogger.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
+
 	}
 }
 

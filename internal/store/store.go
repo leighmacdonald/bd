@@ -148,6 +148,14 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
+
+	name, errName := NewUserNameHistory(state.SteamId, state.Name)
+	if errName != nil {
+		return errName
+	}
+	if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
+		return errors.Wrap(errSaveName, "Could not save user name history")
+	}
 	return nil
 }
 
