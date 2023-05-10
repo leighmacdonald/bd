@@ -24,14 +24,14 @@ func TestMain(m *testing.M) {
 	settings, _ := detector.NewSettings()
 	var testDb store.DataStore
 	if false {
-		// Note that we are not using :memory: due to the fact that our migration will close the connection
+		// Toggle if you want to inspect the database
 		dir, errDir := os.MkdirTemp("", "bd-test")
 		if errDir != nil {
 			panic(errDir)
 		}
 		localDbPath := filepath.Join(dir, "db.sqlite?cache=shared")
 		testDb = store.New(localDbPath, testLogger)
-		testLogger.Info("USing database", zap.String("path", localDbPath))
+		testLogger.Info("Using database", zap.String("path", localDbPath))
 		defer func() {
 			_ = testDb.Close()
 			if errRemove := os.RemoveAll(dir); errRemove != nil {
@@ -202,16 +202,16 @@ func TestPlayerChatHistory(t *testing.T) {
 }
 
 func TestPlayerNameHistory(t *testing.T) {
-	pls := createTestPlayers(1)
+	pls := createTestPlayers(2)
 	for i := 0; i < 5; i++ {
-		require.NoError(t, detector.AddUserName(context.TODO(), pls[0], util.RandomString(i+1*2)))
+		require.NoError(t, detector.AddUserName(context.TODO(), pls[1], util.RandomString(i+1*2)))
 	}
 	req := SteamIdOpt{
-		SteamID: pls[0].SteamIdString,
+		SteamID: pls[1].SteamIdString,
 	}
 	t.Run("Get Name History", func(t *testing.T) {
 		var names store.UserMessageCollection
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[0].SteamIdString), http.StatusOK, &names, req)
-		require.Equal(t, 5, len(names))
+		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[1].SteamIdString), http.StatusOK, &names, req)
+		require.Equal(t, 5+1, len(names))
 	})
 }

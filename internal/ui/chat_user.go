@@ -110,10 +110,12 @@ func newUserChatWindow(ctx context.Context, queryFunc store.QueryUserMessagesFun
 	messages, errMessage := queryFunc(ctx, sid64)
 	if errMessage != nil {
 		messages = append(messages, store.UserMessage{
+			BaseSID: store.BaseSID{
+				SteamId:       sid64,
+				SteamIdString: sid64.String(),
+			},
 			MessageId: 0,
 			Team:      0,
-			Player:    "Bot Detector",
-			PlayerSID: 0,
 			UserId:    -1,
 			Message:   "No messages",
 			Created:   time.Now(),
