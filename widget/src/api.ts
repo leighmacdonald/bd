@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
+import { defaultUserSettings } from './context/settings';
+
+const baseUrl = `${location.protocol}//${location.host}`;
+const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=UTF-8'
+};
 
 const call = async <TRequest = emptyBody>(
     method: string,
     path: string,
     body?: TRequest
 ) => {
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json; charset=UTF-8'
-    };
     const opts: RequestInit = {
         mode: 'same-origin',
         method: method.toUpperCase()
@@ -16,11 +19,7 @@ const call = async <TRequest = emptyBody>(
         opts['body'] = JSON.stringify(body);
     }
     opts.headers = headers;
-    const url = new URL(
-        `http://localhost:8900/${path}`,
-        `${location.protocol}//${location.host}`
-    );
-
+    const url = new URL(path, baseUrl);
     return await fetch(url, opts);
 };
 
@@ -140,24 +139,24 @@ export interface UserNote {
 }
 
 export const addWhitelist = async (steamId: bigint) =>
-    await call('POST', `whitelist/${steamId}`);
+    await call('POST', `/whitelist/${steamId}`);
 
 export const deleteWhitelist = async (steamId: bigint) =>
-    await call('DELETE', `whitelist/${steamId}`);
+    await call('DELETE', `/whitelist/${steamId}`);
 
 export const saveUserNote = async (steamId: bigint, notes: string) =>
-    await call<UserNote>('POST', `notes/${steamId}`, { note: notes });
+    await call<UserNote>('POST', `/notes/${steamId}`, { note: notes });
 
 export const deleteUserNote = async (steamId: bigint) =>
-    await call<UserNote>('POST', `notes/${steamId}`, { note: '' });
+    await call<UserNote>('POST', `/notes/${steamId}`, { note: '' });
 
-const getPlayers = async () => await callJson<Player[]>('GET', 'players');
+const getPlayers = async () => await callJson<Player[]>('GET', '/players');
 
 const getUserSettings = async () =>
-    await callJson<UserSettings>('GET', 'settings');
+    await callJson<UserSettings>('GET', '/settings');
 
 export const useUserSettings = () => {
-    const [settings, setSettings] = useState<UserSettings>();
+    const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
     const [error, setError] = useState<unknown>(null);
     const [loading, setLoading] = useState(false);
 
@@ -166,9 +165,13 @@ export const useUserSettings = () => {
         getUserSettings()
             .then((resp) => resp)
             .then(setSettings)
-            .catch(setError)
+            .catch((e) => {
+                console.log(e);
+                setError(e);
+            })
             .finally(() => setLoading(false));
     }, []);
+
     return { settings, error, loading };
 };
 
