@@ -426,7 +426,7 @@ func GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*
 			playersMu.Unlock()
 		}
 	}
-	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit {
+	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit && player.Name != "" {
 		return player, nil
 	}
 	mu := sync.RWMutex{}

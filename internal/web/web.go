@@ -50,6 +50,9 @@ func responseErr(ctx *gin.Context, status int, data any) {
 }
 
 func responseOK(ctx *gin.Context, status int, data any) {
+	if data == nil {
+		data = []string{}
+	}
 	ctx.JSON(status, data)
 }
 

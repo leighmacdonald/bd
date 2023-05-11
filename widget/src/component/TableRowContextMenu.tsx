@@ -1,4 +1,4 @@
-import React, { Fragment, useCallback } from 'react';
+import React, { Fragment, useCallback, useContext } from 'react';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -23,12 +23,12 @@ import {
     deleteWhitelist,
     formatSeconds,
     Player,
-    Team,
-    useUserSettings
+    Team
 } from '../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import SteamID from 'steamid';
 import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
+import { SettingsContext } from '../context/settings';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -111,7 +111,7 @@ export const TableRowContextMenu = ({
         mouseY: number;
     } | null>(null);
 
-    const { settings, loading } = useUserSettings();
+    const { settings, loading } = useContext(SettingsContext);
 
     const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
         setContextMenuPos(

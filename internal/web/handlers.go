@@ -6,9 +6,11 @@ import (
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 func getMessages() gin.HandlerFunc {
@@ -42,10 +44,31 @@ func getNames() gin.HandlerFunc {
 }
 
 func getPlayers() gin.HandlerFunc {
+	_, isTest := os.LookupEnv("TEST")
 	testPlayers := createTestPlayers(24)
+	if isTest {
+
+		go func() {
+			t := time.NewTicker(time.Second * 5)
+			for {
+				<-t.C
+				for _, p := range testPlayers {
+					p.UpdatedOn = time.Now()
+					p.Connected += 5
+					p.Ping = rand.Intn(110)
+					p.Kills = rand.Intn(50)
+					p.Deaths = rand.Intn(30)
+				}
+			}
+		}()
+	}
 	return func(ctx *gin.Context) {
-		if _, isTest := os.LookupEnv("TEST"); isTest {
-			responseOK(ctx, http.StatusOK, testPlayers)
+		if isTest {
+			for _, plr := range detector.Players() {
+				plr.UpdatedOn = time.Now()
+			}
+			players := detector.Players()
+			responseOK(ctx, http.StatusOK, players)
 			return
 		}
 		players := detector.Players()

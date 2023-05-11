@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import IconButton from '@mui/material/IconButton';
@@ -22,6 +22,9 @@ import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
 import { addWhitelist, Player, saveUserNote, usePlayers } from '../api';
 import { NoteEditor } from './NoteEditor';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
+import { SettingsEditor } from './SettingsEditor';
+import { SettingsContext } from '../context/settings';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -156,7 +159,7 @@ export const ColumnConfigButton = ({
     return (
         <>
             <IconButton onClick={handleClick}>
-                <SettingsOutlinedIcon color={'primary'} />
+                <ViewColumnIcon color={'primary'} />
             </IconButton>
             <Popover
                 open={open}
@@ -282,13 +285,14 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
         // Surely strings are the only types
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [openNotes, setOpenNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
     const [notesSteamId, setNotesSteamId] = useState<bigint>(BigInt(0));
     const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
         getDefaultColumns()
     );
-
+    const { settings } = useContext(SettingsContext);
     const players = usePlayers();
 
     const onOpenNotes = useCallback((steamId: bigint, notes: string) => {
@@ -367,6 +371,13 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
                             enabledColumns={enabledColumns}
                             setEnabledColumns={updateSelectedColumns}
                         />
+                        <IconButton
+                            onClick={() => {
+                                setSettingsOpen(true);
+                            }}
+                        >
+                            <SettingsOutlinedIcon color={'primary'} />
+                        </IconButton>
                     </ButtonGroup>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant={'overline'}></Typography>
@@ -401,6 +412,11 @@ export const PlayerTable = ({}: PlayerTableRootProps) => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <SettingsEditor
+                    open={settingsOpen}
+                    setOpen={setSettingsOpen}
+                    origSettings={settings}
+                />
                 <NoteEditor
                     notes={notesValue}
                     setNotes={setNotesValue}
