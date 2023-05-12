@@ -32,6 +32,7 @@ import { UserSettings } from '../api';
 import _ from 'lodash';
 import { SettingsContext } from '../context/settings';
 import Grid2 from '@mui/material/Unstable_Grid2';
+import SteamID from 'steamid';
 
 type inputValidator = (value: string) => string | null;
 
@@ -53,22 +54,19 @@ export const SettingsTextBox = ({
     validator
 }: SettingsTextBoxProps) => {
     const [error, setError] = useState<string | null>(null);
-    const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-        if (!validator) {
+    const handleChange = useCallback(
+        (event: ChangeEvent<HTMLTextAreaElement>) => {
             setValue(event.target.value);
-            return;
-        }
-        const error = validator(event.target.value);
-        if (error) {
-            setError(error);
-            return;
-        }
-        setValue(event.target.value);
-    };
+            if (validator) {
+                setError(validator(event.target.value));
+            }
+        },
+        [setValue, validator]
+    );
 
     return (
         <Tooltip title={tooltip} placement={'top'}>
-            <FormControl fullWidth size="small">
+            <FormControl fullWidth>
                 <TextField
                     hiddenLabel
                     type={secrets ? 'password' : 'text'}
@@ -82,6 +80,52 @@ export const SettingsTextBox = ({
             </FormControl>
         </Tooltip>
     );
+};
+
+const validatorSteamID = (value: string): string => {
+    let err = 'Invalid SteamID';
+    try {
+        const id = new SteamID(value);
+        if (id.isValid()) {
+            err = '';
+        }
+    } catch (_) {
+        /* empty */
+    }
+    return err;
+};
+
+const makeValidatorLength = (length: number): inputValidator => {
+    return (value: string): string => {
+        if (value.length != length) {
+            return 'Invalid value';
+        }
+        return '';
+    };
+};
+
+export const isStringIp = (value: string): boolean => {
+    return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(
+        value
+    );
+};
+
+const validatorAddress = (value: string): string => {
+    const pcs = value.split(':');
+    if (pcs.length != 2) {
+        return 'Format must match host:port';
+    }
+    if (pcs[0].toLowerCase() != 'localhost' && !isStringIp(pcs[0])) {
+        return 'Invalid address. x.x.x.x or localhost accepted';
+    }
+    const port = parseInt(pcs[1], 10);
+    if (!/^\d+$/.test(pcs[1])) {
+        return 'Invalid port, must be positive integer';
+    }
+    if (port <= 0 || port > 65535) {
+        return 'Invalid port, must be in range: 1-65535';
+    }
+    return '';
 };
 
 interface SettingsCheckBoxProps {
@@ -181,16 +225,18 @@ export const SettingsEditor = ({
         _.cloneDeep(origSettings)
     );
 
+    const handleReset = useCallback(() => {
+        setSettings(_.cloneDeep(origSettings));
+    }, [origSettings]);
+
     useEffect(() => {
         handleReset();
         console.log('Loaded in');
-    }, [origSettings]);
+    }, [handleReset, origSettings]);
 
-    const handleSave = useCallback(() => {}, []);
-
-    const handleReset = useCallback(() => {
-        setSettings(origSettings);
-    }, [setSettings]);
+    const handleSave = useCallback(() => {
+        setSettings(settings);
+    }, [settings]);
 
     const handleClose = () => {
         setOpen(false);
@@ -298,6 +344,7 @@ export const SettingsEditor = ({
                             }}
                         />
                     </Grid2>
+
                     <Grid2 xs={6}>
                         <SettingsCheckBox
                             label={'Enabled Debug Log'}
@@ -312,6 +359,41 @@ export const SettingsEditor = ({
                     </Grid2>
                 </Grid2>
                 <DialogContentText paddingBottom={2}>
+                    HTTP Service
+                </DialogContentText>
+                <Grid2 container>
+                    <Grid2 xs={6}>
+                        <SettingsCheckBox
+                            label={'Enable The HTTP Service*'}
+                            tooltip={
+                                'WARN: The HTTP service enabled the browser widget (this page) to function. You can only re-enable this ' +
+                                'service by editing the config file manually'
+                            }
+                            enabled={settings.auto_close_on_game_exit}
+                            setEnabled={(http_enabled) => {
+                                setSettings({
+                                    ...settings,
+                                    http_enabled
+                                });
+                            }}
+                        />
+                    </Grid2>
+                    <Grid2 xs={6}>
+                        <SettingsTextBox
+                            label={'Listen Address (host:port)'}
+                            tooltip={
+                                'What address the http service will listen on. (The URL you are connected to right now). You should use localhost' +
+                                'unless you know what you are doing as there is no authentication system.'
+                            }
+                            value={settings.http_listen_addr}
+                            setValue={(http_listen_addr) => {
+                                setSettings({ ...settings, http_listen_addr });
+                            }}
+                            validator={validatorAddress}
+                        />
+                    </Grid2>
+                </Grid2>
+                <DialogContentText paddingBottom={2}>
                     Steam Config
                 </DialogContentText>
                 <Grid2 container>
@@ -322,6 +404,7 @@ export const SettingsEditor = ({
                             setValue={(steam_id) => {
                                 setSettings({ ...settings, steam_id });
                             }}
+                            validator={validatorSteamID}
                             tooltip={
                                 'You can choose one of the following formats: steam,steam3,steam64'
                             }
@@ -332,6 +415,7 @@ export const SettingsEditor = ({
                             label={'Steam API Key'}
                             value={settings.api_key}
                             secrets
+                            validator={makeValidatorLength(32)}
                             setValue={(api_key) => {
                                 setSettings({ ...settings, api_key });
                             }}

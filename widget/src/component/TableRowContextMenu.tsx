@@ -154,7 +154,7 @@ export const TableRowContextMenu = ({
         setHoverMenuPos(null);
     };
 
-    const makeInfoRow = (key: string, value: any): JSX.Element[] => {
+    const makeInfoRow = (key: string, value: string): JSX.Element[] => {
         return [
             <Grid2 xs={3} key={`${key}-key`} padding={0}>
                 <Typography variant={'button'} textAlign={'right'}>
@@ -408,11 +408,14 @@ export const TableRowContextMenu = ({
                             src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
                         />
                         <Grid2 container>
-                            {...makeInfoRow('UID', player.user_id)}
+                            {...makeInfoRow('UID', player.user_id.toString())}
                             {...makeInfoRow('Name', player.name)}
                             {...makeInfoRow('Kills', player.kills.toString())}
                             {...makeInfoRow('Deaths', player.deaths.toString())}
-                            {...makeInfoRow('Time', player.connected)}
+                            {...makeInfoRow(
+                                'Time',
+                                formatSeconds(player.connected)
+                            )}
                             {...makeInfoRow('Ping', player.ping.toString())}
                             {...makeInfoRow(
                                 'Vac Bans',
