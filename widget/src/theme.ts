@@ -62,11 +62,12 @@ export const createThemeByMode = () => {
         },
         palette: {
             primary: {
-                main: '#9d312f',
-                dark: '#d14441'
+                main: '#395c78',
+                dark: '#2b475d'
             },
             secondary: {
-                main: '#395c78'
+                main: '#9d312f',
+                dark: '#d14441'
             },
             background: {
                 default: '#0c0c0c',

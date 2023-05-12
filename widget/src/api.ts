@@ -94,7 +94,7 @@ export const formatSeconds = (seconds: number): string => {
         .join(':');
 };
 
-interface List {
+export interface List {
     list_type: string;
     name: string;
     enabled: boolean;
@@ -134,6 +134,7 @@ export interface UserSettings {
     player_disconnect_timeout: number;
     unique_tags: string[];
 }
+
 export interface UserNote {
     note: string;
 }
