@@ -53,7 +53,7 @@ func main() {
 
 	if userSettings.GetHttpEnabled() {
 		web.Init(detector.Logger(), false)
-		go web.Start(ctx)
+		go web.Start(ctx, userSettings.HTTPListenAddr)
 	}
 	if userSettings.GetGuiEnabled() {
 		go detector.Start(ctx)

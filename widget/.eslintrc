@@ -20,7 +20,6 @@
   ],
   "extends": [
     "eslint:recommended",
-    "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
     "prettier",
     "plugin:jest/recommended",
@@ -28,10 +27,10 @@
     "plugin:react/recommended"
   ],
   "rules": {
-    "prettier/prettier": 2,
-    "@typescript-eslint/no-explicit-any": "warn",
+    "prettier/prettier": "error",
+    "@typescript-eslint/no-explicit-any": "error",
     //"no-console": 2,
-    "no-loops/no-loops": "warn",
+    "no-loops/no-loops": "error",
     "react/prop-types": [
       2,
       {

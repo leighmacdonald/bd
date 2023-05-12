@@ -181,9 +181,9 @@ func steamIdParam(ctx *gin.Context) (steamid.SID64, bool) {
 	return steamId, true
 }
 
-func Start(ctx context.Context) {
+func Start(ctx context.Context, listenAddr string) {
 	httpServer = &http.Server{
-		Addr:         "localhost:8900",
+		Addr:         listenAddr,
 		Handler:      router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

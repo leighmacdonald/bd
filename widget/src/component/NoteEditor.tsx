@@ -27,12 +27,12 @@ export const NoteEditor = ({
     steamId,
     onSave
 }: NoteEditorProps) => {
-    const handleClose = () => setOpen(false);
+    const handleClose = useCallback(() => setOpen(false), [setOpen]);
 
     const handleSave = useCallback(async () => {
         await onSave(steamId, notes);
         handleClose();
-    }, [onSave, steamId, notes]);
+    }, [onSave, steamId, notes, handleClose]);
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth>

@@ -32,7 +32,7 @@ const callJson = async <TResponse, TRequest = emptyBody>(
     return (await resp.json()) as TResponse;
 };
 
-export interface emptyBody {}
+export type emptyBody = object;
 
 export type steamIdFormat = 'steam64' | 'steam3' | 'steam32' | 'steam';
 

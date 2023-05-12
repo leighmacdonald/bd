@@ -38,7 +38,7 @@ export interface PlayerTableProps {
     readonly matchesOnly?: boolean;
 }
 
-const descendingComparator = <T extends any>(a: T, b: T, orderBy: keyof T) => {
+const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     if (b[orderBy] < a[orderBy]) {
         return -1;
     }
@@ -50,15 +50,18 @@ const descendingComparator = <T extends any>(a: T, b: T, orderBy: keyof T) => {
 
 type Order = 'asc' | 'desc';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getComparator = <Key extends keyof any>(
     order: Order,
     orderBy: Key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): ((a: { [key in Key]: any }, b: { [key in Key]: any }) => number) =>
     order === 'asc'
         ? (a, b) => descendingComparator(a, b, orderBy)
         : (a, b) => -descendingComparator(a, b, orderBy);
 
-const stableSort = <T extends any>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const stableSort = <T,>(
     array: readonly T[],
     comparator: (a: T, b: T) => number
 ) => {
@@ -251,8 +254,6 @@ const PlayerTableHead = ({
     );
 };
 
-interface PlayerTableRootProps {}
-
 const getDefaultColumns = (): validColumns[] => {
     const defaultCols: validColumns[] = [
         'user_id',
@@ -263,7 +264,7 @@ const getDefaultColumns = (): validColumns[] => {
         'ping'
     ];
 
-    let val = localStorage.getItem('enabledColumns');
+    const val = localStorage.getItem('enabledColumns');
     if (!val) {
         return defaultCols;
     }
@@ -278,7 +279,7 @@ const getDefaultColumns = (): validColumns[] => {
     }
 };
 
-export const PlayerTable = ({}: PlayerTableRootProps) => {
+export const PlayerTable = () => {
     const [order, setOrder] = React.useState<Order>('desc');
     const [orderBy, setOrderBy] = React.useState<keyof Player>('name');
     const [matchesOnly, setMatchesOnly] = useState(
