@@ -77,14 +77,14 @@ func main() {
 	if userSettings.GetGuiEnabled() {
 		go func() {
 			if errExit := execGroup.Wait(); errExit != nil {
-				fmt.Printf(errExit.Error())
+				fmt.Println(errExit.Error())
 			}
 		}()
 		ui.Init(rootCtx, detector.Logger(), versionInfo)
 		ui.Start(rootCtx) // *must* be called from main goroutine
 	} else {
 		if errExit := execGroup.Wait(); errExit != nil {
-			fmt.Printf(errExit.Error())
+			fmt.Println(errExit.Error())
 		}
 	}
 }

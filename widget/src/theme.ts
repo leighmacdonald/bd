@@ -27,13 +27,7 @@ export const createThemeByMode = () => {
             }
         },
         typography: {
-            fontFamily: [
-                '"Helvetica Neue"',
-                'Helvetica',
-                'Roboto',
-                'Arial',
-                'sans-serif'
-            ].join(','),
+            fontFamily: baseFontSet.join(','),
             // allVariants: {
             //     color: mode === 'dark' ? '#34302d' : '#f5e7de'
             // },
