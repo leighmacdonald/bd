@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"math/rand"
+	"net"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -181,25 +182,27 @@ func steamIdParam(ctx *gin.Context) (steamid.SID64, bool) {
 	return steamId, true
 }
 
-func Start(ctx context.Context, listenAddr string) {
+func Start(ctx context.Context, listenAddr string) error {
 	httpServer = &http.Server{
 		Addr:         listenAddr,
 		Handler:      router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 	logger.Info("Service status changed", zap.String("state", "ready"))
 	defer logger.Info("Service status changed", zap.String("state", "stopped"))
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		if errShutdown := httpServer.Shutdown(shutdownCtx); errShutdown != nil {
-			logger.Error("Error shutting down http service", zap.Error(errShutdown))
-		}
-	}()
 
-	if errServe := httpServer.ListenAndServe(); errServe != nil {
-		logger.Error("HTTP server returned error", zap.Error(errServe))
+	return httpServer.ListenAndServe()
+}
+
+func Stop() error {
+	if httpServer == nil {
+		return nil
 	}
+	timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancel()
+	return httpServer.Shutdown(timeout)
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	gerrors "errors"
 	"fmt"
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
@@ -273,6 +274,7 @@ func Settings() *UserSettings {
 }
 
 func SetSettings(newSettings *UserSettings) {
+	// TODO
 	settings = newSettings
 }
 
@@ -939,22 +941,26 @@ func processChecker(ctx context.Context) {
 }
 
 // Shutdown closes any open rcon connection and will flush any player list to disk
-func Shutdown() {
+func Shutdown() error {
+	if reader != nil && reader.tail != nil {
+		reader.tail.Cleanup()
+	}
+	var err error
 	if rconConn != nil {
 		util.LogClose(rootLogger, rconConn)
 	}
-	defer util.LogClose(rootLogger, dataStore)
-	rootLogger.Info("Goodbye")
-	if settings.GetDebugLogEnabled() {
-		if errSync := rootLogger.Sync(); errSync != nil {
-			fmt.Printf("Failed to sync log: %v\n", errSync)
-		}
+	if errCloseDb := dataStore.Close(); errCloseDb != nil {
+		err = gerrors.Join(errCloseDb)
 	}
+
+	if settings.GetDebugLogEnabled() {
+		err = gerrors.Join(rootLogger.Sync())
+	}
+	return err
 }
 
 func Start(ctx context.Context) {
 	go reader.start(ctx)
-	defer reader.tail.Cleanup()
 	go parser.start(ctx)
 	go refreshLists(ctx)
 	go incomingLogEventHandler(ctx)
@@ -969,6 +975,4 @@ func Start(ctx context.Context) {
 			go LaunchGameAndWait()
 		}
 	}
-
-	<-ctx.Done()
 }
