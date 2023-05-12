@@ -28,13 +28,104 @@ import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuItem from '@mui/material/MenuItem';
-import { UserSettings } from '../api';
+import { List, UserSettings } from '../api';
 import _ from 'lodash';
 import { SettingsContext } from '../context/settings';
 import Grid2 from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
+import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import AlarmOnIcon from '@mui/icons-material/AlarmOn';
+import AlarmOffIcon from '@mui/icons-material/AlarmOff';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
 
 type inputValidator = (value: string) => string | null;
+
+interface SettingsListProps {
+    value: List;
+    setValue: (value: List) => void;
+    validator?: inputValidator;
+    open: boolean;
+    setOpen: (open: boolean) => void;
+}
+
+export const SettingsListEditor = ({
+    value,
+    setValue,
+    open,
+    setOpen
+}: SettingsListProps) => {
+    const [list, setList] = useState<List>({ ...value });
+
+    const handleClose = () => {
+        setOpen(false);
+    };
+
+    const handleSave = () => {
+        setValue(list);
+        handleClose();
+    };
+
+    const onEnabledChanged = (
+        _: ChangeEvent<HTMLInputElement>,
+        enabled: boolean
+    ) => {
+        setList({ ...list, enabled });
+    };
+
+    const onNameChanged = (event: ChangeEvent<HTMLInputElement>) => {
+        setList({ ...list, name: event.target.value });
+    };
+
+    const onUrlChanged = (event: ChangeEvent<HTMLInputElement>) => {
+        setList({ ...list, url: event.target.value });
+    };
+
+    return (
+        <Dialog open={open}>
+            <Grid2 container key={`list-${list.name}`}>
+                <Grid2 xs={4}>
+                    <Stack direction={'row'}>
+                        <Checkbox
+                            checked={list.enabled}
+                            onChange={onEnabledChanged}
+                        />
+                        <TextField value={list.name} onChange={onNameChanged} />
+                    </Stack>
+                </Grid2>
+                <Grid2 xs={8}>
+                    <TextField
+                        fullWidth
+                        value={list.url}
+                        onChange={onUrlChanged}
+                    />
+                </Grid2>
+            </Grid2>
+
+            <DialogActions>
+                <Button
+                    onClick={handleClose}
+                    startIcon={<CloseIcon />}
+                    color={'error'}
+                    // variant={'contained'}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    onClick={handleSave}
+                    startIcon={<CheckIcon />}
+                    color={'success'}
+                    variant={'contained'}
+                >
+                    Save
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
 
 interface SettingsTextBoxProps {
     label: string;
@@ -221,6 +312,8 @@ export const SettingsEditor = ({
     setOpen,
     origSettings
 }: SettingsEditorProps) => {
+    const [listsOpen, setListsOpen] = useState(false);
+    const [currentList, setCurrentList] = useState<List>();
     const [settings, setSettings] = useState<UserSettings>(
         _.cloneDeep(origSettings)
     );
@@ -228,6 +321,11 @@ export const SettingsEditor = ({
     const handleReset = useCallback(() => {
         setSettings(_.cloneDeep(origSettings));
     }, [origSettings]);
+
+    const onOpenList = (list: List) => {
+        setCurrentList(list);
+        setListsOpen(true);
+    };
 
     useEffect(() => {
         handleReset();
@@ -240,6 +338,24 @@ export const SettingsEditor = ({
 
     const handleClose = () => {
         setOpen(false);
+    };
+
+    // const onUpdateLists = useCallback(
+    //     (lists: List[]) => {
+    //         setSettings({ ...settings, lists });
+    //     },
+    //     [settings]
+    // );
+    const toggleList = (i: number) => {
+        setSettings((s) => {
+            s.lists[i].enabled = !s.lists[i].enabled;
+            return s;
+        });
+    };
+
+    const deleteList = (i: number) => {
+        const newList = settings.lists.filter((_, idx) => idx != i);
+        setSettings({ ...settings, lists: newList });
     };
 
     return (
@@ -359,6 +475,67 @@ export const SettingsEditor = ({
                     </Grid2>
                 </Grid2>
                 <DialogContentText paddingBottom={2}>
+                    External Player & Rules Lists
+                </DialogContentText>
+                <Grid2 container>
+                    {settings.lists.map((l, i) => {
+                        return (
+                            <Grid2 key={`list-row-${i}`} xs={12}>
+                                <Stack direction={'row'} spacing={1}>
+                                    <IconButton
+                                        color={
+                                            l.enabled ? 'primary' : 'secondary'
+                                        }
+                                        onClick={() => {
+                                            toggleList(i);
+                                        }}
+                                    >
+                                        {l.enabled ? (
+                                            <AlarmOnIcon />
+                                        ) : (
+                                            <AlarmOffIcon />
+                                        )}
+                                    </IconButton>
+                                    <IconButton
+                                        color={'primary'}
+                                        onClick={() => {
+                                            onOpenList(l);
+                                        }}
+                                    >
+                                        <EditIcon />
+                                    </IconButton>
+                                    <IconButton
+                                        color={'primary'}
+                                        onClick={() => {
+                                            deleteList(i);
+                                        }}
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <Typography variant={'body1'}>
+                                            {l.name}
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </Grid2>
+                        );
+                    })}
+                </Grid2>
+                {currentList && (
+                    <SettingsListEditor
+                        open={listsOpen}
+                        value={currentList}
+                        setValue={setCurrentList}
+                        setOpen={setListsOpen}
+                    />
+                )}
+                <DialogContentText paddingBottom={2}>
                     HTTP Service
                 </DialogContentText>
                 <Grid2 container>
@@ -369,7 +546,7 @@ export const SettingsEditor = ({
                                 'WARN: The HTTP service enabled the browser widget (this page) to function. You can only re-enable this ' +
                                 'service by editing the config file manually'
                             }
-                            enabled={settings.auto_close_on_game_exit}
+                            enabled={settings.http_enabled}
                             setEnabled={(http_enabled) => {
                                 setSettings({
                                     ...settings,
