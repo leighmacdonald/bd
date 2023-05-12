@@ -11,16 +11,21 @@
       "version": "18"
     }
   },
+  "env": {
+    "browser": true
+  },
   "plugins": [
     "prettier",
     "@typescript-eslint",
     "no-loops",
     "jest",
-    "react"
+    "react",
+    "compat"
   ],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:compat/recommended",
     "prettier",
     "plugin:jest/recommended",
     "plugin:react-hooks/recommended",
