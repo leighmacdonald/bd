@@ -153,7 +153,6 @@ func createNameHistoryWindow(ctx context.Context, sid64 steamid.SID64) {
 }
 
 func Start(ctx context.Context) {
-	defer detector.Shutdown()
 	windows.player.window.Show()
 	application.Run()
 	ctx.Done()
