@@ -68,9 +68,7 @@ func main() {
 		execGroup.Go(func() error {
 			<-grpCtx.Done()
 			var err error
-			err = gerrors.Join(err, web.Stop())
-			err = gerrors.Join(err, detector.Shutdown())
-			return err
+			return gerrors.Join(err, web.Stop(), detector.Shutdown())
 		})
 	}
 

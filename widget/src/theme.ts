@@ -65,7 +65,7 @@ export const createThemeByMode = () => {
             },
             background: {
                 default: '#0c0c0c',
-                paper: '#0c0c0c'
+                paper: '#151515'
             },
             common: {
                 white: '#f5e7de',
@@ -75,7 +75,7 @@ export const createThemeByMode = () => {
                 primary: '#b6b1af',
                 secondary: '#7b7775'
             },
-            divider: '#452c22'
+            divider: '#3a3a3a'
         }
     });
 };
