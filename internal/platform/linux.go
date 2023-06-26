@@ -8,7 +8,6 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 var (
@@ -20,10 +19,9 @@ var (
 
 // LaunchTF2 calls the steam binary directly
 // On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size
-func LaunchTF2(logger *zap.Logger, _ string, args []string) error {
+func LaunchTF2(_ string, args []string) error {
 	fa := []string{"-applaunch", "440"}
 	fa = append(fa, args...)
-	logger.Info("Launching game", zap.Strings("args", args), zap.String("binary", "steam"))
 	cmd := exec.Command("steam", fa...)
 	if errLaunch := cmd.Run(); errLaunch != nil {
 		return errLaunch

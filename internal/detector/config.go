@@ -10,7 +10,6 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
@@ -26,7 +25,6 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
-	rootLogger.Info("Reading userdata", zap.String("path", localConfigPath))
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
@@ -57,8 +55,11 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 		}
 
 		if i == len(pathKeys)-1 {
-			rootLogger.Info("Raw args via userdata", zap.String("args", result["LaunchOptions"].(string)))
-			launchOpts = strings.Split(result["LaunchOptions"].(string), " ")
+			launchStr, launchStrOk := result["LaunchOptions"].(string)
+			if !launchStrOk {
+				return nil, errors.New("Failed to cast LaunchOptions")
+			}
+			launchOpts = strings.Split(launchStr, " ")
 			found = true
 		}
 	}

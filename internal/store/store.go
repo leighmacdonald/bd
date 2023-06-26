@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
@@ -15,7 +17,6 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 //go:embed migrations/*.sql
@@ -42,11 +43,11 @@ type DataStore interface {
 type SqliteStore struct {
 	db     *sql.DB
 	dsn    string
-	logger *zap.Logger
+	logger *slog.Logger
 }
 
-func New(dsn string, logger *zap.Logger) *SqliteStore {
-	return &SqliteStore{dsn: dsn, logger: logger}
+func New(dsn string, logger *slog.Logger) *SqliteStore {
+	return &SqliteStore{dsn: dsn, logger: logger.WithGroup("sqlite")}
 }
 
 func (store *SqliteStore) Close() error {
@@ -258,6 +259,9 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 		col = append(col, &player)
 
 	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
 	return col, nil
 }
 
@@ -329,6 +333,9 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		}
 		hist = append(hist, h)
 	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
 	return hist, nil
 }
 
@@ -348,7 +355,6 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		return nil, errQuery
 	}
-
 	defer util.LogClose(store.logger, rows)
 	var messages UserMessageCollection
 	for rows.Next() {
@@ -358,6 +364,9 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		m.SteamIDString = m.SteamID.String()
 		messages = append(messages, m)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 	return messages, nil
 }

@@ -1,4 +1,4 @@
-package web
+package detector
 
 import (
 	"math/rand"
@@ -8,19 +8,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
 )
 
-func getMessages() gin.HandlerFunc {
+func getMessages(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
 			return
 		}
-		messages, errMsgs := detector.Store().FetchMessages(ctx, sid)
+		messages, errMsgs := d.dataStore.FetchMessages(ctx, sid)
 		if errMsgs != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
@@ -29,13 +28,13 @@ func getMessages() gin.HandlerFunc {
 	}
 }
 
-func getNames() gin.HandlerFunc {
+func getNames(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
 			return
 		}
-		messages, errMsgs := detector.Store().FetchNames(ctx, sid)
+		messages, errMsgs := d.dataStore.FetchNames(ctx, sid)
 		if errMsgs != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
@@ -44,9 +43,9 @@ func getNames() gin.HandlerFunc {
 	}
 }
 
-func getPlayers() gin.HandlerFunc {
+func getPlayers(d *Detector) gin.HandlerFunc {
 	_, isTest := os.LookupEnv("TEST")
-	testPlayers := createTestPlayers(24)
+	testPlayers := createTestPlayers(d, 24)
 	if isTest {
 		go func() {
 			t := time.NewTicker(time.Second * 5)
@@ -64,14 +63,14 @@ func getPlayers() gin.HandlerFunc {
 	}
 	return func(ctx *gin.Context) {
 		if isTest {
-			for _, plr := range detector.Players() {
+			for _, plr := range d.Players() {
 				plr.UpdatedOn = time.Now()
 			}
-			players := detector.Players()
+			players := d.Players()
 			responseOK(ctx, http.StatusOK, players)
 			return
 		}
-		players := detector.Players()
+		players := d.Players()
 		var p []store.Player
 		if players != nil {
 			p = players
@@ -81,28 +80,29 @@ func getPlayers() gin.HandlerFunc {
 }
 
 type webUserSettings struct {
-	*detector.UserSettings
+	*UserSettings
 	UniqueTags []string `json:"unique_tags"`
 }
 
-func getSettings() gin.HandlerFunc {
+func getSettings(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		wus := webUserSettings{
-			UserSettings: detector.Settings(),
+			UserSettings: d.settings,
 			UniqueTags:   rules.UniqueTags(),
 		}
 		responseOK(ctx, http.StatusOK, wus)
 	}
 }
 
-func postSettings() gin.HandlerFunc {
+func postSettings(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var wus webUserSettings
 		if !bind(ctx, &wus) {
 			return
 		}
 		wus.RWMutex = &sync.RWMutex{}
-		detector.SetSettings(wus.UserSettings)
+		// TODO Proper validation
+		d.settings = wus.UserSettings
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }
@@ -111,7 +111,7 @@ type postNotesOpts struct {
 	Note string `json:"note"`
 }
 
-func postNotes() gin.HandlerFunc {
+func postNotes(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
@@ -121,13 +121,13 @@ func postNotes() gin.HandlerFunc {
 		if !bind(ctx, &opts) {
 			return
 		}
-		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid, false)
+		player, errPlayer := d.GetPlayerOrCreate(ctx, sid, false)
 		if errPlayer != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
 		}
 		player.Notes = opts.Note
-		if errSave := detector.Store().SavePlayer(ctx, player); errSave != nil {
+		if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
 		}
@@ -139,7 +139,7 @@ type postMarkPlayerOpts struct {
 	Attrs []string `json:"attrs"`
 }
 
-func postMarkPlayer() gin.HandlerFunc {
+func postMarkPlayer(d *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
@@ -153,7 +153,7 @@ func postMarkPlayer() gin.HandlerFunc {
 			responseErr(ctx, http.StatusBadRequest, nil)
 			return
 		}
-		if errMark := detector.Mark(ctx, sid, opts.Attrs); errMark != nil {
+		if errMark := d.Mark(ctx, sid, opts.Attrs); errMark != nil {
 			if errors.Is(errMark, rules.ErrDuplicateSteamID) {
 				responseErr(ctx, http.StatusConflict, nil)
 				return
@@ -165,13 +165,13 @@ func postMarkPlayer() gin.HandlerFunc {
 	}
 }
 
-func updateWhitelistPlayer(enable bool) gin.HandlerFunc {
+func updateWhitelistPlayer(d *Detector, enable bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, sidOk := steamIdParam(ctx)
 		if !sidOk {
 			return
 		}
-		if errWl := detector.Whitelist(ctx, sid, enable); errWl != nil {
+		if errWl := d.Whitelist(ctx, sid, enable); errWl != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			return
 		}

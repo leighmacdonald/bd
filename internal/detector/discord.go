@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/leighmacdonald/bd/pkg/discord/client"
-	"go.uber.org/zap"
 )
 
 type mapConfig struct {
@@ -131,10 +132,7 @@ func discordAssetNameMap(mapName string) string {
 	return mapName
 }
 
-func discordUpdateActivity(cnt int) {
-	serverMu.RLock()
-	defer serverMu.RUnlock()
-
+func discordUpdateActivity(cnt int, server Server, inGame bool, startupTime time.Time) error {
 	buttons := []*client.Button{
 		{
 			Label: "GitHub",
@@ -150,7 +148,7 @@ func discordUpdateActivity(cnt int) {
 	}
 	currentMap := discordAssetNameMap(server.CurrentMap)
 	state := "Offline"
-	if gameProcessActive.Load() {
+	if inGame {
 		state = "In-Game"
 	}
 	details := "Idle"
@@ -178,23 +176,25 @@ func discordUpdateActivity(cnt int) {
 		},
 		Buttons: buttons,
 	}); errSetActivity != nil {
-		rootLogger.Error("Failed to set discord activity", zap.Error(errSetActivity))
+		return errors.Wrap(errSetActivity, "Failed to set discord activity")
 	}
+	return nil
 }
 
-func discordStateUpdater(ctx context.Context) {
+func (d *Detector) discordStateUpdater(ctx context.Context) {
 	const discordAppID = "1076716221162082364"
-	defer rootLogger.Debug("discordStateUpdater exited")
+	log := d.log.WithGroup("discord")
+	defer log.Debug("discordStateUpdater exited")
 	timer := time.NewTicker(time.Second * 10)
 	isRunning := false
 	for {
 		select {
 		case <-timer.C:
-			if !settings.GetDiscordPresenceEnabled() {
+			if !d.settings.GetDiscordPresenceEnabled() {
 				if isRunning {
 					// Logout of existing connection on settings change
 					if errLogout := client.Logout(); errLogout != nil {
-						rootLogger.Error("Failed to logout of discord client", zap.Error(errLogout))
+						log.Error("Failed to logout of discord client", "err", errLogout)
 						// continue?
 					}
 					isRunning = false
@@ -203,13 +203,15 @@ func discordStateUpdater(ctx context.Context) {
 			}
 			if !isRunning {
 				if errLogin := client.Login(discordAppID); errLogin != nil {
-					rootLogger.Debug("Failed to login to discord", zap.Error(errLogin))
+					log.Debug("Failed to login to discord", "err", errLogin)
 					continue
 				}
 				isRunning = true
 			}
 			if isRunning {
-				discordUpdateActivity(len(players))
+				if errUpdate := discordUpdateActivity(len(d.players), d.server, d.gameProcessActive, d.startupTime); errUpdate != nil {
+					log.Error("Failed to update discord activity", "err", errUpdate)
+				}
 			}
 		case <-ctx.Done():
 			return

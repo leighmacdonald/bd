@@ -62,6 +62,7 @@ type LinkConfig struct {
 	IDFormat string `yaml:"id_format" json:"id_format"`
 	Deleted  bool   `yaml:"-" json:"deleted"`
 }
+
 type LinkConfigCollection []*LinkConfig
 
 func (list LinkConfigCollection) AsAny() []any {
@@ -81,6 +82,14 @@ func (list ListConfigCollection) AsAny() []any {
 	}
 	return bl
 }
+
+type RunModes string
+
+const (
+	ModeProd  = "prod"
+	ModeTest  = "test"
+	ModeDebug = "debug"
+)
 
 type UserSettings struct {
 	*sync.RWMutex `yaml:"-"`
@@ -111,6 +120,7 @@ type UserSettings struct {
 	HTTPListenAddr          string               `yaml:"http_listen_addr" json:"http_listen_addr"`
 	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
+	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	rcon                    RCONConfigProvider   `yaml:"-" `
 }
 
@@ -465,8 +475,8 @@ func NewSettings() (*UserSettings, error) {
 		HTTPListenAddr: "localhost:8900",
 		rcon:           NewRconConfig(false),
 	}
-	if !util.Exists(settings.ListRoot()) {
-		if err := os.MkdirAll(settings.ListRoot(), 0o755); err != nil {
+	if !util.Exists(newSettings.ListRoot()) {
+		if err := os.MkdirAll(newSettings.ListRoot(), 0o755); err != nil {
 			return nil, errors.Wrap(err, "Failed to initialize UserSettings directory")
 		}
 	}

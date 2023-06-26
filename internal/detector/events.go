@@ -9,7 +9,6 @@ import (
 
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"go.uber.org/zap"
 )
 
 type updateType int
@@ -80,13 +79,14 @@ type addressEvent struct {
 
 // incomingLogEventHandler handles mapping incoming LogEvent payloads into the more generalized
 // updateStateEvent used for all state updates.
-func incomingLogEventHandler(ctx context.Context) {
-	defer rootLogger.Info("log event handler exited")
+func (d *Detector) incomingLogEventHandler(ctx context.Context) {
+	log := d.log.WithGroup("LogEventHandler")
+	defer log.Info("log event handler exited")
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case evt := <-eventChan:
+		case evt := <-d.eventChan:
 			var update updateStateEvent
 			switch evt.Type {
 			case EvtMap:
@@ -99,12 +99,12 @@ func incomingLogEventHandler(ctx context.Context) {
 				pcs := strings.Split(evt.MetaData, ":")
 				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
 				if errPort != nil {
-					rootLogger.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
+					log.Error("Failed to parse port: %v", "err", errPort, "port", pcs[1])
 					continue
 				}
 				ip := net.ParseIP(pcs[0])
 				if ip == nil {
-					rootLogger.Error("Failed to parse ip", zap.String("ip", pcs[0]))
+					log.Error("Failed to parse ip", "ip", pcs[0])
 					continue
 				}
 				update = updateStateEvent{kind: updateAddress, data: addressEvent{ip: ip, port: uint16(portValue)}}
@@ -143,7 +143,7 @@ func incomingLogEventHandler(ctx context.Context) {
 			case EvtLobby:
 				update = updateStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
 			}
-			gameStateUpdate <- update
+			d.gameStateUpdate <- update
 		}
 	}
 }
