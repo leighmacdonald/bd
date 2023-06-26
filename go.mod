@@ -11,7 +11,7 @@ require (
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/leighmacdonald/rcon v1.0.10
 	github.com/leighmacdonald/steamid/v2 v2.2.2
-	github.com/leighmacdonald/steamweb v0.0.4
+	github.com/leighmacdonald/steamweb/v2 v2.0.3
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-ps v1.0.0
@@ -50,7 +50,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/leighmacdonald/steamweb/v2 v2.0.3 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
