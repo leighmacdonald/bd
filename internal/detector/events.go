@@ -128,14 +128,14 @@ func incomingLogEventHandler(ctx context.Context) {
 						dead:      evt.Dead,
 					},
 				}
-			case EvtStatusId:
+			case EvtStatusID:
 				update = updateStateEvent{
 					kind:   updateStatus,
 					source: evt.PlayerSID,
 					data: statusEvent{
 						playerSID: evt.PlayerSID,
 						ping:      evt.PlayerPing,
-						userID:    evt.UserId,
+						userID:    evt.UserID,
 						name:      evt.Player,
 						connected: evt.PlayerConnected,
 					},

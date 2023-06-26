@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-// fixSteamIdFormat converts raw unquoted steamids to quoted ones
-// e.g. "steamid":76561199063807260 -> "steamid": "76561199063807260"
-func fixSteamIdFormat(body []byte) []byte {
+// fixSteamIDFormat converts raw unquoted steamids to quoted ones
+// e.g. "steamid":76561199063807260 -> "steamid": "76561199063807260".
+func fixSteamIDFormat(body []byte) []byte {
 	r := regexp.MustCompile(`("steamid":\+?(\d+))`)
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
@@ -26,7 +25,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
-		req, reqErr := http.NewRequestWithContext(timeout, "GET", url, nil)
+		req, reqErr := http.NewRequestWithContext(timeout, http.MethodGet, url, nil)
 		if reqErr != nil {
 			return nil, errors.Wrap(reqErr, "Failed to create request\n")
 		}
@@ -34,11 +33,13 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 		if errResp != nil {
 			return nil, errors.Wrapf(errResp, "Failed to download urlLocation: %s\n", url)
 		}
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		body, errBody := io.ReadAll(resp.Body)
 		if errBody != nil {
 			return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
 		}
-		defer util.LogClose(logger, resp.Body)
 		return body, nil
 	}
 	var playerLists []rules.PlayerListSchema
@@ -51,7 +52,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 		if errFetch != nil {
 			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", u.URL)
 		}
-		body = fixSteamIdFormat(body)
+		body = fixSteamIDFormat(body)
 		dur := time.Since(start)
 		switch u.ListType {
 		case ListTypeTF2BDPlayerList:

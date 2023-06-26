@@ -30,7 +30,7 @@ outside contributions.
 - [x] Translations
   - [x] English
   - [x] Russian
-- [ ] GUI 
+- [ ] WebGUI / Widget 
   - [x] Player status display list
   - [x] Current game chat dialogue 
     - [x] Send in=game chat messages

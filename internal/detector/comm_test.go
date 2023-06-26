@@ -1,7 +1,9 @@
-package detector
+package detector_test
 
 import (
 	"testing"
+
+	"github.com/leighmacdonald/bd/internal/detector"
 
 	"github.com/stretchr/testify/require"
 )
@@ -24,5 +26,5 @@ func TestParse(t *testing.T) {
   Pending[0] [U:1:1201744457]  team = TF_GC_TEAM_INVADERS  type = MATCH_PLAYER
 
 `
-	require.Equal(t, 14, len(parseLobbyPlayers(s)))
+	require.Equal(t, 14, len(detector.ParseLobbyPlayers(s)))
 }

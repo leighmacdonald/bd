@@ -8,14 +8,14 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 )
 
-var lobbyPlayerRx *regexp.Regexp
+var lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
 
 type rconConnection interface {
 	Exec(command string) (string, error)
 	Close() error
 }
 
-func parseLobbyPlayers(body string) []*store.Player {
+func ParseLobbyPlayers(body string) []*store.Player {
 	var lobbyPlayers []*store.Player
 	for _, line := range strings.Split(body, "\n") {
 		match := lobbyPlayerRx.FindStringSubmatch(line)
@@ -31,8 +31,4 @@ func parseLobbyPlayers(body string) []*store.Player {
 		lobbyPlayers = append(lobbyPlayers, ps)
 	}
 	return lobbyPlayers
-}
-
-func init() {
-	lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
 }

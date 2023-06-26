@@ -72,9 +72,9 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 	return &lr, nil
 }
 
-var errNoMatch = errors.New("no match found")
+var ErrNoMatch = errors.New("no match found")
 
-type logParser struct {
+type LogParser struct {
 	evtChan     chan LogEvent
 	ReadChannel chan string
 	rx          []*regexp.Regexp
@@ -87,14 +87,14 @@ const (
 	deadTeamPrefix = "*DEAD*(TEAM) "
 )
 
-func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
+func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range parser.rx {
 		if match := rxMatcher.FindStringSubmatch(msg); match != nil {
 			outEvent.Type = EventType(i)
 			if outEvent.Type != EvtLobby {
-				if errTs := outEvent.ApplyTimestamp(match[1]); errTs != nil {
-					parser.logger.Error("Failed to parse timestamp", zap.Error(errTs))
+				if errTS := outEvent.ApplyTimestamp(match[1]); errTS != nil {
+					parser.logger.Error("Failed to parse timestamp", zap.Error(errTS))
 				}
 			}
 			switch outEvent.Type {
@@ -122,7 +122,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 				outEvent.Dead = dead
 				outEvent.Player = name
 				outEvent.Message = match[3]
-			case EvtStatusId:
+			case EvtStatusID:
 				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
 					parser.logger.Error("Failed to parse status userid", zap.Error(errUserID))
@@ -138,7 +138,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 					parser.logger.Error("Failed to parse status duration", zap.Error(durErr))
 					continue
 				}
-				outEvent.UserId = userID
+				outEvent.UserID = userID
 				outEvent.Player = match[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
 				outEvent.PlayerConnected = dur
@@ -165,7 +165,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 			return nil
 		}
 	}
-	return errNoMatch
+	return ErrNoMatch
 }
 
 func parseConnected(d string) (time.Duration, error) {
@@ -186,28 +186,28 @@ func parseConnected(d string) (time.Duration, error) {
 }
 
 // TODO why keep this?
-func (parser *logParser) start(ctx context.Context) {
+func (parser *LogParser) start(ctx context.Context) {
 	for {
 		select {
 		case msg := <-parser.ReadChannel:
 			var logEvent LogEvent
-			if err := parser.parseEvent(msg, &logEvent); err != nil || errors.Is(err, errNoMatch) {
+			if err := parser.Parse(msg, &logEvent); err != nil || errors.Is(err, ErrNoMatch) {
 				continue
 			}
 			parser.evtChan <- logEvent
-			//select {
-			//case parser.evtChan <- logEvent:
-			//default:
-			//	parser.logger.Debug("Event channel full")
-			//}
+			// select {
+			// case parser.evtChan <- logEvent:
+			// default:
+			// 	parser.logger.Debug("Event channel full")
+			// }
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func newLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogEvent) *logParser {
-	return &logParser{
+func NewLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogEvent) *LogParser {
+	return &LogParser{
 		logger:      logger,
 		evtChan:     evtChan,
 		ReadChannel: readChannel,

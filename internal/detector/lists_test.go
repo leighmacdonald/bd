@@ -94,6 +94,6 @@ func TestListParse(t *testing.T) {
 }
 `)
 
-	good := fixSteamIdFormat(badSchema)
+	good := fixSteamIDFormat(badSchema)
 	require.Equal(t, goodSchema, good)
 }

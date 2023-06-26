@@ -27,7 +27,7 @@ const (
 	EvtMsg
 	EvtConnect
 	EvtDisconnect
-	EvtStatusId
+	EvtStatusID
 	EvtHostname
 	EvtMap
 	EvtTags
