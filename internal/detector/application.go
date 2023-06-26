@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leighmacdonald/steamweb/v2"
+
 	"golang.org/x/exp/slog"
 
 	"github.com/leighmacdonald/bd/internal/addons"
@@ -25,7 +27,6 @@ import (
 	"github.com/leighmacdonald/bd/pkg/voiceban"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 )
 
@@ -418,7 +419,7 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, a
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		bans, errBans := steamweb.GetPlayerBans(steamid.Collection{sid64})
+		bans, errBans := steamweb.GetPlayerBans(ctx, steamid.Collection{sid64})
 		if errBans != nil || len(bans) == 0 {
 			d.log.Error("Failed to fetch player bans", "err", errBans)
 		} else {
@@ -439,7 +440,7 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, a
 	}()
 	go func() {
 		defer wg.Done()
-		summaries, errSummaries := steamweb.PlayerSummaries(steamid.Collection{sid64})
+		summaries, errSummaries := steamweb.PlayerSummaries(ctx, steamid.Collection{sid64})
 		if errSummaries != nil || len(summaries) == 0 {
 			d.log.Error("Failed to fetch player summary", "err", errSummaries)
 		} else {
