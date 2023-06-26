@@ -21,7 +21,7 @@ type LogEvent struct {
 	PlayerPing      int
 	PlayerConnected time.Duration
 	Team            store.Team
-	UserId          int64
+	UserID          int64
 	PlayerSID       steamid.SID64
 	Victim          string
 	VictimSID       steamid.SID64
@@ -33,9 +33,9 @@ type LogEvent struct {
 }
 
 func (e *LogEvent) ApplyTimestamp(tsString string) error {
-	ts, errTs := parseTimestamp(tsString)
-	if errTs != nil {
-		return errTs
+	ts, errTS := parseTimestamp(tsString)
+	if errTS != nil {
+		return errTS
 	}
 	e.Timestamp = ts
 	return nil

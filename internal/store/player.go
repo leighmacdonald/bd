@@ -26,9 +26,9 @@ const (
 type Player struct {
 	// - Permanent storage backed
 
-	// SteamId is the 64bit steamid of the user
-	SteamId       steamid.SID64 `json:"-"`
-	SteamIdString string        `json:"steam_id"`
+	// SteamID is the 64bit steamid of the user
+	SteamID       steamid.SID64 `json:"-"`
+	SteamIDString string        `json:"steam_id"`
 	// Name is the current in-game name of the player. This can be different from their name via steam api when
 	// using changer/stealers
 	Name string `json:"name"`
@@ -104,7 +104,7 @@ func (ps *Player) IsMatched() bool {
 }
 
 func (ps *Player) GetSteamID() steamid.SID64 {
-	return ps.SteamId
+	return ps.SteamID
 }
 
 func (ps *Player) GetName() string {
@@ -140,10 +140,10 @@ func firstN(s string, n int) string {
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-// API returns non https urls, this will resolve them over https
+// API returns non https urls, this will resolve them over https.
 const baseAvatarUrl = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
 
-func AvatarUrl(hash string) string {
+func AvatarURL(hash string) string {
 	avatarHash := defaultAvatarHash
 	if hash != "" {
 		avatarHash = hash
@@ -167,8 +167,8 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		Name:             name,
 		AccountCreatedOn: time.Time{},
 		Visibility:       ProfileVisibilityPublic,
-		SteamId:          sid64,
-		SteamIdString:    sid64.String(),
+		SteamID:          sid64,
+		SteamIDString:    sid64.String(),
 		CreatedOn:        t0,
 		UpdatedOn:        t0,
 		ProfileUpdatedOn: t0.AddDate(-1, 0, 0),
@@ -177,7 +177,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 
 type UserNameHistory struct {
 	BaseSID
-	NameId    int64
+	NameID    int64
 	Name      string
 	FirstSeen time.Time
 }
@@ -197,7 +197,7 @@ func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, e
 		return nil, ErrEmptyValue
 	}
 	return &UserNameHistory{
-		BaseSID:   BaseSID{SteamId: steamID, SteamIdString: steamID.String()},
+		BaseSID:   BaseSID{SteamID: steamID, SteamIDString: steamID.String()},
 		Name:      name,
 		FirstSeen: time.Now(),
 	}, nil

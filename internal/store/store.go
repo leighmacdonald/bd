@@ -108,7 +108,7 @@ func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNam
 	query, args, err := sq.
 		Insert("player_names").
 		Columns("steam_id", "name", "created_on").
-		Values(hist.SteamId, hist.Name, time.Now()).
+		Values(hist.SteamID, hist.Name, time.Now()).
 		ToSql()
 	if err != nil {
 		return err
@@ -123,34 +123,34 @@ func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage)
 	query := sq.
 		Insert("player_messages").
 		Columns("steam_id", "message", "created_on").
-		Values(message.SteamId, message.Message, message.Created).
+		Values(message.SteamID, message.Message, message.Created).
 		Suffix("RETURNING \"message_id\"").
 		RunWith(store.db)
-	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageId); errExec != nil {
+	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageID); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save message")
 	}
 	return nil
 }
 
 func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error {
-	query, args, errSql := sq.
+	query, args, errSQL := sq.
 		Insert("player").
 		Columns("steam_id", "visibility", "real_name", "account_created_on", "avatar_hash",
 			"community_banned", "game_bans", "vac_bans", "last_vac_ban_on", "kills_on", "deaths_by",
 			"rage_quits", "notes", "whitelist", "created_on", "updated_on", "profile_updated_on").
-		Values(state.SteamId.Int64(), state.Visibility, state.RealName, state.AccountCreatedOn, state.AvatarHash,
+		Values(state.SteamID.Int64(), state.Visibility, state.RealName, state.AccountCreatedOn, state.AvatarHash,
 			state.CommunityBanned, state.NumberOfGameBans, state.NumberOfVACBans, state.LastVACBanOn, state.KillsOn,
 			state.DeathsBy, state.RageQuits, state.Notes, state.Whitelisted, state.CreatedOn,
 			state.UpdatedOn, state.ProfileUpdatedOn).
 		ToSql()
-	if errSql != nil {
-		return errSql
+	if errSQL != nil {
+		return errSQL
 	}
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
 	if state.Name != "" {
-		name, errName := NewUserNameHistory(state.SteamId, state.Name)
+		name, errName := NewUserNameHistory(state.SteamID, state.Name)
 		if errName != nil {
 			return errName
 		}
@@ -163,7 +163,7 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 
 func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error {
 	state.UpdatedOn = time.Now()
-	query, args, errSql := sq.
+	query, args, errSQL := sq.
 		Update("player").
 		Set("visibility", state.Visibility).
 		Set("real_name", state.RealName).
@@ -180,20 +180,20 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 		Set("whitelist", state.Whitelisted).
 		Set("updated_on", state.UpdatedOn).
 		Set("profile_updated_on", state.ProfileUpdatedOn).
-		Where(sq.Eq{"steam_id": state.SteamId}).ToSql()
-	if errSql != nil {
-		return errSql
+		Where(sq.Eq{"steam_id": state.SteamID}).ToSql()
+	if errSQL != nil {
+		return errSQL
 	}
 	_, errExec := store.db.ExecContext(ctx, query, args...)
 	if errExec != nil {
 		return errors.Wrap(errExec, "Could not update player state")
 	}
 	var existing Player
-	if errExisting := store.GetPlayer(ctx, state.SteamId, false, &existing); errExisting != nil {
+	if errExisting := store.GetPlayer(ctx, state.SteamID, false, &existing); errExisting != nil {
 		return errExisting
 	}
 	if existing.Name != state.Name {
-		name, errName := NewUserNameHistory(state.SteamId, state.Name)
+		name, errName := NewUserNameHistory(state.SteamID, state.Name)
 		if errName != nil {
 			return errName
 		}
@@ -205,7 +205,7 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 }
 
 func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
-	if !state.SteamId.Valid() {
+	if !state.SteamID.Valid() {
 		return errors.New("Invalid steam id")
 	}
 	return store.updatePlayer(ctx, state)
@@ -231,9 +231,9 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 	} else if opts.Query != "" {
 		qb = qb.Where(sq.Like{"pn.name": fmt.Sprintf("%%%s%%", opts.Query)})
 	}
-	query, args, errSql := qb.ToSql()
-	if errSql != nil {
-		return nil, errSql
+	query, args, errSQL := qb.ToSql()
+	if errSQL != nil {
+		return nil, errSQL
 	}
 	rows, rowErr := store.db.QueryContext(ctx, query, args...)
 	if rowErr != nil {
@@ -244,7 +244,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 	for rows.Next() {
 		var prevName *string
 		var player Player
-		if errScan := rows.Scan(&player.SteamId, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
+		if errScan := rows.Scan(&player.SteamID, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
@@ -265,7 +265,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	if !steamID.Valid() {
 		return errors.New("Invalid steam id")
 	}
-	query, args, errSql := sq.
+	query, args, errSQL := sq.
 		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
 			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
@@ -275,8 +275,8 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		OrderBy("pn.created_on DESC").
 		Limit(1).
 		ToSql()
-	if errSql != nil {
-		return errSql
+	if errSQL != nil {
+		return errSQL
 	}
 	var prevName *string
 	rowErr := store.db.
@@ -286,8 +286,8 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
-	player.SteamId = steamID
-	player.SteamIdString = steamID.String()
+	player.SteamID = steamID
+	player.SteamIDString = steamID.String()
 	player.Matches = []*rules.MatchResult{}
 	if rowErr != nil {
 		if !errors.Is(rowErr, sql.ErrNoRows) || !create {
@@ -305,13 +305,13 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 }
 
 func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (UserNameHistoryCollection, error) {
-	query, args, errSql := sq.
+	query, args, errSQL := sq.
 		Select("name_id", "name", "created_on").
 		From("player_names").
 		Where(sq.Eq{"steam_id": steamID}).
 		ToSql()
-	if errSql != nil {
-		return nil, errSql
+	if errSQL != nil {
+		return nil, errSQL
 	}
 	rows, errQuery := store.db.QueryContext(ctx, query, args...)
 	if errQuery != nil {
@@ -324,7 +324,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	var hist UserNameHistoryCollection
 	for rows.Next() {
 		var h UserNameHistory
-		if errScan := rows.Scan(&h.NameId, &h.Name, &h.FirstSeen); errScan != nil {
+		if errScan := rows.Scan(&h.NameID, &h.Name, &h.FirstSeen); errScan != nil {
 			return nil, errScan
 		}
 		hist = append(hist, h)
@@ -333,13 +333,13 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 }
 
 func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (UserMessageCollection, error) {
-	query, args, errSql := sq.
+	query, args, errSQL := sq.
 		Select("steam_id", "message_id", "message", "created_on").
 		From("player_messages").
 		Where(sq.Eq{"steam_id": steamID}).
 		ToSql()
-	if errSql != nil {
-		return nil, errSql
+	if errSQL != nil {
+		return nil, errSQL
 	}
 	rows, errQuery := store.db.QueryContext(ctx, query, args...)
 	if errQuery != nil {
@@ -348,14 +348,15 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		}
 		return nil, errQuery
 	}
+
 	defer util.LogClose(store.logger, rows)
 	var messages UserMessageCollection
 	for rows.Next() {
 		var m UserMessage
-		if errScan := rows.Scan(&m.SteamId, &m.MessageId, &m.Message, &m.Created); errScan != nil {
+		if errScan := rows.Scan(&m.SteamID, &m.MessageID, &m.Message, &m.Created); errScan != nil {
 			return nil, errScan
 		}
-		m.SteamIdString = m.SteamId.String()
+		m.SteamIDString = m.SteamID.String()
 		messages = append(messages, m)
 	}
 	return messages, nil

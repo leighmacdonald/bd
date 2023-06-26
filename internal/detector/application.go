@@ -19,7 +19,6 @@ import (
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/bd/pkg/voiceban"
@@ -46,7 +45,7 @@ var (
 	server            Server
 	serverMu          *sync.RWMutex
 	reader            *logReader
-	parser            *logParser
+	parser            *LogParser
 	rconConn          rconConnection
 	settings          *UserSettings
 
@@ -104,9 +103,12 @@ func Init(versionInfo Version, s *UserSettings, logger *zap.Logger, ds store.Dat
 	dataStore = ds
 	rootLogger = logger
 	rootLogger.Info("bd starting", zap.String("Version", versionInfo.Version))
-	if errTranslations := tr.Init(); errTranslations != nil {
-		rootLogger.Error("Failed to load translations", zap.Error(errTranslations))
-	}
+
+	// tr, errTranslator := tr.NewTranslator()
+	// if errTranslator != nil {
+	// 	rootLogger.Error("Failed to load translations", zap.Error(errTranslator))
+	// }
+
 	if settings.GetAPIKey() != "" {
 		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
 			rootLogger.Error("Failed to set steam api key", zap.Error(errAPIKey))
@@ -155,7 +157,7 @@ func Init(versionInfo Version, s *UserSettings, logger *zap.Logger, ds store.Dat
 	}
 
 	fsCache = newCache(rootLogger, settings.ConfigRoot(), DurationCacheTimeout)
-	parser = newLogParser(rootLogger, logChan, eventChan)
+	parser = NewLogParser(rootLogger, logChan, eventChan)
 	lr, errLogReader := createLogReader()
 	if errLogReader != nil {
 		rootLogger.Panic("Failed to create logreader", zap.Error(errLogReader))
@@ -190,7 +192,7 @@ func fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	}
 	localCtx, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 	defer cancel()
-	req, reqErr := http.NewRequestWithContext(localCtx, "GET", store.AvatarUrl(hash), nil)
+	req, reqErr := http.NewRequestWithContext(localCtx, "GET", store.AvatarURL(hash), nil)
 	if reqErr != nil {
 		return nil, errors.Wrap(reqErr, "Failed to create avatar download request")
 	}
@@ -254,7 +256,7 @@ func LaunchGameAndWait() {
 		rconConfig.Password(),
 		rconConfig.Port(),
 		settings.GetSteamDir(),
-		settings.GetSteamId())
+		settings.GetSteamID())
 	if errArgs != nil {
 		rootLogger.Error("Failed to get TF2 launch args", zap.Error(errArgs))
 		return
@@ -312,7 +314,7 @@ func UnMark(ctx context.Context, sid64 steamid.SID64) error {
 	playersMu.Lock()
 	defer playersMu.Unlock()
 	for idx := range players {
-		if players[idx].SteamId == sid64 {
+		if players[idx].SteamID == sid64 {
 			var valid []*rules.MatchResult
 			for _, m := range players[idx].Matches {
 				if m.Origin == "local" {
@@ -371,7 +373,7 @@ func Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
 		rules.WhitelistRemove(sid64)
 	}
 	rootLogger.Info("Update player whitelist status successfully",
-		zap.Int64("steam_id", player.SteamId.Int64()), zap.Bool("enabled", enabled))
+		zap.Int64("steam_id", player.SteamID.Int64()), zap.Bool("enabled", enabled))
 	return nil
 }
 
@@ -488,7 +490,7 @@ func GetPlayer(sid64 steamid.SID64) *store.Player {
 	playersMu.RLock()
 	defer playersMu.RUnlock()
 	for _, player := range players {
-		if player.SteamId == sid64 {
+		if player.SteamID == sid64 {
 			return player
 		}
 	}
@@ -514,7 +516,7 @@ func checkHandler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-checkTimer.C:
-			p := GetPlayer(settings.GetSteamId())
+			p := GetPlayer(settings.GetSteamID())
 			if p == nil {
 				// We have not connected yet.
 				continue
@@ -646,7 +648,7 @@ func nameToSid(players store.PlayerCollection, name string) steamid.SID64 {
 	defer playersMu.RUnlock()
 	for _, player := range players {
 		if name == player.Name {
-			return player.SteamId
+			return player.SteamID
 		}
 	}
 	return 0
@@ -662,7 +664,7 @@ func onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
 }
 
 func AddUserName(ctx context.Context, player *store.Player, name string) error {
-	unh, errMessage := store.NewUserNameHistory(player.SteamId, name)
+	unh, errMessage := store.NewUserNameHistory(player.SteamID, name)
 	if errMessage != nil {
 		return errMessage
 	}
@@ -676,7 +678,7 @@ func AddUserName(ctx context.Context, player *store.Player, name string) error {
 }
 
 func AddUserMessage(ctx context.Context, player *store.Player, message string, dead bool, teamOnly bool) error {
-	um, errMessage := store.NewUserMessage(player.SteamId, message, dead, teamOnly)
+	um, errMessage := store.NewUserMessage(player.SteamID, message, dead, teamOnly)
 	if errMessage != nil {
 		return errMessage
 	}
@@ -695,16 +697,16 @@ func onUpdateKill(kill killEvent) {
 	if !source.Valid() || !target.Valid() {
 		return
 	}
-	ourSid := settings.GetSteamId()
+	ourSid := settings.GetSteamID()
 	sourcePlayer := GetPlayer(source)
 	targetPlayer := GetPlayer(target)
 	playersMu.Lock()
 	sourcePlayer.Kills++
 	targetPlayer.Deaths++
-	if targetPlayer.SteamId == ourSid {
+	if targetPlayer.SteamID == ourSid {
 		sourcePlayer.DeathsBy++
 	}
-	if sourcePlayer.SteamId == ourSid {
+	if sourcePlayer.SteamID == ourSid {
 		targetPlayer.KillsOn++
 	}
 	sourcePlayer.Touch()
@@ -814,7 +816,7 @@ func triggerMatch(ps *store.Player, matches []*rules.MatchResult) {
 		}
 		for _, match := range matches {
 			rootLogger.Info(msg, zap.String("match_type", match.MatcherType),
-				zap.Int64("steam_id", ps.SteamId.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
+				zap.Int64("steam_id", ps.SteamID.Int64()), zap.String("name", ps.Name), zap.String("origin", match.Origin))
 		}
 		ps.AnnouncedGeneralLast = time.Now()
 	}

@@ -60,7 +60,7 @@ func main() {
 		detector.Start(rootCtx)
 		return nil
 	})
-	if userSettings.GetHttpEnabled() {
+	if userSettings.GetHTTPEnabled() {
 		execGroup.Go(func() error {
 			web.Init(detector.Logger(), false)
 			return web.Start(grpCtx, userSettings.HTTPListenAddr)

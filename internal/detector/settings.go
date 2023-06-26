@@ -32,7 +32,7 @@ var (
 type ListType string
 
 const (
-	// ListTypeBD              ListType = "bd"
+	// ListTypeBD              ListType = "bd".
 	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
 	ListTypeTF2BDRules      ListType = "tf2bd_rules"
 	// ListTypeUnknown         ListType = "unknown"
@@ -45,21 +45,21 @@ type ListConfig struct {
 	URL      string   `yaml:"url" json:"url"`
 }
 
-// TODO add to steamid pkg
-type SteamIdFormat string
+// TODO add to steamid pkg.
+type SteamIDFormat string
 
 const (
-	Steam64 SteamIdFormat = "steam64"
-	Steam3  SteamIdFormat = "steam3"
-	Steam32 SteamIdFormat = "steam32"
-	Steam   SteamIdFormat = "steam"
+	Steam64 SteamIDFormat = "steam64"
+	Steam3  SteamIDFormat = "steam3"
+	Steam32 SteamIDFormat = "steam32"
+	Steam   SteamIDFormat = "steam"
 )
 
 type LinkConfig struct {
 	Enabled  bool   `yaml:"enabled" json:"enabled"`
 	Name     string `yaml:"name" json:"name"`
 	URL      string `yaml:"url" json:"url"`
-	IdFormat string `yaml:"id_format" json:"id_format"`
+	IDFormat string `yaml:"id_format" json:"id_format"`
 	Deleted  bool   `yaml:"-" json:"deleted"`
 }
 type LinkConfigCollection []*LinkConfig
@@ -138,13 +138,13 @@ func (s *UserSettings) SetDebugLogEnabled(enabled bool) {
 	s.DebugLogEnabled = enabled
 }
 
-func (s *UserSettings) GetHttpEnabled() bool {
+func (s *UserSettings) GetHTTPEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
 	return s.HTTPEnabled
 }
 
-func (s *UserSettings) SetHttpEnabled(enabled bool) {
+func (s *UserSettings) SetHTTPEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.HTTPEnabled = enabled
@@ -330,7 +330,7 @@ func (s *UserSettings) GetKickTags() []string {
 	return s.KickTags
 }
 
-func (s *UserSettings) GetSteamId() steamid.SID64 {
+func (s *UserSettings) GetSteamID() steamid.SID64 {
 	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
 		return 0
@@ -409,55 +409,55 @@ func NewSettings() (*UserSettings, error) {
 				Enabled:  true,
 				Name:     "RGL",
 				URL:      "https://rgl.gg/Public/PlayerProfile.aspx?p=%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "Steam",
 				URL:      "https://steamcommunity.com/profiles/%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "OzFortress",
 				URL:      "https://ozfortress.com/users/steam_id/%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "ESEA",
 				URL:      "https://play.esea.net/index.php?s=search&query=%s",
-				IdFormat: "steam3",
+				IDFormat: "steam3",
 			},
 			{
 				Enabled:  true,
 				Name:     "UGC",
 				URL:      "https://www.ugcleague.com/players_page.cfm?player_id=%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "ETF2L",
 				URL:      "https://etf2l.org/search/%d/",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "trends.tf",
 				URL:      "https://trends.tf/player/%d/",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "demos.tf",
 				URL:      "https://demos.tf/profiles/%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 			{
 				Enabled:  true,
 				Name:     "logs.tf",
 				URL:      "https://logs.tf/profile/%d",
-				IdFormat: "steam64",
+				IDFormat: "steam64",
 			},
 		},
 		RCONStatic:     false,
@@ -491,7 +491,7 @@ func (s *UserSettings) ReadDefaultOrCreate() error {
 }
 
 func (s *UserSettings) MustValidate() {
-	if !(s.GetHttpEnabled() || s.GetGuiEnabled()) {
+	if !(s.GetHTTPEnabled() || s.GetGuiEnabled()) {
 		panic("Must enable at least one of the gui or http packages")
 	}
 }

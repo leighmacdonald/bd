@@ -122,49 +122,49 @@ func TestPostMarkPlayerHandler(t *testing.T) {
 		Attrs: []string{"cheater", "test"},
 	}
 	t.Run("Mark Player", func(t *testing.T) {
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIdString), http.StatusNoContent, nil, req)
-		matches := rules.MatchSteam(pls[0].SteamId)
+		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIDString), http.StatusNoContent, nil, req)
+		matches := rules.MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 	t.Run("Mark Duplicate Player", func(t *testing.T) {
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIdString), http.StatusConflict, nil, req)
-		matches := rules.MatchSteam(pls[0].SteamId)
+		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIDString), http.StatusConflict, nil, req)
+		matches := rules.MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 	t.Run("Mark Without Attrs", func(t *testing.T) {
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIdString), http.StatusBadRequest, nil, postMarkPlayerOpts{
+		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamIDString), http.StatusBadRequest, nil, postMarkPlayerOpts{
 			Attrs: []string{},
 		})
-		matches := rules.MatchSteam(pls[0].SteamId)
+		matches := rules.MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 	t.Run("Mark bad steamid", func(t *testing.T) {
 		fetchIntoWithStatus(t, "POST", "/mark/blah", http.StatusBadRequest, nil, postMarkPlayerOpts{
 			Attrs: []string{"cheater", "test"},
 		})
-		matches := rules.MatchSteam(pls[0].SteamId)
+		matches := rules.MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 }
 
 func TestWhitelistPlayerHandler(t *testing.T) {
 	pls := createTestPlayers(1)
-	require.NoError(t, detector.Mark(context.TODO(), pls[0].SteamId, []string{"test_mark"}))
+	require.NoError(t, detector.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
 	t.Run("Whitelist Player", func(t *testing.T) {
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamIdString), http.StatusNoContent, nil, nil)
-		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamId, false)
+		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamIDString), http.StatusNoContent, nil, nil)
+		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
 		require.True(t, plr.Whitelisted)
-		require.Nil(t, rules.MatchSteam(pls[0].SteamId))
-		require.True(t, rules.Whitelisted(pls[0].SteamId))
+		require.Nil(t, rules.MatchSteam(pls[0].SteamID))
+		require.True(t, rules.Whitelisted(pls[0].SteamID))
 	})
 	t.Run("Remove Player Whitelist", func(t *testing.T) {
-		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamIdString), http.StatusNoContent, nil, nil)
-		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamId, false)
+		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamIDString), http.StatusNoContent, nil, nil)
+		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
 		require.False(t, plr.Whitelisted)
-		require.NotNil(t, rules.MatchSteam(pls[0].SteamId))
-		require.False(t, rules.Whitelisted(pls[0].SteamId))
+		require.NotNil(t, rules.MatchSteam(pls[0].SteamID))
+		require.False(t, rules.Whitelisted(pls[0].SteamID))
 	})
 }
 
@@ -174,8 +174,8 @@ func TestPlayerNotes(t *testing.T) {
 		Note: "New Note",
 	}
 	t.Run("Set Player", func(t *testing.T) {
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamIdString), http.StatusNoContent, nil, req)
-		np, _ := detector.GetPlayerOrCreate(context.TODO(), pls[0].SteamId, false)
+		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamIDString), http.StatusNoContent, nil, req)
+		np, _ := detector.GetPlayerOrCreate(context.TODO(), pls[0].SteamID, false)
 		require.Equal(t, req.Note, np.Notes)
 	})
 }
@@ -187,7 +187,7 @@ func TestPlayerChatHistory(t *testing.T) {
 	}
 	t.Run("Get Chat History", func(t *testing.T) {
 		var messages []*store.UserMessage
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamIdString), http.StatusOK, &messages, nil)
+		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamIDString), http.StatusOK, &messages, nil)
 		require.Equal(t, 10, len(messages))
 	})
 }
@@ -199,7 +199,7 @@ func TestPlayerNameHistory(t *testing.T) {
 	}
 	t.Run("Get Name History", func(t *testing.T) {
 		var names store.UserMessageCollection
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[1].SteamIdString), http.StatusOK, &names, nil)
+		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[1].SteamIDString), http.StatusOK, &names, nil)
 		require.Equal(t, 5+1, len(names))
 	})
 }

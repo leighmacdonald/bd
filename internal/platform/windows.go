@@ -62,12 +62,30 @@ func getTF2Folder() (string, error) {
 	if errParse != nil {
 		return "", errors.Wrap(errOpen, "failed to parse vdf")
 	}
-	for _, library := range result["libraryfolders"].(map[string]any) {
-		currentLibraryPath := library.(map[string]any)["path"]
-		apps := library.(map[string]any)["apps"]
-		for key := range apps.(map[string]any) {
+	libs, libsOk := result["libraryfolders"].(map[string]any)
+	if !libsOk {
+		return "", errors.New("Failed to cast libs")
+	}
+	for _, library := range libs {
+		currentLibraryPath, currentLibraryPathOk := library.(map[string]any)["path"]
+		if !currentLibraryPathOk {
+			return "", errors.New("Failed to cast currentLibraryPath")
+		}
+		apps, appsOk := library.(map[string]any)["apps"]
+		if !appsOk {
+			return "", errors.New("Failed to cast apps")
+		}
+		sm, smOk := apps.(map[string]any)
+		if !smOk {
+			return "", errors.New("Failed to cast sm")
+		}
+		for key := range sm {
 			if key == "440" {
-				return filepath.Join(currentLibraryPath.(string), "steamapps", "common", "Team Fortress 2", "tf"), nil
+				gameLibPath, gameLibPathOk := currentLibraryPath.(string)
+				if !gameLibPathOk {
+					return "", errors.New("Failed to cast libPath")
+				}
+				return filepath.Join(gameLibPath, "steamapps", "common", "Team Fortress 2", "tf"), nil
 			}
 		}
 	}

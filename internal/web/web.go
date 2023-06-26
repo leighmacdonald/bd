@@ -108,6 +108,7 @@ type jsConfig struct {
 	SiteName string `json:"siteName"`
 }
 
+//nolint:gosec
 func createTestPlayers(count int) store.PlayerCollection {
 	idIdx := 0
 	knownIds := steamid.Collection{

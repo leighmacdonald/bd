@@ -8,9 +8,6 @@ deps:
 
 extract: tr_extract
 
-fmt:
-	gofmt -s -w .
-
 bump_deps:
 	go get -u ./...
 	cd widget && yarn upgrade-interactive --latest
