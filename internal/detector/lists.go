@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 // fixSteamIDFormat converts raw unquoted steamids to quoted ones
@@ -21,7 +22,7 @@ func fixSteamIDFormat(body []byte) []byte {
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
-func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
@@ -63,7 +64,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 			mu.Lock()
 			playerLists = append(playerLists, result)
 			mu.Unlock()
-			logger.Info("Downloaded players successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
+			logger.Info("Downloaded players successfully", "duration", dur, "name", result.FileInfo.Title)
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
@@ -72,7 +73,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 			mu.Lock()
 			rulesLists = append(rulesLists, result)
 			mu.Unlock()
-			logger.Info("Downloaded rules successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
+			logger.Info("Downloaded rules successfully", "duration", dur, "name", result.FileInfo.Title)
 		}
 		return nil
 	}
@@ -85,7 +86,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 		go func(lc *ListConfig) {
 			defer wg.Done()
 			if errDL := downloadFn(lc); errDL != nil {
-				logger.Error("Failed to download list: %v", zap.Error(errDL))
+				logger.Error("Failed to download list", "err", errDL)
 			}
 		}(listConfig)
 	}

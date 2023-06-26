@@ -1,4 +1,4 @@
-package web
+package detector
 
 import (
 	"bytes"
@@ -12,17 +12,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leighmacdonald/bd/internal/detector"
+	"golang.org/x/exp/slog"
+
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestMain(m *testing.M) {
-	testLogger, _ := zap.NewDevelopment()
-	settings, _ := detector.NewSettings()
+	testLogger := slog.Default()
+	settings, _ := NewSettings()
 	var testDb store.DataStore
 	if false {
 		// Toggle if you want to inspect the database
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 		}
 		localDbPath := filepath.Join(dir, "db.sqlite?cache=shared")
 		testDb = store.New(localDbPath, testLogger)
-		testLogger.Info("Using database", zap.String("path", localDbPath))
+		testLogger.Info("Using database", "path", localDbPath)
 		defer func() {
 			_ = testDb.Close()
 			if errRemove := os.RemoveAll(dir); errRemove != nil {
@@ -45,8 +45,8 @@ func TestMain(m *testing.M) {
 	if errDb := testDb.Init(); errDb != nil {
 		panic(errDb)
 	}
-	detector.Init(detector.Version{}, settings, testLogger, testDb, true)
-	Init(detector.Logger(), true)
+	Init(Version{}, settings, testLogger, testDb, true)
+	Init(Logger(), true)
 	os.Exit(m.Run())
 }
 
@@ -71,11 +71,11 @@ func fetchIntoWithStatus(t *testing.T, method string, path string, status int, o
 func TestGetPlayers(t *testing.T) {
 	tp := createTestPlayers(5)
 	for _, p := range tp {
-		detector.AddPlayer(p)
+		AddPlayer(p)
 	}
 	var ps []store.Player
 	fetchIntoWithStatus(t, "GET", "/players", http.StatusOK, &ps, nil)
-	known := detector.Players()
+	known := Players()
 	require.Equal(t, len(known), len(ps))
 }
 
@@ -83,7 +83,7 @@ func TestGetSettingsHandler(t *testing.T) {
 	t.Run("Get Settings", func(t *testing.T) {
 		var wus webUserSettings
 		fetchIntoWithStatus(t, "GET", "/settings", http.StatusOK, &wus, nil)
-		s := webUserSettings{UserSettings: detector.Settings(), UniqueTags: rules.UniqueTags()}
+		s := webUserSettings{UserSettings: Settings(), UniqueTags: rules.UniqueTags()}
 		require.Equal(t, s.SteamID, wus.SteamID)
 		require.Equal(t, s.SteamDir, wus.SteamDir)
 		require.Equal(t, s.AutoLaunchGame, wus.AutoLaunchGame)
@@ -107,11 +107,11 @@ func TestGetSettingsHandler(t *testing.T) {
 		require.Equal(t, s.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
 	})
 	t.Run("Save Settings", func(t *testing.T) {
-		s := detector.Settings()
+		s := Settings()
 		newSettings := *s
 		newSettings.TF2Dir = "new/dir"
 		fetchIntoWithStatus(t, "POST", "/settings", http.StatusNoContent, nil, newSettings)
-		s2 := detector.Settings()
+		s2 := Settings()
 		require.Equal(t, newSettings.TF2Dir, s2.TF2Dir)
 	})
 }
@@ -149,10 +149,10 @@ func TestPostMarkPlayerHandler(t *testing.T) {
 
 func TestWhitelistPlayerHandler(t *testing.T) {
 	pls := createTestPlayers(1)
-	require.NoError(t, detector.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
+	require.NoError(t, Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
 	t.Run("Whitelist Player", func(t *testing.T) {
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamIDString), http.StatusNoContent, nil, nil)
-		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
+		plr, e := GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
 		require.True(t, plr.Whitelisted)
 		require.Nil(t, rules.MatchSteam(pls[0].SteamID))
@@ -160,7 +160,7 @@ func TestWhitelistPlayerHandler(t *testing.T) {
 	})
 	t.Run("Remove Player Whitelist", func(t *testing.T) {
 		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamIDString), http.StatusNoContent, nil, nil)
-		plr, e := detector.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
+		plr, e := GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
 		require.False(t, plr.Whitelisted)
 		require.NotNil(t, rules.MatchSteam(pls[0].SteamID))
@@ -175,7 +175,7 @@ func TestPlayerNotes(t *testing.T) {
 	}
 	t.Run("Set Player", func(t *testing.T) {
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamIDString), http.StatusNoContent, nil, req)
-		np, _ := detector.GetPlayerOrCreate(context.TODO(), pls[0].SteamID, false)
+		np, _ := GetPlayerOrCreate(context.TODO(), pls[0].SteamID, false)
 		require.Equal(t, req.Note, np.Notes)
 	})
 }
@@ -183,7 +183,7 @@ func TestPlayerNotes(t *testing.T) {
 func TestPlayerChatHistory(t *testing.T) {
 	pls := createTestPlayers(1)
 	for i := 0; i < 10; i++ {
-		require.NoError(t, detector.AddUserMessage(context.TODO(), pls[0], util.RandomString(i+1*2), false, true))
+		require.NoError(t, AddUserMessage(context.TODO(), pls[0], util.RandomString(i+1*2), false, true))
 	}
 	t.Run("Get Chat History", func(t *testing.T) {
 		var messages []*store.UserMessage
@@ -195,7 +195,7 @@ func TestPlayerChatHistory(t *testing.T) {
 func TestPlayerNameHistory(t *testing.T) {
 	pls := createTestPlayers(2)
 	for i := 0; i < 5; i++ {
-		require.NoError(t, detector.AddUserName(context.TODO(), pls[1], util.RandomString(i+1*2)))
+		require.NoError(t, AddUserName(context.TODO(), pls[1], util.RandomString(i+1*2)))
 	}
 	t.Run("Get Name History", func(t *testing.T) {
 		var names store.UserMessageCollection

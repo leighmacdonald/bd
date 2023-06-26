@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/leighmacdonald/bd/internal/detector"
 
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestParseEvent(t *testing.T) {
@@ -95,8 +96,7 @@ func TestParseEvent(t *testing.T) {
 			expected: detector.LogEvent{Type: detector.EvtDisconnect, Timestamp: ts, MetaData: "Differing lobby received."},
 		},
 	}
-	logger, _ := zap.NewDevelopment()
-	reader := detector.NewLogParser(logger, nil, nil)
+	reader := detector.NewLogParser(slog.Default(), nil, nil)
 	for num, testCase := range cases {
 		var event detector.LogEvent
 		err := reader.Parse(testCase.text, &event)

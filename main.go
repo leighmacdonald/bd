@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/web"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -39,38 +40,59 @@ func main() {
 	}
 	userSettings.MustValidate()
 
-	dbPath := userSettings.DBPath()
+	switch userSettings.RunMode {
+	case detector.ModeProd:
+		gin.SetMode(gin.ReleaseMode)
+	case detector.ModeTest:
+		gin.SetMode(gin.TestMode)
+	case detector.ModeDebug:
+		gin.SetMode(gin.DebugMode)
+	}
+
 	logFilePath := ""
 	if userSettings.GetDebugLogEnabled() {
 		logFilePath = userSettings.LogFilePath()
 	}
-	rootLogger := detector.MustCreateLogger(logFilePath)
-
-	dataStore := store.New(dbPath, detector.Logger())
-	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		rootLogger.Panic("Failed to migrate database", zap.Error(errMigrate))
+	logger, errLogger := detector.NewLogger(logFilePath)
+	if errLogger != nil {
+		logger.Error("Failed to create logger", "err", errLogger)
 	}
 
-	detector.Init(versionInfo, userSettings, rootLogger, dataStore, false)
+	dataStore := store.New(userSettings.DBPath(), logger)
+	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
+		logger.Error("Failed to migrate database", "err", errMigrate)
+	}
+
+	fsCache, cacheErr := detector.NewCache(logger, userSettings.ConfigRoot(), detector.DurationCacheTimeout)
+	if cacheErr != nil {
+		logger.Error("Failed to setup cache", "err", cacheErr)
+		return
+	}
+
+	logChan := make(chan string)
+	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.GetTF2Dir(), "console.log"), logChan)
+	if errLogReader != nil {
+		logger.Error("Failed to create logreader", "err", errLogReader)
+		return
+	}
+
+	bd := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	execGroup, grpCtx := errgroup.WithContext(rootCtx)
 	execGroup.Go(func() error {
-		detector.Start(rootCtx)
+		bd.Start(rootCtx)
 		return nil
 	})
-	if userSettings.GetHTTPEnabled() {
-		execGroup.Go(func() error {
-			web.Init(detector.Logger(), false)
-			return web.Start(grpCtx, userSettings.HTTPListenAddr)
-		})
-		execGroup.Go(func() error {
-			<-grpCtx.Done()
-			var err error
-			return gerrors.Join(err, web.Stop(), detector.Shutdown())
-		})
-	}
+
+	bd.Start(grpCtx)
+
+	execGroup.Go(func() error {
+		<-grpCtx.Done()
+		var err error
+		return gerrors.Join(err, bd.Shutdown())
+	})
 
 	if errExit := execGroup.Wait(); errExit != nil {
 		fmt.Println(errExit.Error())

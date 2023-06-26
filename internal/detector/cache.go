@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 var ErrCacheExpired = errors.New("cached value expired")
@@ -22,7 +23,7 @@ type Cache interface {
 type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
-	logger   *zap.Logger
+	logger   *slog.Logger
 }
 
 type Type int
@@ -32,18 +33,21 @@ const (
 	TypeLists
 )
 
-func newCache(logger *zap.Logger, rootDir string, maxAge time.Duration) FsCache {
-	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger}
-	cache.init()
-	return cache
+func NewCache(logger *slog.Logger, rootDir string, maxAge time.Duration) (FsCache, error) {
+	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger.WithGroup("cache")}
+	if errInit := cache.init(); errInit != nil {
+		return FsCache{}, errInit
+	}
+	return cache, nil
 }
 
-func (cache FsCache) init() {
+func (cache FsCache) init() error {
 	for _, p := range []Type{TypeAvatar, TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0o770); errMkDir != nil {
-			cache.logger.Panic("Failed to setup cache dirs", zap.Error(errMkDir))
+			return errors.Wrap(errMkDir, "Failed to setup cache dirs")
 		}
 	}
+	return nil
 }
 
 func (cache FsCache) getPath(ct Type, key string) string {
@@ -58,7 +62,7 @@ func (cache FsCache) getPath(ct Type, key string) string {
 	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:
-		cache.logger.Panic("Got unknown cache type", zap.Int("type", int(ct)))
+		cache.logger.Error("Got unknown cache type", "type", ct)
 		return ""
 	}
 }

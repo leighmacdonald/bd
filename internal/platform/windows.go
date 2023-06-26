@@ -12,7 +12,6 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -93,20 +92,18 @@ func getTF2Folder() (string, error) {
 	return "", errors.New("TF2 install path could not be found")
 }
 
-func LaunchTF2(logger *zap.Logger, tf2Dir string, args []string) error {
+func LaunchTF2(tf2Dir string, args []string) error {
 	hl2Path := filepath.Join(filepath.Dir(tf2Dir), BinaryName)
 	var procAttr os.ProcAttr
 	procAttr.Files = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	logger.Info("Launching game", zap.Strings("args", args), zap.String("binary", hl2Path))
+
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
 		return errors.Wrap(errStart, "Failed to launch TF2\n")
 	}
 	_, errWait := process.Wait()
 	if errWait != nil {
-		logger.Error("Error waiting for game process", zap.Error(errWait))
-	} else {
-		logger.Info("Game exited")
+		return errors.Wrap(errWait, "Error waiting for game process")
 	}
 	return nil
 }
