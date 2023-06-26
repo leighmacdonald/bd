@@ -1,10 +1,11 @@
 package util
 
 import (
-	"go.uber.org/zap"
 	"io"
 	"math/rand"
 	"os"
+
+	"go.uber.org/zap"
 )
 
 func Exists(filePath string) bool {

@@ -7,6 +7,15 @@ import (
 	"encoding/json"
 	gerrors "errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -19,14 +28,6 @@ import (
 	"github.com/leighmacdonald/steamweb"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"io"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 var ErrInvalidReadyState = errors.New("Invalid ready state")
@@ -50,7 +51,7 @@ var (
 	settings          *UserSettings
 
 	dataStore store.DataStore
-	//triggerUpdate     chan any
+	// triggerUpdate     chan any
 	gameStateUpdate chan updateStateEvent
 	fsCache         FsCache
 
@@ -224,7 +225,7 @@ func exportVoiceBans() error {
 		return nil
 	}
 	vbPath := filepath.Join(settings.GetTF2Dir(), "voice_ban.dt")
-	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, 0755)
+	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, 0o755)
 	if errOpen != nil {
 		return errOpen
 	}
@@ -382,7 +383,6 @@ func updatePlayerState() (string, error) {
 	_, errStatus := rconConn.Exec("status")
 	if errStatus != nil {
 		return "", errors.Wrap(errStatus, "Failed to get status results")
-
 	}
 	// Sent to client, response via direct rcon response
 	lobbyStatus, errDebug := rconConn.Exec("tf_lobby_debug")

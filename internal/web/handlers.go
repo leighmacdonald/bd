@@ -1,16 +1,17 @@
 package web
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/pkg/errors"
 	"math/rand"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/pkg/errors"
 )
 
 func getMessages() gin.HandlerFunc {
@@ -47,7 +48,6 @@ func getPlayers() gin.HandlerFunc {
 	_, isTest := os.LookupEnv("TEST")
 	testPlayers := createTestPlayers(24)
 	if isTest {
-
 		go func() {
 			t := time.NewTicker(time.Second * 5)
 			for {

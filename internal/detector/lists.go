@@ -3,15 +3,16 @@ package detector
 import (
 	"context"
 	"encoding/json"
-	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 // fixSteamIdFormat converts raw unquoted steamids to quoted ones

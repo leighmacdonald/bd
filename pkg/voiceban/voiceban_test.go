@@ -1,10 +1,11 @@
 package voiceban
 
 import (
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVoiceBans(t *testing.T) {

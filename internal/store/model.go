@@ -2,9 +2,10 @@ package store
 
 import (
 	"context"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"strings"
 	"time"
+
+	"github.com/leighmacdonald/steamid/v2/steamid"
 )
 
 type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)

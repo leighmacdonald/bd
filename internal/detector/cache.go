@@ -2,18 +2,17 @@ package detector
 
 import (
 	"fmt"
-	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
-var (
-	ErrCacheExpired = errors.New("cached value expired")
-)
+var ErrCacheExpired = errors.New("cached value expired")
 
 type Cache interface {
 	Set(ct Type, key string, value io.Reader) error
@@ -41,7 +40,7 @@ func newCache(logger *zap.Logger, rootDir string, maxAge time.Duration) FsCache 
 
 func (cache FsCache) init() {
 	for _, p := range []Type{TypeAvatar, TypeLists} {
-		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0770); errMkDir != nil {
+		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0o770); errMkDir != nil {
 			cache.logger.Panic("Failed to setup cache dirs", zap.Error(errMkDir))
 		}
 	}
@@ -69,7 +68,7 @@ func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 	if errMkdir := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); errMkdir != nil {
 		return errMkdir
 	}
-	of, errOf := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0660)
+	of, errOf := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0o660)
 	if errOf != nil {
 		return errOf
 	}

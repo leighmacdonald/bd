@@ -3,9 +3,10 @@ package detector
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/leighmacdonald/bd/pkg/discord/client"
 	"go.uber.org/zap"
-	"time"
 )
 
 type mapConfig struct {

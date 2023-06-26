@@ -2,6 +2,7 @@ package tr
 
 import (
 	"embed"
+
 	"github.com/jeandeaual/go-locale"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"

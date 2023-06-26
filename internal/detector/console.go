@@ -3,17 +3,18 @@ package detector
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/nxadm/tail"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"io"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/nxadm/tail"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type logReader struct {
@@ -71,9 +72,7 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 	return &lr, nil
 }
 
-var (
-	errNoMatch = errors.New("no match found")
-)
+var errNoMatch = errors.New("no match found")
 
 type logParser struct {
 	evtChan     chan LogEvent
@@ -82,9 +81,11 @@ type logParser struct {
 	logger      *zap.Logger
 }
 
-const teamPrefix = "(TEAM) "
-const deadPrefix = "*DEAD* "
-const deadTeamPrefix = "*DEAD*(TEAM) "
+const (
+	teamPrefix     = "(TEAM) "
+	deadPrefix     = "*DEAD* "
+	deadTeamPrefix = "*DEAD*(TEAM) "
+)
 
 func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 	// the index must match the index of the EventType const values
@@ -166,6 +167,7 @@ func (parser *logParser) parseEvent(msg string, outEvent *LogEvent) error {
 	}
 	return errNoMatch
 }
+
 func parseConnected(d string) (time.Duration, error) {
 	pcs := strings.Split(d, ":")
 	var dur time.Duration
@@ -219,6 +221,7 @@ func newLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogE
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\smap\s{5}:\s(.+?)\sat.+?$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\stags\s{4}:\s(.+?)$`),
 			regexp.MustCompile(`^(?P<dt>[01]\d/[0123]\d/20\d{2}\s-\s\d{2}:\d{2}:\d{2}):\sudp/ip\s{2}:\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5})$`),
-			regexp.MustCompile(`^\s{2}(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))\s{2}type\s=\sMATCH_PLAYER$`)},
+			regexp.MustCompile(`^\s{2}(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))\s{2}type\s=\sMATCH_PLAYER$`),
+		},
 	}
 }

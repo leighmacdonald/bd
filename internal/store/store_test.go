@@ -2,12 +2,13 @@ package store
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"os"
-	"testing"
 )
 
 var testDb DataStore

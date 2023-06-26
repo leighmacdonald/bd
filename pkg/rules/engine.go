@@ -4,13 +4,14 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/pkg/errors"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -59,7 +60,6 @@ func WhitelistAdd(sid64 steamid.SID64) bool {
 	defer mu.Unlock()
 	whitelist = append(whitelist, sid64)
 	return true
-
 }
 
 func WhitelistRemove(sid64 steamid.SID64) bool {

@@ -2,13 +2,16 @@ package voiceban
 
 import (
 	"encoding/binary"
+	"io"
+
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
-	"io"
 )
 
-const banMgrVersion = 1
-const idSize = 32
+const (
+	banMgrVersion = 1
+	idSize        = 32
+)
 
 func Read(reader io.Reader) (steamid.Collection, error) {
 	var version int32

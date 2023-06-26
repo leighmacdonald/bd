@@ -2,9 +2,10 @@ package detector
 
 import (
 	"context"
+	"time"
+
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"time"
 )
 
 const (

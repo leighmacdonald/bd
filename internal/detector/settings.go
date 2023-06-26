@@ -4,6 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/pkg/rules"
@@ -11,15 +17,12 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 )
 
-const configRoot = "bd"
-const defaultConfigFileName = "bd.yaml"
+const (
+	configRoot            = "bd"
+	defaultConfigFileName = "bd.yaml"
+)
 
 var (
 	errDuplicateList  = errors.New("duplicate list")
@@ -29,10 +32,10 @@ var (
 type ListType string
 
 const (
-	//ListTypeBD              ListType = "bd"
+	// ListTypeBD              ListType = "bd"
 	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
 	ListTypeTF2BDRules      ListType = "tf2bd_rules"
-	//ListTypeUnknown         ListType = "unknown"
+	// ListTypeUnknown         ListType = "unknown"
 )
 
 type ListConfig struct {
@@ -188,6 +191,7 @@ func (s *UserSettings) SetSteamID(steamID string) {
 	defer s.Unlock()
 	s.SteamID = steamID
 }
+
 func (s *UserSettings) SetAutoCloseOnGameExit(autoClose bool) {
 	s.Lock()
 	defer s.Unlock()
@@ -295,11 +299,13 @@ func (s *UserSettings) GetAPIKey() string {
 	defer s.RUnlock()
 	return s.APIKey
 }
+
 func (s *UserSettings) GetConfigPath() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.configPath
 }
+
 func (s *UserSettings) GetTF2Dir() string {
 	s.RLock()
 	defer s.RUnlock()
@@ -460,7 +466,7 @@ func NewSettings() (*UserSettings, error) {
 		rcon:           NewRconConfig(false),
 	}
 	if !util.Exists(settings.ListRoot()) {
-		if err := os.MkdirAll(settings.ListRoot(), 0755); err != nil {
+		if err := os.MkdirAll(settings.ListRoot(), 0o755); err != nil {
 			return nil, errors.Wrap(err, "Failed to initialize UserSettings directory")
 		}
 	}
@@ -559,7 +565,7 @@ func (s *UserSettings) reload() {
 }
 
 func (s *UserSettings) WriteFilePath(filePath string) error {
-	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
 	if errOpen != nil {
 		return errors.Wrapf(errOpen, "Failed to open UserSettings file for writing")
 	}
