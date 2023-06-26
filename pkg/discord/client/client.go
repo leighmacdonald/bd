@@ -4,11 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/leighmacdonald/bd/pkg/discord/ipc"
-	"github.com/pkg/errors"
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/leighmacdonald/bd/pkg/discord/ipc"
+	"github.com/pkg/errors"
 )
 
 var logged atomic.Bool

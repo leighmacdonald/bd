@@ -2,6 +2,12 @@ package web
 
 import (
 	"context"
+	"math/rand"
+	"net"
+	"net/http"
+	"path/filepath"
+	"time"
+
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/detector"
@@ -10,11 +16,6 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"math/rand"
-	"net"
-	"net/http"
-	"path/filepath"
-	"time"
 )
 
 var (
@@ -118,7 +119,7 @@ func createTestPlayers(count int) store.PlayerCollection {
 		76561198010868782, 76561198022397372, 76561198016314731, 76561198087124802, 76561198024022137,
 		76561198015577906, 76561197997861796,
 	}
-	var randPlayer = func(userId int64) *store.Player {
+	randPlayer := func(userId int64) *store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red

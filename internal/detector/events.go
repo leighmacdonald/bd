@@ -2,13 +2,14 @@ package detector
 
 import (
 	"context"
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"go.uber.org/zap"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"go.uber.org/zap"
 )
 
 type updateType int

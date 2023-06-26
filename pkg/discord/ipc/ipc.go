@@ -3,9 +3,10 @@ package ipc
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/pkg/errors"
 	"net"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 var socket net.Conn

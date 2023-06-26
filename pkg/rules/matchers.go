@@ -1,16 +1,17 @@
 package rules
 
 import (
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/pkg/errors"
 	"regexp"
 	"strings"
+
+	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/pkg/errors"
 )
 
 type MatchResult struct {
 	Origin     string   `json:"origin"` // Title of the list that the match was generated against
 	Attributes []string `json:"attributes"`
-	//Proof       []string
+	// Proof       []string
 	MatcherType string `json:"matcher_type"`
 }
 
@@ -28,7 +29,7 @@ const (
 	// 1:1 match of avatar
 	avatarMatchExact avatarMatchType = "hash_full"
 	// Reduced matcher
-	//avatarMatchReduced avatarMatchType = "hash_reduced"
+	// avatarMatchReduced avatarMatchType = "hash_reduced"
 )
 
 // AvatarMatcher provides an interface to match avatars using custom methods

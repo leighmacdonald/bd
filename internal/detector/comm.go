@@ -1,15 +1,14 @@
 package detector
 
 import (
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"regexp"
 	"strings"
+
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 )
 
-var (
-	lobbyPlayerRx *regexp.Regexp
-)
+var lobbyPlayerRx *regexp.Regexp
 
 type rconConnection interface {
 	Exec(command string) (string, error)

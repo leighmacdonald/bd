@@ -3,16 +3,17 @@
 package platform
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows/registry"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 )
 
 var (

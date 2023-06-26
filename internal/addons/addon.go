@@ -3,19 +3,22 @@ package addons
 import (
 	"embed"
 	"fmt"
-	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/pkg/errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/pkg/errors"
 )
 
 //go:embed *
 var addonFS embed.FS
 
-const chatWrapperName = "aaaaaaaaaa_loadfirst_tf2_bot_detector"
-const addonNameEraser = "aaaaaaaaaa_votefailed_eraser_v2"
+const (
+	chatWrapperName = "aaaaaaaaaa_loadfirst_tf2_bot_detector"
+	addonNameEraser = "aaaaaaaaaa_votefailed_eraser_v2"
+)
 
 func Install(tf2dir string) error {
 	wrapperPath := filepath.Join(tf2dir, "custom", chatWrapperName)
@@ -35,7 +38,7 @@ func Install(tf2dir string) error {
 func cpEmbedDir(src embed.FS, srcPath string, dst string) error {
 	return fs.WalkDir(src, srcPath, func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
-			if errMkdir := os.MkdirAll(filepath.Join(dst, path), 0775); errMkdir != nil {
+			if errMkdir := os.MkdirAll(filepath.Join(dst, path), 0o775); errMkdir != nil {
 				return errMkdir
 			}
 		} else {

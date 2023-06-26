@@ -1,10 +1,11 @@
 package detector
 
 import (
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
 	"net"
 	"time"
+
+	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/steamid/v2/steamid"
 )
 
 const logTimestampFormat = "01/02/2006 - 15:04:05"

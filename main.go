@@ -4,18 +4,18 @@ import (
 	"context"
 	gerrors "errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/ui"
 	"github.com/leighmacdonald/bd/internal/web"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 var (
@@ -72,17 +72,7 @@ func main() {
 		})
 	}
 
-	if userSettings.GetGuiEnabled() {
-		go func() {
-			if errExit := execGroup.Wait(); errExit != nil {
-				fmt.Println(errExit.Error())
-			}
-		}()
-		ui.Init(rootCtx, detector.Logger(), versionInfo)
-		ui.Start(rootCtx) // *must* be called from main goroutine
-	} else {
-		if errExit := execGroup.Wait(); errExit != nil {
-			fmt.Println(errExit.Error())
-		}
+	if errExit := execGroup.Wait(); errExit != nil {
+		fmt.Println(errExit.Error())
 	}
 }

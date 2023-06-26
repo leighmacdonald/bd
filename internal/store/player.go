@@ -2,9 +2,10 @@ package store
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v2/steamid"
-	"time"
 )
 
 // ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.

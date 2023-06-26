@@ -3,10 +3,11 @@ package rules
 import (
 	"bufio"
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"image"
 	"image/jpeg"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func genTestRules() RuleSchema {
@@ -87,7 +88,6 @@ func genTestRules() RuleSchema {
 			},
 		},
 	}
-
 }
 
 const customListTitle = "Custom List"

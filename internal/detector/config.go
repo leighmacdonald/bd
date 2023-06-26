@@ -2,14 +2,15 @@ package detector
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"strings"
+
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"os"
-	"path"
-	"strings"
 )
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
