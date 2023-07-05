@@ -14,7 +14,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
@@ -343,7 +343,7 @@ func (s *UserSettings) GetKickTags() []string {
 func (s *UserSettings) GetSteamID() steamid.SID64 {
 	value, err := steamid.StringToSID64(s.SteamID)
 	if err != nil {
-		return 0
+		return ""
 	}
 	return value
 }

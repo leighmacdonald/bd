@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slog"
 )
 
 // fixSteamIDFormat converts raw unquoted steamids to quoted ones

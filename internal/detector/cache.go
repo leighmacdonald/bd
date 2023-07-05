@@ -7,10 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slog"
 )
 
 var ErrCacheExpired = errors.New("cached value expired")

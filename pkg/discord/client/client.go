@@ -5,17 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync/atomic"
 	"time"
 
 	"github.com/leighmacdonald/bd/pkg/discord/ipc"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 )
 
-var logged atomic.Bool
+type Client struct {
+	ipcOpened *atomic.Bool
+}
 
-func Login(clientID string) error {
-	if !logged.Load() {
+func New() *Client {
+	return &Client{ipcOpened: atomic.NewBool(false)}
+}
+
+func (d *Client) login(clientID string) error {
+	if !d.ipcOpened.Load() {
 		payload, errMarshal := json.Marshal(Handshake{"1", clientID})
 		if errMarshal != nil {
 			return errMarshal
@@ -28,17 +34,17 @@ func Login(clientID string) error {
 			return errSend
 		}
 	}
-	logged.Store(true)
+	d.ipcOpened.Store(true)
 	return nil
 }
 
-func Logout() error {
-	logged.Store(false)
+func (d *Client) Logout() error {
+	d.ipcOpened.Store(false)
 	return ipc.Close()
 }
 
-func SetActivity(activity Activity) error {
-	if !logged.Load() {
+func (d *Client) SetActivity(activity Activity) error {
+	if !d.ipcOpened.Load() {
 		return nil
 	}
 	nonce, errNonce := getNonce()
@@ -66,7 +72,7 @@ func getNonce() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8], buf[8:10], buf[10:]), nil
 }
 
-// Activity holds the data for discord rich presence
+// Activity holds the data for discord rich presence.
 type Activity struct {
 	// What the player is currently doing
 	Details string
@@ -90,15 +96,15 @@ type Activity struct {
 	Buttons []*Button
 }
 
-// Button holds a label and the corresponding URL that is opened on press
+// Button holds a label and the corresponding URL that is opened on press.
 type Button struct {
 	// The label of the button
 	Label string
 	// The URL of the button
-	Url string
+	URL string
 }
 
-// Party holds information for the current party of the player
+// Party holds information for the current party of the player.
 type Party struct {
 	// The ID of the party
 	ID string
@@ -108,7 +114,7 @@ type Party struct {
 	MaxPlayers int
 }
 
-// Timestamps holds unix timestamps for start and/or end of the game
+// Timestamps holds unix timestamps for start and/or end of the game.
 type Timestamps struct {
 	// unix time (in milliseconds) of when the activity started
 	Start *time.Time
@@ -116,7 +122,7 @@ type Timestamps struct {
 	End *time.Time
 }
 
-// Secrets holds secrets for Rich Presence joining and spectating
+// Secrets holds secrets for Rich Presence joining and spectating.
 type Secrets struct {
 	// The secret for a specific instanced match
 	Match string
@@ -168,7 +174,7 @@ func mapActivity(activity *Activity) *PayloadActivity {
 		for _, btn := range activity.Buttons {
 			final.Buttons = append(final.Buttons, &PayloadButton{
 				Label: btn.Label,
-				Url:   btn.Url,
+				URL:   btn.URL,
 			})
 		}
 	}
@@ -178,7 +184,7 @@ func mapActivity(activity *Activity) *PayloadActivity {
 
 type Handshake struct {
 	V        string `json:"v"`
-	ClientId string `json:"client_id"`
+	ClientID string `json:"client_id"`
 }
 
 type Frame struct {
@@ -227,5 +233,5 @@ type PayloadSecrets struct {
 
 type PayloadButton struct {
 	Label string `json:"label,omitempty"`
-	Url   string `json:"url,omitempty"`
+	URL   string `json:"url,omitempty"`
 }

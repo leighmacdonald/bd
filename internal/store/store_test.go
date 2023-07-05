@@ -4,13 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/internal/store"
-
 	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestPlayer(t *testing.T) {
@@ -19,7 +17,7 @@ func TestPlayer(t *testing.T) {
 	if errInit := db.Init(); errInit != nil {
 		t.Fatalf("failed to setup database: %v", errInit)
 	}
-	player1 := store.NewPlayer(steamid.SID64(76561197961279983), util.RandomString(10))
+	player1 := store.NewPlayer(steamid.New(76561197961279983), util.RandomString(10))
 	const msgCount = 10
 	t.Run("Create New Player", func(t *testing.T) {
 		require.NoError(t, db.GetPlayer(context.TODO(), player1.SteamID, true, player1), "Failed to create player")
@@ -53,7 +51,7 @@ func TestPlayer(t *testing.T) {
 	})
 	t.Run("Search Players", func(t *testing.T) {
 		knownIds := steamid.Collection{
-			76561197998365611, 76561197977133523, 76561198065825165, 76561198004429398, 76561198182505218,
+			"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
 		}
 		knownNames := []string{"test name 1", "test name 2", "Blah Blah", "bob", "sally"}
 		for idx, sid := range knownIds {

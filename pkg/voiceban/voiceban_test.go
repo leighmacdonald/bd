@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +14,7 @@ func TestVoiceBans(t *testing.T) {
 	defer func() {
 		_ = vbTestFile.Close()
 	}()
-	testIds := steamid.Collection{76561198369477018, 76561197970669109, 76561197961279983}
+	testIds := steamid.Collection{"76561198369477018", "76561197970669109", "76561197961279983"}
 	require.NoError(t, Write(vbTestFile, testIds))
 	_ = vbTestFile.Sync()
 	_, _ = vbTestFile.Seek(0, 0)

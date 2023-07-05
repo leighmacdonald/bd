@@ -4,12 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/internal/detector"
-
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestParseEvent(t *testing.T) {
