@@ -1,7 +1,7 @@
 package rules
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -14,20 +14,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	ErrDuplicateSteamID = errors.New("duplicate steam id")
+var ErrDuplicateSteamID = errors.New("duplicate steam id")
 
+type Engine struct {
 	rulesLists  []*RuleSchema
 	playerLists []*PlayerListSchema
 	knownTags   []string
 	whitelist   steamid.Collection
-	mu          *sync.RWMutex
-)
+	sync.RWMutex
+}
 
-func init() {
-	mu = &sync.RWMutex{}
-	playerLists = append(playerLists, NewPlayerListSchema())
-	rulesLists = append(rulesLists, NewRuleSchema())
+func New() *Engine {
+	return &Engine{
+		rulesLists:  []*RuleSchema{NewRuleSchema()},
+		playerLists: []*PlayerListSchema{NewPlayerListSchema()},
+		knownTags:   []string{},
+		whitelist:   steamid.Collection{},
+		RWMutex:     sync.RWMutex{},
+	}
 }
 
 const (
@@ -41,230 +45,303 @@ type MarkOpts struct {
 	Name       string
 }
 
-func Whitelisted(sid64 steamid.SID64) bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, entry := range whitelist {
+func (e *Engine) Whitelisted(sid64 steamid.SID64) bool {
+	e.RLock()
+	defer e.RUnlock()
+
+	for _, entry := range e.whitelist {
 		if entry == sid64 {
 			return true
 		}
 	}
+
 	return false
 }
 
-func WhitelistAdd(sid64 steamid.SID64) bool {
-	if Whitelisted(sid64) {
+func (e *Engine) WhitelistAdd(sid64 steamid.SID64) bool {
+	if e.Whitelisted(sid64) {
 		return false
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	whitelist = append(whitelist, sid64)
+
+	e.Lock()
+	defer e.Unlock()
+
+	e.whitelist = append(e.whitelist, sid64)
+
 	return true
 }
 
-func WhitelistRemove(sid64 steamid.SID64) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	removed := false
-	var newWl steamid.Collection
-	for _, wl := range whitelist {
-		if sid64 == wl {
+func (e *Engine) WhitelistRemove(sid64 steamid.SID64) bool {
+	e.Lock()
+	defer e.Unlock()
+
+	var (
+		removed = false
+		newWl   steamid.Collection
+	)
+
+	for _, whitelistEntry := range e.whitelist {
+		if sid64 == whitelistEntry {
 			removed = true
+
 			continue
 		}
-		newWl = append(newWl, wl)
+
+		newWl = append(newWl, whitelistEntry)
 	}
-	whitelist = newWl
+
+	e.whitelist = newWl
+
 	return removed
 }
 
-func FindNewestEntries(max int, validAttrs []string) steamid.Collection {
-	mu.RLock()
-	defer mu.RUnlock()
-	var matchers []steamIDMatcher
-	for _, list := range playerLists {
+func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collection {
+	e.RLock()
+	defer e.RUnlock()
+
+	var matchers []SteamIDMatcher
+
+	for _, list := range e.playerLists {
 		for _, m := range list.matchersSteam {
-			sm := m.(steamIDMatcher)
+			steamMatcher, ok := m.(SteamIDMatcher)
+			if !ok {
+				continue
+			}
+
 			valid := false
-			for _, tag := range sm.attributes {
+
+			for _, tag := range steamMatcher.attributes {
 				for _, okTags := range validAttrs {
 					if strings.EqualFold(tag, okTags) {
 						valid = true
+
 						break
 					}
 				}
 			}
+
 			if !valid {
 				continue
 			}
-			matchers = append(matchers, sm)
+
+			matchers = append(matchers, steamMatcher)
 		}
 	}
+
 	sort.Slice(matchers, func(i, j int) bool {
 		return matchers[i].lastSeen.Time > matchers[j].lastSeen.Time
 	})
+
 	var valid steamid.Collection
+
 	for i, s := range matchers {
 		if i == max {
 			break
 		}
+
 		valid = append(valid, s.steamID)
 	}
+
 	return valid
 }
 
-func userPlayerList() *PlayerListSchema {
-	for _, list := range playerLists {
+func (e *Engine) UserPlayerList() *PlayerListSchema {
+	for _, list := range e.playerLists {
 		if list.FileInfo.Title == LocalRuleName {
 			return list
 		}
 	}
+
 	panic("User player list schema doesn't exist")
 }
 
-func userRuleList() *RuleSchema {
-	for _, list := range rulesLists {
+func (e *Engine) UserRuleList() *RuleSchema {
+	for _, list := range e.rulesLists {
 		if list.FileInfo.Title == LocalRuleName {
 			return list
 		}
 	}
+
 	panic("User rules schema doesn't exist")
 }
 
-func Unmark(steamID steamid.SID64) bool {
-	mu.Lock()
-	defer mu.Unlock()
-	if len(playerLists) == 0 {
+func (e *Engine) Unmark(steamID steamid.SID64) bool {
+	e.Lock()
+	defer e.Unlock()
+
+	if len(e.playerLists) == 0 {
 		return false
 	}
-	found := false
-	list := userPlayerList()
-	var players []playerDefinition
+
+	var ( //nolint:prealloc
+		found   = false
+		list    = e.UserPlayerList()
+		players []PlayerDefinition
+	)
+
 	for _, knownPlayer := range list.Players {
-		strId := steamID.String()
-		if knownPlayer.SteamID == strId {
+		strID := steamID
+		if knownPlayer.SteamID == strID {
 			found = true
+
 			continue
 		}
+
 		players = append(players, knownPlayer)
 	}
+
 	list.Players = players
-	userList := userPlayerList()
-	// Remove the matcher from memory
-	var validMatchers []SteamIDMatcher
+
+	var (
+		userList      = e.UserPlayerList()
+		validMatchers []SteamIDMatcherI
+	)
+
 	for _, matcher := range userList.matchersSteam {
 		if match := matcher.Match(steamID); match == nil {
 			validMatchers = append(validMatchers, matcher)
 		}
 	}
+
 	userList.matchersSteam = validMatchers
+
 	return found
 }
 
-func Mark(opts MarkOpts) error {
+func (e *Engine) Mark(opts MarkOpts) error {
 	if len(opts.Attributes) == 0 {
 		return errors.New("Invalid attribute count")
 	}
-	mu.Lock()
-	updatedAttributes := false
-	userList := userPlayerList()
+
+	e.Lock()
+	defer e.Unlock()
+
+	var (
+		updatedAttributes = false
+		userList          = e.UserPlayerList()
+	)
+
 	for idx, knownPlayer := range userList.Players {
-		knownSid64, errSid64 := steamid.StringToSID64(knownPlayer.SteamID)
-		if errSid64 != nil {
+		if !knownPlayer.SteamID.Valid() {
 			continue
 		}
-		if knownSid64 == opts.SteamID {
+
+		if knownPlayer.SteamID == opts.SteamID {
 			var newAttr []string
+
 			for _, updatedAttr := range opts.Attributes {
 				isNew := true
+
 				for _, existingAttr := range knownPlayer.Attributes {
 					if strings.EqualFold(updatedAttr, existingAttr) {
 						isNew = false
+
 						break
 					}
 				}
+
 				if isNew {
 					newAttr = append(newAttr, updatedAttr)
 				}
 			}
+
 			if len(newAttr) == 0 {
-				mu.Unlock()
 				return ErrDuplicateSteamID
 			}
+
 			userList.Players[idx].Attributes = append(userList.Players[idx].Attributes, newAttr...)
 			updatedAttributes = true
 		}
 	}
+
 	if !updatedAttributes {
-		userList.Players = append(userList.Players, playerDefinition{
+		userList.Players = append(userList.Players, PlayerDefinition{
 			Attributes: opts.Attributes,
-			LastSeen: playerLastSeen{
+			LastSeen: PlayerLastSeen{
 				Time:       int(time.Now().Unix()),
 				PlayerName: opts.Name,
 			},
-			SteamID: opts.SteamID.String(),
+			SteamID: opts.SteamID,
 			Proof:   opts.Proof,
 		})
 	}
-	mu.Unlock()
+
 	if !updatedAttributes {
-		userList.registerSteamIDMatcher(newSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
+		userList.RegisterSteamIDMatcher(NewSteamIDMatcher(LocalRuleName, opts.SteamID, opts.Attributes))
 	}
+
 	return nil
 }
 
-// UniqueTags returns a list of the unique known tags across all player lists
-func UniqueTags() []string {
-	mu.RLock()
-	defer mu.RUnlock()
-	if knownTags == nil {
+// UniqueTags returns a list of the unique known tags across all player lists.
+func (e *Engine) UniqueTags() []string {
+	e.RLock()
+	defer e.RUnlock()
+
+	if e.knownTags == nil {
 		return []string{}
 	}
-	return knownTags
+
+	return e.knownTags
 }
 
 func newJSONPrettyEncoder(w io.Writer) *json.Encoder {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", strings.Repeat(" ", exportIndentSize))
+
 	return enc
 }
 
-// ExportPlayers writes the json encoded player list matching the listName provided to the io.Writer
-func ExportPlayers(listName string, w io.Writer) error {
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, pl := range playerLists {
+// ExportPlayers writes the json encoded player list matching the listName provided to the io.Writer.
+func (e *Engine) ExportPlayers(listName string, writer io.Writer) error {
+	e.RLock()
+	defer e.RUnlock()
+
+	for _, pl := range e.playerLists {
 		if listName == pl.FileInfo.Title {
-			return newJSONPrettyEncoder(w).Encode(pl)
+			if errEncode := newJSONPrettyEncoder(writer).Encode(pl); errEncode != nil {
+				return errors.Wrap(errEncode, "Failed to encode player list")
+			}
+
+			return nil
 		}
 	}
+
 	return errors.Errorf("Unknown player list: %s", listName)
 }
 
-// ExportRules writes the json encoded rules list matching the listName provided to the io.Writer
-func ExportRules(listName string, w io.Writer) error {
-	mu.RLock()
-	defer mu.RUnlock()
-	for _, pl := range rulesLists {
+// ExportRules writes the json encoded rules list matching the listName provided to the io.Writer.
+func (e *Engine) ExportRules(listName string, writer io.Writer) error {
+	e.RLock()
+	defer e.RUnlock()
+
+	for _, pl := range e.rulesLists {
 		if listName == pl.FileInfo.Title {
-			return newJSONPrettyEncoder(w).Encode(pl)
+			if errEncode := newJSONPrettyEncoder(writer).Encode(pl); errEncode != nil {
+				return errors.Wrap(errEncode, "Failed to encode rules")
+			}
+
+			return nil
 		}
 	}
+
 	return errors.Errorf("Unknown rule list: %s", listName)
 }
 
-// ImportRules loads the provided ruleset for use
-func ImportRules(list *RuleSchema) (int, error) {
+// ImportRules loads the provided ruleset for use.
+func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
 	count := 0
+
 	for _, rule := range list.Rules {
 		if rule.Triggers.UsernameTextMatch != nil {
 			attrs := rule.Triggers.UsernameTextMatch.Attributes
 			if len(attrs) == 0 {
 				attrs = append(attrs, "trigger_name")
 			}
-			list.registerTextMatcher(newGeneralTextMatcher(
+
+			list.RegisterTextMatcher(NewGeneralTextMatcher(
 				list.FileInfo.Title,
-				textMatchTypeName,
+				TextMatchTypeName,
 				rule.Triggers.UsernameTextMatch.Mode,
 				rule.Triggers.UsernameTextMatch.CaseSensitive,
 				attrs,
@@ -277,169 +354,205 @@ func ImportRules(list *RuleSchema) (int, error) {
 			if len(attrs) == 0 {
 				attrs = append(attrs, "trigger_msg")
 			}
-			list.registerTextMatcher(newGeneralTextMatcher(
+
+			list.RegisterTextMatcher(NewGeneralTextMatcher(
 				list.FileInfo.Title,
-				textMatchTypeMessage,
+				TextMatchTypeMessage,
 				rule.Triggers.ChatMsgTextMatch.Mode,
 				rule.Triggers.ChatMsgTextMatch.CaseSensitive,
 				attrs,
 				rule.Triggers.ChatMsgTextMatch.Patterns...))
 			count++
 		}
+
 		if len(rule.Triggers.AvatarMatch) > 0 {
 			var hashes []string
+
 			for _, h := range rule.Triggers.AvatarMatch {
 				if len(h.AvatarHash) != 40 {
 					continue
 				}
+
 				hashes = append(hashes, h.AvatarHash)
 			}
-			list.registerAvatarMatcher(newAvatarMatcher(
+
+			list.RegisterAvatarMatcher(NewAvatarMatcher(
 				list.FileInfo.Title,
-				avatarMatchExact,
+				AvatarMatchExact,
 				hashes...))
 			count++
 		}
 	}
-	rulesLists = append(rulesLists, list)
+
+	e.rulesLists = append(e.rulesLists, list)
+
 	return count, nil
 }
 
-// ImportPlayers loads the provided player list for matching
-func ImportPlayers(list *PlayerListSchema) (int, error) {
-	var playerAttrs []string
-	var count int
+// ImportPlayers loads the provided player list for matching.
+func (e *Engine) ImportPlayers(list *PlayerListSchema) (int, error) {
+	var (
+		playerAttrs []string
+		count       int
+	)
+
 	for _, player := range list.Players {
-		steamID, errSid := steamid.StringToSID64(player.SteamID)
-		if errSid != nil {
-			return 0, errors.Wrap(errSid, "Failed to parse steamid")
+		if !player.SteamID.Valid() {
+			return 0, errors.Wrap(steamid.ErrInvalidSID, "Failed to parse steamid")
 		}
-		if !steamID.Valid() {
-			return 0, errors.Errorf("Received malformed steamid: %v", steamID)
-		}
-		list.registerSteamIDMatcher(newSteamIDMatcher(list.FileInfo.Title, steamID, player.Attributes))
+
+		list.RegisterSteamIDMatcher(NewSteamIDMatcher(list.FileInfo.Title, player.SteamID, player.Attributes))
+
 		playerAttrs = append(playerAttrs, player.Attributes...)
 		count++
 	}
-	mu.Lock()
-	defer mu.Unlock()
+
+	e.Lock()
+	defer e.Unlock()
+
 	var newLists []*PlayerListSchema
-	for _, lst := range playerLists {
+
+	for _, lst := range e.playerLists {
 		if lst.FileInfo.Title != list.FileInfo.Title {
 			newLists = append(newLists, lst)
 		}
 	}
+
 	newLists = append(newLists, list)
 
 	for _, newTag := range playerAttrs {
 		found := false
-		for _, known := range knownTags {
+
+		for _, known := range e.knownTags {
 			if strings.EqualFold(newTag, known) {
 				found = true
+
 				break
 			}
 		}
+
 		if !found {
-			knownTags = append(knownTags, newTag)
+			e.knownTags = append(e.knownTags, newTag)
 		}
 	}
-	playerLists = newLists
+
+	e.playerLists = newLists
 
 	return count, nil
 }
 
-func (pls *PlayerListSchema) registerSteamIDMatcher(matcher SteamIDMatcher) {
+func (pls *PlayerListSchema) RegisterSteamIDMatcher(matcher SteamIDMatcherI) {
 	pls.matchersSteam = append(pls.matchersSteam, matcher)
 }
 
-func (rs *RuleSchema) registerAvatarMatcher(matcher AvatarMatcher) {
-	rs.matchersAvatar = append(rs.matchersAvatar, matcher)
+func (rs *RuleSchema) RegisterAvatarMatcher(matcher AvatarMatcherI) {
+	rs.MatchersAvatar = append(rs.MatchersAvatar, matcher)
 }
 
-func (rs *RuleSchema) registerTextMatcher(matcher TextMatcher) {
-	rs.matchersText = append(rs.matchersText, matcher)
+func (rs *RuleSchema) RegisterTextMatcher(matcher TextMatcher) {
+	rs.MatchersText = append(rs.MatchersText, matcher)
 }
 
-func (rs *RuleSchema) matchTextType(text string, matchType textMatchType) *MatchResult {
-	for _, matcher := range rs.matchersText {
-		if matcher.Type() != textMatchTypeAny && matcher.Type() != matchType {
+func (rs *RuleSchema) matchTextType(text string, matchType TextMatchType) *MatchResult {
+	for _, matcher := range rs.MatchersText {
+		if matcher.Type() != TextMatchTypeAny && matcher.Type() != matchType {
 			continue
 		}
+
 		match := matcher.Match(text)
 		if match != nil {
 			return match
 		}
 	}
+
 	return nil
 }
 
-func MatchSteam(steamID steamid.SID64) []*MatchResult {
-	if Whitelisted(steamID) {
+func (e *Engine) MatchSteam(steamID steamid.SID64) []*MatchResult {
+	if e.Whitelisted(steamID) {
 		return nil
 	}
-	mu.RLock()
-	defer mu.RUnlock()
+
+	e.RLock()
+	defer e.RUnlock()
+
 	var matches []*MatchResult
-	for _, list := range playerLists {
+
+	for _, list := range e.playerLists {
 		for _, sm := range list.matchersSteam {
 			match := sm.Match(steamID)
 			if match != nil {
 				matches = append(matches, match)
+
 				break
 			}
 		}
 	}
+
 	return matches
 }
 
-func MatchName(name string) []*MatchResult {
+func (e *Engine) MatchName(name string) []*MatchResult {
 	var found []*MatchResult
-	for _, list := range rulesLists {
-		match := list.matchTextType(name, textMatchTypeName)
+
+	for _, list := range e.rulesLists {
+		match := list.matchTextType(name, TextMatchTypeName)
 		if match != nil {
 			found = append(found, match)
+
 			continue
 		}
 	}
+
 	return found
 }
 
-func MatchMessage(text string) []*MatchResult {
+func (e *Engine) MatchMessage(text string) []*MatchResult {
 	var found []*MatchResult
-	for _, list := range rulesLists {
-		match := list.matchTextType(text, textMatchTypeMessage)
+
+	for _, list := range e.rulesLists {
+		match := list.matchTextType(text, TextMatchTypeMessage)
 		if match != nil {
 			found = append(found, match)
+
 			continue
 		}
 	}
+
 	return found
 }
 
-//func (e *Engine) matchAny(text string) *MatchResult {
-//	return e.matchTextType(text, textMatchTypeAny)
-//}
+// func (e *Engine) matchAny(text string) *MatchResult {
+//	   return e.matchTextType(text, TextMatchTypeAny)
+// }
 
-func matchAvatar(avatar []byte) []*MatchResult {
+func (e *Engine) MatchAvatar(avatar []byte) []*MatchResult {
 	if avatar == nil {
 		return nil
 	}
-	hexDigest := HashBytes(avatar)
-	var matches []*MatchResult
-	for _, list := range rulesLists {
-		for _, matcher := range list.matchersAvatar {
+
+	var (
+		hexDigest = HashBytes(avatar)
+		matches   []*MatchResult
+	)
+
+	for _, list := range e.rulesLists {
+		for _, matcher := range list.MatchersAvatar {
 			match := matcher.Match(hexDigest)
 			if match != nil {
 				matches = append(matches, match)
+
 				break
 			}
 		}
 	}
+
 	return matches
 }
 
 func HashBytes(b []byte) string {
-	hash := sha1.New()
+	hash := sha256.New()
 	hash.Write(b)
+
 	return hex.EncodeToString(hash.Sum(nil))
 }

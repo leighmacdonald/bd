@@ -1,11 +1,13 @@
 package rules
 
-type ruleTriggerMode string
+import "github.com/leighmacdonald/steamid/v3/steamid"
 
-//const (
-// modeTrigMatchAny ruleTriggerMode = "match_any"
-// modeTrigMatchAll ruleTriggerMode = "match_all"
-//)
+type RuleTriggerMode string
+
+// const (
+// modeTrigMatchAny RuleTriggerMode = "match_any"
+// modeTrigMatchAll RuleTriggerMode = "match_all"
+// )
 
 const (
 	LocalRuleName   = "local"
@@ -14,38 +16,39 @@ const (
 	urlRuleSchema   = "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json"
 )
 
-type textMatchMode string
+type TextMatchMode string
 
 const (
-	textMatchModeContains   textMatchMode = "contains"
-	textMatchModeRegex      textMatchMode = "regex"
-	textMatchModeEqual      textMatchMode = "equal"
-	textMatchModeStartsWith textMatchMode = "starts_with"
-	textMatchModeEndsWith   textMatchMode = "ends_with"
-	textMatchModeWord       textMatchMode = "word" // not really needed?
+	TextMatchModeContains   TextMatchMode = "contains"
+	TextMatchModeRegex      TextMatchMode = "regex"
+	TextMatchModeEqual      TextMatchMode = "equal"
+	TextMatchModeStartsWith TextMatchMode = "starts_with"
+	TextMatchModeEndsWith   TextMatchMode = "ends_with"
+	TextMatchModeWord       TextMatchMode = "word" // not really needed?
 )
 
-type baseSchema struct {
+type BaseSchema struct {
 	Schema   string   `json:"$schema" yaml:"schema"`
-	FileInfo fileInfo `json:"file_info" yaml:"file_info"`
+	FileInfo FileInfo `json:"file_info" yaml:"file_info"`
 }
 
-type fileInfo struct {
+type FileInfo struct {
 	Authors     []string `json:"authors"`
 	Description string   `json:"description"`
 	Title       string   `json:"title"`
 	UpdateURL   string   `json:"update_url"`
 }
 
-func NewPlayerListSchema(players ...playerDefinition) *PlayerListSchema {
+func NewPlayerListSchema(players ...PlayerDefinition) *PlayerListSchema {
 	if players == nil {
 		// Prevents json encoder outputting `null` value instead of empty array `[]`
-		players = []playerDefinition{}
+		players = []PlayerDefinition{}
 	}
+
 	return &PlayerListSchema{
-		baseSchema: baseSchema{
+		BaseSchema: BaseSchema{
 			Schema: urlPlayerSchema,
-			FileInfo: fileInfo{
+			FileInfo: FileInfo{
 				Authors:     []string{LocalRuleAuthor},
 				Description: "local player list",
 				Title:       LocalRuleName,
@@ -56,14 +59,15 @@ func NewPlayerListSchema(players ...playerDefinition) *PlayerListSchema {
 	}
 }
 
-func NewRuleSchema(rules ...ruleDefinition) *RuleSchema {
+func NewRuleSchema(rules ...RuleDefinition) *RuleSchema {
 	if rules == nil {
-		rules = []ruleDefinition{}
+		rules = []RuleDefinition{}
 	}
+
 	return &RuleSchema{
-		baseSchema: baseSchema{
+		BaseSchema: BaseSchema{
 			Schema: urlRuleSchema,
-			FileInfo: fileInfo{
+			FileInfo: FileInfo{
 				Authors:     []string{LocalRuleAuthor},
 				Description: "local",
 				Title:       LocalRuleName,
@@ -75,64 +79,64 @@ func NewRuleSchema(rules ...ruleDefinition) *RuleSchema {
 }
 
 type RuleSchema struct {
-	baseSchema
-	Rules          []ruleDefinition `json:"rules" yaml:"rules"`
-	matchersText   []TextMatcher    `json:"-" yaml:"-"`
-	matchersAvatar []AvatarMatcher  `json:"-" yaml:"-"`
+	BaseSchema
+	Rules          []RuleDefinition `json:"rules" yaml:"rules"`
+	MatchersText   []TextMatcher    `json:"-" yaml:"-"`
+	MatchersAvatar []AvatarMatcherI `json:"-" yaml:"-"`
 }
 
-type ruleTriggerNameMatch struct {
+type RuleTriggerNameMatch struct {
 	CaseSensitive bool          `json:"case_sensitive" yaml:"case_sensitive"`
-	Mode          textMatchMode `json:"mode" yaml:"mode"`
+	Mode          TextMatchMode `json:"mode" yaml:"mode"`
 	Patterns      []string      `json:"patterns" yaml:"patterns"`
 	Attributes    []string      `json:"attributes" yaml:"attributes"` // New
 }
 
-type ruleTriggerAvatarMatch struct {
+type RuleTriggerAvatarMatch struct {
 	AvatarHash string `json:"avatar_hash"`
 }
 
-type ruleTriggerTextMatch struct {
+type RuleTriggerTextMatch struct {
 	CaseSensitive bool          `json:"case_sensitive"`
-	Mode          textMatchMode `json:"mode"`
+	Mode          TextMatchMode `json:"mode"`
 	Patterns      []string      `json:"patterns"`
 	Attributes    []string      `json:"attributes" yaml:"attributes"` // New
 }
 
-type ruleTriggers struct {
-	AvatarMatch       []ruleTriggerAvatarMatch `json:"avatar_match" yaml:"avatar_match"`
-	Mode              ruleTriggerMode          `json:"mode" yaml:"mode"`
-	UsernameTextMatch *ruleTriggerNameMatch    `json:"username_text_match" yaml:"username_text_match"`
-	ChatMsgTextMatch  *ruleTriggerTextMatch    `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`
+type RuleTriggers struct {
+	AvatarMatch       []RuleTriggerAvatarMatch `json:"avatar_match" yaml:"avatar_match"`
+	Mode              RuleTriggerMode          `json:"mode" yaml:"mode"`
+	UsernameTextMatch *RuleTriggerNameMatch    `json:"username_text_match" yaml:"username_text_match"`
+	ChatMsgTextMatch  *RuleTriggerTextMatch    `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`
 }
 
-type ruleActions struct {
+type RuleActions struct {
 	TransientMark []string                 `json:"transient_mark"`
-	AvatarMatch   []ruleTriggerAvatarMatch `json:"avatar_match"` // ?
+	AvatarMatch   []RuleTriggerAvatarMatch `json:"avatar_match"` // ?
 	Mark          []string                 `json:"mark"`
 }
 
-type ruleDefinition struct {
-	Actions     ruleActions  `json:"actions,omitempty"`
+type RuleDefinition struct {
+	Actions     RuleActions  `json:"actions,omitempty"`
 	Description string       `json:"description"`
-	Triggers    ruleTriggers `json:"triggers,omitempty"`
+	Triggers    RuleTriggers `json:"triggers,omitempty"`
 }
 
 type PlayerListSchema struct {
-	baseSchema
-	Players       []playerDefinition `json:"players"`
-	matchersSteam []SteamIDMatcher   `json:"-" yaml:"-"`
+	BaseSchema
+	Players       []PlayerDefinition `json:"players"`
+	matchersSteam []SteamIDMatcherI  `yaml:"-"`
 }
 
-type playerLastSeen struct {
+type PlayerLastSeen struct {
 	PlayerName string `json:"player_name,omitempty"`
 	Time       int    `json:"time,omitempty"`
 }
 
-type playerDefinition struct {
+type PlayerDefinition struct {
 	Attributes []string       `json:"attributes"`
-	LastSeen   playerLastSeen `json:"last_seen,omitempty"`
-	SteamID    string         `json:"steamid"`
+	LastSeen   PlayerLastSeen `json:"last_seen,omitempty"`
+	SteamID    steamid.SID64  `json:"steamid"`
 	Proof      []string       `json:"proof,omitempty"`
 	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
 }

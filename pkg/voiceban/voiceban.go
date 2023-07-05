@@ -14,53 +14,73 @@ const (
 )
 
 func Read(reader io.Reader) (steamid.Collection, error) {
-	var version int32
+	var (
+		version int32
+		ids     steamid.Collection
+	)
+
 	errVersion := binary.Read(reader, binary.BigEndian, &version)
 	if errVersion != nil {
-		return nil, errVersion
+		return nil, errors.Wrap(errVersion, "Failed to read binary version")
 	}
+
 	if version != banMgrVersion {
 		return nil, errors.New("Invalid version")
 	}
-	var ids steamid.Collection
+
 	for {
-		var sid [idSize]byte
+		var (
+			sid    [idSize]byte
+			trimID []byte
+		)
+
 		errRead := binary.Read(reader, binary.BigEndian, &sid)
-		if errRead == io.EOF {
+		if errors.Is(errRead, io.EOF) {
 			break
 		}
-		var trimId []byte
+
 		for _, r := range sid {
 			if r == 0 {
 				break
 			}
-			trimId = append(trimId, r)
+
+			trimID = append(trimID, r)
 		}
-		parsedSid := steamid.SID3ToSID64(steamid.SID3(trimId))
+
+		parsedSid := steamid.New(trimID)
 		if !parsedSid.Valid() {
 			return nil, errors.New("Malformed steamid")
 		}
+
 		ids = append(ids, parsedSid)
 	}
+
 	return ids, nil
 }
 
 func Write(output io.Writer, steamIds steamid.Collection) error {
 	var version int32 = banMgrVersion
 	if errWrite := binary.Write(output, binary.BigEndian, version); errWrite != nil {
-		return errWrite
+		return errors.Wrap(errWrite, "Failed to write binary version data")
 	}
+
 	for _, sid := range steamIds {
-		raw := []byte(steamid.SID64ToSID3(sid))
-		var sidBytes []byte
+		var (
+			raw      = []byte(steamid.SID64ToSID3(sid))
+			sidBytes []byte
+		)
+
 		sidBytes = append(sidBytes, raw...)
+
 		// pad output
 		for len(sidBytes) < idSize {
 			sidBytes = append(sidBytes, 0)
 		}
+
 		if errWrite := binary.Write(output, binary.BigEndian, sidBytes); errWrite != nil {
-			return errWrite
+			return errors.Wrap(errWrite, "Failed to write binary steamid data")
 		}
 	}
+
 	return nil
 }

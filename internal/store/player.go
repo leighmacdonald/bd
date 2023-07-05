@@ -13,10 +13,11 @@ import (
 // 1 - the profile is not visible to you (Private, Friends Only, etc),
 // 3 - the profile is "Public", and the data is visible.
 // Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
-// then the privacy state. It's the effective visibility state from the account making the request to the account
-// being viewed given the requesting account's relationship to the viewed account."
+// from the privacy state. It's the effective visibility state from the account making the request to the account
+// being viewed given the requesting account's relationship to the viewed account.".
 type ProfileVisibility int
 
+//goland:noinspection ALL
 const (
 	ProfileVisibilityPrivate ProfileVisibility = iota + 1
 	ProfileVisibilityFriendsOnly
@@ -127,15 +128,18 @@ func (ps *Player) Touch() {
 	ps.Dirty = true
 }
 
-func firstN(s string, n int) string {
-	i := 0
-	for j := range s {
-		if i == n {
-			return s[:j]
+func firstN(text string, count int) string {
+	index := 0
+
+	for j := range text {
+		if index == count {
+			return text[:j]
 		}
-		i++
+
+		index++
 	}
-	return s
+
+	return text
 }
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
@@ -148,6 +152,7 @@ func AvatarURL(hash string) string {
 	if hash != "" {
 		avatarHash = hash
 	}
+
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarURL, firstN(avatarHash, 2), avatarHash)
 }
 
@@ -158,20 +163,22 @@ func (players PlayerCollection) AsAny() []any {
 	for i, r := range players {
 		bl[i] = r
 	}
+
 	return bl
 }
 
 func NewPlayer(sid64 steamid.SID64, name string) *Player {
-	t0 := time.Now()
+	curTIme := time.Now()
+
 	return &Player{
 		Name:             name,
 		AccountCreatedOn: time.Time{},
 		Visibility:       ProfileVisibilityPublic,
 		SteamID:          sid64,
 		SteamIDString:    sid64.String(),
-		CreatedOn:        t0,
-		UpdatedOn:        t0,
-		ProfileUpdatedOn: t0.AddDate(-1, 0, 0),
+		CreatedOn:        curTIme,
+		UpdatedOn:        curTIme,
+		ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),
 	}
 }
 
@@ -189,6 +196,7 @@ func (names UserNameHistoryCollection) AsAny() []any {
 	for i, r := range names {
 		bl[i] = r
 	}
+
 	return bl
 }
 
@@ -196,6 +204,7 @@ func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, e
 	if name == "" {
 		return nil, ErrEmptyValue
 	}
+
 	return &UserNameHistory{
 		BaseSID:   BaseSID{SteamID: steamID, SteamIDString: steamID.String()},
 		Name:      name,

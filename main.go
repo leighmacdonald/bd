@@ -19,11 +19,11 @@ import (
 )
 
 var (
-	// Build info
-	version = "master"
-	commit  = "latest"
-	date    = "n/a"
-	builtBy = "src"
+	// Build info.
+	version = "master" //nolint:gochecknoglobals
+	commit  = "latest" //nolint:gochecknoglobals
+	date    = "n/a"    //nolint:gochecknoglobals
+	builtBy = "src"    //nolint:gochecknoglobals
 )
 
 func main() {
@@ -31,12 +31,13 @@ func main() {
 
 	userSettings, errSettings := detector.NewSettings()
 	if errSettings != nil {
-		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
-		os.Exit(1)
+		panic(fmt.Sprintf("Failed to initialize settings: %v\n", errSettings))
 	}
+
 	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
-		fmt.Printf("Failed to read settings: %v", errReadSettings)
+		panic(fmt.Sprintf("Failed to read settings: %v", errReadSettings))
 	}
+
 	userSettings.MustValidate()
 
 	switch userSettings.RunMode {
@@ -52,6 +53,7 @@ func main() {
 	if userSettings.GetDebugLogEnabled() {
 		logFilePath = userSettings.LogFilePath()
 	}
+
 	logger, errLogger := detector.NewLogger(logFilePath)
 	if errLogger != nil {
 		logger.Error("Failed to create logger", "err", errLogger)
@@ -60,40 +62,48 @@ func main() {
 	dataStore := store.New(userSettings.DBPath(), logger)
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
 		logger.Error("Failed to migrate database", "err", errMigrate)
+
+		return
 	}
 
 	fsCache, cacheErr := detector.NewCache(logger, userSettings.ConfigRoot(), detector.DurationCacheTimeout)
 	if cacheErr != nil {
 		logger.Error("Failed to setup cache", "err", cacheErr)
+
 		return
 	}
 
 	logChan := make(chan string)
+
 	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.GetTF2Dir(), "console.log"), logChan)
 	if errLogReader != nil {
 		logger.Error("Failed to create logreader", "err", errLogReader)
+
 		return
 	}
 
-	bd := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
+	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
 	execGroup, grpCtx := errgroup.WithContext(rootCtx)
 	execGroup.Go(func() error {
-		bd.Start(rootCtx)
+		application.Start(rootCtx)
+
 		return nil
 	})
 
-	bd.Start(grpCtx)
+	application.Start(grpCtx)
 
 	execGroup.Go(func() error {
 		<-grpCtx.Done()
 		var err error
-		return gerrors.Join(err, bd.Shutdown())
+
+		return gerrors.Join(err, application.Shutdown())
 	})
 
 	if errExit := execGroup.Wait(); errExit != nil {
-		fmt.Println(errExit.Error())
+		logger.Error(errExit.Error())
 	}
 }

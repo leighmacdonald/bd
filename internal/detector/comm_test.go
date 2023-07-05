@@ -8,7 +8,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	s := `CTFLobbyShared: ID:00021f0d433926bb  13 member(s), 1 pending
+	statusText := `CTFLobbyShared: ID:00021f0d433926bb  13 member(s), 1 pending
   Member[0] [U:1:1176385561]  team = TF_GC_TEAM_INVADERS  type = MATCH_PLAYER
   Member[1] [U:1:32604711]  team = TF_GC_TEAM_DEFENDERS  type = MATCH_PLAYER
   Member[2] [U:1:123868297]  team = TF_GC_TEAM_INVADERS  type = MATCH_PLAYER
@@ -25,5 +25,5 @@ func TestParse(t *testing.T) {
   Pending[0] [U:1:1201744457]  team = TF_GC_TEAM_INVADERS  type = MATCH_PLAYER
 
 `
-	require.Equal(t, 14, len(detector.ParseLobbyPlayers(s)))
+	require.Equal(t, 14, len(detector.ParseLobbyPlayers(statusText)))
 }

@@ -20,17 +20,19 @@ type Web struct {
 	engine *gin.Engine
 }
 
-func NewWeb(d *Detector) (*Web, error) {
+func NewWeb(detector *Detector) (*Web, error) {
 	engine := createRouter()
-	if errRoutes := setupRoutes(engine, d); errRoutes != nil {
+	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
 		return nil, errRoutes
 	}
+
 	httpServer := &http.Server{
-		Addr:         d.settings.HTTPListenAddr,
+		Addr:         detector.settings.HTTPListenAddr,
 		Handler:      engine,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+
 	return &Web{
 		Server: httpServer,
 		engine: engine,
@@ -41,7 +43,12 @@ func (w *Web) startWeb(ctx context.Context) error {
 	w.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
-	return w.ListenAndServe()
+
+	if errServe := w.ListenAndServe(); errServe != nil {
+		return errors.Wrap(errServe, "HTTP server returned error")
+	}
+
+	return nil
 }
 
 func bind(ctx *gin.Context, receiver any) bool {
@@ -49,8 +56,10 @@ func bind(ctx *gin.Context, receiver any) bool {
 		responseErr(ctx, http.StatusBadRequest, gin.H{
 			"error": "Invalid request parameters",
 		})
+
 		return false
 	}
+
 	return true
 }
 
@@ -62,41 +71,45 @@ func responseOK(ctx *gin.Context, status int, data any) {
 	if data == nil {
 		data = []string{}
 	}
+
 	ctx.JSON(status, data)
 }
 
 func createRouter() *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
-	//if !testMode {
+	// if !testMode {
 	//	engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
 	//		TimeFormat: time.RFC3339,
 	//		UTC:        true,
 	//		SkipPaths:  []string{"/players"},
 	//	}))
-	//}
+	// }
 	_ = engine.SetTrustedProxies(nil)
+
 	return engine
 }
 
-func setupRoutes(engine *gin.Engine, d *Detector) error {
-	if d.settings.RunMode != gin.TestMode {
+func setupRoutes(engine *gin.Engine, detector *Detector) error {
+	if detector.settings.RunMode != gin.TestMode {
 		absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
 		if errStaticPath != nil {
 			return errors.Wrap(errStaticPath, "Failed to setup static paths")
 		}
+
 		engine.StaticFS("/dist", http.Dir(absStaticPath))
 		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	}
-	engine.GET("/players", getPlayers(d))
-	engine.GET("/messages/:steam_id", getMessages(d))
-	engine.GET("/names/:steam_id", getNames(d))
-	engine.POST("/mark/:steam_id", postMarkPlayer(d))
-	engine.GET("/settings", getSettings(d))
-	engine.POST("/settings", postSettings(d))
-	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(d, true))
-	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(d, false))
-	engine.POST("/notes/:steam_id", postNotes(d))
+
+	engine.GET("/players", getPlayers(detector))
+	engine.GET("/messages/:steam_id", getMessages(detector))
+	engine.GET("/names/:steam_id", getNames(detector))
+	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
+	engine.GET("/settings", getSettings(detector))
+	engine.POST("/settings", postSettings(detector))
+	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(detector, true))
+	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(detector, false))
+	engine.POST("/notes/:steam_id", postNotes(detector))
 
 	// These should match any routes defined in the frontend. This allows us to use the browser
 	// based routing
@@ -108,6 +121,7 @@ func setupRoutes(engine *gin.Engine, d *Detector) error {
 			})
 		})
 	}
+
 	return nil
 }
 
@@ -116,7 +130,7 @@ type jsConfig struct {
 }
 
 //nolint:gosec
-func createTestPlayers(d *Detector, count int) store.PlayerCollection {
+func createTestPlayers(detector *Detector, count int) store.PlayerCollection {
 	idIdx := 0
 	knownIds := steamid.Collection{
 		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
@@ -127,75 +141,88 @@ func createTestPlayers(d *Detector, count int) store.PlayerCollection {
 		"76561198010868782", "76561198022397372", "76561198016314731", "76561198087124802", "76561198024022137",
 		"76561198015577906", "76561197997861796",
 	}
+
 	randPlayer := func(userId int64) *store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red
 		}
-		p, errP := d.GetPlayerOrCreate(context.TODO(), knownIds[idIdx], true)
+
+		player, errP := detector.GetPlayerOrCreate(context.TODO(), knownIds[idIdx], true)
 		if errP != nil {
 			panic(errP)
 		}
-		p.KillsOn = rand.Intn(20)
-		p.RageQuits = rand.Intn(10)
-		p.DeathsBy = rand.Intn(20)
-		p.Team = team
-		p.Connected = float64(rand.Intn(3600))
-		p.UserID = userId
-		p.Ping = rand.Intn(150)
-		p.Kills = rand.Intn(50)
-		p.Deaths = rand.Intn(300)
+
+		player.KillsOn = rand.Intn(20)
+		player.RageQuits = rand.Intn(10)
+		player.DeathsBy = rand.Intn(20)
+		player.Team = team
+		player.Connected = float64(rand.Intn(3600))
+		player.UserID = userId
+		player.Ping = rand.Intn(150)
+		player.Kills = rand.Intn(50)
+		player.Deaths = rand.Intn(300)
 		idIdx++
-		return p
+
+		return player
 	}
+
 	var testPlayers store.PlayerCollection
+
 	for i := 0; i < count; i++ {
-		p := randPlayer(int64(i))
+		player := randPlayer(int64(i))
+
 		switch i {
 		case 1:
-			p.NumberOfVACBans = 2
-			p.Notes = "User notes \ngo here"
+			player.NumberOfVACBans = 2
+			player.Notes = "User notes \ngo here"
 			last := time.Now().AddDate(-1, 0, 0)
-			p.LastVACBanOn = &last
+			player.LastVACBanOn = &last
 		case 4:
-			p.Matches = append(p.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, &rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"cheater"},
 				MatcherType: "string",
 			})
 		case 6:
-			p.Matches = append(p.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, &rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"other"},
 				MatcherType: "string",
 			})
 
 		case 7:
-			p.Team = store.Spec
+			player.Team = store.Spec
 		}
-		testPlayers = append(testPlayers, p)
+
+		testPlayers = append(testPlayers, player)
 	}
+
 	return testPlayers
 }
 
-func steamIdParam(ctx *gin.Context) (steamid.SID64, bool) {
-	steamId, errSid := steamid.StringToSID64(ctx.Param("steam_id"))
-	if errSid != nil {
+func steamIDParam(ctx *gin.Context) (steamid.SID64, bool) {
+	steamID := steamid.New(ctx.Param("steam_id"))
+	if !steamID.Valid() {
 		responseErr(ctx, http.StatusBadRequest, nil)
+
 		return "", false
 	}
-	if !steamId.Valid() {
-		responseErr(ctx, http.StatusBadRequest, nil)
-		return "", false
-	}
-	return steamId, true
+
+	return steamID, true
 }
 
 func (w *Web) Stop(ctx context.Context) error {
 	if w.Server == nil {
 		return nil
 	}
+
 	timeout, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
-	return w.Server.Shutdown(timeout)
+
+	if errShutdown := w.Server.Shutdown(timeout); errShutdown != nil {
+		return errors.Wrap(errShutdown, "Failed to shutdown http service")
+	}
+
+	return nil
 }

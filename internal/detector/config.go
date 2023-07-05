@@ -13,11 +13,12 @@ import (
 )
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
-	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamID)), "config", "localconfig.vdf")
-	if !util.Exists(fp) {
+	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.SID32()), "config", "localconfig.vdf")
+	if !util.Exists(configPath) {
 		return "", errors.New("Path does not exist")
 	}
-	return fp, nil
+
+	return configPath, nil
 }
 
 func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
@@ -25,47 +26,58 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
+
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
 	}
+
 	newParser := vdf.NewParser(openVDF)
+
 	result, errParse := newParser.Parse()
 	if errParse != nil {
 		return nil, errors.Wrap(errOpen, "failed to parse vdf")
 	}
+
 	var (
-		ok         bool
+		castOk     bool
 		found      bool
 		launchOpts []string
 		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "sTeam", "apps", "440"}
 	)
-	for i, key := range pathKeys {
+
+	for index, key := range pathKeys {
 		// Find a matching existing key using case-insensitive match since casing can vary
 		csKey := key
+
 		for k := range result {
 			if strings.EqualFold(k, key) {
 				csKey = k
+
 				break
 			}
 		}
-		result, ok = result[csKey].(map[string]any)
-		if !ok {
+
+		result, castOk = result[csKey].(map[string]any)
+		if !castOk {
 			return nil, errors.Wrapf(errOpen, "failed to find child key %s", key)
 		}
 
-		if i == len(pathKeys)-1 {
+		if index == len(pathKeys)-1 {
 			launchStr, launchStrOk := result["LaunchOptions"].(string)
 			if !launchStrOk {
 				return nil, errors.New("Failed to cast LaunchOptions")
 			}
+
 			launchOpts = strings.Split(launchStr, " ")
 			found = true
 		}
 	}
+
 	if !found {
 		return nil, errors.New("Failed to read LaunchOptions key")
 	}
+
 	return launchOpts, nil
 }
 
@@ -74,6 +86,7 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}
+
 	bdArgs := []string{
 		"-game", "tf",
 		"-noreactlogin", // needed for vac to load as of late 2022?
@@ -91,24 +104,31 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		"-conclearlog",
 	}
 
-	var full []string
+	var full []string //nolint:prealloc
+
 	for _, arg := range append(bdArgs, userArgs...) {
 		arg = strings.Trim(arg, " ")
 		if !strings.HasSuffix(arg, "-") || strings.HasPrefix(arg, "+") {
 			full = append(full, arg)
+
 			continue
 		}
+
 		alreadyKnown := false
+
 		for _, known := range full {
 			if known == arg {
 				// duplicate arg
 				alreadyKnown = true
+
 				break
 			}
 		}
+
 		if alreadyKnown {
 			continue
 		}
+
 		full = append(full, arg)
 	}
 

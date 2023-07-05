@@ -53,9 +53,11 @@ func (store *SqliteStore) Close() error {
 	if store.db == nil {
 		return nil
 	}
+
 	if errClose := store.db.Close(); errClose != nil {
 		return errors.Wrapf(errClose, "Failed to Close database\n")
 	}
+
 	return nil
 }
 
@@ -64,13 +66,16 @@ func (store *SqliteStore) Connect() error {
 	if errOpen != nil {
 		return errors.Wrap(errOpen, "Failed to open database")
 	}
+
 	for _, pragma := range []string{"PRAGMA encoding = 'UTF-8'", "PRAGMA foreign_keys = ON"} {
 		_, errPragma := database.Exec(pragma)
 		if errPragma != nil {
 			return errors.Wrapf(errPragma, "Failed to enable pragma: %s", errPragma)
 		}
 	}
+
 	store.db = database
+
 	return nil
 }
 
@@ -80,42 +85,50 @@ func (store *SqliteStore) Init() error {
 			return errConn
 		}
 	}
+
 	fsDriver, errIofs := iofs.New(migrations, "migrations")
 	if errIofs != nil {
 		return errors.Wrap(errIofs, "failed to create iofs")
 	}
+
 	sqlDriver, errDriver := sqlite.WithInstance(store.db, &sqlite.Config{})
 	if errDriver != nil {
-		return errDriver
+		return errors.Wrap(errDriver, "Failed to create db driver")
 	}
+
 	migrator, errNewMigrator := migrate.NewWithInstance("iofs", fsDriver, "sqlite", sqlDriver)
 	if errNewMigrator != nil {
 		return errors.Wrap(errNewMigrator, "Failed to create migrator")
 	}
+
 	if errMigrate := migrator.Up(); errMigrate != nil {
 		return errors.Wrap(errMigrate, "Failed to migrate database")
 	}
+
 	// Note that we do not call migrator.Close and instead close the fsDriver manually.
 	// This is because sqlite will wipe the db when :memory: is used and the connection closes
 	// for any reason, which the migrator does when called.
 	if errClose := fsDriver.Close(); errClose != nil {
 		return errors.Wrap(errClose, "Failed to close fs driver")
 	}
+
 	return nil
 }
 
 func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNameHistory) error {
-	query, args, err := sq.
+	query, args, errSQL := sq.
 		Insert("player_names").
 		Columns("steam_id", "name", "created_on").
 		Values(hist.SteamID, hist.Name, time.Now()).
 		ToSql()
-	if err != nil {
-		return err
+	if errSQL != nil {
+		return errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save name")
 	}
+
 	return nil
 }
 
@@ -126,9 +139,11 @@ func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage)
 		Values(message.SteamID, message.Message, message.Created).
 		Suffix("RETURNING \"message_id\"").
 		RunWith(store.db)
+
 	if errExec := query.QueryRowContext(ctx).Scan(&message.MessageID); errExec != nil {
 		return errors.Wrap(errExec, "Failed to save message")
 	}
+
 	return nil
 }
 
@@ -144,20 +159,24 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 			state.UpdatedOn, state.ProfileUpdatedOn).
 		ToSql()
 	if errSQL != nil {
-		return errSQL
+		return errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
 		return errors.Wrap(errExec, "Could not save player state")
 	}
+
 	if state.Name != "" {
 		name, errName := NewUserNameHistory(state.SteamID, state.Name)
 		if errName != nil {
 			return errName
 		}
+
 		if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
 			return errors.Wrap(errSaveName, "Could not save user name history")
 		}
 	}
+
 	return nil
 }
 
@@ -181,26 +200,32 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 		Set("updated_on", state.UpdatedOn).
 		Set("profile_updated_on", state.ProfileUpdatedOn).
 		Where(sq.Eq{"steam_id": state.SteamID}).ToSql()
+
 	if errSQL != nil {
-		return errSQL
+		return errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	_, errExec := store.db.ExecContext(ctx, query, args...)
 	if errExec != nil {
 		return errors.Wrap(errExec, "Could not update player state")
 	}
+
 	var existing Player
 	if errExisting := store.GetPlayer(ctx, state.SteamID, false, &existing); errExisting != nil {
 		return errExisting
 	}
+
 	if existing.Name != state.Name {
 		name, errName := NewUserNameHistory(state.SteamID, state.Name)
 		if errName != nil {
 			return errName
 		}
+
 		if errSaveName := store.SaveUserNameHistory(ctx, name); errSaveName != nil {
 			return errors.Wrap(errSaveName, "Could not save user name history")
 		}
 	}
+
 	return nil
 }
 
@@ -208,6 +233,7 @@ func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
 	if !state.SteamID.Valid() {
 		return errors.New("Invalid steam id")
 	}
+
 	return store.updatePlayer(ctx, state)
 }
 
@@ -216,7 +242,7 @@ type SearchOpts struct {
 }
 
 func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error) {
-	qb := sq.
+	builder := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
 			"p.rage_quits", "p.notes", "p.whitelist", "p.created_on", "p.updated_on", "p.profile_updated_on", "pn.name").
@@ -227,39 +253,51 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 
 	sid64, errSid := steamid.StringToSID64(opts.Query)
 	if errSid == nil && sid64.Valid() {
-		qb = qb.Where(sq.Like{"p.steam_id": sid64})
+		builder = builder.Where(sq.Like{"p.steam_id": sid64})
 	} else if opts.Query != "" {
-		qb = qb.Where(sq.Like{"pn.name": fmt.Sprintf("%%%s%%", opts.Query)})
+		builder = builder.Where(sq.Like{"pn.name": fmt.Sprintf("%%%s%%", opts.Query)})
 	}
-	query, args, errSQL := qb.ToSql()
+
+	query, args, errSQL := builder.ToSql()
 	if errSQL != nil {
-		return nil, errSQL
+		return nil, errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	rows, rowErr := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if rowErr != nil {
-		return nil, rowErr
+		return nil, errors.Wrap(rowErr, "Failed to query rows")
 	}
+
 	defer util.LogClose(store.logger, rows)
+
 	var col PlayerCollection
+
 	for rows.Next() {
-		var prevName *string
-		var player Player
+		var (
+			prevName *string
+			player   Player
+		)
+
 		if errScan := rows.Scan(&player.SteamID, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		); errScan != nil {
-			return nil, errScan
+			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
+
 		if prevName != nil {
 			player.Name = *prevName
 			player.NamePrevious = *prevName
 		}
+
 		col = append(col, &player)
 	}
+
 	if rows.Err() != nil {
-		return nil, rows.Err()
+		return nil, errors.Wrap(rows.Err(), "rows error returned")
 	}
+
 	return col, nil
 }
 
@@ -267,6 +305,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	if !steamID.Valid() {
 		return errors.New("Invalid steam id")
 	}
+
 	query, args, errSQL := sq.
 		Select("p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -278,9 +317,11 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 		Limit(1).
 		ToSql()
 	if errSQL != nil {
-		return errSQL
+		return errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	var prevName *string
+
 	rowErr := store.db.
 		QueryRowContext(ctx, query, args...).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
@@ -291,10 +332,12 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	player.SteamID = steamID
 	player.SteamIDString = steamID.String()
 	player.Matches = []*rules.MatchResult{}
+
 	if rowErr != nil {
 		if !errors.Is(rowErr, sql.ErrNoRows) || !create {
-			return rowErr
+			return errors.Wrap(rowErr, "Failed to query rows")
 		}
+
 		if errSave := store.insertPlayer(ctx, player); errSave != nil {
 			return errSave
 		}
@@ -303,6 +346,7 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 	if prevName != nil {
 		player.NamePrevious = *prevName
 	}
+
 	return nil
 }
 
@@ -313,27 +357,35 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 		Where(sq.Eq{"steam_id": steamID}).
 		ToSql()
 	if errSQL != nil {
-		return nil, errSQL
+		return nil, errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	rows, errQuery := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, errQuery
+
+		return nil, errors.Wrap(errQuery, "Failed to exec query")
 	}
+
 	defer util.LogClose(store.logger, rows)
+
 	var hist UserNameHistoryCollection
+
 	for rows.Next() {
 		var h UserNameHistory
 		if errScan := rows.Scan(&h.NameID, &h.Name, &h.FirstSeen); errScan != nil {
-			return nil, errScan
+			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
+
 		hist = append(hist, h)
 	}
+
 	if rows.Err() != nil {
-		return nil, rows.Err()
+		return nil, errors.Wrap(rows.Err(), "rows error returned")
 	}
+
 	return hist, nil
 }
 
@@ -344,27 +396,36 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		Where(sq.Eq{"steam_id": steamID}).
 		ToSql()
 	if errSQL != nil {
-		return nil, errSQL
+		return nil, errors.Wrap(errSQL, "Failed to generate query")
 	}
+
 	rows, errQuery := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, errQuery
+
+		return nil, errors.Wrap(errQuery, "Failed to exec query")
 	}
+
 	defer util.LogClose(store.logger, rows)
+
 	var messages UserMessageCollection
+
 	for rows.Next() {
-		var m UserMessage
-		if errScan := rows.Scan(&m.SteamID, &m.MessageID, &m.Message, &m.Created); errScan != nil {
-			return nil, errScan
+		var message UserMessage
+		if errScan := rows.Scan(&message.SteamID, &message.MessageID, &message.Message, &message.Created); errScan != nil {
+			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
-		m.SteamIDString = m.SteamID.String()
-		messages = append(messages, m)
+
+		message.SteamIDString = message.SteamID.String()
+
+		messages = append(messages, message)
 	}
+
 	if rows.Err() != nil {
-		return nil, rows.Err()
+		return nil, errors.Wrap(rows.Err(), "rows error returned")
 	}
+
 	return messages, nil
 }

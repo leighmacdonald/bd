@@ -9,7 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-var socket net.Conn
+type DiscordIPC struct {
+	socket net.Conn
+}
+
+func New() *DiscordIPC {
+	return &DiscordIPC{}
+}
 
 func GetIpcPath() string {
 	variableNames := []string{"XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"}
@@ -23,22 +29,25 @@ func GetIpcPath() string {
 	return "/tmp"
 }
 
-func Close() error {
-	if socket != nil {
-		if errClose := socket.Close(); errClose != nil {
+func (ipc *DiscordIPC) Close() error {
+	if ipc.socket != nil {
+		if errClose := ipc.Close(); errClose != nil {
 			return errClose
 		}
-		socket = nil
+
+		ipc.socket = nil
 	}
+
 	return nil
 }
 
-// Read the socket response
-func Read() (string, error) {
+// Read the socket response.
+func (ipc *DiscordIPC) Read() (string, error) {
 	buf := make([]byte, 512)
-	payloadLen, errRead := socket.Read(buf)
+	payloadLen, errRead := ipc.socket.Read(buf)
+
 	if errRead != nil {
-		return "", errRead
+		return "", errors.Wrap(errRead, "Failed to read from discord ipc socket")
 	}
 
 	buffer := new(bytes.Buffer)
@@ -49,8 +58,8 @@ func Read() (string, error) {
 	return buffer.String(), nil
 }
 
-// Send opcode and payload to the unix socket
-func Send(opcode int, payload string) (string, error) {
+// Send opcode and payload to the unix socket.
+func (ipc *DiscordIPC) Send(opcode int, payload string) (string, error) {
 	buf := new(bytes.Buffer)
 
 	if errOpCode := binary.Write(buf, binary.LittleEndian, int32(opcode)); errOpCode != nil {
@@ -62,10 +71,11 @@ func Send(opcode int, payload string) (string, error) {
 	}
 
 	buf.Write([]byte(payload))
-	_, err := socket.Write(buf.Bytes())
-	if err != nil {
-		return "", errors.Wrap(err, "Failed to send payload buffer")
+
+	_, errWrite := ipc.socket.Write(buf.Bytes())
+	if errWrite != nil {
+		return "", errors.Wrap(errWrite, "Failed to send payload buffer")
 	}
 
-	return Read()
+	return ipc.Read()
 }

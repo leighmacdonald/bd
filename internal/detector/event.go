@@ -6,13 +6,19 @@ import (
 
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/pkg/errors"
 )
 
 const logTimestampFormat = "01/02/2006 - 15:04:05"
 
-// parseTimestamp will convert the source formatted log timestamps into a time.Time value
+// parseTimestamp will convert the source formatted log timestamps into a time.Time value.
 func parseTimestamp(timestamp string) (time.Time, error) {
-	return time.Parse(logTimestampFormat, timestamp)
+	parsedTime, errParse := time.Parse(logTimestampFormat, timestamp)
+	if errParse != nil {
+		return time.Time{}, errors.Wrap(errParse, "Failed to parse timestamp")
+	}
+
+	return parsedTime, nil
 }
 
 type LogEvent struct {
@@ -37,7 +43,9 @@ func (e *LogEvent) ApplyTimestamp(tsString string) error {
 	if errTS != nil {
 		return errTS
 	}
+
 	e.Timestamp = ts
+
 	return nil
 }
 
