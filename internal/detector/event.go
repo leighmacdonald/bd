@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 const logTimestampFormat = "01/02/2006 - 15:04:05"

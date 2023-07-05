@@ -15,19 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leighmacdonald/steamweb/v2"
-
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
+	"github.com/leighmacdonald/bd/pkg/discord/client"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/bd/pkg/voiceban"
 	"github.com/leighmacdonald/rcon/rcon"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamweb/v2"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slog"
 )
 
 var ErrInvalidReadyState = errors.New("Invalid ready state")
@@ -50,6 +49,7 @@ type Detector struct {
 	parser            *LogParser
 	rconConn          rconConnection
 	settings          *UserSettings
+	discordPresence   *client.Client
 
 	dataStore store.DataStore
 	// triggerUpdate     chan any
@@ -141,6 +141,7 @@ func New(logger *slog.Logger, settings *UserSettings, db store.DataStore, versio
 		gameStateUpdate:    make(chan updateStateEvent, 50),
 		cache:              cache,
 		gameHasStartedOnce: isRunning,
+		discordPresence:    client.New(),
 	}
 }
 
@@ -156,9 +157,9 @@ func NewLogger(logFile string) (*slog.Logger, error) {
 		if errOf != nil {
 			return nil, errors.Wrap(errOf, "Failed to open log file")
 		}
-		w = slog.NewTextHandler(of)
+		w = slog.NewTextHandler(of, nil)
 	} else {
-		w = slog.NewTextHandler(os.Stderr)
+		w = slog.NewTextHandler(os.Stderr, nil)
 	}
 	logger := slog.New(w)
 	return logger.WithGroup("bd"), nil
@@ -634,7 +635,7 @@ func (d *Detector) nameToSid(players store.PlayerCollection, name string) steami
 			return player.SteamID
 		}
 	}
-	return 0
+	return ""
 }
 
 func (d *Detector) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
@@ -732,7 +733,7 @@ func (d *Detector) onUpdateStatus(ctx context.Context, steamID steamid.SID64, up
 	}
 	d.playersMu.Lock()
 	player.Ping = update.ping
-	player.UserId = update.userID
+	player.UserID = update.userID
 	player.Name = update.name
 	player.Connected = update.connected.Seconds()
 	player.UpdatedOn = time.Now()
@@ -809,7 +810,7 @@ func (d *Detector) triggerMatch(ps *store.Player, matches []*rules.MatchResult) 
 	if d.settings.GetPartyWarningsEnabled() && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
-			if errLog := d.SendChat(ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserId, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
+			if errLog := d.SendChat(ChatDestParty, "(%d) [%s] [%s] %s ", ps.UserID, match.Origin, strings.Join(match.Attributes, ","), ps.Name); errLog != nil {
 				d.log.Error("Failed to send party log message", "err", errLog)
 				return
 			}
@@ -829,7 +830,7 @@ func (d *Detector) triggerMatch(ps *store.Player, matches []*rules.MatchResult) 
 			}
 		}
 		if kickTag {
-			if errVote := d.CallVote(ps.UserId, KickReasonCheating); errVote != nil {
+			if errVote := d.CallVote(ps.UserID, KickReasonCheating); errVote != nil {
 				d.log.Error("Error calling vote", "err", errVote)
 			}
 		} else {

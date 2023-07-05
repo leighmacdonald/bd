@@ -10,12 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slog"
 )
 
 type LogReader struct {

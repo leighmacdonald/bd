@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"

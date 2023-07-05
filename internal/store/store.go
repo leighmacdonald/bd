@@ -7,16 +7,15 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/exp/slog"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slog"
 )
 
 //go:embed migrations/*.sql
@@ -236,7 +235,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 	if errSQL != nil {
 		return nil, errSQL
 	}
-	rows, rowErr := store.db.QueryContext(ctx, query, args...)
+	rows, rowErr := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if rowErr != nil {
 		return nil, rowErr
 	}
@@ -257,7 +256,6 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 			player.NamePrevious = *prevName
 		}
 		col = append(col, &player)
-
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()
@@ -317,7 +315,7 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	if errSQL != nil {
 		return nil, errSQL
 	}
-	rows, errQuery := store.db.QueryContext(ctx, query, args...)
+	rows, errQuery := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil
@@ -348,7 +346,7 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 	if errSQL != nil {
 		return nil, errSQL
 	}
-	rows, errQuery := store.db.QueryContext(ctx, query, args...)
+	rows, errQuery := store.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if errQuery != nil {
 		if errors.Is(errQuery, sql.ErrNoRows) {
 			return nil, nil

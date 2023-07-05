@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 // ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
@@ -13,7 +13,7 @@ import (
 // 1 - the profile is not visible to you (Private, Friends Only, etc),
 // 3 - the profile is "Public", and the data is visible.
 // Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
-// than the privacy state. It's the effective visibility state from the account making the request to the account
+// then the privacy state. It's the effective visibility state from the account making the request to the account
 // being viewed given the requesting account's relationship to the viewed account."
 type ProfileVisibility int
 
@@ -74,7 +74,7 @@ type Player struct {
 	// Connected is how long the user has been in the server
 	Connected float64 `json:"connected"`
 	// In game user id
-	UserId int64 `json:"user_id"`
+	UserID int64 `json:"user_id"`
 	Ping   int   `json:"ping"`
 
 	// Parsed stats from logs
@@ -141,14 +141,14 @@ func firstN(s string, n int) string {
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
 // API returns non https urls, this will resolve them over https.
-const baseAvatarUrl = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
+const baseAvatarURL = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
 
 func AvatarURL(hash string) string {
 	avatarHash := defaultAvatarHash
 	if hash != "" {
 		avatarHash = hash
 	}
-	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarUrl, firstN(avatarHash, 2), avatarHash)
+	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarURL, firstN(avatarHash, 2), avatarHash)
 }
 
 type PlayerCollection []*Player

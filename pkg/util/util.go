@@ -13,6 +13,7 @@ func Exists(filePath string) bool {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return false
 	}
+
 	return true
 }
 
@@ -26,14 +27,17 @@ func IgnoreClose(closer io.Closer) {
 	_ = closer.Close()
 }
 
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 func RandomString(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[RandInt(len(letters))]
+	var (
+		letters  = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+		outBytes = make([]rune, n)
+	)
+
+	for i := range outBytes {
+		outBytes[i] = letters[RandInt(len(letters))]
 	}
-	return string(b)
+
+	return string(outBytes)
 }
 
 func RandInt(i int) int {
@@ -41,5 +45,6 @@ func RandInt(i int) int {
 	if errInt != nil {
 		panic(errInt)
 	}
+
 	return int(value.Int64())
 }

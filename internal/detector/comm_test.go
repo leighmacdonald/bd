@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/leighmacdonald/bd/internal/detector"
-
 	"github.com/stretchr/testify/require"
 )
 

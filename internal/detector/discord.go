@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/leighmacdonald/bd/pkg/discord/client"
+	"github.com/pkg/errors"
 )
 
 type mapConfig struct {
@@ -136,14 +135,14 @@ func discordUpdateActivity(cnt int, server Server, inGame bool, startupTime time
 	buttons := []*client.Button{
 		{
 			Label: "GitHub",
-			Url:   "https://github.com/leighmacdonald/bd",
+			URL:   "https://github.com/leighmacdonald/bd",
 		},
 	}
 	if !server.Addr.IsLinkLocalUnicast() /*SDR*/ && !server.Addr.IsPrivate() && server.Addr != nil && server.Port > 0 {
 		u := fmt.Sprintf("steam://connect/%s:%d", server.Addr.String(), server.Port)
 		buttons = append(buttons, &client.Button{
 			Label: "Connect",
-			Url:   u,
+			URL:   u,
 		})
 	}
 	currentMap := discordAssetNameMap(server.CurrentMap)

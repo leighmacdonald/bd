@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 type updateType int

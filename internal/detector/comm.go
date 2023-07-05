@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v2/steamid"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 var lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
