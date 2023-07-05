@@ -16,19 +16,23 @@ type rconConnection interface {
 }
 
 func ParseLobbyPlayers(body string) []*store.Player {
-	var lobbyPlayers []*store.Player
+	var lobbyPlayers []*store.Player //nolint:prealloc
+
 	for _, line := range strings.Split(body, "\n") {
 		match := lobbyPlayerRx.FindStringSubmatch(line)
 		if match == nil {
 			continue
 		}
-		ps := store.NewPlayer(steamid.SID3ToSID64(steamid.SID3(match[3])), "")
+
+		player := store.NewPlayer(steamid.SID3ToSID64(steamid.SID3(match[3])), "")
 		if match[4] == "TF_GC_TEAM_INVADERS" {
-			ps.Team = store.Blu
+			player.Team = store.Blu
 		} else {
-			ps.Team = store.Red
+			player.Team = store.Red
 		}
-		lobbyPlayers = append(lobbyPlayers, ps)
+
+		lobbyPlayers = append(lobbyPlayers, player)
 	}
+
 	return lobbyPlayers
 }

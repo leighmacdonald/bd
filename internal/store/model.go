@@ -41,9 +41,11 @@ func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly boo
 	if !sid64.Valid() {
 		return nil, ErrInvalidSid
 	}
+
 	if message == "" {
 		return nil, ErrEmptyValue
 	}
+
 	return &UserMessage{
 		BaseSID:  BaseSID{SteamID: sid64, SteamIDString: sid64.String()},
 		Message:  message,
@@ -58,10 +60,13 @@ func (um UserMessage) Formatted() string {
 	if um.TeamOnly {
 		msg = append(msg, "(TEAM)")
 	}
+
 	if um.Dead {
 		msg = append(msg, "(DEAD)")
 	}
+
 	msg = append(msg, um.Message)
+
 	return strings.Join(msg, " ")
 }
 
@@ -72,5 +77,6 @@ func (messages UserMessageCollection) AsAny() []any {
 	for i, r := range messages {
 		bl[i] = r
 	}
+
 	return bl
 }

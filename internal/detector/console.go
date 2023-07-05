@@ -31,12 +31,13 @@ func (reader *LogReader) start(ctx context.Context) {
 				// Happens on linux only?
 				continue
 			}
-			reader.outChan <- strings.TrimSuffix(msg.Text, "\r")
 
+			reader.outChan <- strings.TrimSuffix(msg.Text, "\r")
 		case <-ctx.Done():
 			if errStop := reader.tail.Stop(); errStop != nil {
 				reader.logger.Error("Failed to stop tailing console.log cleanly", "err", errStop)
 			}
+
 			return
 		}
 	}
@@ -60,16 +61,18 @@ func newLogReader(logger *slog.Logger, path string, outChan chan string, echo bo
 		Logger:    tailLogger,
 	}
 	//goland:noinspection ALL
-	t, errTail := tail.TailFile(path, tailConfig)
+	tailFile, errTail := tail.TailFile(path, tailConfig)
 	if errTail != nil {
 		return nil, errors.Wrap(errTail, "Failed to configure tail")
 	}
-	lr := LogReader{
-		tail:    t,
+
+	logReader := LogReader{
+		tail:    tailFile,
 		outChan: outChan,
 		logger:  logger.WithGroup("logreader"),
 	}
-	return &lr, nil
+
+	return &logReader, nil
 }
 
 var ErrNoMatch = errors.New("no match found")
@@ -90,13 +93,14 @@ const (
 func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 	// the index must match the index of the EventType const values
 	for i, rxMatcher := range parser.rx {
-		if match := rxMatcher.FindStringSubmatch(msg); match != nil {
+		if match := rxMatcher.FindStringSubmatch(msg); match != nil { //nolint:nestif
 			outEvent.Type = EventType(i)
 			if outEvent.Type != EvtLobby {
 				if errTS := outEvent.ApplyTimestamp(match[1]); errTS != nil {
 					parser.logger.Error("Failed to parse timestamp", "err", errTS)
 				}
 			}
+
 			switch outEvent.Type {
 			case EvtConnect:
 				outEvent.Player = match[2]
@@ -106,10 +110,12 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 				name := match[2]
 				dead := false
 				team := false
+
 				if strings.HasPrefix(name, teamPrefix) {
 					name = strings.TrimPrefix(name, teamPrefix)
 					team = true
 				}
+
 				if strings.HasPrefix(name, deadTeamPrefix) {
 					name = strings.TrimPrefix(name, deadTeamPrefix)
 					dead = true
@@ -118,6 +124,7 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 					dead = true
 					name = strings.TrimPrefix(name, deadPrefix)
 				}
+
 				outEvent.TeamOnly = team
 				outEvent.Dead = dead
 				outEvent.Player = name
@@ -126,18 +133,24 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
 					parser.logger.Error("Failed to parse status userid", "err", errUserID)
+
 					continue
 				}
+
 				ping, errPing := strconv.ParseInt(match[7], 10, 32)
 				if errPing != nil {
 					parser.logger.Error("Failed to parse status ping", "err", errPing)
+
 					continue
 				}
+
 				dur, durErr := parseConnected(match[5])
 				if durErr != nil {
 					parser.logger.Error("Failed to parse status duration", "err", durErr)
+
 					continue
 				}
+
 				outEvent.UserID = userID
 				outEvent.Player = match[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
@@ -162,16 +175,21 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 					outEvent.Team = store.Red
 				}
 			}
+
 			return nil
 		}
 	}
+
 	return ErrNoMatch
 }
 
 func parseConnected(d string) (time.Duration, error) {
-	pcs := strings.Split(d, ":")
-	var dur time.Duration
-	var parseErr error
+	var (
+		pcs      = strings.Split(d, ":")
+		dur      time.Duration
+		parseErr error
+	)
+
 	switch len(pcs) {
 	case 3:
 		dur, parseErr = time.ParseDuration(fmt.Sprintf("%sh%sm%ss", pcs[0], pcs[1], pcs[2]))
@@ -182,7 +200,12 @@ func parseConnected(d string) (time.Duration, error) {
 	default:
 		dur = 0
 	}
-	return dur, parseErr
+
+	if parseErr != nil {
+		return 0, errors.Wrap(parseErr, "Failed to parse connected duration")
+	}
+
+	return dur, nil
 }
 
 // TODO why keep this?
@@ -194,6 +217,7 @@ func (parser *LogParser) start(ctx context.Context) {
 			if err := parser.Parse(msg, &logEvent); err != nil || errors.Is(err, ErrNoMatch) {
 				continue
 			}
+
 			parser.evtChan <- logEvent
 			// select {
 			// case parser.evtChan <- logEvent:

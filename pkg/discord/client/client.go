@@ -14,61 +14,78 @@ import (
 
 type Client struct {
 	ipcOpened *atomic.Bool
+	ipc       *ipc.DiscordIPC
 }
 
 func New() *Client {
-	return &Client{ipcOpened: atomic.NewBool(false)}
+	return &Client{ipcOpened: atomic.NewBool(false), ipc: ipc.New()}
 }
 
-func (d *Client) login(clientID string) error {
+func (d *Client) Login(clientID string) error {
 	if !d.ipcOpened.Load() {
 		payload, errMarshal := json.Marshal(Handshake{"1", clientID})
 		if errMarshal != nil {
-			return errMarshal
+			return errors.Wrap(errMarshal, "Failed to marshal login")
 		}
-		errOpen := ipc.OpenSocket()
+
+		errOpen := d.ipc.OpenSocket()
 		if errOpen != nil {
-			return errOpen
+			return errors.Wrap(errOpen, "Failed to open ipc socket")
 		}
-		if _, errSend := ipc.Send(0, string(payload)); errSend != nil {
-			return errSend
+
+		if _, errSend := d.ipc.Send(0, string(payload)); errSend != nil {
+			return errors.Wrap(errSend, "Failed to send login to ipc socket")
 		}
 	}
+
 	d.ipcOpened.Store(true)
+
 	return nil
 }
 
 func (d *Client) Logout() error {
 	d.ipcOpened.Store(false)
-	return ipc.Close()
+
+	if errClose := d.ipc.Close(); errClose != nil {
+		return errors.Wrap(errClose, "Failed to close ipc socket")
+	}
+
+	return nil
 }
 
 func (d *Client) SetActivity(activity Activity) error {
 	if !d.ipcOpened.Load() {
 		return nil
 	}
+
 	nonce, errNonce := getNonce()
 	if errNonce != nil {
 		return errNonce
 	}
+
 	payload, errMarshal := json.Marshal(Frame{"SET_ACTIVITY", Args{os.Getpid(), mapActivity(&activity)}, nonce})
 	if errMarshal != nil {
-		return errMarshal
+		return errors.Wrap(errMarshal, "Failed to marshal discord activity")
 	}
-	resp, errSend := ipc.Send(1, string(payload))
+
+	resp, errSend := d.ipc.Send(1, string(payload))
 	if errSend != nil {
 		return errors.New(resp)
 	}
+
 	return nil
 }
 
 func getNonce() (string, error) {
 	buf := make([]byte, 16)
+
 	_, err := rand.Read(buf)
 	if err != nil {
 		return "", errors.Wrap(err, "Failed to read buffer")
 	}
+
 	buf[6] = (buf[6] & 0x0f) | 0x40
+
 	return fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8], buf[8:10], buf[10:]), nil
 }
 
@@ -149,6 +166,7 @@ func mapActivity(activity *Activity) *PayloadActivity {
 		final.Timestamps = &PayloadTimestamps{
 			Start: &start,
 		}
+
 		if activity.Timestamps.End != nil {
 			end := uint64(activity.Timestamps.End.UnixNano() / 1e6)
 			final.Timestamps.End = &end

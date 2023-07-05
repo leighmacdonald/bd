@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	DefaultSteamRoot      = "C:/Program Files (x86)/Steam"
-	DefaultTF2Root        = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
-	BinaryName            = "hl2.exe"
-	TF2RootValidationFile = "bin/client.dll"
+	DefaultSteamRoot      = "C:/Program Files (x86)/Steam"                                     //nolint:gochecknoglobals
+	DefaultTF2Root        = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf" //nolint:gochecknoglobals
+	BinaryName            = "hl2.exe"                                                          //nolint:gochecknoglobals
+	TF2RootValidationFile = "bin/client.dll"                                                   //nolint:gochecknoglobals
 )
 
 func openSteamRegistry() (registry.Key, error) {

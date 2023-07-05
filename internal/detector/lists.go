@@ -14,10 +14,11 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-// fixSteamIDFormat converts raw unquoted steamids to quoted ones
+// FixSteamIDFormat converts raw unquoted steamids to quoted ones
 // e.g. "steamid":76561199063807260 -> "steamid": "76561199063807260".
-func fixSteamIDFormat(body []byte) []byte {
+func FixSteamIDFormat(body []byte) []byte {
 	r := regexp.MustCompile(`("steamid":\+?(\d+))`)
+
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
@@ -25,70 +26,94 @@ func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCol
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
+
 		req, reqErr := http.NewRequestWithContext(timeout, http.MethodGet, url, nil)
 		if reqErr != nil {
 			return nil, errors.Wrap(reqErr, "Failed to create request\n")
 		}
+
 		resp, errResp := client.Do(req)
 		if errResp != nil {
 			return nil, errors.Wrapf(errResp, "Failed to download urlLocation: %s\n", url)
 		}
+
 		defer func() {
 			_ = resp.Body.Close()
 		}()
+
 		body, errBody := io.ReadAll(resp.Body)
 		if errBody != nil {
 			return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
 		}
+
 		return body, nil
 	}
-	var playerLists []rules.PlayerListSchema
-	var rulesLists []rules.RuleSchema
-	mu := &sync.RWMutex{}
-	client := http.Client{}
-	downloadFn := func(u *ListConfig) error {
+
+	var (
+		playerLists []rules.PlayerListSchema
+		rulesLists  []rules.RuleSchema
+		mutex       = &sync.RWMutex{}
+		client      = http.Client{}
+	)
+
+	downloadFn := func(listConfig *ListConfig) error {
 		start := time.Now()
-		body, errFetch := fetchURL(ctx, client, u.URL)
+
+		body, errFetch := fetchURL(ctx, client, listConfig.URL)
 		if errFetch != nil {
-			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", u.URL)
+			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", listConfig.URL)
 		}
-		body = fixSteamIDFormat(body)
+
+		body = FixSteamIDFormat(body)
 		dur := time.Since(start)
-		switch u.ListType {
+
+		switch listConfig.ListType {
 		case ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
 			}
-			mu.Lock()
+
+			mutex.Lock()
 			playerLists = append(playerLists, result)
-			mu.Unlock()
+			mutex.Unlock()
+
 			logger.Info("Downloaded players successfully", "duration", dur, "name", result.FileInfo.Title)
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
 				return errors.Wrap(errParse, "Failed to parse request")
 			}
-			mu.Lock()
+
+			mutex.Lock()
 			rulesLists = append(rulesLists, result)
-			mu.Unlock()
+			mutex.Unlock()
+
 			logger.Info("Downloaded rules successfully", "duration", dur, "name", result.FileInfo.Title)
 		}
+
 		return nil
 	}
-	wg := &sync.WaitGroup{}
+
+	waitGroup := &sync.WaitGroup{}
+
 	for _, listConfig := range lists {
 		if !listConfig.Enabled {
 			continue
 		}
-		wg.Add(1)
+
+		waitGroup.Add(1)
+
 		go func(lc *ListConfig) {
-			defer wg.Done()
+			defer waitGroup.Done()
+
 			if errDL := downloadFn(lc); errDL != nil {
 				logger.Error("Failed to download list", "err", errDL)
 			}
 		}(listConfig)
 	}
-	wg.Wait()
+
+	waitGroup.Wait()
+
 	return playerLists, rulesLists
 }

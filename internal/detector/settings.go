@@ -32,22 +32,21 @@ var (
 type ListType string
 
 const (
-	// ListTypeBD              ListType = "bd".
 	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
 	ListTypeTF2BDRules      ListType = "tf2bd_rules"
-	// ListTypeUnknown         ListType = "unknown"
 )
 
 type ListConfig struct {
-	ListType ListType `yaml:"type" json:"list_type"`
+	ListType ListType `yaml:"list_type" json:"list_type"`
 	Name     string   `yaml:"name" json:"name"`
 	Enabled  bool     `yaml:"enabled" json:"enabled"`
 	URL      string   `yaml:"url" json:"url"`
 }
 
-// TODO add to steamid pkg.
+// SteamIDFormat TODO add to steamid pkg.
 type SteamIDFormat string
 
+//goland:noinspection ALL
 const (
 	Steam64 SteamIDFormat = "steam64"
 	Steam3  SteamIDFormat = "steam3"
@@ -70,6 +69,7 @@ func (list LinkConfigCollection) AsAny() []any {
 	for i, r := range list {
 		bl[i] = r
 	}
+
 	return bl
 }
 
@@ -80,6 +80,7 @@ func (list ListConfigCollection) AsAny() []any {
 	for i, r := range list {
 		bl[i] = r
 	}
+
 	return bl
 }
 
@@ -101,7 +102,7 @@ type UserSettings struct {
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
 	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
 	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
-	AutoLaunchGame          bool                 `yaml:"auto_launch_game_auto" json:"auto_launch_game"`
+	AutoLaunchGame          bool                 `yaml:"auto_launch_game" json:"auto_launch_game"`
 	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`
 	APIKey                  string               `yaml:"api_key" json:"api_key"`
 	DisconnectedTimeout     string               `yaml:"disconnected_timeout" json:"disconnected_timeout"`
@@ -127,6 +128,7 @@ type UserSettings struct {
 func (s *UserSettings) GetVoiceBansEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.VoiceBansEnabled
 }
 
@@ -139,6 +141,7 @@ func (s *UserSettings) SetVoiceBansEnabled(enabled bool) {
 func (s *UserSettings) GetDebugLogEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.DebugLogEnabled
 }
 
@@ -151,6 +154,7 @@ func (s *UserSettings) SetDebugLogEnabled(enabled bool) {
 func (s *UserSettings) GetHTTPEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.HTTPEnabled
 }
 
@@ -163,180 +167,210 @@ func (s *UserSettings) SetHTTPEnabled(enabled bool) {
 func (s *UserSettings) GetGuiEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.GUIEnabled
 }
 
 func (s *UserSettings) SetGuiEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.GUIEnabled = enabled
 }
 
-func (s *UserSettings) GetRcon() RCONConfigProvider {
+func (s *UserSettings) GetRcon() RCONConfigProvider { // nolint:ireturn
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.rcon
 }
 
 func (s *UserSettings) GetRCONStatic() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.RCONStatic
 }
 
 func (s *UserSettings) GetKickerEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.KickerEnabled
 }
 
 func (s *UserSettings) GetAutoCloseOnGameExit() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.AutoCloseOnGameExit
 }
 
 func (s *UserSettings) SetSteamID(steamID string) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.SteamID = steamID
 }
 
 func (s *UserSettings) SetAutoCloseOnGameExit(autoClose bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.AutoCloseOnGameExit = autoClose
 }
 
 func (s *UserSettings) SetAutoLaunchGame(autoLaunch bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.AutoLaunchGame = autoLaunch
 }
 
 func (s *UserSettings) SetRconStatic(static bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.RCONStatic = static
 }
 
 func (s *UserSettings) SetChatWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.ChatWarningsEnabled = enabled
 }
 
 func (s *UserSettings) SetPartyWarningsEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.PartyWarningsEnabled = enabled
 }
 
 func (s *UserSettings) SetKickerEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.KickerEnabled = enabled
 }
 
 func (s *UserSettings) SetTF2Dir(dir string) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.TF2Dir = dir
 }
 
 func (s *UserSettings) SetSteamDir(dir string) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.SteamID = dir
 }
 
 func (s *UserSettings) SetKickTags(tags []string) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.KickTags = tags
 }
 
 func (s *UserSettings) SetAPIKey(key string) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.APIKey = key
 }
 
 func (s *UserSettings) SetLists(lists ListConfigCollection) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.Lists = lists
 }
 
 func (s *UserSettings) SetLinks(links []*LinkConfig) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.Links = links
 }
 
 func (s *UserSettings) GetAutoLaunchGame() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.AutoLaunchGame
 }
 
 func (s *UserSettings) SetDiscordPresenceEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
+
 	s.DiscordPresenceEnabled = enabled
 }
 
 func (s *UserSettings) GetDiscordPresenceEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.DiscordPresenceEnabled
 }
 
 func (s *UserSettings) GetPartyWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.PartyWarningsEnabled
 }
 
 func (s *UserSettings) GetChatWarningsEnabled() bool {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.ChatWarningsEnabled
 }
 
 func (s *UserSettings) GetAPIKey() string {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.APIKey
 }
 
 func (s *UserSettings) GetConfigPath() string {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.configPath
 }
 
 func (s *UserSettings) GetTF2Dir() string {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.TF2Dir
 }
 
 func (s *UserSettings) GetSteamDir() string {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.SteamDir
 }
 
 func (s *UserSettings) GetLists() ListConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.Lists
 }
 
 func (s *UserSettings) GetKickTags() []string {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.KickTags
 }
 
@@ -345,25 +379,30 @@ func (s *UserSettings) GetSteamID() steamid.SID64 {
 	if err != nil {
 		return ""
 	}
+
 	return value
 }
 
 func (s *UserSettings) AddList(config *ListConfig) error {
 	s.Lock()
 	defer s.Unlock()
+
 	for _, known := range s.Lists {
 		if config.ListType == known.ListType &&
 			strings.EqualFold(config.URL, known.URL) {
 			return errDuplicateList
 		}
 	}
+
 	s.Lists = append(s.Lists, config)
+
 	return nil
 }
 
 func (s *UserSettings) GetLinks() LinkConfigCollection {
 	s.RLock()
 	defer s.RUnlock()
+
 	return s.Links
 }
 
@@ -475,11 +514,13 @@ func NewSettings() (*UserSettings, error) {
 		HTTPListenAddr: "localhost:8900",
 		rcon:           NewRconConfig(false),
 	}
+
 	if !util.Exists(newSettings.ListRoot()) {
 		if err := os.MkdirAll(newSettings.ListRoot(), 0o755); err != nil {
 			return nil, errors.Wrap(err, "Failed to initialize UserSettings directory")
 		}
 	}
+
 	return &newSettings, nil
 }
 
@@ -490,13 +531,16 @@ func (s *UserSettings) LogFilePath() string {
 func (s *UserSettings) ReadDefaultOrCreate() error {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
-		return err
+		return errors.Wrap(err, "Failed to make config dir")
 	}
+
 	errRead := s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
 	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
 		return s.Save()
 	}
+
 	s.reload()
+
 	return errRead
 }
 
@@ -515,6 +559,7 @@ func (s *UserSettings) ConfigRoot() string {
 	if err := configdir.MakePath(configPath); err != nil {
 		return ""
 	}
+
 	return configPath
 }
 
@@ -534,17 +579,23 @@ func (s *UserSettings) ReadFilePath(filePath string) error {
 	if !util.Exists(filePath) {
 		// Use defaults
 		s.configPath = filePath
+
 		return errConfigNotFound
 	}
+
 	settingsFile, errOpen := os.Open(filePath)
 	if errOpen != nil {
-		return errOpen
+		return errors.Wrap(errOpen, "Failed to open settings file")
 	}
+
 	defer util.IgnoreClose(settingsFile)
+
 	if errRead := s.Read(settingsFile); errRead != nil {
 		return errRead
 	}
+
 	s.configPath = filePath
+
 	return nil
 }
 
@@ -552,10 +603,13 @@ func (s *UserSettings) Read(inputFile io.Reader) error {
 	s.Lock()
 	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
 		s.Unlock()
-		return errDecode
+
+		return errors.Wrap(errDecode, "Failed to decode settings")
 	}
+
 	s.Unlock()
 	s.reload()
+
 	return nil
 }
 
@@ -563,7 +617,9 @@ func (s *UserSettings) Save() error {
 	if errWrite := s.WriteFilePath(s.GetConfigPath()); errWrite != nil {
 		return errWrite
 	}
+
 	s.reload()
+
 	return nil
 }
 
@@ -579,20 +635,27 @@ func (s *UserSettings) WriteFilePath(filePath string) error {
 	if errOpen != nil {
 		return errors.Wrapf(errOpen, "Failed to open UserSettings file for writing")
 	}
+
 	defer util.IgnoreClose(settingsFile)
+
 	return s.Write(settingsFile)
 }
 
 func (s *UserSettings) Write(outputFile io.Writer) error {
 	s.RLock()
 	defer s.RUnlock()
-	return yaml.NewEncoder(outputFile).Encode(s)
+
+	if errEncode := yaml.NewEncoder(outputFile).Encode(s); errEncode != nil {
+		return errors.Wrap(errEncode, "Failed to encode settings")
+	}
+
+	return nil
 }
 
 const (
 	rconDefaultListenAddr = "127.0.0.1"
 	rconDefaultPort       = 21212
-	rconDefaultPassword   = "pazer_sux_lol"
+	rconDefaultPassword   = "pazer_sux_lol" //nolint:gosec
 )
 
 type RCONConfig struct {
@@ -619,10 +682,12 @@ func (cfg RCONConfig) Password() string {
 
 func randPort() uint16 {
 	const defaultPort = 21212
+
 	var b [8]byte
 	if _, errRead := rand.Read(b[:]); errRead != nil {
 		return defaultPort
 	}
+
 	return uint16(binary.LittleEndian.Uint64(b[:]))
 }
 
@@ -633,7 +698,7 @@ type RCONConfigProvider interface {
 	Password() string
 }
 
-func NewRconConfig(static bool) RCONConfigProvider {
+func NewRconConfig(static bool) RCONConfig {
 	if static {
 		return RCONConfig{
 			address:  rconDefaultListenAddr,
@@ -641,6 +706,7 @@ func NewRconConfig(static bool) RCONConfigProvider {
 			password: rconDefaultPassword,
 		}
 	}
+
 	return RCONConfig{
 		address:  rconDefaultListenAddr,
 		port:     randPort(),

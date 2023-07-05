@@ -1,4 +1,4 @@
-package rules
+package rules_test
 
 import (
 	"bufio"
@@ -7,81 +7,83 @@ import (
 	"image/jpeg"
 	"testing"
 
+	"github.com/leighmacdonald/bd/pkg/rules"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
 )
 
-func genTestRules() RuleSchema {
-	return RuleSchema{
-		baseSchema: baseSchema{
+func genTestRules() rules.RuleSchema {
+	return rules.RuleSchema{
+		BaseSchema: rules.BaseSchema{
 			Schema: "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/rules.schema.json",
-			FileInfo: fileInfo{
+			FileInfo: rules.FileInfo{
 				Authors:     []string{"test author"},
 				Description: "Test List",
 				Title:       "Test description",
 				UpdateURL:   "http://localhost",
 			},
 		},
-		Rules: []ruleDefinition{
+		Rules: []rules.RuleDefinition{
 			{
-				Actions: ruleActions{
+				Actions: rules.RuleActions{
 					Mark: []string{"cheater"},
 				},
 				Description: "contains test ci",
-				Triggers: ruleTriggers{
-					UsernameTextMatch: &ruleTriggerNameMatch{
+				Triggers: rules.RuleTriggers{
+					UsernameTextMatch: &rules.RuleTriggerNameMatch{
 						CaseSensitive: false,
-						Mode:          textMatchModeContains,
+						Mode:          rules.TextMatchModeContains,
 						Patterns:      []string{"test_contains_value_ci"},
 					},
 				},
 			},
 			{
-				Actions: ruleActions{
+				Actions: rules.RuleActions{
 					Mark: []string{"cheater"},
 				},
 				Description: "contains test cs",
-				Triggers: ruleTriggers{
-					UsernameTextMatch: &ruleTriggerNameMatch{
+				Triggers: rules.RuleTriggers{
+					UsernameTextMatch: &rules.RuleTriggerNameMatch{
 						CaseSensitive: true,
-						Mode:          textMatchModeContains,
+						Mode:          rules.TextMatchModeContains,
 						Patterns:      []string{"test_contains_value_CS"},
 					},
 				},
 			},
 			{
-				Actions: ruleActions{
+				Actions: rules.RuleActions{
 					Mark: []string{"cheater"},
 				},
 				Description: "regex name match test",
-				Triggers: ruleTriggers{
-					UsernameTextMatch: &ruleTriggerNameMatch{
-						Mode:     textMatchModeRegex,
+				Triggers: rules.RuleTriggers{
+					UsernameTextMatch: &rules.RuleTriggerNameMatch{
+						Mode:     rules.TextMatchModeRegex,
 						Patterns: []string{"name_regex_test$"},
 					},
 				},
 			},
 			{
-				Actions: ruleActions{
+				Actions: rules.RuleActions{
 					Mark: []string{"cheater"},
 				},
 				Description: "equality test cs",
-				Triggers: ruleTriggers{
-					ChatMsgTextMatch: &ruleTriggerTextMatch{
+				Triggers: rules.RuleTriggers{
+					ChatMsgTextMatch: &rules.RuleTriggerTextMatch{
 						CaseSensitive: true,
-						Mode:          textMatchModeEqual,
+						Mode:          rules.TextMatchModeEqual,
 						Patterns:      []string{"test_equal_value_CS"},
 					},
 				},
 			},
 			{
-				Actions: ruleActions{
+				Actions: rules.RuleActions{
 					Mark: []string{"cheater"},
 				},
 				Description: "equality test ci",
-				Triggers: ruleTriggers{
-					ChatMsgTextMatch: &ruleTriggerTextMatch{
+				Triggers: rules.RuleTriggers{
+					ChatMsgTextMatch: &rules.RuleTriggerTextMatch{
 						CaseSensitive: false,
-						Mode:          textMatchModeEqual,
+						Mode:          rules.TextMatchModeEqual,
 						Patterns:      []string{"test_equal_value_CI"},
 					},
 				},
@@ -93,64 +95,76 @@ func genTestRules() RuleSchema {
 const customListTitle = "Custom List"
 
 func TestSteamRules(t *testing.T) {
-	const testSteamID = 76561197961279983
-	list := userPlayerList()
-	list.registerSteamIDMatcher(newSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
-	steamMatch := MatchSteam(testSteamID)
+	engine := rules.New()
+	testSteamID := steamid.New(76561197961279983)
+	list := engine.UserPlayerList()
+	list.RegisterSteamIDMatcher(rules.NewSteamIDMatcher(customListTitle, testSteamID, []string{"test_attr"}))
+	steamMatch := engine.MatchSteam(testSteamID)
 	require.NotNil(t, steamMatch, "Failed to match steamid")
 	require.Equal(t, customListTitle, steamMatch[0].Origin)
-	require.Nil(t, MatchSteam(testSteamID+1), "Matched invalid steamid")
+	require.Nil(t, engine.MatchSteam(steamid.New(testSteamID.Int64()+1)), "Matched invalid steamid")
 }
 
 func TestTextRules(t *testing.T) {
+	engine := rules.New()
 	tr := genTestRules()
-	_, errImport := ImportRules(&tr)
+	_, errImport := engine.ImportRules(&tr)
 	require.NoError(t, errImport)
+
 	testAttrs := []string{"test_attr"}
-	list := userRuleList()
-	list.registerTextMatcher(newGeneralTextMatcher(customListTitle, textMatchTypeName, textMatchModeContains, false, testAttrs, "test", "blah"))
 
-	rm, eRm := newRegexTextMatcher(customListTitle, textMatchTypeMessage, testAttrs, `^test.+?`)
+	list := engine.UserRuleList()
+	list.RegisterTextMatcher(rules.NewGeneralTextMatcher(customListTitle, rules.TextMatchTypeName, rules.TextMatchModeContains, false, testAttrs, "test", "blah"))
+
+	rm, eRm := rules.NewRegexTextMatcher(customListTitle, rules.TextMatchTypeMessage, testAttrs, `^test.+?`)
 	require.NoError(t, eRm)
-	list.registerTextMatcher(rm)
+	list.RegisterTextMatcher(rm)
 
-	_, badRegex := newRegexTextMatcher(customListTitle, textMatchTypeName, testAttrs, `^t\s\x\t`)
+	_, badRegex := rules.NewRegexTextMatcher(customListTitle, rules.TextMatchTypeName, testAttrs, `^t\s\x\t`)
 	require.Error(t, badRegex)
 
 	testCases := []struct {
-		mt      textMatchType
+		mt      rules.TextMatchType
 		text    string
 		matched bool
 	}{
-		{mt: textMatchTypeName, text: "** test_Contains_value_cI **", matched: true},
-		{mt: textMatchTypeName, text: "** test_contains_value_CS **", matched: true},
-		{mt: textMatchTypeName, text: "blah_name_regex_test", matched: true},
-		{mt: textMatchTypeName, text: "Uncle Dane", matched: false},
-		{mt: textMatchTypeMessage, text: "test_equal_value_CS", matched: true},
-		{mt: textMatchTypeMessage, text: "test_Equal_value_cI", matched: true},
-		{mt: textMatchTypeMessage, text: "test_regex", matched: true},
-		{mt: textMatchTypeMessage, text: "A sample ok message", matched: false},
+		{mt: rules.TextMatchTypeName, text: "** test_Contains_value_cI **", matched: true},
+		{mt: rules.TextMatchTypeName, text: "** test_contains_value_CS **", matched: true},
+		{mt: rules.TextMatchTypeName, text: "blah_name_regex_test", matched: true},
+		{mt: rules.TextMatchTypeName, text: "Uncle Dane", matched: false},
+		{mt: rules.TextMatchTypeMessage, text: "test_equal_value_CS", matched: true},
+		{mt: rules.TextMatchTypeMessage, text: "test_Equal_value_cI", matched: true},
+		{mt: rules.TextMatchTypeMessage, text: "test_regex", matched: true},
+		{mt: rules.TextMatchTypeMessage, text: "A sample ok message", matched: false},
 	}
 
 	for num, tc := range testCases {
 		switch tc.mt {
-		case textMatchTypeName:
-			require.Equal(t, tc.matched, MatchName(tc.text) != nil, "Test %d failed", num)
-		case textMatchTypeMessage:
-			require.Equal(t, tc.matched, MatchMessage(tc.text) != nil, "Test %d failed", num)
+		case rules.TextMatchTypeName:
+			require.Equal(t, tc.matched, engine.MatchName(tc.text) != nil, "Test %d failed", num)
+		case rules.TextMatchTypeMessage:
+			require.Equal(t, tc.matched, engine.MatchMessage(tc.text) != nil, "Test %d failed", num)
 		}
 	}
-	require.Error(t, Mark(MarkOpts{}))
+
+	require.Error(t, engine.Mark(rules.MarkOpts{}))
 }
 
 func TestAvatarRules(t *testing.T) {
 	const listName = "test avatar"
-	var buf bytes.Buffer
-	testAvatar := image.NewRGBA(image.Rect(0, 0, 50, 50))
+
+	var (
+		engine     = rules.New()
+		buf        bytes.Buffer
+		testAvatar = image.NewRGBA(image.Rect(0, 0, 50, 50))
+	)
+
 	require.NoError(t, jpeg.Encode(bufio.NewWriter(&buf), testAvatar, &jpeg.Options{Quality: 10}))
-	list := userRuleList()
-	list.registerAvatarMatcher(newAvatarMatcher(listName, avatarMatchExact, HashBytes(buf.Bytes())))
-	result := matchAvatar(buf.Bytes())
+
+	list := engine.UserRuleList()
+	list.RegisterAvatarMatcher(rules.NewAvatarMatcher(listName, rules.AvatarMatchExact, rules.HashBytes(buf.Bytes())))
+
+	result := engine.MatchAvatar(buf.Bytes())
 	require.NotNil(t, result)
 	require.Equal(t, listName, result[0].Origin)
 }

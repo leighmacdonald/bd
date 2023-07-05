@@ -1,8 +1,9 @@
-package detector
+package detector_test
 
 import (
 	"testing"
 
+	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,6 +95,6 @@ func TestListParse(t *testing.T) {
 }
 `)
 
-	good := fixSteamIDFormat(badSchema)
+	good := detector.FixSteamIDFormat(badSchema)
 	require.Equal(t, goodSchema, good)
 }

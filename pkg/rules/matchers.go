@@ -15,117 +15,123 @@ type MatchResult struct {
 	MatcherType string `json:"matcher_type"`
 }
 
-type textMatchType string
+type TextMatchType string
 
 const (
-	textMatchTypeAny     textMatchType = "any"
-	textMatchTypeName    textMatchType = "name"
-	textMatchTypeMessage textMatchType = "message"
+	TextMatchTypeAny     TextMatchType = "any"
+	TextMatchTypeName    TextMatchType = "name"
+	TextMatchTypeMessage TextMatchType = "message"
 )
 
-type avatarMatchType string
+type AvatarMatchType string
 
 const (
 	// 1:1 match of avatar
-	avatarMatchExact avatarMatchType = "hash_full"
+	AvatarMatchExact AvatarMatchType = "hash_full"
 	// Reduced matcher
-	// avatarMatchReduced avatarMatchType = "hash_reduced"
+	// avatarMatchReduced AvatarMatchType = "hash_reduced".
 )
 
-// AvatarMatcher provides an interface to match avatars using custom methods
-type AvatarMatcher interface {
+// AvatarMatcherI provides an interface to match avatars using custom methods.
+type AvatarMatcherI interface {
 	Match(hexDigest string) *MatchResult
-	Type() avatarMatchType
+	Type() AvatarMatchType
 }
 
-type avatarMatcher struct {
-	matchType  avatarMatchType
+type AvatarMatcher struct {
+	matchType  AvatarMatchType
 	origin     string
 	hashes     []string
 	attributes []string
 }
 
-func (m avatarMatcher) Type() avatarMatchType {
+func (m AvatarMatcher) Type() AvatarMatchType {
 	return m.matchType
 }
 
-func (m avatarMatcher) Match(hexDigest string) *MatchResult {
+func (m AvatarMatcher) Match(hexDigest string) *MatchResult {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
 			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type()), Attributes: m.attributes}
 		}
 	}
+
 	return nil
 }
 
-func newAvatarMatcher(origin string, avatarMatchType avatarMatchType, hashes ...string) avatarMatcher {
-	return avatarMatcher{
+func NewAvatarMatcher(origin string, avatarMatchType AvatarMatchType, hashes ...string) AvatarMatcher {
+	return AvatarMatcher{
 		origin:    origin,
 		matchType: avatarMatchType,
 		hashes:    hashes,
 	}
 }
 
-// TextMatcher provides an interface to build text based matchers for names or in game messages
+// TextMatcher provides an interface to build text based matchers for names or in game messages.
 type TextMatcher interface {
 	// Match performs a text based match
 	Match(text string) *MatchResult
-	Type() textMatchType
+	Type() TextMatchType
 }
 
-// SteamIDMatcher provides a basic interface to match steam ids.
-type SteamIDMatcher interface {
+// SteamIDMatcherI provides a basic interface to match steam ids.
+type SteamIDMatcherI interface {
 	Match(sid64 steamid.SID64) *MatchResult
 }
 
-type steamIDMatcher struct {
+type SteamIDMatcher struct {
 	steamID    steamid.SID64
 	origin     string
 	attributes []string
-	lastSeen   playerLastSeen
+	lastSeen   PlayerLastSeen
 }
 
-func (m steamIDMatcher) Match(sid64 steamid.SID64) *MatchResult {
+func (m SteamIDMatcher) Match(sid64 steamid.SID64) *MatchResult {
 	if sid64 == m.steamID {
 		return &MatchResult{Origin: m.origin, MatcherType: "steam_id", Attributes: m.attributes}
 	}
+
 	return nil
 }
 
-func newSteamIDMatcher(origin string, sid64 steamid.SID64, attributes []string) steamIDMatcher {
-	return steamIDMatcher{steamID: sid64, origin: origin, attributes: attributes}
+func NewSteamIDMatcher(origin string, sid64 steamid.SID64, attributes []string) SteamIDMatcher {
+	return SteamIDMatcher{steamID: sid64, origin: origin, attributes: attributes}
 }
 
-type regexTextMatcher struct {
-	matcherType textMatchType
+type RegexTextMatcher struct {
+	matcherType TextMatchType
 	patterns    []*regexp.Regexp
 	origin      string
 	attributes  []string
 }
 
-func (m regexTextMatcher) Match(value string) *MatchResult {
+func (m RegexTextMatcher) Match(value string) *MatchResult {
 	for _, re := range m.patterns {
 		if re.MatchString(value) {
 			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
 		}
 	}
+
 	return nil
 }
 
-func (m regexTextMatcher) Type() textMatchType {
+func (m RegexTextMatcher) Type() TextMatchType {
 	return m.matcherType
 }
 
-func newRegexTextMatcher(origin string, matcherType textMatchType, attributes []string, patterns ...string) (regexTextMatcher, error) {
-	var compiled []*regexp.Regexp
-	for _, inputPattern := range patterns {
-		c, compErr := regexp.Compile(inputPattern)
+func NewRegexTextMatcher(origin string, matcherType TextMatchType, attributes []string, patterns ...string) (RegexTextMatcher, error) {
+	compiled := make([]*regexp.Regexp, len(patterns))
+
+	for index, inputPattern := range patterns {
+		compiledRx, compErr := regexp.Compile(inputPattern)
 		if compErr != nil {
-			return regexTextMatcher{}, errors.Wrapf(compErr, "Invalid regex pattern: %s", inputPattern)
+			return RegexTextMatcher{}, errors.Wrapf(compErr, "Invalid regex pattern: %s", inputPattern)
 		}
-		compiled = append(compiled, c)
+
+		compiled[index] = compiledRx
 	}
-	return regexTextMatcher{
+
+	return RegexTextMatcher{
 		origin:      origin,
 		matcherType: matcherType,
 		patterns:    compiled,
@@ -133,18 +139,18 @@ func newRegexTextMatcher(origin string, matcherType textMatchType, attributes []
 	}, nil
 }
 
-type generalTextMatcher struct {
-	matcherType   textMatchType
-	mode          textMatchMode
+type GeneralTextMatcher struct {
+	matcherType   TextMatchType
+	mode          TextMatchMode
 	caseSensitive bool
 	patterns      []string
 	attributes    []string
 	origin        string
 }
 
-func (m generalTextMatcher) Match(value string) *MatchResult {
+func (m GeneralTextMatcher) Match(value string) *MatchResult {
 	switch m.mode {
-	case textMatchModeStartsWith:
+	case TextMatchModeStartsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasPrefix(value, prefix) {
@@ -156,7 +162,7 @@ func (m generalTextMatcher) Match(value string) *MatchResult {
 				}
 			}
 		}
-	case textMatchModeEndsWith:
+	case TextMatchModeEndsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasSuffix(value, prefix) {
@@ -168,7 +174,7 @@ func (m generalTextMatcher) Match(value string) *MatchResult {
 				}
 			}
 		}
-	case textMatchModeEqual:
+	case TextMatchModeEqual:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if value == prefix {
@@ -180,7 +186,7 @@ func (m generalTextMatcher) Match(value string) *MatchResult {
 				}
 			}
 		}
-	case textMatchModeContains:
+	case TextMatchModeContains:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.Contains(value, prefix) {
@@ -192,33 +198,35 @@ func (m generalTextMatcher) Match(value string) *MatchResult {
 				}
 			}
 		}
-	case textMatchModeWord:
+	case TextMatchModeWord:
 		if !m.caseSensitive {
 			value = strings.ToLower(value)
 		}
-		for _, iw := range strings.Split(value, " ") {
-			for _, p := range m.patterns {
+
+		for _, word := range strings.Split(value, " ") {
+			for _, pattern := range m.patterns {
 				if m.caseSensitive {
-					if p == iw {
+					if pattern == word {
 						return &MatchResult{Origin: m.origin}
 					}
 				} else {
-					if strings.EqualFold(strings.ToLower(p), iw) {
+					if strings.EqualFold(strings.ToLower(pattern), word) {
 						return &MatchResult{Origin: m.origin}
 					}
 				}
 			}
 		}
 	}
+
 	return nil
 }
 
-func (m generalTextMatcher) Type() textMatchType {
+func (m GeneralTextMatcher) Type() TextMatchType {
 	return m.matcherType
 }
 
-func newGeneralTextMatcher(origin string, matcherType textMatchType, matchMode textMatchMode, caseSensitive bool, attributes []string, patterns ...string) TextMatcher {
-	return generalTextMatcher{
+func NewGeneralTextMatcher(origin string, matcherType TextMatchType, matchMode TextMatchMode, caseSensitive bool, attributes []string, patterns ...string) GeneralTextMatcher {
+	return GeneralTextMatcher{
 		origin:        origin,
 		matcherType:   matcherType,
 		mode:          matchMode,

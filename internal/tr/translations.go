@@ -21,23 +21,28 @@ type Translator struct {
 func NewTranslator() (*Translator, error) {
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
+
 	for _, langFile := range []string{"active.en.yaml", "active.ru.yaml"} {
 		_, errLoad := bundle.LoadMessageFileFS(localeFS, langFile)
 		if errLoad != nil {
 			return nil, errors.Wrap(errLoad, "Failed to load message bundle")
 		}
 	}
+
 	userLocales, err := locale.GetLocales()
 	if err != nil {
 		userLocales = append(userLocales, "en-GB")
 	}
-	var validLanguages []string
-	for _, ul := range userLocales {
-		langTag, langTagErr := language.Parse(ul)
+
+	validLanguages := make([]string, len(userLocales))
+
+	for index, userLocale := range userLocales {
+		langTag, langTagErr := language.Parse(userLocale)
 		if langTagErr != nil {
-			return nil, errors.Wrapf(langTagErr, "Failed to parse language tag: %s", ul)
+			return nil, errors.Wrapf(langTagErr, "Failed to parse language tag: %s", userLocale)
 		}
-		validLanguages = append(validLanguages, langTag.String())
+
+		validLanguages[index] = langTag.String()
 	}
 
 	return &Translator{
