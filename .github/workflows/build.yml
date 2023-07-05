@@ -24,8 +24,7 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Lint golangci-lint
-        run: make lint_golangci
+      - run: make lint_golangci
 
   staticcheck:
     runs-on: ubuntu-20.04
@@ -41,16 +40,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Test
     environment: release
-    needs: lint
+    needs: [golangci, staticcheck]
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Get dependencies
-        run: |
-          sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
       - run: git fetch --force --tags
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: 'stable'
           cache: true
