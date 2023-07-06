@@ -56,9 +56,9 @@ type Detector struct {
 	web               *Web
 	dataStore         store.DataStore
 	// triggerUpdate     chan any
-	gameStateUpdate chan updateStateEvent
-	cache           FsCache
-
+	gameStateUpdate    chan updateStateEvent
+	cache              FsCache
+	systray            *Systray
 	gameHasStartedOnce bool
 }
 
@@ -156,6 +156,7 @@ func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, 
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
 		tr:                 translator,
+		systray:            NewSystray(),
 	}
 
 	web, errWeb := NewWeb(application)
@@ -1165,6 +1166,7 @@ func (d *Detector) Shutdown() error {
 }
 
 func (d *Detector) Start(ctx context.Context) {
+	go d.systray.start()
 	go d.reader.start(ctx)
 	go d.parser.start(ctx)
 	go d.refreshLists(ctx)
