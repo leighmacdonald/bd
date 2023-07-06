@@ -5,6 +5,7 @@ package platform
 import (
 	"os/exec"
 
+	"github.com/leighmacdonald/bd/internal/asset"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
@@ -52,6 +53,10 @@ func IsGameRunning() (bool, error) {
 	}
 
 	return false, nil
+}
+
+func Icon() []byte {
+	return asset.Read(asset.IconOther)
 }
 
 func init() {

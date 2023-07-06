@@ -330,7 +330,6 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
 	player.SteamID = steamID
-	player.SteamIDString = steamID.String()
 	player.Matches = []*rules.MatchResult{}
 
 	if rowErr != nil {
@@ -417,8 +416,6 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 		if errScan := rows.Scan(&message.SteamID, &message.MessageID, &message.Message, &message.Created); errScan != nil {
 			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
-
-		message.SteamIDString = message.SteamID.String()
 
 		messages = append(messages, message)
 	}

@@ -22,8 +22,7 @@ const (
 )
 
 type BaseSID struct {
-	SteamID       steamid.SID64 `json:"-"`
-	SteamIDString string        `json:"steam_id"`
+	SteamID steamid.SID64 `json:"steam_id"`
 }
 
 type UserMessage struct {
@@ -47,7 +46,7 @@ func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly boo
 	}
 
 	return &UserMessage{
-		BaseSID:  BaseSID{SteamID: sid64, SteamIDString: sid64.String()},
+		BaseSID:  BaseSID{SteamID: sid64},
 		Message:  message,
 		Created:  time.Now(),
 		Dead:     dead,

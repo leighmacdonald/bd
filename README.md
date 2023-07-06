@@ -35,7 +35,7 @@ outside contributions.
   - [x] Current game chat dialogue 
     - [x] Send in=game chat messages
   - [ ] Player profile panel
-    - [ ] Show highest level of UGC/ETF2L/RGL league history achieved
+    - [ ] Show the highest level of UGC/ETF2L/RGL league history achieved
     - [ ] Logs.tf count
   - [x] Player all-time chat history dialogue
   - [x] Player all-time name history dialogue
@@ -53,13 +53,12 @@ no installers so just extract anywhere and run. All data will be stored in the s
 
 ## Development
 
-- Windows
-  - [golang 1.19+](https://go.dev/)
-  - [msys2](https://www.msys2.org/) 
-  - Open "MSYS2 MinGW 64-bit" and run: `pacman -Syu && pacman -S git mingw-w64-x86_64-toolchain make`
+To build for linux, install the prerequisite libraries first.
 
 - Linux (debian/ubuntu)
-  - `sudo apt-get install git golang gcc libgl1-mesa-dev xorg-dev make`
+  - `sudo apt-get install gcc libgtk-3-dev libayatana-appindicator3-dev make`
+
+Note that some distros may require the `libxapp-dev` package to be installed as well.
 
 Checkout source
 
@@ -82,7 +81,7 @@ Or, Build it and run it.
 
     go build && ./bd
 
-Releasing with cgo + windows is a bit annoying so we just use wsl for now. Feel free to improve via pr.
+Releasing with cgo + windows is a bit annoying, so we just use wsl for now. Feel free to improve via pr.
     
     (wsl) $ goreleaser release --clean --split
     (win) $ goreleaser release --clean --split

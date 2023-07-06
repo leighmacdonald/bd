@@ -3,6 +3,7 @@ module github.com/leighmacdonald/bd
 go 1.20
 
 require (
+	fyne.io/systray v1.10.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/gin-gonic/gin v1.9.1
@@ -42,6 +43,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/godbus/dbus/v5 v5.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -66,6 +68,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.16.0 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
+	github.com/tevino/abool v1.2.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	golang.org/x/arch v0.4.0 // indirect
@@ -87,3 +90,5 @@ require (
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.1.0 // indirect
 )
+
+replace fyne.io/systray => github.com/bdwalton/systray v0.0.0-20230702092921-2cecf9028c54

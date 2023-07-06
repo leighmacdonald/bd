@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/andygrunwald/vdf"
+	"github.com/leighmacdonald/bd/internal/asset"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/errors"
@@ -126,6 +127,10 @@ func IsGameRunning() (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func Icon() []byte {
+	return asset.Read(asset.IconWindows)
 }
 
 func init() {
