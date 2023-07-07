@@ -19,6 +19,16 @@ type Cache interface {
 	Get(ct Type, key string, receiver io.Writer) error
 }
 
+type NopCache struct{}
+
+func (c *NopCache) Set(_ Type, _ string, _ io.Reader) error {
+	return nil
+}
+
+func (c *NopCache) Get(_ Type, _ string, _ io.Writer) error {
+	return nil
+}
+
 type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
