@@ -88,6 +88,7 @@ const (
 	teamPrefix     = "(TEAM) "
 	deadPrefix     = "*DEAD* "
 	deadTeamPrefix = "*DEAD*(TEAM) "
+	// coachPrefix    = "*COACH* ".
 )
 
 func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
