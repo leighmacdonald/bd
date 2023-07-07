@@ -21,11 +21,9 @@ func (s *Systray) onReady() {
 	systray.SetIcon(platform.Icon())
 	systray.SetTitle("BD")
 	systray.SetTooltip("Bot Detector")
-
 }
 
 func (s *Systray) onExit() {
-
 }
 
 func (s *Systray) start() {
