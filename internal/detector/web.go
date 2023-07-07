@@ -17,7 +17,7 @@ import (
 
 type Web struct {
 	*http.Server
-	engine *gin.Engine
+	Engine *gin.Engine
 }
 
 func NewWeb(detector *Detector) (*Web, error) {
@@ -35,7 +35,7 @@ func NewWeb(detector *Detector) (*Web, error) {
 
 	return &Web{
 		Server: httpServer,
-		engine: engine,
+		Engine: engine,
 	}, nil
 }
 
@@ -79,7 +79,7 @@ func createRouter() *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
 	// if !testMode {
-	//	engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
+	//	Engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
 	//		TimeFormat: time.RFC3339,
 	//		UTC:        true,
 	//		SkipPaths:  []string{"/players"},
@@ -126,11 +126,11 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 }
 
 type jsConfig struct {
-	SiteName string `json:"siteName"`
+	SiteName string `json:"site_name"`
 }
 
 //nolint:gosec
-func createTestPlayers(detector *Detector, count int) store.PlayerCollection {
+func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 	idIdx := 0
 	knownIds := steamid.Collection{
 		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",

@@ -51,7 +51,7 @@ func getNames(detector *Detector) gin.HandlerFunc {
 
 func getPlayers(detector *Detector) gin.HandlerFunc {
 	_, isTest := os.LookupEnv("TEST")
-	testPlayers := createTestPlayers(detector, 24)
+	testPlayers := CreateTestPlayers(detector, 24)
 
 	if isTest {
 		go func() {
@@ -94,14 +94,14 @@ func getPlayers(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-type webUserSettings struct {
+type WebUserSettings struct {
 	*UserSettings
 	UniqueTags []string `json:"unique_tags"`
 }
 
 func getSettings(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		wus := webUserSettings{
+		wus := WebUserSettings{
 			UserSettings: detector.settings,
 			UniqueTags:   detector.rules.UniqueTags(),
 		}
@@ -112,7 +112,7 @@ func getSettings(detector *Detector) gin.HandlerFunc {
 
 func postSettings(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var wus webUserSettings
+		var wus WebUserSettings
 		if !bind(ctx, &wus) {
 			return
 		}
@@ -125,7 +125,7 @@ func postSettings(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-type postNotesOpts struct {
+type PostNotesOpts struct {
 	Note string `json:"note"`
 }
 
@@ -136,7 +136,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		var opts postNotesOpts
+		var opts PostNotesOpts
 		if !bind(ctx, &opts) {
 			return
 		}
@@ -159,7 +159,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-type postMarkPlayerOpts struct {
+type PostMarkPlayerOpts struct {
 	Attrs []string `json:"attrs"`
 }
 
@@ -170,7 +170,7 @@ func postMarkPlayer(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		var opts postMarkPlayerOpts
+		var opts PostMarkPlayerOpts
 		if !bind(ctx, &opts) {
 			return
 		}
