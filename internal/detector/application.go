@@ -53,16 +53,16 @@ type Detector struct {
 	discordPresence   *client.Client
 	rules             *rules.Engine
 	tr                *tr.Translator
-	web               *Web
+	Web               *Web
 	dataStore         store.DataStore
 	// triggerUpdate     chan any
 	gameStateUpdate    chan updateStateEvent
-	cache              FsCache
+	cache              Cache
 	systray            *Systray
 	gameHasStartedOnce bool
 }
 
-func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, versionInfo Version, cache FsCache, reader *LogReader, logChan chan string) *Detector {
+func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, versionInfo Version, cache Cache, reader *LogReader, logChan chan string) *Detector {
 	isRunning, _ := platform.IsGameRunning()
 
 	newSettings, errSettings := NewSettings()
@@ -164,7 +164,7 @@ func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, 
 		panic(errWeb)
 	}
 
-	application.web = web
+	application.Web = web
 
 	return application
 }
@@ -208,6 +208,14 @@ func NewLogger(logFile string) (*slog.Logger, error) {
 //	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
 //
 // }
+
+func (d *Detector) Settings() *UserSettings {
+	return d.settings
+}
+
+func (d *Detector) Rules() *rules.Engine {
+	return d.rules
+}
 
 func (d *Detector) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
 	httpClient := &http.Client{}
@@ -1179,7 +1187,7 @@ func (d *Detector) Start(ctx context.Context) {
 	go d.discordStateUpdater(ctx)
 
 	go func() {
-		if errWeb := d.web.startWeb(ctx); errWeb != nil {
+		if errWeb := d.Web.startWeb(ctx); errWeb != nil {
 			d.log.Error("Web start returned error")
 		}
 	}()
