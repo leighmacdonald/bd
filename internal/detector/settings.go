@@ -407,12 +407,13 @@ func (s *UserSettings) GetLinks() LinkConfigCollection {
 }
 
 func NewSettings() (*UserSettings, error) {
+	plat := platform.New()
 	newSettings := UserSettings{
 		RWMutex:                 &sync.RWMutex{},
 		configPath:              ".",
 		SteamID:                 "",
-		SteamDir:                platform.DefaultSteamRoot,
-		TF2Dir:                  platform.DefaultTF2Root,
+		SteamDir:                plat.DefaultSteamRoot(),
+		TF2Dir:                  plat.DefaultTF2Root(),
 		AutoLaunchGame:          false,
 		AutoCloseOnGameExit:     false,
 		APIKey:                  "",

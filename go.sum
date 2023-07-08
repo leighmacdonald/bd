@@ -703,6 +703,8 @@ github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 h1:P6pPBnrTSX3DEVR4fDembhR
 github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0/go.mod h1:vmVJ0l/dxyfGW6FmdpVm2joNMFikkuWg0EoCKLGUMNw=
 github.com/leighmacdonald/bd-api v0.0.0-20230707113847-9f9752897cae h1:eiDsSCvrLQ6uuu5MTDgmcHEQLZMh6jDuBduQtj3c98M=
 github.com/leighmacdonald/bd-api v0.0.0-20230707113847-9f9752897cae/go.mod h1:DsH2fdwC21HbjB3JNMfO1MmE+5TQfY6lxQt2CQC4K2c=
+github.com/leighmacdonald/bd-api v0.0.0-20230708085351-68fe5e45c892 h1:YiK7dZuagA7IiAc9B3eYz7RAygwZkjC498Q5IrVhhZw=
+github.com/leighmacdonald/bd-api v0.0.0-20230708085351-68fe5e45c892/go.mod h1:up6ljzVEOPklK8aet/LiSTWRzIdc/FaKe4aKWtkhdVU=
 github.com/leighmacdonald/rcon v1.0.10 h1:lTwFaYMwC1q+l2ULXuk05bZaSJpAU8o33klIZMl92B4=
 github.com/leighmacdonald/rcon v1.0.10/go.mod h1:RRkAjtBsT3VMheHl+pMfrxkA001LdtSArkU+tLvSKsk=
 github.com/leighmacdonald/steamid/v3 v3.0.4 h1:ELMJzWEFSHJjL0CVSpb9u7ikQXhubSVXw+/dj2YGsGI=

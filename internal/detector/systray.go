@@ -2,23 +2,24 @@ package detector
 
 import (
 	"fyne.io/systray"
-	"github.com/leighmacdonald/bd/internal/platform"
 )
 
 type Systray struct {
 	launch *systray.MenuItem
 	quit   *systray.MenuItem
+	icon   []byte
 }
 
-func NewSystray() *Systray {
+func NewSystray(icon []byte) *Systray {
 	return &Systray{
 		launch: systray.AddMenuItem("Open BD", "Open BD in your browser"),
 		quit:   systray.AddMenuItem("Quit", "Quit the application"),
+		icon:   icon,
 	}
 }
 
 func (s *Systray) onReady() {
-	systray.SetIcon(platform.Icon())
+	systray.SetIcon(s.icon)
 	systray.SetTitle("BD")
 	systray.SetTooltip("Bot Detector")
 }
