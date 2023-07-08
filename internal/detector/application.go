@@ -59,11 +59,13 @@ type Detector struct {
 	gameStateUpdate    chan updateStateEvent
 	cache              Cache
 	systray            *Systray
+	platform           platform.Platform
 	gameHasStartedOnce bool
 }
 
 func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, versionInfo Version, cache Cache, reader *LogReader, logChan chan string) *Detector {
-	isRunning, _ := platform.IsGameRunning()
+	plat := platform.New()
+	isRunning, _ := plat.IsGameRunning()
 
 	newSettings, errSettings := NewSettings()
 	if errSettings != nil {
@@ -156,7 +158,8 @@ func New(logger *slog.Logger, settings *UserSettings, database store.DataStore, 
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
 		tr:                 translator,
-		systray:            NewSystray(),
+		systray:            NewSystray(plat.Icon()),
+		platform:           plat,
 	}
 
 	web, errWeb := NewWeb(application)
@@ -318,7 +321,7 @@ func (d *Detector) LaunchGameAndWait() {
 
 	d.gameHasStartedOnce = true
 
-	if errLaunch := platform.LaunchTF2(d.settings.GetTF2Dir(), args); errLaunch != nil {
+	if errLaunch := d.platform.LaunchTF2(d.settings.GetTF2Dir(), args); errLaunch != nil {
 		d.log.Error("Failed to launch game", "err", errLaunch)
 	}
 }
@@ -1123,7 +1126,7 @@ func (d *Detector) processChecker(ctx context.Context) {
 		case <-ticker.C:
 			existingState := d.gameProcessActive
 
-			newState, errRunningStatus := platform.IsGameRunning()
+			newState, errRunningStatus := d.platform.IsGameRunning()
 			if errRunningStatus != nil {
 				d.log.Error("Failed to get process run status", "err", errRunningStatus)
 
@@ -1192,7 +1195,7 @@ func (d *Detector) Start(ctx context.Context) {
 		}
 	}()
 
-	if running, errRunning := platform.IsGameRunning(); errRunning == nil && !running {
+	if running, errRunning := d.platform.IsGameRunning(); errRunning == nil && !running {
 		if !d.gameHasStartedOnce && d.settings.GetAutoLaunchGame() {
 			go d.LaunchGameAndWait()
 		}
