@@ -1201,3 +1201,12 @@ func (d *Detector) Start(ctx context.Context) {
 		}
 	}
 }
+
+func SteamIDStringList(collection steamid.Collection) string {
+	ids := make([]string, len(collection))
+	for index, steamID := range collection {
+		ids[index] = steamID.String()
+	}
+
+	return strings.Join(ids, ",")
+}
