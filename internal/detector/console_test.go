@@ -7,7 +7,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 func TestParseEvent(t *testing.T) {
@@ -97,7 +97,7 @@ func TestParseEvent(t *testing.T) {
 		},
 	}
 
-	reader := detector.NewLogParser(slog.Default(), nil, nil)
+	reader := detector.NewLogParser(zap.NewNop(), nil, nil)
 
 	for num, testCase := range cases {
 		var (

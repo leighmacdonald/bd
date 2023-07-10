@@ -2,31 +2,45 @@ package detector
 
 import (
 	"fyne.io/systray"
+	"go.uber.org/zap"
 )
 
 type Systray struct {
-	launch *systray.MenuItem
-	quit   *systray.MenuItem
-	icon   []byte
+	icon []byte
+	log  *zap.Logger
 }
 
-func NewSystray(icon []byte) *Systray {
-	return &Systray{
-		launch: systray.AddMenuItem("Open BD", "Open BD in your browser"),
-		quit:   systray.AddMenuItem("Quit", "Quit the application"),
-		icon:   icon,
+func NewSystray(logger *zap.Logger, icon []byte) *Systray {
+	tray := &Systray{
+		icon: icon,
+		log:  logger.Named("systray"),
 	}
+
+	return tray
 }
 
-func (s *Systray) onReady() {
+func (s *Systray) OnReady() {
 	systray.SetIcon(s.icon)
 	systray.SetTitle("BD")
 	systray.SetTooltip("Bot Detector")
-}
 
-func (s *Systray) onExit() {
-}
+	go func() {
+		launch := systray.AddMenuItem("Open BD", "Open BD in your browser")
+		launch.SetIcon(s.icon)
+		launch.Enable()
 
-func (s *Systray) start() {
-	systray.RunWithExternalLoop(s.onReady, s.onExit)
+		quit := systray.AddMenuItem("Quit", "Quit the application")
+		quit.Enable()
+
+		for {
+			select {
+			case <-launch.ClickedCh:
+				s.log.Info("launch Clicked")
+			case <-quit.ClickedCh:
+				s.log.Debug("User Quit")
+
+				systray.Quit()
+			}
+		}
+	}()
 }

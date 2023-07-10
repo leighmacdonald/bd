@@ -9,6 +9,7 @@ import (
 
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"go.uber.org/zap"
 )
 
 type updateType int
@@ -80,7 +81,7 @@ type addressEvent struct {
 // incomingLogEventHandler handles mapping incoming LogEvent payloads into the more generalized
 // updateStateEvent used for all state updates.
 func (d *Detector) incomingLogEventHandler(ctx context.Context) {
-	log := d.log.WithGroup("LogEventHandler")
+	log := d.log.Named("LogEventHandler")
 	defer log.Info("log event handler exited")
 
 	for {
@@ -102,14 +103,14 @@ func (d *Detector) incomingLogEventHandler(ctx context.Context) {
 
 				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
 				if errPort != nil {
-					log.Error("Failed to parse port: %v", "err", errPort, "port", pcs[1])
+					log.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
 
 					continue
 				}
 
 				parsedIP := net.ParseIP(pcs[0])
 				if parsedIP == nil {
-					log.Error("Failed to parse ip", "ip", pcs[0])
+					log.Error("Failed to parse ip", zap.String("ip", pcs[0]))
 
 					continue
 				}

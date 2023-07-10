@@ -122,6 +122,7 @@ type UserSettings struct {
 	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
+	LogLevel                string               `yaml:"log_level"`
 	rcon                    RCONConfigProvider   `yaml:"-" `
 }
 
@@ -426,6 +427,8 @@ func NewSettings() (*UserSettings, error) {
 		VoiceBansEnabled:        false,
 		GUIEnabled:              true,
 		DebugLogEnabled:         false,
+		RunMode:                 ModeProd,
+		LogLevel:                "info",
 		PlayerExpiredTimeout:    6,
 		PlayerDisconnectTimeout: 20,
 		Lists: []*ListConfig{

@@ -9,7 +9,7 @@ import (
 
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 var ErrCacheExpired = errors.New("cached value expired")
@@ -32,7 +32,7 @@ func (c *NopCache) Get(_ Type, _ string, _ io.Writer) error {
 type FsCache struct {
 	rootPath string
 	maxAge   time.Duration
-	logger   *slog.Logger
+	logger   *zap.Logger
 }
 
 type Type int
@@ -42,8 +42,8 @@ const (
 	TypeLists
 )
 
-func NewCache(logger *slog.Logger, rootDir string, maxAge time.Duration) (FsCache, error) {
-	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger.WithGroup("cache")}
+func NewCache(logger *zap.Logger, rootDir string, maxAge time.Duration) (FsCache, error) {
+	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger.Named("cache")}
 	if errInit := cache.init(); errInit != nil {
 		return FsCache{}, errInit
 	}
@@ -75,7 +75,7 @@ func (cache FsCache) getPath(cacheType Type, key string) string {
 	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:
-		cache.logger.Error("Got unknown cache type", "type", cacheType)
+		cache.logger.Error("Got unknown cache type", zap.Int("type", int(cacheType)))
 
 		return ""
 	}

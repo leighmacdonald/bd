@@ -11,7 +11,7 @@ import (
 
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 // FixSteamIDFormat converts raw unquoted steamids to quoted ones
@@ -22,7 +22,7 @@ func FixSteamIDFormat(body []byte) []byte {
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
-func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
@@ -78,7 +78,7 @@ func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCol
 			playerLists = append(playerLists, result)
 			mutex.Unlock()
 
-			logger.Info("Downloaded players successfully", "duration", dur, "name", result.FileInfo.Title)
+			logger.Info("Downloaded players successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
@@ -89,7 +89,7 @@ func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCol
 			rulesLists = append(rulesLists, result)
 			mutex.Unlock()
 
-			logger.Info("Downloaded rules successfully", "duration", dur, "name", result.FileInfo.Title)
+			logger.Info("Downloaded rules successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
 		}
 
 		return nil
@@ -108,7 +108,7 @@ func downloadLists(ctx context.Context, logger *slog.Logger, lists ListConfigCol
 			defer waitGroup.Done()
 
 			if errDL := downloadFn(lc); errDL != nil {
-				logger.Error("Failed to download list", "err", errDL)
+				logger.Error("Failed to download list", zap.Error(errDL))
 			}
 		}(listConfig)
 	}

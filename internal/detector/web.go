@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"time"
 
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type Web struct {
@@ -21,7 +23,7 @@ type Web struct {
 }
 
 func NewWeb(detector *Detector) (*Web, error) {
-	engine := createRouter()
+	engine := createRouter(detector.log)
 	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
 		return nil, errRoutes
 	}
@@ -44,7 +46,7 @@ func (w *Web) startWeb(ctx context.Context) error {
 		return ctx
 	}
 
-	if errServe := w.ListenAndServe(); errServe != nil {
+	if errServe := w.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
 		return errors.Wrap(errServe, "HTTP server returned error")
 	}
 
@@ -75,16 +77,18 @@ func responseOK(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }
 
-func createRouter() *gin.Engine {
+func createRouter(logger *zap.Logger) *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.Recovery(), gin.Logger())
-	// if !testMode {
-	//	Engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
-	//		TimeFormat: time.RFC3339,
-	//		UTC:        true,
-	//		SkipPaths:  []string{"/players"},
-	//	}))
-	// }
+	engine.Use(gin.Recovery())
+
+	engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
+		TimeFormat: time.RFC3339,
+		UTC:        true,
+		// SkipPaths:  []string{"/players"},
+	}))
+
+	engine.Use(ginzap.RecoveryWithZap(logger, true))
+
 	_ = engine.SetTrustedProxies(nil)
 
 	return engine
@@ -129,7 +133,7 @@ type jsConfig struct {
 	SiteName string `json:"site_name"`
 }
 
-//nolint:gosec
+// nolint:gosec
 func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 	idIdx := 0
 	knownIds := steamid.Collection{

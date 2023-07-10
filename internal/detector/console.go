@@ -14,13 +14,13 @@ import (
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/nxadm/tail"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 type LogReader struct {
 	tail    *tail.Tail
 	outChan chan string
-	logger  *slog.Logger
+	logger  *zap.Logger
 }
 
 func (reader *LogReader) start(ctx context.Context) {
@@ -35,7 +35,7 @@ func (reader *LogReader) start(ctx context.Context) {
 			reader.outChan <- strings.TrimSuffix(msg.Text, "\r")
 		case <-ctx.Done():
 			if errStop := reader.tail.Stop(); errStop != nil {
-				reader.logger.Error("Failed to stop tailing console.log cleanly", "err", errStop)
+				reader.logger.Error("Failed to stop tailing console.log cleanly", zap.Error(errStop))
 			}
 
 			return
@@ -43,7 +43,7 @@ func (reader *LogReader) start(ctx context.Context) {
 	}
 }
 
-func newLogReader(logger *slog.Logger, path string, outChan chan string, echo bool) (*LogReader, error) {
+func newLogReader(logger *zap.Logger, path string, outChan chan string, echo bool) (*LogReader, error) {
 	tailLogger := tail.DiscardingLogger
 	if echo {
 		tailLogger = tail.DefaultLogger
@@ -69,7 +69,7 @@ func newLogReader(logger *slog.Logger, path string, outChan chan string, echo bo
 	logReader := LogReader{
 		tail:    tailFile,
 		outChan: outChan,
-		logger:  logger.WithGroup("logreader"),
+		logger:  logger.Named("logreader"),
 	}
 
 	return &logReader, nil
@@ -81,7 +81,7 @@ type LogParser struct {
 	evtChan     chan LogEvent
 	ReadChannel chan string
 	rx          []*regexp.Regexp
-	logger      *slog.Logger
+	logger      *zap.Logger
 }
 
 const (
@@ -98,7 +98,7 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 			outEvent.Type = EventType(i)
 			if outEvent.Type != EvtLobby {
 				if errTS := outEvent.ApplyTimestamp(match[1]); errTS != nil {
-					parser.logger.Error("Failed to parse timestamp", "err", errTS)
+					parser.logger.Error("Failed to parse timestamp", zap.Error(errTS))
 				}
 			}
 
@@ -133,21 +133,21 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 			case EvtStatusID:
 				userID, errUserID := strconv.ParseInt(match[2], 10, 32)
 				if errUserID != nil {
-					parser.logger.Error("Failed to parse status userid", "err", errUserID)
+					parser.logger.Error("Failed to parse status userid", zap.Error(errUserID))
 
 					continue
 				}
 
 				ping, errPing := strconv.ParseInt(match[7], 10, 32)
 				if errPing != nil {
-					parser.logger.Error("Failed to parse status ping", "err", errPing)
+					parser.logger.Error("Failed to parse status ping", zap.Error(errPing))
 
 					continue
 				}
 
 				dur, durErr := parseConnected(match[5])
 				if durErr != nil {
-					parser.logger.Error("Failed to parse status duration", "err", durErr)
+					parser.logger.Error("Failed to parse status duration", zap.Error(durErr))
 
 					continue
 				}
@@ -231,7 +231,7 @@ func (parser *LogParser) start(ctx context.Context) {
 	}
 }
 
-func NewLogParser(logger *slog.Logger, readChannel chan string, evtChan chan LogEvent) *LogParser {
+func NewLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogEvent) *LogParser {
 	return &LogParser{
 		logger:      logger,
 		evtChan:     evtChan,

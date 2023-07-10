@@ -32,6 +32,7 @@ func New() WindowsPlatform {
 	foundSteamRoot, errFoundSteamRoot := getSteamRoot()
 	if errFoundSteamRoot == nil && util.Exists(foundSteamRoot) {
 		defaultSteamRoot = foundSteamRoot
+
 		tf2Dir, errTf2Dir := getTF2Folder()
 		if errTf2Dir == nil {
 			defaultTF2Root = tf2Dir
@@ -112,20 +113,24 @@ func getTF2Folder() (string, error) {
 		if !currentLibraryPathOk {
 			return "", errors.New("Failed to cast currentLibraryPath")
 		}
+
 		apps, appsOk := library.(map[string]any)["apps"]
 		if !appsOk {
 			return "", errors.New("Failed to cast apps")
 		}
+
 		sm, smOk := apps.(map[string]any)
 		if !smOk {
 			return "", errors.New("Failed to cast sm")
 		}
+
 		for key := range sm {
 			if key == "440" {
 				gameLibPath, gameLibPathOk := currentLibraryPath.(string)
 				if !gameLibPathOk {
 					return "", errors.New("Failed to cast libPath")
 				}
+
 				return filepath.Join(gameLibPath, "steamapps", "common", "Team Fortress 2", "tf"), nil
 			}
 		}
@@ -156,16 +161,17 @@ func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 }
 
 func (l WindowsPlatform) OpenFolder(dir string) error {
-	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil {
+	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil { //nolint:gosec
 		return errors.Wrap(errRun, "Failed to start process")
 	}
+
 	return nil
 }
 
 func (l WindowsPlatform) IsGameRunning() (bool, error) {
 	processes, errPs := ps.Processes()
 	if errPs != nil {
-		return false, errPs
+		return false, errors.Wrap(errPs, "Failed to get process list")
 	}
 
 	for _, process := range processes {

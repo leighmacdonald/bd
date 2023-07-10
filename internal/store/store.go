@@ -15,7 +15,7 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 //go:embed migrations/*.sql
@@ -42,11 +42,11 @@ type DataStore interface {
 type SqliteStore struct {
 	db     *sql.DB
 	dsn    string
-	logger *slog.Logger
+	logger *zap.Logger
 }
 
-func New(dsn string, logger *slog.Logger) *SqliteStore {
-	return &SqliteStore{dsn: dsn, logger: logger.WithGroup("sqlite")}
+func New(dsn string, logger *zap.Logger) *SqliteStore {
+	return &SqliteStore{dsn: dsn, logger: logger.Named("sqlite")}
 }
 
 func (store *SqliteStore) Close() error {
