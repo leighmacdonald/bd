@@ -18,11 +18,11 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 func testApp() (*detector.Detector, error) {
-	logger := slog.Default()
+	logger := zap.NewNop()
 	userSettings, _ := detector.NewSettings()
 
 	var dataStore store.DataStore

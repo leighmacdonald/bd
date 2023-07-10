@@ -8,13 +8,13 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 func TestPlayer(t *testing.T) {
 	const msgCount = 10
 
-	logger := slog.Default()
+	logger := zap.NewNop()
 
 	database := store.New(":memory:", logger)
 	if errInit := database.Init(); errInit != nil {

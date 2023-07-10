@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"os"
 
-	"golang.org/x/exp/slog"
+	"go.uber.org/zap"
 )
 
 func Exists(filePath string) bool {
@@ -17,9 +17,9 @@ func Exists(filePath string) bool {
 	return true
 }
 
-func LogClose(logger *slog.Logger, closer io.Closer) {
+func LogClose(logger *zap.Logger, closer io.Closer) {
 	if errClose := closer.Close(); errClose != nil {
-		logger.Error("Error trying to close", "err", errClose)
+		logger.Error("Error trying to close", zap.Error(errClose))
 	}
 }
 

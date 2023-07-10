@@ -52,6 +52,7 @@ tr_merge:
 
 update:
 	go get -u ./...
+	cd widget && yarn upgrade-interactive --latest
 
 fmt:
 	gci write . --skip-generated -s standard -s default

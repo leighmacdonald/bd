@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
-	gerrors "errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
+	"fyne.io/systray"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
+	"go.uber.org/zap"
 )
 
 var (
@@ -49,26 +49,20 @@ func main() {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	logFilePath := ""
-	if userSettings.GetDebugLogEnabled() {
-		logFilePath = userSettings.LogFilePath()
-	}
+	logger := detector.MustCreateLogger(userSettings)
 
-	logger, errLogger := detector.NewLogger(logFilePath)
-	if errLogger != nil {
-		logger.Error("Failed to create logger", "err", errLogger)
-	}
+	logger.Info("Starting...")
 
 	dataStore := store.New(userSettings.DBPath(), logger)
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		logger.Error("Failed to migrate database", "err", errMigrate)
+		logger.Error("Failed to migrate database", zap.Error(errMigrate))
 
 		return
 	}
 
 	fsCache, cacheErr := detector.NewCache(logger, userSettings.ConfigRoot(), detector.DurationCacheTimeout)
 	if cacheErr != nil {
-		logger.Error("Failed to setup cache", "err", cacheErr)
+		logger.Error("Failed to setup cache", zap.Error(cacheErr))
 
 		return
 	}
@@ -77,7 +71,7 @@ func main() {
 
 	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.GetTF2Dir(), "console.log"), logChan)
 	if errLogReader != nil {
-		logger.Error("Failed to create logreader", "err", errLogReader)
+		logger.Error("Failed to create logreader", zap.Error(errLogReader))
 
 		return
 	}
@@ -87,23 +81,12 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	execGroup, grpCtx := errgroup.WithContext(rootCtx)
-	execGroup.Go(func() error {
-		application.Start(rootCtx)
+	application.Start(rootCtx)
 
-		return nil
+	systray.Run(application.Systray.OnReady, func() {
+		if errShutdown := application.Shutdown(rootCtx); errShutdown != nil {
+			logger.Error("Failed to shutdown cleanly")
+		}
+		logger.Info("Bye")
 	})
-
-	application.Start(grpCtx)
-
-	execGroup.Go(func() error {
-		<-grpCtx.Done()
-		var err error
-
-		return gerrors.Join(err, application.Shutdown())
-	})
-
-	if errExit := execGroup.Wait(); errExit != nil {
-		logger.Error(errExit.Error())
-	}
 }
