@@ -20,6 +20,7 @@ require (
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nicksnyder/go-i18n/v2 v2.2.1
 	github.com/nxadm/tail v1.4.8
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/atomic v1.11.0

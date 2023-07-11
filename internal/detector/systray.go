@@ -6,14 +6,16 @@ import (
 )
 
 type Systray struct {
-	icon []byte
-	log  *zap.Logger
+	icon   []byte
+	log    *zap.Logger
+	onOpen func()
 }
 
-func NewSystray(logger *zap.Logger, icon []byte) *Systray {
+func NewSystray(logger *zap.Logger, icon []byte, onOpen func()) *Systray {
 	tray := &Systray{
-		icon: icon,
-		log:  logger.Named("systray"),
+		icon:   icon,
+		log:    logger.Named("systray"),
+		onOpen: onOpen,
 	}
 
 	return tray
@@ -36,6 +38,7 @@ func (s *Systray) OnReady() {
 			select {
 			case <-launch.ClickedCh:
 				s.log.Info("launch Clicked")
+				s.onOpen()
 			case <-quit.ClickedCh:
 				s.log.Debug("User Quit")
 

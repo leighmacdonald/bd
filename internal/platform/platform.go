@@ -7,4 +7,5 @@ type Platform interface {
 	OpenFolder(dir string) error
 	IsGameRunning() (bool, error)
 	Icon() []byte
+	OpenURL(url string) error
 }

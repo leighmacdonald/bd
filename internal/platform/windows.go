@@ -12,6 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/asset"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/mitchellh/go-ps"
+	"github.com/pkg/browser"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
 )
@@ -185,4 +186,12 @@ func (l WindowsPlatform) IsGameRunning() (bool, error) {
 
 func (l WindowsPlatform) Icon() []byte {
 	return asset.Read(asset.IconWindows)
+}
+
+func (l WindowsPlatform) OpenURL(url string) error {
+	if errOpen := browser.OpenURL(url); errOpen != nil {
+		return errors.Wrap(errOpen, "Failed to open url")
+	}
+
+	return nil
 }

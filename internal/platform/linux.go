@@ -80,3 +80,11 @@ func (l LinuxPlatform) IsGameRunning() (bool, error) {
 func (l LinuxPlatform) Icon() []byte {
 	return asset.Read(asset.IconOther)
 }
+
+func (l LinuxPlatform) OpenURL(url string) error {
+	if errOpen := browser.OpenURL(url); errOpen != nil {
+		return errors.Wrap(errOpen, "Failed to open url")
+	}
+
+	return nil
+}
