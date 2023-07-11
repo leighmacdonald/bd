@@ -27,6 +27,7 @@ var (
 )
 
 func main() {
+	ctx := context.Background()
 	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 
 	userSettings, errSettings := detector.NewSettings()
@@ -78,13 +79,13 @@ func main() {
 
 	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
 
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	rootCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	application.Start(rootCtx)
 
 	systray.Run(application.Systray.OnReady, func() {
-		if errShutdown := application.Shutdown(rootCtx); errShutdown != nil {
+		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
 			logger.Error("Failed to shutdown cleanly")
 		}
 		logger.Info("Bye")

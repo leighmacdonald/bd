@@ -159,8 +159,12 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
 		tr:                 translator,
-		Systray:            NewSystray(logger, plat.Icon()),
-		platform:           plat,
+		Systray: NewSystray(logger, plat.Icon(), func() {
+			if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
+				logger.Error("Failed to open browser", zap.Error(errOpen))
+			}
+		}),
+		platform: plat,
 	}
 
 	web, errWeb := NewWeb(application)
