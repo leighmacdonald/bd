@@ -8,6 +8,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/asset"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
+	"github.com/pkg/browser"
 	"github.com/pkg/errors"
 )
 
