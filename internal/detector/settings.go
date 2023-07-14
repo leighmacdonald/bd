@@ -95,8 +95,8 @@ const (
 type UserSettings struct {
 	*sync.RWMutex `yaml:"-"`
 	// Path to config used when reading UserSettings
-	configPath string `yaml:"-"`
-	SteamID    string `yaml:"steam_id" json:"steam_id"`
+	configPath string        `yaml:"-"`
+	SteamID    steamid.SID64 `yaml:"steam_id" json:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
@@ -207,7 +207,7 @@ func (s *UserSettings) GetAutoCloseOnGameExit() bool {
 	return s.AutoCloseOnGameExit
 }
 
-func (s *UserSettings) SetSteamID(steamID string) {
+func (s *UserSettings) SetSteamID(steamID steamid.SID64) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -267,7 +267,7 @@ func (s *UserSettings) SetSteamDir(dir string) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.SteamID = dir
+	s.SteamDir = dir
 }
 
 func (s *UserSettings) SetKickTags(tags []string) {
@@ -376,12 +376,9 @@ func (s *UserSettings) GetKickTags() []string {
 }
 
 func (s *UserSettings) GetSteamID() steamid.SID64 {
-	value, err := steamid.StringToSID64(s.SteamID)
-	if err != nil {
-		return ""
-	}
-
-	return value
+	s.RLock()
+	defer s.RUnlock()
+	return s.SteamID
 }
 
 func (s *UserSettings) AddList(config *ListConfig) error {

@@ -1,49 +1,65 @@
 package detector
 
 import (
+	"context"
+
 	"fyne.io/systray"
 	"go.uber.org/zap"
 )
 
 type Systray struct {
-	icon   []byte
-	log    *zap.Logger
-	onOpen func()
+	icon     []byte
+	log      *zap.Logger
+	onOpen   func()
+	onLaunch func()
+	quit     *systray.MenuItem
 }
 
-func NewSystray(logger *zap.Logger, icon []byte, onOpen func()) *Systray {
+func NewSystray(logger *zap.Logger, icon []byte, onOpen func(), onLaunch func()) *Systray {
 	tray := &Systray{
-		icon:   icon,
-		log:    logger.Named("systray"),
-		onOpen: onOpen,
+		icon:     icon,
+		log:      logger.Named("systray"),
+		onOpen:   onOpen,
+		onLaunch: onLaunch,
 	}
 
 	return tray
 }
 
-func (s *Systray) OnReady() {
-	systray.SetIcon(s.icon)
-	systray.SetTitle("BD")
-	systray.SetTooltip("Bot Detector")
+func (s *Systray) OnReady(cancel context.CancelFunc) func() {
+	return func() {
+		systray.SetIcon(s.icon)
+		systray.SetTitle("BD")
+		systray.SetTooltip("Bot Detector")
 
-	go func() {
-		launch := systray.AddMenuItem("Open BD", "Open BD in your browser")
-		launch.SetIcon(s.icon)
-		launch.Enable()
+		go func() {
+			openWeb := systray.AddMenuItem("Open BD", "Open BD in your browser")
+			openWeb.SetIcon(s.icon)
+			openWeb.Enable()
 
-		quit := systray.AddMenuItem("Quit", "Quit the application")
-		quit.Enable()
+			launchGame := systray.AddMenuItem("Launch TF2", "Launch Team Fortress 2")
+			launchGame.SetIcon(s.icon)
+			launchGame.Enable()
 
-		for {
-			select {
-			case <-launch.ClickedCh:
-				s.log.Info("launch Clicked")
-				s.onOpen()
-			case <-quit.ClickedCh:
-				s.log.Debug("User Quit")
+			systray.AddSeparator()
 
-				systray.Quit()
+			s.quit = systray.AddMenuItem("Quit", "Quit the application")
+			s.quit.Enable()
+
+			for {
+				select {
+				case <-launchGame.ClickedCh:
+					s.log.Debug("launchGame clicked")
+					s.onLaunch()
+				case <-openWeb.ClickedCh:
+					s.log.Debug("openWeb Clicked")
+					s.onOpen()
+				case <-s.quit.ClickedCh:
+					s.log.Debug("User Quit")
+					cancel()
+					// systray.Quit()
+				}
 			}
-		}
-	}()
+		}()
+	}
 }

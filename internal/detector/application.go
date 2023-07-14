@@ -57,7 +57,7 @@ type Detector struct {
 	Web               *Web
 	dataStore         store.DataStore
 	// triggerUpdate     chan any
-	gameStateUpdate    chan updateStateEvent
+	stateUpdates       chan updateStateEvent
 	cache              Cache
 	Systray            *Systray
 	platform           platform.Platform
@@ -153,19 +153,28 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		rconConn:           nil,
 		settings:           newSettings,
 		dataStore:          database,
-		gameStateUpdate:    make(chan updateStateEvent, 50),
+		stateUpdates:       make(chan updateStateEvent, 50),
 		cache:              cache,
 		gameHasStartedOnce: isRunning,
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
 		tr:                 translator,
-		Systray: NewSystray(logger, plat.Icon(), func() {
+		platform:           plat,
+	}
+
+	tray := NewSystray(
+		logger,
+		plat.Icon(),
+		func() {
 			if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
 				logger.Error("Failed to open browser", zap.Error(errOpen))
 			}
-		}),
-		platform: plat,
-	}
+		}, func() {
+			go application.LaunchGameAndWait()
+		},
+	)
+
+	application.Systray = tray
 
 	web, errWeb := NewWeb(application)
 	if errWeb != nil {
@@ -289,15 +298,20 @@ func NewLogReader(logger *zap.Logger, logPath string, logChan chan string) (*Log
 	return newLogReader(logger, logPath, logChan, true)
 }
 
+const (
+	maxVoiceBans   = 200
+	voiceBansPerms = 0o755
+)
+
 func (d *Detector) exportVoiceBans() error {
-	bannedIds := d.rules.FindNewestEntries(200, d.settings.GetKickTags())
+	bannedIds := d.rules.FindNewestEntries(maxVoiceBans, d.settings.GetKickTags())
 	if len(bannedIds) == 0 {
 		return nil
 	}
 
 	vbPath := filepath.Join(d.settings.GetTF2Dir(), "voice_ban.dt")
 
-	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, 0o755)
+	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, voiceBansPerms)
 	if errOpen != nil {
 		return errors.Wrap(errOpen, "Failed to open voicebans file")
 	}
@@ -353,22 +367,19 @@ func (d *Detector) Players() []store.Player {
 	defer d.playersMu.RUnlock()
 
 	players := make([]store.Player, len(d.players))
-	for index, plr := range d.players {
-		players[index] = *plr
-	}
+	copy(players, d.players)
 
 	return players
 }
 
-func (d *Detector) AddPlayer(p *store.Player) {
-	d.playersMu.Lock()
-	defer d.playersMu.Unlock()
-
-	d.players = append(d.players, p)
+func (d *Detector) updateState(updates ...updateStateEvent) {
+	for _, update := range updates {
+		d.stateUpdates <- update
+	}
 }
 
 func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) error {
-	_, errPlayer := d.GetPlayerOrCreate(ctx, sid64, false)
+	_, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
@@ -381,29 +392,30 @@ func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) error {
 	d.playersMu.Lock()
 	defer d.playersMu.Unlock()
 
-	for idx := range d.players {
-		if d.players[idx].SteamID == sid64 {
-			var valid []*rules.MatchResult
-
-			for _, m := range d.players[idx].Matches {
-				if m.Origin == "local" {
-					continue
-				}
-
-				valid = append(valid, m)
-			}
-
-			d.players[idx].Matches = valid
-
-			break
-		}
+	player, exists := d.GetPlayer(sid64)
+	if !exists {
+		return nil
 	}
+
+	var valid []*rules.MatchResult //nolint:prealloc
+
+	for _, m := range player.Matches {
+		if m.Origin == "local" {
+			continue
+		}
+
+		valid = append(valid, m)
+	}
+
+	player.Matches = valid
+
+	d.updateState(newMarkEvent(sid64, nil, false))
 
 	return nil
 }
 
 func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
-	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64, false)
+	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
@@ -417,6 +429,7 @@ func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string
 		SteamID:    sid64,
 		Attributes: attrs,
 		Name:       name,
+		Proof:      []string{},
 	}); errMark != nil {
 		return errors.Wrap(errMark, "Failed to add mark")
 	}
@@ -432,19 +445,20 @@ func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string
 		d.log.Error("Failed to save updated player list", zap.Error(errExport))
 	}
 
+	d.updateState(newMarkEvent(sid64, attrs, true))
+
 	return nil
 }
 
 func (d *Detector) Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
-	player, playerErr := d.GetPlayerOrCreate(ctx, sid64, false)
+	player, playerErr := d.GetPlayerOrCreate(ctx, sid64)
 	if playerErr != nil {
 		return playerErr
 	}
 
 	player.Whitelisted = enabled
-	player.Touch()
 
-	if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
+	if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
 		return errors.Wrap(errSave, "Failed to save player")
 	}
 
@@ -453,6 +467,8 @@ func (d *Detector) Whitelist(ctx context.Context, sid64 steamid.SID64, enabled b
 	} else {
 		d.rules.WhitelistRemove(sid64)
 	}
+
+	d.updateState(newWhitelistEvent(player.SteamID, enabled))
 
 	d.log.Info("Update player whitelist status successfully",
 		zap.String("steam_id", player.SteamID.String()), zap.Bool("enabled", enabled))
@@ -504,22 +520,15 @@ func (d *Detector) statusUpdater(ctx context.Context) {
 	}
 }
 
-func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, active bool) (*store.Player, error) {
-	player := d.GetPlayer(sid64)
-	if player == nil {
-		player = store.NewPlayer(sid64, "")
-		if errGet := d.dataStore.GetPlayer(ctx, sid64, true, player); errGet != nil {
+func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (store.Player, error) {
+	player, exists := d.GetPlayer(sid64)
+	if !exists {
+		if errGet := d.dataStore.GetPlayer(ctx, sid64, true, &player); errGet != nil {
 			if !errors.Is(errGet, sql.ErrNoRows) {
-				return nil, errors.Wrap(errGet, "Failed to fetch player record")
+				return player, errors.Wrap(errGet, "Failed to fetch player record")
 			}
 
 			player.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
-		}
-
-		if active {
-			d.playersMu.Lock()
-			d.players = append(d.players, player)
-			d.playersMu.Unlock()
 		}
 	}
 
@@ -585,24 +594,24 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64, a
 
 	waitGroup.Wait()
 
-	if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
-		return nil, errors.Wrap(errSave, "Error trying to save player")
+	if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
+		return player, errors.Wrap(errSave, "Error trying to save player")
 	}
 
 	return player, nil
 }
 
-func (d *Detector) GetPlayer(sid64 steamid.SID64) *store.Player {
+func (d *Detector) GetPlayer(sid64 steamid.SID64) (store.Player, bool) {
 	d.playersMu.RLock()
 	defer d.playersMu.RUnlock()
 
 	for _, player := range d.players {
 		if player.SteamID == sid64 {
-			return player
+			return player, true
 		}
 	}
 
-	return nil
+	return store.NewPlayer(sid64, ""), false
 }
 
 // func getPlayerByName(name string) *store.Player {
@@ -626,8 +635,8 @@ func (d *Detector) checkHandler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-checkTimer.C:
-			player := d.GetPlayer(d.settings.GetSteamID())
-			if player == nil {
+			player, found := d.GetPlayer(d.settings.GetSteamID())
+			if !found {
 				// We have not connected yet.
 				continue
 			}
@@ -655,25 +664,19 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 			}
 			d.serverMu.Unlock()
 
-			var (
-				valid   store.PlayerCollection
-				expired = 0
-			)
+			expired := 0
 
-			for _, player := range d.players {
+			for _, currentState := range d.Players() {
+				player := currentState
 				if player.IsExpired() {
-					if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
+					if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
 						log.Error("Failed to save expired player state", zap.Error(errSave))
 					}
+
+					d.updateState(newPlayerTimeoutEvent(player.SteamID))
 					expired++
-				} else {
-					valid = append(valid, player)
 				}
 			}
-
-			d.playersMu.Lock()
-			d.players = valid
-			d.playersMu.Unlock()
 
 			if expired > 0 {
 				log.Debug("Flushing expired players", zap.Int("count", expired))
@@ -693,123 +696,6 @@ func (d *Detector) performAvatarDownload(ctx context.Context, hash string) {
 	}
 }
 
-func (d *Detector) gameStateUpdater(ctx context.Context) {
-	log := d.log.Named("gameStateUpdater")
-
-	defer log.Debug("gameStateUpdater exited")
-
-	for {
-		update := <-d.gameStateUpdate
-
-		log.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
-
-		var (
-			sourcePlayer *store.Player
-			errSource    error
-		)
-
-		if update.source.Valid() {
-			sourcePlayer, errSource = d.GetPlayerOrCreate(ctx, update.source, true)
-			if errSource != nil {
-				log.Error("failed to get source player", zap.Error(errSource))
-
-				return
-			}
-
-			if sourcePlayer == nil && update.kind != updateStatus {
-				// Only register a new user to track once we received a status line
-				continue
-			}
-		}
-
-		switch update.kind {
-		case updateMessage:
-			evt, ok := update.data.(messageEvent)
-			if !ok {
-				continue
-			}
-
-			if errUm := d.AddUserMessage(ctx, sourcePlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
-				log.Error("Failed to handle user message", zap.Error(errUm))
-
-				continue
-			}
-		case updateKill:
-			e, ok := update.data.(killEvent)
-			if ok {
-				d.onUpdateKill(e)
-			}
-		case updateBans:
-			evt, ok := update.data.(steamweb.PlayerBanState)
-			if !ok {
-				continue
-			}
-
-			d.onUpdateBans(update.source, evt)
-		case updateStatus:
-			evt, ok := update.data.(statusEvent)
-			if !ok {
-				continue
-			}
-
-			if errUpdate := d.onUpdateStatus(ctx, update.source, evt); errUpdate != nil {
-				log.Error("updateStatus error", zap.Error(errUpdate))
-			}
-		case updateLobby:
-			evt, ok := update.data.(lobbyEvent)
-			if !ok {
-				continue
-			}
-
-			d.onUpdateLobby(update.source, evt)
-		case updateTags:
-			evt, ok := update.data.(tagsEvent)
-			if !ok {
-				continue
-			}
-
-			d.onUpdateTags(evt)
-		case updateHostname:
-			evt, ok := update.data.(hostnameEvent)
-			if !ok {
-				continue
-			}
-
-			d.onUpdateHostname(evt)
-		case updateMap:
-			evt, ok := update.data.(mapEvent)
-			if !ok {
-				continue
-			}
-
-			d.onUpdateMap(evt)
-		case changeMap:
-			d.onMapChange()
-		}
-
-		log.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
-	}
-}
-
-func (d *Detector) onUpdateTags(event tagsEvent) {
-	d.serverMu.Lock()
-	d.server.Tags = event.tags
-	d.server.LastUpdate = time.Now()
-	d.serverMu.Unlock()
-}
-
-func (d *Detector) onUpdateMap(event mapEvent) {
-	d.serverMu.Lock()
-	d.server.CurrentMap = event.mapName
-	d.serverMu.Unlock()
-}
-
-func (d *Detector) onUpdateHostname(event hostnameEvent) {
-	d.serverMu.Lock()
-	d.server.ServerName = event.hostname
-	d.serverMu.Unlock()
-}
-
 func (d *Detector) nameToSid(players store.PlayerCollection, name string) steamid.SID64 {
 	d.playersMu.RLock()
 	defer d.playersMu.RUnlock()
@@ -824,12 +710,7 @@ func (d *Detector) nameToSid(players store.PlayerCollection, name string) steami
 }
 
 func (d *Detector) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
-	player := d.GetPlayer(steamID)
-	if player != nil {
-		d.playersMu.Lock()
-		player.Team = evt.team
-		d.playersMu.Unlock()
-	}
+	d.updateState(newTeamEvent(steamID, evt.team))
 }
 
 func (d *Detector) AddUserName(ctx context.Context, player *store.Player, name string) error {
@@ -877,12 +758,13 @@ func (d *Detector) onUpdateKill(kill killEvent) {
 		return
 	}
 
-	var (
-		sourcePlayer = d.GetPlayer(source)
-		targetPlayer = d.GetPlayer(target)
-	)
+	sourcePlayer, inGameSource := d.GetPlayer(source)
+	targetPlayer, inGameTarget := d.GetPlayer(target)
 
-	d.playersMu.Lock()
+	if !inGameSource || !inGameTarget {
+		return
+	}
+
 	sourcePlayer.Kills++
 	targetPlayer.Deaths++
 
@@ -896,56 +778,6 @@ func (d *Detector) onUpdateKill(kill killEvent) {
 
 	sourcePlayer.Touch()
 	targetPlayer.Touch()
-	d.playersMu.Unlock()
-}
-
-func (d *Detector) onMapChange() {
-	d.playersMu.Lock()
-	for _, player := range d.players {
-		player.Kills = 0
-		player.Deaths = 0
-	}
-	d.playersMu.Unlock()
-	d.serverMu.Lock()
-	d.server.CurrentMap = ""
-	d.server.ServerName = ""
-	d.serverMu.Unlock()
-}
-
-func (d *Detector) onUpdateBans(steamID steamid.SID64, ban steamweb.PlayerBanState) {
-	player := d.GetPlayer(steamID)
-	d.playersMu.Lock()
-	defer d.playersMu.Unlock()
-
-	player.NumberOfVACBans = ban.NumberOfVACBans
-	player.NumberOfGameBans = ban.NumberOfGameBans
-	player.CommunityBanned = ban.CommunityBanned
-
-	if ban.DaysSinceLastBan > 0 {
-		subTime := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
-		player.LastVACBanOn = &subTime
-	}
-
-	player.EconomyBan = ban.EconomyBan != "none"
-
-	player.Touch()
-}
-
-func (d *Detector) onUpdateStatus(ctx context.Context, steamID steamid.SID64, update statusEvent) error {
-	player, errPlayer := d.GetPlayerOrCreate(ctx, steamID, true)
-	if errPlayer != nil {
-		return errPlayer
-	}
-
-	d.playersMu.Lock()
-	player.Ping = update.ping
-	player.UserID = update.userID
-	player.Name = update.name
-	player.Connected = update.connected.Seconds()
-	player.UpdatedOn = time.Now()
-	d.playersMu.Unlock()
-
-	return nil
 }
 
 func (d *Detector) refreshLists(ctx context.Context) {
@@ -974,27 +806,29 @@ func (d *Detector) refreshLists(ctx context.Context) {
 }
 
 func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) {
-	for _, player := range d.players {
+	players := d.Players()
+	for _, lPlayer := range players {
+		player := lPlayer
 		if player.IsDisconnected() {
 			continue
 		}
 
-		if matchSteam := d.rules.MatchSteam(player.GetSteamID()); matchSteam != nil { //nolint:nestif
+		if matchSteam := d.rules.MatchSteam(player.SteamID); matchSteam != nil { //nolint:nestif
 			player.Matches = append(player.Matches, matchSteam...)
 			if validTeam == player.Team {
-				d.triggerMatch(ctx, player, matchSteam)
+				d.triggerMatch(ctx, &player, matchSteam)
 			}
 		} else if player.Name != "" {
-			if matchName := d.rules.MatchName(player.GetName()); matchName != nil && validTeam == player.Team {
+			if matchName := d.rules.MatchName(player.Name); matchName != nil && validTeam == player.Team {
 				player.Matches = append(player.Matches, matchSteam...)
 				if validTeam == player.Team {
-					d.triggerMatch(ctx, player, matchSteam)
+					d.triggerMatch(ctx, &player, matchSteam)
 				}
 			}
 		}
 
 		if player.Dirty {
-			if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
+			if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
 				d.log.Error("Failed to save dirty player state", zap.Error(errSave))
 
 				continue
@@ -1064,7 +898,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		}
 	}
 
-	player.KickAttemptCount++
+	d.updateState(newKickAttemptEvent(player.SteamID))
 }
 
 func (d *Detector) ensureRcon(ctx context.Context) error {
@@ -1207,7 +1041,7 @@ func (d *Detector) Start(ctx context.Context) {
 	go d.parser.start(ctx)
 	go d.refreshLists(ctx)
 	go d.incomingLogEventHandler(ctx)
-	go d.gameStateUpdater(ctx)
+	go d.stateUpdater(ctx)
 	go d.cleanupHandler(ctx)
 	go d.checkHandler(ctx)
 	go d.statusUpdater(ctx)

@@ -102,6 +102,8 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		"+con_timestamp", "1", "+alias", "con_timestamp",
 		"-condebug",
 		"-conclearlog",
+		"-g15",
+		"xx",
 	}
 
 	var full []string //nolint:prealloc

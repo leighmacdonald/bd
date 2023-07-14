@@ -1,14 +1,10 @@
 package detector
 
 import (
-	"math/rand"
 	"net/http"
-	"os"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
 )
@@ -50,47 +46,9 @@ func getNames(detector *Detector) gin.HandlerFunc {
 }
 
 func getPlayers(detector *Detector) gin.HandlerFunc {
-	_, isTest := os.LookupEnv("TEST")
-	testPlayers := CreateTestPlayers(detector, 24)
-
-	if isTest {
-		go func() {
-			updateTicker := time.NewTicker(time.Second * 5)
-
-			for {
-				<-updateTicker.C
-
-				for _, p := range testPlayers {
-					p.UpdatedOn = time.Now()
-					p.Connected += 5
-					p.Ping = rand.Intn(110)  //nolint:gosec
-					p.Kills = rand.Intn(50)  //nolint:gosec
-					p.Deaths = rand.Intn(30) //nolint:gosec
-				}
-			}
-		}()
-	}
-
 	return func(ctx *gin.Context) {
-		if isTest {
-			for _, plr := range detector.Players() {
-				plr.UpdatedOn = time.Now()
-			}
-
-			players := detector.Players()
-			responseOK(ctx, http.StatusOK, players)
-
-			return
-		}
-
 		players := detector.Players()
-
-		var p []store.Player
-		if players != nil {
-			p = players
-		}
-
-		responseOK(ctx, http.StatusOK, p)
+		responseOK(ctx, http.StatusOK, players)
 	}
 }
 
@@ -141,7 +99,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid, false)
+		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid)
 		if errPlayer != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 
@@ -149,12 +107,13 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 		}
 
 		player.Notes = opts.Note
-		if errSave := detector.dataStore.SavePlayer(ctx, player); errSave != nil {
+		if errSave := detector.dataStore.SavePlayer(ctx, &player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 
 			return
 		}
 
+		detector.updateState(newNoteEvent(sid, opts.Note))
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }

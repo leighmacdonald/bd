@@ -98,31 +98,27 @@ type Player struct {
 	Matches []*rules.MatchResult `json:"matches"`
 }
 
-func (ps *Player) IsMatched() bool {
+func (ps Player) IsMatched() bool {
 	return len(ps.Matches) > 0
 }
 
-func (ps *Player) GetSteamID() steamid.SID64 {
-	return ps.SteamID
-}
+func (ps Player) GetAvatarHash() string {
+	if ps.AvatarHash == "" {
+		return defaultAvatarHash
+	}
 
-func (ps *Player) GetName() string {
-	return ps.Name
-}
-
-func (ps *Player) GetAvatarHash() string {
 	return ps.AvatarHash
 }
 
-func (ps *Player) IsDisconnected() bool {
+func (ps Player) IsDisconnected() bool {
 	return time.Since(ps.UpdatedOn) > time.Second*6
 }
 
-func (ps *Player) IsExpired() bool {
+func (ps Player) IsExpired() bool {
 	return time.Since(ps.UpdatedOn) > time.Second*20
 }
 
-func (ps *Player) Touch() {
+func (ps Player) Touch() {
 	ps.Dirty = true
 }
 
@@ -154,21 +150,32 @@ func AvatarURL(hash string) string {
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarURL, firstN(avatarHash, 2), avatarHash)
 }
 
-type PlayerCollection []*Player
+type PlayerCollection []Player
 
-func (players PlayerCollection) AsAny() []any {
-	bl := make([]any, len(players))
-	for i, r := range players {
-		bl[i] = r
+func (players PlayerCollection) ByName(name string) (*Player, bool) {
+	for _, player := range players {
+		if player.Name == name {
+			return &player, true
+		}
 	}
 
-	return bl
+	return nil, false
 }
 
-func NewPlayer(sid64 steamid.SID64, name string) *Player {
+func (players PlayerCollection) Player(sid64 steamid.SID64) (*Player, bool) {
+	for _, player := range players {
+		if player.SteamID == sid64 {
+			return &player, true
+		}
+	}
+
+	return nil, false
+}
+
+func NewPlayer(sid64 steamid.SID64, name string) Player {
 	curTIme := time.Now()
 
-	return &Player{
+	return Player{
 		BaseSID:          BaseSID{sid64},
 		Name:             name,
 		AccountCreatedOn: time.Time{},

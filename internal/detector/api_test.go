@@ -12,6 +12,8 @@ import (
 )
 
 func TestDataSource(t *testing.T) {
+	t.Parallel()
+
 	const (
 		testIDb4nny  steamid.SID64 = "76561197970669109"
 		testIDCamper steamid.SID64 = "76561197992870439"
@@ -30,34 +32,50 @@ func TestDataSource(t *testing.T) {
 		testableDS["local"] = lds
 	}
 
-	apiDataSource, errAPI := detector.NewAPIDataSource("")
+	baseURL := ""
+	if _, isTest := os.LookupEnv("TEST"); isTest {
+		baseURL = "http://localhost:8888"
+	}
+
+	apiDataSource, errAPI := detector.NewAPIDataSource(baseURL)
+
 	require.NoError(t, errAPI)
 
 	testableDS["api"] = apiDataSource
 
-	for name, dataSource := range testableDS {
+	for name, ds := range testableDS {
+		dataSource := ds
+
 		t.Run(fmt.Sprintf("%s_summary", name), func(t *testing.T) {
+			t.Parallel()
+
 			summaries, errSum := dataSource.Summaries(ctx, testIds)
 			require.NoError(t, errSum)
 			require.Equal(t, len(testIds), len(summaries))
 		})
 
 		t.Run(fmt.Sprintf("%s_friends", name), func(t *testing.T) {
-			summaries, errSum := dataSource.Friends(ctx, testIds)
+			t.Parallel()
+
+			friends, errSum := dataSource.Friends(ctx, testIds)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(summaries))
+			require.Equal(t, len(testIds), len(friends))
 		})
 
 		t.Run(fmt.Sprintf("%s_bans", name), func(t *testing.T) {
-			summaries, errSum := dataSource.Bans(ctx, testIds)
+			t.Parallel()
+
+			vacBans, errSum := dataSource.Bans(ctx, testIds)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(summaries))
+			require.Equal(t, len(testIds), len(vacBans))
 		})
 
 		t.Run(fmt.Sprintf("%s_sourcebans", name), func(t *testing.T) {
-			summaries, errSum := dataSource.Sourcebans(ctx, testIds)
+			t.Parallel()
+
+			sourcebans, errSum := dataSource.Sourcebans(ctx, testIds)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(summaries))
+			require.Equal(t, len(testIds), len(sourcebans))
 		})
 	}
 }
