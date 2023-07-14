@@ -26,8 +26,8 @@ type WindowsPlatform struct {
 
 func New() WindowsPlatform {
 	var (
-		defaultSteamRoot = "C:/Program Files (x86)/Steam"                                     //nolint:gochecknoglobals
-		defaultTF2Root   = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf" //nolint:gochecknoglobals
+		defaultSteamRoot = "C:/Program Files (x86)/Steam"
+		defaultTF2Root   = "C:/Program Files (x86)/Steam/steamapps/common/Team Fortress 2/tf"
 	)
 
 	foundSteamRoot, errFoundSteamRoot := getSteamRoot()

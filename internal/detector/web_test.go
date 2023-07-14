@@ -94,25 +94,30 @@ func fetchIntoWithStatus(t *testing.T, method string, path string, status int, o
 }
 
 func TestGetPlayers(t *testing.T) {
+	t.Parallel()
+
 	app, _ := testApp()
 	tp := detector.CreateTestPlayers(app, 5)
 
 	for _, p := range tp {
-		app.AddPlayer(p)
+		app.updateState(p)
 	}
 
-	var ps []store.Player
+	var players []store.Player
 
-	fetchIntoWithStatus(t, http.MethodGet, "/players", http.StatusOK, &ps, nil)
+	existing := app.Players()
 
-	known := app.Players()
-	require.Equal(t, len(known), len(ps))
+	fetchIntoWithStatus(t, http.MethodGet, "/players", http.StatusOK, &players, nil)
+
+	require.Equal(t, len(existing), len(players))
 }
 
-func TestGetSettingsHandler(t *testing.T) {
+func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 
-	t.Run("Get Settings", func(t *testing.T) {
+	t.Run("Get Settings", func(t *testing.T) { //nolint:tparallel
 		var wus detector.WebUserSettings
 		fetchIntoWithStatus(t, "GET", "/settings", http.StatusOK, &wus, nil)
 		settings := detector.WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
@@ -138,7 +143,8 @@ func TestGetSettingsHandler(t *testing.T) {
 		require.Equal(t, settings.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
 		require.Equal(t, settings.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
 	})
-	t.Run("Save Settings", func(t *testing.T) {
+
+	t.Run("Save Settings", func(t *testing.T) { //nolint:tparallel
 		s := app.Settings()
 		newSettings := *s
 		newSettings.TF2Dir = "new/dir"
@@ -148,31 +154,36 @@ func TestGetSettingsHandler(t *testing.T) {
 	})
 }
 
-func TestPostMarkPlayerHandler(t *testing.T) {
+func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostMarkPlayerOpts{
 		Attrs: []string{"cheater", "test"},
 	}
 
-	t.Run("Mark Player", func(t *testing.T) {
+	t.Run("Mark Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
-	t.Run("Mark Duplicate Player", func(t *testing.T) {
+
+	t.Run("Mark Duplicate Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusConflict, nil, req)
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
-	t.Run("Mark Without Attrs", func(t *testing.T) {
+
+	t.Run("Mark Without Attrs", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
 			Attrs: []string{},
 		})
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
-	t.Run("Mark bad steamid", func(t *testing.T) {
+
+	t.Run("Mark bad steamid", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", "/mark/blah", http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
 			Attrs: []string{"cheater", "test"},
 		})
@@ -181,13 +192,15 @@ func TestPostMarkPlayerHandler(t *testing.T) {
 	})
 }
 
-func TestWhitelistPlayerHandler(t *testing.T) {
+func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 
 	require.NoError(t, app.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
 
-	t.Run("Whitelist Player", func(t *testing.T) {
+	t.Run("Whitelist Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
 		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
@@ -195,7 +208,8 @@ func TestWhitelistPlayerHandler(t *testing.T) {
 		require.Nil(t, app.Rules().MatchSteam(pls[0].SteamID))
 		require.True(t, app.Rules().Whitelisted(pls[0].SteamID))
 	})
-	t.Run("Remove Player Whitelist", func(t *testing.T) {
+
+	t.Run("Remove Player Whitelist", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
 		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
 		require.NoError(t, e)
@@ -205,21 +219,25 @@ func TestWhitelistPlayerHandler(t *testing.T) {
 	})
 }
 
-func TestPlayerNotes(t *testing.T) {
+func TestPlayerNotes(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostNotesOpts{
 		Note: "New Note",
 	}
 
-	t.Run("Set Player", func(t *testing.T) {
+	t.Run("Set Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
 		np, _ := app.GetPlayerOrCreate(context.TODO(), pls[0].SteamID, false)
 		require.Equal(t, req.Note, np.Notes)
 	})
 }
 
-func TestPlayerChatHistory(t *testing.T) {
+func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 
@@ -227,14 +245,16 @@ func TestPlayerChatHistory(t *testing.T) {
 		require.NoError(t, app.AddUserMessage(context.TODO(), pls[0], util.RandomString(i+1*2), false, true))
 	}
 
-	t.Run("Get Chat History", func(t *testing.T) {
+	t.Run("Get Chat History", func(t *testing.T) { //nolint:tparallel
 		var messages []*store.UserMessage
 		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamID), http.StatusOK, &messages, nil)
 		require.Equal(t, 10, len(messages))
 	})
 }
 
-func TestPlayerNameHistory(t *testing.T) {
+func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
+	t.Parallel()
+
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 2)
 

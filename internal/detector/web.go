@@ -23,7 +23,7 @@ type Web struct {
 }
 
 func NewWeb(detector *Detector) (*Web, error) {
-	engine := createRouter(detector.log)
+	engine := createRouter(detector.log, detector.settings.RunMode)
 	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
 		return nil, errRoutes
 	}
@@ -77,7 +77,16 @@ func responseOK(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }
 
-func createRouter(logger *zap.Logger) *gin.Engine {
+func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
+	switch mode {
+	case ModeProd:
+		gin.SetMode(gin.ReleaseMode)
+	case ModeTest:
+		gin.SetMode(gin.TestMode)
+	case ModeDebug:
+		gin.SetMode(gin.DebugMode)
+	}
+
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 
@@ -146,13 +155,13 @@ func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 		"76561198015577906", "76561197997861796",
 	}
 
-	randPlayer := func(userId int64) *store.Player {
+	randPlayer := func(userId int64) store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red
 		}
 
-		player, errP := detector.GetPlayerOrCreate(context.TODO(), knownIds[idIdx], true)
+		player, errP := detector.GetPlayerOrCreate(context.TODO(), knownIds[idIdx])
 		if errP != nil {
 			panic(errP)
 		}

@@ -6,10 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"fyne.io/systray"
-	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -27,7 +30,9 @@ var (
 )
 
 func main() {
-	ctx := context.Background()
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 
 	userSettings, errSettings := detector.NewSettings()
@@ -40,15 +45,6 @@ func main() {
 	}
 
 	userSettings.MustValidate()
-
-	switch userSettings.RunMode {
-	case detector.ModeProd:
-		gin.SetMode(gin.ReleaseMode)
-	case detector.ModeTest:
-		gin.SetMode(gin.TestMode)
-	case detector.ModeDebug:
-		gin.SetMode(gin.DebugMode)
-	}
 
 	logger := detector.MustCreateLogger(userSettings)
 
@@ -79,15 +75,62 @@ func main() {
 
 	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
 
-	rootCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
 
-	application.Start(rootCtx)
-
-	systray.Run(application.Systray.OnReady, func() {
-		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
-			logger.Error("Failed to shutdown cleanly")
+	if isTest {
+		body, errRead := os.ReadFile(testLogPath)
+		if errRead != nil {
+			logger.Fatal("Failed to load TEST_CONSOLE_LOG", zap.String("path", testLogPath), zap.Error(errRead))
 		}
-		logger.Info("Bye")
+
+		lines := strings.Split(string(body), "\n")
+		curLine := 0
+		lineCount := len(lines)
+
+		go func() {
+			updateTicker := time.NewTicker(time.Millisecond * 100)
+
+			for {
+				<-updateTicker.C
+				logChan <- lines[curLine]
+				curLine++
+
+				if curLine >= lineCount {
+					curLine = 0
+				}
+			}
+		}()
+	}
+
+	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
+	serviceGroup.Go(func() error {
+		application.Start(serviceCtx)
+
+		return nil
 	})
+
+	serviceGroup.Go(func() error {
+		systray.Run(application.Systray.OnReady(stop), func() {
+			if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
+				logger.Error("Failed to shutdown cleanly")
+			}
+		})
+
+		return nil
+	})
+
+	serviceGroup.Go(func() error {
+		<-serviceCtx.Done()
+		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
+			logger.Error("Failed to gracefully shutdown", zap.Error(errShutdown))
+		}
+		systray.Quit()
+		return nil
+	})
+
+	if err := serviceGroup.Wait(); err != nil {
+		logger.Error("Sad Goodbye", zap.Error(err))
+		return
+	}
+	logger.Info("Happy Goodbye")
 }

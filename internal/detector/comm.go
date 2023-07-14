@@ -15,8 +15,8 @@ type rconConnection interface {
 	Close() error
 }
 
-func ParseLobbyPlayers(body string) []*store.Player {
-	var lobbyPlayers []*store.Player //nolint:prealloc
+func ParseLobbyPlayers(body string) []store.Player {
+	var lobbyPlayers []store.Player //nolint:prealloc
 
 	for _, line := range strings.Split(body, "\n") {
 		match := lobbyPlayerRx.FindStringSubmatch(line)
