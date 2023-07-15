@@ -4,24 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-)
-
-// ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
-// Note that because this WebAPI does not use authentication, there are only two possible values returned:
-// 1 - the profile is not visible to you (Private, Friends Only, etc),
-// 3 - the profile is "Public", and the data is visible.
-// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
-// from the privacy state. It's the effective visibility state from the account making the request to the account
-// being viewed given the requesting account's relationship to the viewed account.".
-type ProfileVisibility int
-
-//goland:noinspection ALL
-const (
-	ProfileVisibilityPrivate ProfileVisibility = iota + 1
-	ProfileVisibilityFriendsOnly
-	ProfileVisibilityPublic
+	"github.com/leighmacdonald/steamweb/v2"
 )
 
 type Player struct {
@@ -54,15 +40,22 @@ type Player struct {
 	NamePrevious     string    `json:"name_previous"`
 	AccountCreatedOn time.Time `json:"account_created_on"`
 
-	Visibility ProfileVisibility `json:"visibility"`
-	AvatarHash string            `json:"avatar_hash"`
+	// ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
+	// Note that because this WebAPI does not use authentication, there are only two possible values returned:
+	// 1 - the profile is not visible to you (Private, Friends Only, etc),
+	// 3 - the profile is "Public", and the data is visible.
+	// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
+	// from the privacy state. It's the effective visibility state from the account making the request to the account
+	// being viewed given the requesting account's relationship to the viewed account.".
+	Visibility steamweb.VisibilityState `json:"visibility"`
+	AvatarHash string                   `json:"avatar_hash"`
 
 	// PlayerBanState
-	CommunityBanned  bool       `json:"community_banned"`
-	NumberOfVACBans  int        `json:"number_of_vac_bans"`
-	LastVACBanOn     *time.Time `json:"last_vac_ban_on"`
-	NumberOfGameBans int        `json:"number_of_game_bans"`
-	EconomyBan       bool       `json:"economy_ban"`
+	CommunityBanned  bool                  `json:"community_banned"`
+	NumberOfVACBans  int                   `json:"number_of_vac_bans"`
+	LastVACBanOn     *time.Time            `json:"last_vac_ban_on"`
+	NumberOfGameBans int                   `json:"number_of_game_bans"`
+	EconomyBan       steamweb.EconBanState `json:"economy_ban"`
 
 	// - Parsed Ephemeral data
 
@@ -92,6 +85,8 @@ type Player struct {
 
 	OurFriend bool `json:"our_friend"`
 
+	InGame     bool
+	Sourcebans []models.SbBanRecord
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
 
@@ -150,36 +145,49 @@ func AvatarURL(hash string) string {
 	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarURL, firstN(avatarHash, 2), avatarHash)
 }
 
-type PlayerCollection []Player
+type PlayerCollection []*Player
 
-func (players PlayerCollection) ByName(name string) (*Player, bool) {
-	for _, player := range players {
+func (players *PlayerCollection) ByName(name string) (*Player, bool) {
+	for _, player := range *players {
 		if player.Name == name {
-			return &player, true
+			return player, true
 		}
 	}
 
 	return nil, false
 }
 
-func (players PlayerCollection) Player(sid64 steamid.SID64) (*Player, bool) {
-	for _, player := range players {
+func (players *PlayerCollection) Player(sid64 steamid.SID64) *Player {
+	for _, player := range *players {
 		if player.SteamID == sid64 {
-			return &player, true
+			return player
 		}
 	}
 
-	return nil, false
+	return nil
 }
 
-func NewPlayer(sid64 steamid.SID64, name string) Player {
+func (players *PlayerCollection) GetOrCreate(sid64 steamid.SID64) *Player {
+	if player := players.Player(sid64); player != nil {
+		return player
+	}
+
+	newPlayer := NewPlayer(sid64, "")
+
+	*players = append(*players, newPlayer)
+
+	return newPlayer
+}
+
+func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	curTIme := time.Now()
 
-	return Player{
+	return &Player{
 		BaseSID:          BaseSID{sid64},
 		Name:             name,
+		Matches:          []*rules.MatchResult{},
 		AccountCreatedOn: time.Time{},
-		Visibility:       ProfileVisibilityPublic,
+		Visibility:       steamweb.VisibilityPublic,
 		CreatedOn:        curTIme,
 		UpdatedOn:        curTIme,
 		ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),

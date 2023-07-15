@@ -98,18 +98,11 @@ func TestGetPlayers(t *testing.T) {
 
 	app, _ := testApp()
 	tp := detector.CreateTestPlayers(app, 5)
-
-	for _, p := range tp {
-		app.updateState(p)
-	}
-
-	var players []store.Player
-
-	existing := app.Players()
+	var players store.PlayerCollection
 
 	fetchIntoWithStatus(t, http.MethodGet, "/players", http.StatusOK, &players, nil)
 
-	require.Equal(t, len(existing), len(players))
+	require.Equal(t, len(tp), len(players))
 }
 
 func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
@@ -137,7 +130,6 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 		require.Equal(t, settings.Lists, wus.Lists)
 		require.Equal(t, settings.Links, wus.Links)
 		require.Equal(t, settings.RCONStatic, wus.RCONStatic)
-		require.Equal(t, settings.GUIEnabled, wus.GUIEnabled)
 		require.Equal(t, settings.HTTPEnabled, wus.HTTPEnabled)
 		require.Equal(t, settings.HTTPListenAddr, wus.HTTPListenAddr)
 		require.Equal(t, settings.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
@@ -202,7 +194,7 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	t.Run("Whitelist Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
-		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
+		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
 		require.NoError(t, e)
 		require.True(t, plr.Whitelisted)
 		require.Nil(t, app.Rules().MatchSteam(pls[0].SteamID))
@@ -211,7 +203,7 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	t.Run("Remove Player Whitelist", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
-		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID, false)
+		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
 		require.NoError(t, e)
 		require.False(t, plr.Whitelisted)
 		require.NotNil(t, app.Rules().MatchSteam(pls[0].SteamID))
@@ -230,7 +222,7 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 
 	t.Run("Set Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
-		np, _ := app.GetPlayerOrCreate(context.TODO(), pls[0].SteamID, false)
+		np, _ := app.GetPlayerOrCreate(context.TODO(), pls[0].SteamID)
 		require.Equal(t, req.Note, np.Notes)
 	})
 }

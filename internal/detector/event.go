@@ -55,10 +55,10 @@ type Event struct {
 }
 
 type Server struct {
-	ServerName string
-	Addr       net.IP
-	Port       uint16
-	CurrentMap string
-	Tags       []string
-	LastUpdate time.Time
+	ServerName string    `json:"server_name"`
+	Addr       net.IP    `json:"-"`
+	Port       uint16    `json:"-"`
+	CurrentMap string    `json:"current_map"`
+	Tags       []string  `json:"-"`
+	LastUpdate time.Time `json:"last_update"`
 }

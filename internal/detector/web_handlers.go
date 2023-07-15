@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/rules"
 	"github.com/pkg/errors"
 )
@@ -45,10 +46,24 @@ func getNames(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func getPlayers(detector *Detector) gin.HandlerFunc {
+func getState(detector *Detector) gin.HandlerFunc {
+	type currentState struct {
+		Server  *Server         `json:"server"`
+		Players []*store.Player `json:"players"`
+	}
+
 	return func(ctx *gin.Context) {
-		players := detector.Players()
-		responseOK(ctx, http.StatusOK, players)
+		detector.playersMu.RLock()
+		defer detector.playersMu.RUnlock()
+		detector.serverMu.RLock()
+		defer detector.serverMu.RUnlock()
+
+		players := detector.players
+		if players == nil {
+			players = []*store.Player{}
+		}
+
+		responseOK(ctx, http.StatusOK, currentState{Server: detector.server, Players: players})
 	}
 }
 
@@ -107,7 +122,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 		}
 
 		player.Notes = opts.Note
-		if errSave := detector.dataStore.SavePlayer(ctx, &player); errSave != nil {
+		if errSave := detector.dataStore.SavePlayer(ctx, player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 
 			return

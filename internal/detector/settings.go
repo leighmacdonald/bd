@@ -3,6 +3,7 @@ package detector
 import (
 	"crypto/rand"
 	"encoding/binary"
+	errjoin "errors"
 	"fmt"
 	"io"
 	"os"
@@ -116,13 +117,13 @@ type UserSettings struct {
 	Lists                   ListConfigCollection `yaml:"lists" json:"lists"`
 	Links                   []*LinkConfig        `yaml:"links" json:"links"`
 	RCONStatic              bool                 `yaml:"rcon_static" json:"rcon_static"`
-	GUIEnabled              bool                 `yaml:"gui_enabled" json:"gui_enabled"`
 	HTTPEnabled             bool                 `yaml:"http_enabled" json:"http_enabled"`
 	HTTPListenAddr          string               `yaml:"http_listen_addr" json:"http_listen_addr"`
 	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level"`
+	UseBDAPIDataSource      bool                 `yaml:"use_bdapi_data_source"`
 	rcon                    RCONConfigProvider   `yaml:"-" `
 }
 
@@ -163,20 +164,6 @@ func (s *UserSettings) SetHTTPEnabled(enabled bool) {
 	s.Lock()
 	defer s.Unlock()
 	s.HTTPEnabled = enabled
-}
-
-func (s *UserSettings) GetGuiEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.GUIEnabled
-}
-
-func (s *UserSettings) SetGuiEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.GUIEnabled = enabled
 }
 
 func (s *UserSettings) GetRcon() RCONConfigProvider { // nolint:ireturn
@@ -368,6 +355,13 @@ func (s *UserSettings) GetLists() ListConfigCollection {
 	return s.Lists
 }
 
+func (s *UserSettings) GetUseBDAPIDataSource() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.UseBDAPIDataSource
+}
+
 func (s *UserSettings) GetKickTags() []string {
 	s.RLock()
 	defer s.RUnlock()
@@ -422,7 +416,6 @@ func NewSettings() (*UserSettings, error) {
 		PartyWarningsEnabled:    true,
 		KickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
 		VoiceBansEnabled:        false,
-		GUIEnabled:              true,
 		DebugLogEnabled:         false,
 		RunMode:                 ModeProd,
 		LogLevel:                "info",
@@ -510,10 +503,11 @@ func NewSettings() (*UserSettings, error) {
 				IDFormat: "steam64",
 			},
 		},
-		RCONStatic:     false,
-		HTTPEnabled:    true,
-		HTTPListenAddr: "localhost:8900",
-		rcon:           NewRconConfig(false),
+		RCONStatic:         false,
+		HTTPEnabled:        true,
+		HTTPListenAddr:     "localhost:8900",
+		UseBDAPIDataSource: true,
+		rcon:               NewRconConfig(false),
 	}
 
 	if !util.Exists(newSettings.ListRoot()) {
@@ -545,10 +539,18 @@ func (s *UserSettings) ReadDefaultOrCreate() error {
 	return errRead
 }
 
-func (s *UserSettings) MustValidate() {
-	if !(s.GetHTTPEnabled() || s.GetGuiEnabled()) {
-		panic("Must enable at least one of the gui or http packages")
+func (s *UserSettings) Validate() error {
+	var err error
+
+	if !s.SteamID.Valid() {
+		err = errjoin.Join(err, steamid.ErrInvalidSID)
 	}
+
+	if !s.UseBDAPIDataSource && s.APIKey == "" {
+		err = errjoin.Join(errors.New("Must set steam api key when not using bdapi"))
+	}
+
+	return err
 }
 
 func (s *UserSettings) ListRoot() string {

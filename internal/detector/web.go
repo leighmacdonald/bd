@@ -93,7 +93,7 @@ func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
 	engine.Use(ginzap.GinzapWithConfig(logger, &ginzap.Config{
 		TimeFormat: time.RFC3339,
 		UTC:        true,
-		// SkipPaths:  []string{"/players"},
+		SkipPaths:  []string{"/state"},
 	}))
 
 	engine.Use(ginzap.RecoveryWithZap(logger, true))
@@ -114,7 +114,7 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	}
 
-	engine.GET("/players", getPlayers(detector))
+	engine.GET("/state", getState(detector))
 	engine.GET("/messages/:steam_id", getMessages(detector))
 	engine.GET("/names/:steam_id", getNames(detector))
 	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
@@ -155,7 +155,7 @@ func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 		"76561198015577906", "76561197997861796",
 	}
 
-	randPlayer := func(userId int64) store.Player {
+	randPlayer := func(userId int64) *store.Player {
 		team := store.Blu
 		if userId%2 == 0 {
 			team = store.Red
@@ -210,6 +210,9 @@ func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 
 		testPlayers = append(testPlayers, player)
 	}
+	detector.playersMu.Lock()
+	detector.players = testPlayers
+	detector.playersMu.Unlock()
 
 	return testPlayers
 }
