@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { defaultUserSettings } from './context/settings';
+import {useEffect, useState} from 'react';
+import {defaultUserSettings} from './context/settings';
 
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
@@ -41,6 +41,7 @@ enum ProfileVisibility {
     ProfileVisibilityFriendsOnly = 2,
     ProfileVisibilityPublic = 3
 }
+
 export enum Team {
     SPEC,
     UNASSIGNED,
@@ -52,6 +53,18 @@ export interface Match {
     origin: string;
     attributes: string[];
     matcher_type: string;
+}
+
+export interface Server {
+    server_name: string;
+    current_map: string;
+    tags: string[];
+    last_update: string;
+}
+
+export interface State {
+    server: Server;
+    players: Player[];
 }
 
 export interface Player {
@@ -146,12 +159,12 @@ export const deleteWhitelist = async (steamId: bigint) =>
     await call('DELETE', `/whitelist/${steamId}`);
 
 export const saveUserNote = async (steamId: bigint, notes: string) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, { note: notes });
+    await call<UserNote>('POST', `/notes/${steamId}`, {note: notes});
 
 export const deleteUserNote = async (steamId: bigint) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, { note: '' });
+    await call<UserNote>('POST', `/notes/${steamId}`, {note: ''});
 
-const getPlayers = async () => await callJson<Player[]>('GET', '/players');
+const getState = async () => await callJson<State>('GET', '/state');
 
 const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/settings');
@@ -173,15 +186,16 @@ export const useUserSettings = () => {
             .finally(() => setLoading(false));
     }, []);
 
-    return { settings, error, loading };
+    return {settings, error, loading};
 };
 
-export const usePlayers = () => {
-    const [players, setPlayers] = useState<Player[]>([]);
+export const useCurrentState = () => {
+    const [players, setPlayers] = useState<State>(
+        {server: {server_name: "Unknown", current_map: "Unknown", tags: [], last_update: ""}, players: []});
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                setPlayers(await getPlayers());
+                setPlayers(await getState());
             } catch (e) {
                 console.log(e);
             }

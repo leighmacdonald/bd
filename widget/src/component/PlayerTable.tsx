@@ -20,7 +20,7 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
-import { addWhitelist, Player, saveUserNote, usePlayers } from '../api';
+import { addWhitelist, Player, saveUserNote, useCurrentState } from '../api';
 import { NoteEditor } from './NoteEditor';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
@@ -294,7 +294,7 @@ export const PlayerTable = () => {
         getDefaultColumns()
     );
     const { settings } = useContext(SettingsContext);
-    const players = usePlayers();
+    const state = useCurrentState();
 
     const onOpenNotes = useCallback((steamId: bigint, notes: string) => {
         setNotesSteamId(steamId);
@@ -330,10 +330,10 @@ export const PlayerTable = () => {
     const visibleRows = useMemo(
         () =>
             stableSort(
-                players.filter((p) => !matchesOnly || p.matches.length),
+                state.players.filter((p) => !matchesOnly || p.matches.length),
                 getComparator(order, orderBy)
             ),
-        [order, orderBy, players, matchesOnly]
+        [order, orderBy, state, matchesOnly]
     );
 
     const updateSelectedColumns = useCallback(
@@ -380,8 +380,11 @@ export const PlayerTable = () => {
                             <SettingsOutlinedIcon color={'primary'} />
                         </IconButton>
                     </ButtonGroup>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography variant={'overline'}></Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
+                        <Typography variant={'h1'}>{state.server.server_name}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
+                        <Typography variant={'subtitle1'}>{state.server.current_map}</Typography>
                     </Box>
                 </Stack>
                 <TableContainer>
@@ -392,7 +395,7 @@ export const PlayerTable = () => {
                         padding={'none'}
                     >
                         <PlayerTableHead
-                            players={players}
+                            players={state.players}
                             order={order}
                             orderBy={orderBy}
                             onRequestSort={handleRequestSort}
