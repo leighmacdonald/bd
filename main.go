@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"fyne.io/systray"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
@@ -19,6 +17,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -44,7 +43,9 @@ func main() {
 		panic(fmt.Sprintf("Failed to read settings: %v", errReadSettings))
 	}
 
-	userSettings.MustValidate()
+	if errValidate := userSettings.Validate(); errValidate != nil {
+		panic(fmt.Sprintf("Failed to validate settings: %v", errValidate))
+	}
 
 	logger := detector.MustCreateLogger(userSettings)
 
@@ -73,7 +74,22 @@ func main() {
 		return
 	}
 
-	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan)
+	var (
+		ds    detector.DataSource
+		errDS error
+	)
+
+	if userSettings.GetUseBDAPIDataSource() {
+		ds, errDS = detector.NewAPIDataSource("")
+	} else {
+		ds, errDS = detector.NewLocalDataSource(userSettings.APIKey)
+	}
+
+	if errDS != nil {
+		logger.Fatal("Failed to initialize data source", zap.Error(errDS))
+	}
+
+	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan, ds)
 
 	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
 
@@ -88,11 +104,11 @@ func main() {
 		lineCount := len(lines)
 
 		go func() {
-			updateTicker := time.NewTicker(time.Millisecond * 100)
+			updateTicker := time.NewTicker(time.Millisecond * 10)
 
 			for {
 				<-updateTicker.C
-				logChan <- lines[curLine]
+				logChan <- strings.Trim(lines[curLine], "\r")
 				curLine++
 
 				if curLine >= lineCount {
@@ -121,16 +137,21 @@ func main() {
 
 	serviceGroup.Go(func() error {
 		<-serviceCtx.Done()
-		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
+
+		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil { //nolint:contextcheck
 			logger.Error("Failed to gracefully shutdown", zap.Error(errShutdown))
 		}
+
 		systray.Quit()
+
 		return nil
 	})
 
 	if err := serviceGroup.Wait(); err != nil {
 		logger.Error("Sad Goodbye", zap.Error(err))
+
 		return
 	}
+
 	logger.Info("Happy Goodbye")
 }

@@ -22,7 +22,7 @@ func TestDataSource(t *testing.T) {
 	ctx := context.Background()
 	testIds := steamid.Collection{testIDb4nny, testIDCamper}
 
-	testableDS := map[string]detector.RemoteDataSource{}
+	testableDS := map[string]detector.DataSource{}
 
 	key, found := os.LookupEnv("BD_API_KEY")
 	if found {

@@ -134,7 +134,7 @@ func discordAssetNameMap(mapName string) string {
 	return mapName
 }
 
-func discordUpdateActivity(discordClient *client.Client, cnt int, server Server, inGame bool, startupTime time.Time) error {
+func discordUpdateActivity(discordClient *client.Client, cnt int, server *Server, inGame bool, startupTime time.Time) error {
 	buttons := []*client.Button{
 		{
 			Label: "GitHub",
@@ -227,12 +227,12 @@ func (d *Detector) discordStateUpdater(ctx context.Context) {
 
 			if isRunning {
 				d.serverMu.RLock()
-				server := d.server
-				d.serverMu.RUnlock()
-
-				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), server, d.gameProcessActive, d.startupTime); errUpdate != nil {
+				d.playersMu.RLock()
+				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), d.server, d.gameProcessActive, d.startupTime); errUpdate != nil {
 					log.Error("Failed to update discord activity", zap.Error(errUpdate))
 				}
+				d.playersMu.RUnlock()
+				d.serverMu.RUnlock()
 			}
 		case <-ctx.Done():
 			return

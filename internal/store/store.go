@@ -291,7 +291,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 			player.NamePrevious = *prevName
 		}
 
-		col = append(col, player)
+		col = append(col, &player)
 	}
 
 	if rows.Err() != nil {

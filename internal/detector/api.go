@@ -18,7 +18,7 @@ type FriendMap map[steamid.SID64][]steamweb.Friend
 
 type SourcebansMap map[steamid.SID64][]models.SbBanRecord
 
-type RemoteDataSource interface {
+type DataSource interface {
 	Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
 	Bans(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerBanState, error)
 	Friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error)

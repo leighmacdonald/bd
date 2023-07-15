@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leighmacdonald/steamweb/v2"
-
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamweb/v2"
 	"go.uber.org/zap"
 )
 
@@ -37,6 +36,49 @@ const (
 	playerTimeout
 	updateTestPlayer = 1000
 )
+
+func (ut updateType) String() string {
+	switch ut {
+	case updateKill:
+		return "kill"
+	case updateProfile:
+		return "profile"
+	case updateBans:
+		return "bans"
+	case updateStatus:
+		return "status"
+	case updateMessage:
+		return "message"
+	case updateLobby:
+		return "lobby"
+	case updateMap:
+		return "map_name"
+	case updateHostname:
+		return "hostname"
+	case updateTags:
+		return "tags"
+	case updateAddress:
+		return "address"
+	case changeMap:
+		return "change_map"
+	case updateMark:
+		return "mark"
+	case updateWhitelist:
+		return "whitelist"
+	case updateTeam:
+		return "team"
+	case updateKickAttempts:
+		return "kicks"
+	case updateNotes:
+		return "notes"
+	case playerTimeout:
+		return "timeout"
+	case updateTestPlayer:
+		return "test_player"
+	default:
+		return "unknown"
+	}
+}
 
 type killEvent struct {
 	sourceName string
@@ -269,34 +311,14 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 
 	defer log.Debug("stateUpdater exited")
 
-	var (
-		server  Server
-		players = store.PlayerCollection{}
-		reset   = make(chan any)
-	)
-
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-reset:
-			d.playersMu.Lock()
-			d.players = players
-			d.playersMu.Unlock()
-			d.serverMu.Lock()
-			d.server = server
-			d.serverMu.Unlock()
 		case update := <-d.stateUpdates:
-			log.Debug("Game state update input received", zap.Int("kind", int(update.kind)), zap.String("state", "start"))
+			log.Info("Game state update input received", zap.String("kind", update.kind.String()))
 
 			if update.kind == updateStatus && !update.source.Valid() {
-				continue
-			}
-
-			player, inGame := players.Player(update.source)
-			if update.kind != updateStatus && !inGame {
-				log.Error("Tried to update player not in game", zap.String("sid64", update.source.String()))
-
 				continue
 			}
 
@@ -307,113 +329,209 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 					continue
 				}
 
-				namedPlayer, srdOk := players.ByName(evt.name)
-				if !srdOk {
-					continue
-				}
-
-				if errUm := d.AddUserMessage(ctx, namedPlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
-					log.Error("Failed to handle user message", zap.Error(errUm))
-
-					continue
-				}
+				d.onUpdateMessage(ctx, log, evt)
 			case updateKill:
-				e, ok := update.data.(killEvent)
+				evt, ok := update.data.(killEvent)
 				if !ok {
 					continue
 				}
 
-				ourSid := d.settings.GetSteamID()
-				src, srdOk := players.ByName(e.sourceName)
-				if !srdOk {
-					continue
-				}
-
-				target, targetOk := players.ByName(e.sourceName)
-				if !targetOk {
-					continue
-				}
-
-				src.Kills++
-				target.Deaths++
-
-				if target.SteamID == ourSid {
-					src.DeathsBy++
-				}
-
-				if src.SteamID == ourSid {
-					target.KillsOn++
-				}
+				d.onKill(evt)
 			case updateBans:
 				evt, ok := update.data.(steamweb.PlayerBanState)
 				if !ok {
 					continue
 				}
 
-				player.NumberOfVACBans = evt.NumberOfVACBans
-				player.NumberOfGameBans = evt.NumberOfGameBans
-				player.CommunityBanned = evt.CommunityBanned
-
-				if evt.DaysSinceLastBan > 0 {
-					subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
-					player.LastVACBanOn = &subTime
-				}
-
-				player.EconomyBan = evt.EconomyBan != "none"
+				d.onBans(evt)
 			case updateKickAttempts:
-				player.KickAttemptCount++
+				d.onKickAttempt(update.source)
 			case updateStatus:
 				evt, ok := update.data.(statusEvent)
 				if !ok {
 					continue
 				}
 
-				player.Ping = evt.ping
-				player.UserID = evt.userID
-				player.Name = evt.name
-				player.Connected = evt.connected.Seconds()
-				player.UpdatedOn = time.Now()
-
+				d.onStatus(ctx, update.source, evt)
 			case updateLobby:
 				evt, ok := update.data.(lobbyEvent)
 				if !ok {
 					continue
 				}
-				player.Team = evt.team
+
+				d.onTeamChange(update.source, evt)
 			case updateTags:
 				evt, ok := update.data.(tagsEvent)
 				if !ok {
 					continue
 				}
 
-				server.Tags = evt.tags
-				server.LastUpdate = time.Now()
-
+				d.onTags(evt)
 			case updateHostname:
 				evt, ok := update.data.(hostnameEvent)
 				if !ok {
 					continue
 				}
 
-				server.ServerName = evt.hostname
+				d.onHostname(evt)
 			case updateMap:
 				evt, ok := update.data.(mapEvent)
 				if !ok {
 					continue
 				}
 
-				server.CurrentMap = evt.mapName
+				d.onMapName(evt)
 			case changeMap:
-				for _, p := range players {
-					p.Kills = 0
-					p.Deaths = 0
-				}
-				server.CurrentMap = ""
-				server.ServerName = ""
-
+				d.onMapChange()
 			}
+
 			log.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
-			reset <- true
+			// reset <- true
 		}
 	}
+}
+
+func (d *Detector) onUpdateMessage(ctx context.Context, log *zap.Logger, evt messageEvent) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	namedPlayer, srdOk := d.players.ByName(evt.name)
+	if !srdOk {
+		return
+	}
+
+	if errUm := d.AddUserMessage(ctx, namedPlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
+		log.Error("Failed to handle user message", zap.Error(errUm))
+	}
+}
+
+func (d *Detector) onKill(evt killEvent) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	ourSid := d.settings.GetSteamID()
+
+	src, srcOk := d.players.ByName(evt.sourceName)
+	if !srcOk {
+		return
+	}
+
+	target, targetOk := d.players.ByName(evt.sourceName)
+	if !targetOk {
+		return
+	}
+
+	src.Kills++
+	target.Deaths++
+
+	if target.SteamID == ourSid {
+		src.DeathsBy++
+	}
+
+	if src.SteamID == ourSid {
+		target.KillsOn++
+	}
+}
+
+func (d *Detector) onBans(evt steamweb.PlayerBanState) {
+	player, exists := d.GetPlayer(evt.SteamID)
+	if !exists {
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.NumberOfVACBans = evt.NumberOfVACBans
+	player.NumberOfGameBans = evt.NumberOfGameBans
+	player.CommunityBanned = evt.CommunityBanned
+	player.EconomyBan = evt.EconomyBan
+
+	if evt.DaysSinceLastBan > 0 {
+		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
+		player.LastVACBanOn = &subTime
+	}
+}
+
+func (d *Detector) onKickAttempt(steamID steamid.SID64) {
+	player, exists := d.GetPlayer(steamID)
+	if !exists {
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.KickAttemptCount++
+}
+
+func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
+	player, errPlayer := d.GetPlayerOrCreate(ctx, steamID)
+	if errPlayer != nil {
+		d.log.Error("Failed to get or create player", zap.Error(errPlayer))
+
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.Ping = evt.ping
+	player.UserID = evt.userID
+	player.Name = evt.name
+	player.Connected = evt.connected.Seconds()
+	player.UpdatedOn = time.Now()
+}
+
+func (d *Detector) onTeamChange(steamID steamid.SID64, evt lobbyEvent) {
+	player, exists := d.GetPlayer(steamID)
+	if !exists {
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.Team = evt.team
+}
+
+func (d *Detector) onTags(evt tagsEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.Tags = evt.tags
+	d.server.LastUpdate = time.Now()
+}
+
+func (d *Detector) onHostname(evt hostnameEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.ServerName = evt.hostname
+	d.server.LastUpdate = time.Now()
+}
+
+func (d *Detector) onMapName(evt mapEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.CurrentMap = evt.mapName
+
+	d.log.Info("Map changed", zap.String("map", evt.mapName))
+}
+
+func (d *Detector) onMapChange() {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	for _, p := range d.players {
+		p.Kills = 0
+		p.Deaths = 0
+	}
+
+	d.server.CurrentMap = ""
+	d.server.ServerName = ""
 }
