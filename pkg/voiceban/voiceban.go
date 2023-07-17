@@ -47,7 +47,7 @@ func Read(reader io.Reader) (steamid.Collection, error) {
 			trimID = append(trimID, r)
 		}
 
-		parsedSid := steamid.New(trimID)
+		parsedSid := steamid.New(string(trimID))
 		if !parsedSid.Valid() {
 			return nil, errors.New("Malformed steamid")
 		}
