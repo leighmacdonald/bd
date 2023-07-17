@@ -181,7 +181,6 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 }
 
 func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error {
-	state.UpdatedOn = time.Now()
 	query, args, errSQL := sq.
 		Update("player").
 		Set("visibility", state.Visibility).

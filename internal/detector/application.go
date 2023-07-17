@@ -451,11 +451,15 @@ func (d *Detector) Whitelist(ctx context.Context, sid64 steamid.SID64, enabled b
 		return playerErr
 	}
 
+	d.playersMu.Lock()
+
 	player.Whitelisted = enabled
+	player.Touch()
 
 	if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
 		return errors.Wrap(errSave, "Failed to save player")
 	}
+	d.playersMu.Unlock()
 
 	if enabled {
 		d.rules.WhitelistAdd(sid64)
@@ -1043,21 +1047,33 @@ func (d *Detector) profileUpdater(ctx context.Context) {
 				continue
 			}
 
-			updated := d.fetchProfileUpdates(ctx, queue)
+			updateData := d.fetchProfileUpdates(ctx, queue)
+			updatedPlayers := d.applyRemoteData(updateData)
 
-			d.applyRemoteData(updated)
+			for _, player := range updatedPlayers {
+				d.playersMu.RLock()
+
+				if errSave := d.dataStore.SavePlayer(ctx, player); errSave != nil {
+					d.log.Error("Failed to save updated player state", zap.String("sid", player.SteamID.String()), zap.Error(errSave))
+				}
+
+				d.playersMu.RUnlock()
+			}
+
 			d.log.Info("Updated",
-				zap.Int("sums", len(updated.summaries)), zap.Int("bans", len(updated.bans)),
-				zap.Int("sourcebans", len(updated.sourcebans)), zap.Int("fiends", len(updated.friends)))
+				zap.Int("sums", len(updateData.summaries)), zap.Int("bans", len(updateData.bans)),
+				zap.Int("sourcebans", len(updateData.sourcebans)), zap.Int("fiends", len(updateData.friends)))
 
 			queue = nil
 		}
 	}
 }
 
-func (d *Detector) applyRemoteData(data updatedRemoteData) {
+func (d *Detector) applyRemoteData(data updatedRemoteData) []*store.Player {
 	d.playersMu.Lock()
 	defer d.playersMu.Unlock()
+
+	var updatedPlayers []*store.Player //nolint:prealloc
 
 	for _, player := range d.players {
 		for _, sum := range data.summaries {
@@ -1090,7 +1106,12 @@ func (d *Detector) applyRemoteData(data updatedRemoteData) {
 		if sb, ok := data.sourcebans[player.SteamID]; ok {
 			player.Sourcebans = sb
 		}
+		player.UpdatedOn = time.Now()
+		player.ProfileUpdatedOn = player.UpdatedOn
+		updatedPlayers = append(updatedPlayers, player)
 	}
+
+	return updatedPlayers
 }
 
 type updatedRemoteData struct {

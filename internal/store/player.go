@@ -114,6 +114,7 @@ func (ps Player) IsExpired() bool {
 }
 
 func (ps Player) Touch() {
+	ps.UpdatedOn = time.Now()
 	ps.Dirty = true
 }
 

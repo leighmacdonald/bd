@@ -121,13 +121,20 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
+		detector.playersMu.Lock()
+
 		player.Notes = opts.Note
+
+		player.Touch()
+
 		if errSave := detector.dataStore.SavePlayer(ctx, player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
+			detector.playersMu.Unlock()
 
 			return
 		}
 
+		detector.playersMu.Unlock()
 		detector.updateState(newNoteEvent(sid, opts.Note))
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
