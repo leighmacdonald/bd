@@ -228,7 +228,7 @@ func (d *Detector) discordStateUpdater(ctx context.Context) {
 			if isRunning {
 				d.serverMu.RLock()
 				d.playersMu.RLock()
-				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), d.server, d.gameProcessActive, d.startupTime); errUpdate != nil {
+				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), d.server, d.gameProcessActive.Load(), d.startupTime); errUpdate != nil {
 					log.Error("Failed to update discord activity", zap.Error(errUpdate))
 				}
 				d.playersMu.RUnlock()
