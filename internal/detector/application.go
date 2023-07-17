@@ -8,11 +8,13 @@ import (
 	gerrors "errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leighmacdonald/bd/internal/addons"
@@ -43,7 +45,7 @@ type Detector struct {
 	playersMu          *sync.RWMutex
 	logChan            chan string
 	eventChan          chan LogEvent
-	gameProcessActive  bool
+	gameProcessActive  atomic.Bool
 	startupTime        time.Time
 	server             *Server
 	serverMu           *sync.RWMutex
@@ -61,7 +63,7 @@ type Detector struct {
 	cache              Cache
 	Systray            *Systray
 	platform           platform.Platform
-	gameHasStartedOnce bool
+	gameHasStartedOnce atomic.Bool
 	dataSource         DataSource
 }
 
@@ -147,7 +149,6 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		playersMu:          &sync.RWMutex{},
 		logChan:            logChan,
 		eventChan:          eventChan,
-		gameProcessActive:  isRunning,
 		startupTime:        time.Now(),
 		server:             &Server{},
 		serverMu:           &sync.RWMutex{},
@@ -158,7 +159,6 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		dataStore:          database,
 		stateUpdates:       make(chan updateStateEvent),
 		cache:              cache,
-		gameHasStartedOnce: isRunning,
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
 		tr:                 translator,
@@ -166,6 +166,9 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		profileUpdateQueue: make(chan steamid.SID64),
 		dataSource:         dataSource,
 	}
+
+	application.gameProcessActive.Store(isRunning)
+	application.gameHasStartedOnce.Store(isRunning)
 
 	tray := NewSystray(
 		logger,
@@ -332,7 +335,7 @@ func (d *Detector) exportVoiceBans() error {
 
 func (d *Detector) LaunchGameAndWait() {
 	defer func() {
-		d.gameProcessActive = false
+		d.gameProcessActive.Store(false)
 		d.rconConn = nil
 	}()
 
@@ -359,7 +362,7 @@ func (d *Detector) LaunchGameAndWait() {
 		return
 	}
 
-	d.gameHasStartedOnce = true
+	d.gameHasStartedOnce.Store(true)
 
 	if errLaunch := d.platform.LaunchTF2(d.settings.GetTF2Dir(), args); errLaunch != nil {
 		d.log.Error("Failed to launch game", zap.Error(errLaunch))
@@ -869,7 +872,7 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 }
 
 func (d *Detector) ready(ctx context.Context) bool {
-	if !d.gameProcessActive {
+	if !d.gameProcessActive.Load() {
 		return false
 	}
 
@@ -908,7 +911,7 @@ func (d *Detector) SendChat(ctx context.Context, destination ChatDest, format st
 	return nil
 }
 
-func (d *Detector) CallVote(ctx context.Context, userID int64, reason KickReason) error {
+func (d *Detector) CallVote(ctx context.Context, userID int, reason KickReason) error {
 	if !d.ready(ctx) {
 		return ErrInvalidReadyState
 	}
@@ -929,7 +932,7 @@ func (d *Detector) processChecker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			existingState := d.gameProcessActive
+			existingState := d.gameProcessActive.Load()
 
 			newState, errRunningStatus := d.platform.IsGameRunning()
 			if errRunningStatus != nil {
@@ -939,12 +942,12 @@ func (d *Detector) processChecker(ctx context.Context) {
 			}
 
 			if existingState != newState {
-				d.gameProcessActive = newState
+				d.gameProcessActive.Store(newState)
 				d.log.Info("Game process state changed", zap.Bool("is_running", newState))
 			}
 
 			// Handle auto closing the app on game close if enabled
-			if !d.gameHasStartedOnce || !d.settings.GetAutoCloseOnGameExit() {
+			if !d.gameHasStartedOnce.Load() || !d.settings.GetAutoCloseOnGameExit() {
 				continue
 			}
 
@@ -1006,7 +1009,7 @@ func (d *Detector) Start(ctx context.Context) {
 	}()
 
 	if running, errRunning := d.platform.IsGameRunning(); errRunning == nil && !running {
-		if !d.gameHasStartedOnce && d.settings.GetAutoLaunchGame() {
+		if !d.gameHasStartedOnce.Load() && d.settings.GetAutoLaunchGame() {
 			go d.LaunchGameAndWait()
 		}
 	}
@@ -1177,4 +1180,79 @@ func (d *Detector) fetchProfileUpdates(ctx context.Context, queued steamid.Colle
 	waitGroup.Wait()
 
 	return updated
+}
+
+// nolint:gosec
+func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
+	idIdx := 0
+	knownIds := steamid.Collection{
+		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
+		"76561197989961569", "76561198183927541", "76561198005026984", "76561197997861796", "76561198377596915",
+		"76561198336028289", "76561198066637626", "76561198818013048", "76561198196411029", "76561198079544034",
+		"76561198008337801", "76561198042902038", "76561198013287458", "76561198038487121", "76561198046766708",
+		"76561197963310062", "76561198017314810", "76561197967842214", "76561197984047970", "76561198020124821",
+		"76561198010868782", "76561198022397372", "76561198016314731", "76561198087124802", "76561198024022137",
+		"76561198015577906", "76561197997861796",
+	}
+
+	randPlayer := func(userId int) *store.Player {
+		team := store.Blu
+		if userId%2 == 0 {
+			team = store.Red
+		}
+
+		player, errP := detector.GetPlayerOrCreate(context.TODO(), knownIds[idIdx])
+		if errP != nil {
+			panic(errP)
+		}
+
+		player.KillsOn = rand.Intn(20)
+		player.RageQuits = rand.Intn(10)
+		player.DeathsBy = rand.Intn(20)
+		player.Team = team
+		player.Connected = float64(rand.Intn(3600))
+		player.UserID = userId
+		player.Ping = rand.Intn(150)
+		player.Kills = rand.Intn(50)
+		player.Deaths = rand.Intn(300)
+		idIdx++
+
+		return player
+	}
+
+	var testPlayers store.PlayerCollection
+
+	for i := 0; i < count; i++ {
+		player := randPlayer(i)
+
+		switch i {
+		case 1:
+			player.NumberOfVACBans = 2
+			player.Notes = "User notes \ngo here"
+			last := time.Now().AddDate(-1, 0, 0)
+			player.LastVACBanOn = &last
+		case 4:
+			player.Matches = append(player.Matches, &rules.MatchResult{
+				Origin:      "Test Rules List",
+				Attributes:  []string{"cheater"},
+				MatcherType: "string",
+			})
+		case 6:
+			player.Matches = append(player.Matches, &rules.MatchResult{
+				Origin:      "Test Rules List",
+				Attributes:  []string{"other"},
+				MatcherType: "string",
+			})
+
+		case 7:
+			player.Team = store.Spec
+		}
+
+		testPlayers = append(testPlayers, player)
+	}
+	detector.playersMu.Lock()
+	detector.players = testPlayers
+	detector.playersMu.Unlock()
+
+	return testPlayers
 }
