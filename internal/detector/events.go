@@ -2,7 +2,6 @@ package detector
 
 import (
 	"context"
-	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -91,7 +90,7 @@ type lobbyEvent struct {
 
 type statusEvent struct {
 	ping      int
-	userID    int64
+	userID    int
 	name      string
 	connected time.Duration
 }
@@ -132,30 +131,8 @@ func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEve
 	}
 }
 
-type randomPlayerStateEvent struct {
-	updatedOn time.Time
-	connected float64
-	ping      int
-	kills     int
-	deaths    int
-}
-
 type noteEvent struct {
 	body string
-}
-
-func newRandomPlayerStateEvent(sid steamid.SID64, connected float64) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateTestPlayer,
-		source: sid,
-		data: randomPlayerStateEvent{
-			updatedOn: time.Now(),
-			connected: connected + 5,
-			ping:      rand.Intn(110), //nolint:gosec
-			kills:     rand.Intn(50),  //nolint:gosec
-			deaths:    rand.Intn(30),  //nolint:gosec
-		},
-	}
 }
 
 func newNoteEvent(sid steamid.SID64, body string) updateStateEvent {
@@ -293,7 +270,7 @@ func (d *Detector) incomingLogEventHandler(ctx context.Context) {
 	}
 }
 
-func newStatusUpdate(sid steamid.SID64, ping int, userID int64, name string, connected time.Duration) updateStateEvent {
+func newStatusUpdate(sid steamid.SID64, ping int, userID int, name string, connected time.Duration) updateStateEvent {
 	return updateStateEvent{
 		kind:   updateStatus,
 		source: sid,
@@ -316,7 +293,7 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case update := <-d.stateUpdates:
-			log.Info("Game state update input received", zap.String("kind", update.kind.String()))
+			log.Debug("Game state update input received", zap.String("kind", update.kind.String()))
 
 			if update.kind == updateStatus && !update.source.Valid() {
 				continue
@@ -384,9 +361,6 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 			case changeMap:
 				d.onMapChange()
 			}
-
-			log.Debug("Game state update input", zap.Int("kind", int(update.kind)), zap.String("state", "end"))
-			// reset <- true
 		}
 	}
 }
@@ -481,6 +455,13 @@ func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt stat
 	player.Name = evt.name
 	player.Connected = evt.connected.Seconds()
 	player.UpdatedOn = time.Now()
+
+	d.log.Debug("Player status updated",
+		zap.String("sid", steamID.String()),
+		zap.Int("tags", evt.ping),
+		zap.Int("uid", evt.userID),
+		zap.String("name", evt.name),
+		zap.Int("connected", int(evt.connected.Seconds())))
 }
 
 func (d *Detector) onTeamChange(steamID steamid.SID64, evt lobbyEvent) {
@@ -493,6 +474,8 @@ func (d *Detector) onTeamChange(steamID steamid.SID64, evt lobbyEvent) {
 	defer d.playersMu.Unlock()
 
 	player.Team = evt.team
+
+	d.log.Debug("Team updated", zap.String("sid", steamID.String()), zap.String("tags", evt.team.String()))
 }
 
 func (d *Detector) onTags(evt tagsEvent) {
@@ -501,6 +484,8 @@ func (d *Detector) onTags(evt tagsEvent) {
 
 	d.server.Tags = evt.tags
 	d.server.LastUpdate = time.Now()
+
+	d.log.Debug("Tags updated", zap.Strings("tags", evt.tags))
 }
 
 func (d *Detector) onHostname(evt hostnameEvent) {
@@ -509,6 +494,8 @@ func (d *Detector) onHostname(evt hostnameEvent) {
 
 	d.server.ServerName = evt.hostname
 	d.server.LastUpdate = time.Now()
+
+	d.log.Debug("Hostname changed", zap.String("hostname", evt.hostname))
 }
 
 func (d *Detector) onMapName(evt mapEvent) {
@@ -517,7 +504,7 @@ func (d *Detector) onMapName(evt mapEvent) {
 
 	d.server.CurrentMap = evt.mapName
 
-	d.log.Info("Map changed", zap.String("map", evt.mapName))
+	d.log.Debug("Map changed", zap.String("map", evt.mapName))
 }
 
 func (d *Detector) onMapChange() {
