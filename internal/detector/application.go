@@ -1109,8 +1109,10 @@ func (d *Detector) applyRemoteData(data updatedRemoteData) []*store.Player {
 		if sb, ok := data.sourcebans[player.SteamID]; ok {
 			player.Sourcebans = sb
 		}
+
 		player.UpdatedOn = time.Now()
 		player.ProfileUpdatedOn = player.UpdatedOn
+
 		updatedPlayers = append(updatedPlayers, player)
 	}
 

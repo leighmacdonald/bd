@@ -60,7 +60,8 @@ func testApp() (*detector.Detector, error) {
 	}
 
 	versionInfo := detector.Version{Version: "", Commit: "", Date: "", BuiltBy: ""}
-	application := detector.New(logger, userSettings, dataStore, versionInfo, &detector.NopCache{}, logReader, logChan)
+	ds, _ := detector.NewAPIDataSource("")
+	application := detector.New(logger, userSettings, dataStore, versionInfo, &detector.NopCache{}, logReader, logChan, ds)
 
 	return application, nil
 }
@@ -98,6 +99,7 @@ func TestGetPlayers(t *testing.T) {
 
 	app, _ := testApp()
 	tp := detector.CreateTestPlayers(app, 5)
+
 	var players store.PlayerCollection
 
 	fetchIntoWithStatus(t, http.MethodGet, "/players", http.StatusOK, &players, nil)

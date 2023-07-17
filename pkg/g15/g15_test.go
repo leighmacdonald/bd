@@ -17,7 +17,7 @@ func TestParser_Parse(t *testing.T) {
 
 	parser := g15.New()
 
-	var dumpData g15.DumpData
+	var dumpData g15.DumpPlayer
 
 	require.NoError(t, parser.Parse(testFile, &dumpData))
 	require.Equal(t, dumpData.Names[3], "The Legendary 215 Gray Cakes")
