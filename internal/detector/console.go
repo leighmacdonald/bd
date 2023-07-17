@@ -152,7 +152,7 @@ func (parser *LogParser) Parse(msg string, outEvent *LogEvent) error {
 					continue
 				}
 
-				outEvent.UserID = userID
+				outEvent.UserID = int(userID)
 				outEvent.Player = match[3]
 				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
 				outEvent.PlayerConnected = dur

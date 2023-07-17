@@ -21,6 +21,21 @@ const (
 	Blu
 )
 
+func (t Team) String() string {
+	switch t {
+	case Spec:
+		return "spectator"
+	case Unassigned:
+		return "unassigned"
+	case Red:
+		return "red"
+	case Blu:
+		return "blu"
+	default:
+		return "unknown"
+	}
+}
+
 type BaseSID struct {
 	SteamID steamid.SID64 `json:"steam_id"`
 }

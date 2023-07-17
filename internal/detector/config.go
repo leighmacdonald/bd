@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/andygrunwald/vdf"
@@ -13,6 +14,38 @@ import (
 )
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
+	if !steamID.Valid() { //nolint:nestif
+		userDataRoot := path.Join(steamRoot, "userdata")
+		// Attempt to use the id found in the userdata if only one exists
+		entries, err := os.ReadDir(userDataRoot)
+		if err != nil {
+			return "", errors.Wrap(err, "Failed to read userdata root")
+		}
+
+		dirCount := 0
+
+		// List the userdata folder to find potential steamid. If there is more than one steamid looking
+		// directory, then error out as we don't know which is the correct.
+		for _, entry := range entries {
+			if entry.IsDir() {
+				sidInt, errParse := strconv.ParseInt(entry.Name(), 10, 32)
+				if errParse != nil {
+					continue
+				}
+
+				maybeSteamID := steamid.SID32ToSID64(steamid.SID32(sidInt))
+				if maybeSteamID.Valid() {
+					steamID = maybeSteamID
+				}
+
+				dirCount++
+				if dirCount == 2 {
+					return "", errors.Wrap(err, "Failed to guess userdata root, too many choices")
+				}
+			}
+		}
+	}
+
 	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.SID32()), "config", "localconfig.vdf")
 	if !util.Exists(configPath) {
 		return "", errors.New("Path does not exist")

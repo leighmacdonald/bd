@@ -66,8 +66,8 @@ type Player struct {
 	// Connected is how long the user has been in the server
 	Connected float64 `json:"connected"`
 	// In game user id
-	UserID int64 `json:"user_id"`
-	Ping   int   `json:"ping"`
+	UserID int `json:"user_id"`
+	Ping   int `json:"ping"`
 
 	// Parsed stats from logs
 	Kills  int `json:"kills"`
