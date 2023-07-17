@@ -12,7 +12,7 @@ import (
 
 const maxDataSize = 34
 
-type DumpData struct {
+type DumpPlayer struct {
 	Names     [maxDataSize]string
 	Ping      [maxDataSize]int
 	Score     [maxDataSize]int
@@ -27,8 +27,7 @@ type DumpData struct {
 }
 
 type Parser struct {
-	rx      *regexp.Regexp
-	rxIndex *regexp.Regexp
+	rx *regexp.Regexp
 }
 
 func New() Parser {
@@ -37,7 +36,7 @@ func New() Parser {
 	}
 }
 
-func (p Parser) Parse(reader io.Reader, data *DumpData) error {
+func (p Parser) Parse(reader io.Reader, data *DumpPlayer) error {
 	body, errRead := io.ReadAll(reader)
 	if errRead != nil {
 		return errors.Wrap(errRead, "Failed to read dump data from reader")
