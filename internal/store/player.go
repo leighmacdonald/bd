@@ -69,6 +69,13 @@ type Player struct {
 	UserID int `json:"user_id"`
 	Ping   int `json:"ping"`
 
+	// g15_dumpplayer
+	Score       int  `json:"score"`
+	IsConnected bool `json:"is_connected"` // probably not needed
+	Alive       bool `json:"alive"`
+	Health      int  `json:"health"`
+	Valid       bool `json:"valid"` // What is it?
+
 	// Parsed stats from logs
 	Kills  int `json:"kills"`
 	Deaths int `json:"deaths"`
