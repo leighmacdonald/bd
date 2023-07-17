@@ -17,6 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/leighmacdonald/bd/pkg/g15"
+
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -65,6 +67,7 @@ type Detector struct {
 	platform           platform.Platform
 	gameHasStartedOnce atomic.Bool
 	dataSource         DataSource
+	g15                g15.Parser
 }
 
 func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, versionInfo Version, cache Cache,
@@ -165,6 +168,7 @@ func New(logger *zap.Logger, settings *UserSettings, database store.DataStore, v
 		platform:           plat,
 		profileUpdateQueue: make(chan steamid.SID64),
 		dataSource:         dataSource,
+		g15:                g15.New(),
 	}
 
 	application.gameProcessActive.Store(isRunning)
@@ -488,6 +492,44 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 	if errStatus != nil {
 		return "", errors.Wrap(errStatus, "Failed to get status results")
 	}
+
+	dumpPlayer, errDumpPlayer := d.rconConn.Exec("g15_dumpplayer")
+	if errDumpPlayer != nil {
+		return "", errors.Wrap(errDumpPlayer, "Failed to get g15_dumpplayer results")
+	}
+
+	var dump g15.DumpPlayer
+	if errG15 := d.g15.Parse(bytes.NewBufferString(dumpPlayer), &dump); errG15 != nil {
+		return "", errors.Wrap(errG15, "Failed to parse g15_dumpplayer results")
+	}
+
+	for index, sid := range dump.SteamID {
+		if index == 0 || index > 32 || !sid.Valid() {
+			// Actual data always starts at 1
+			continue
+		}
+
+		player, inGame := d.GetPlayer(sid)
+		if !inGame {
+			// status command is what we use to add players to the active game.
+			continue
+		}
+
+		d.playersMu.Lock()
+
+		player.Ping = dump.Ping[index]
+		player.Score = dump.Score[index]
+		player.Deaths = dump.Deaths[index]
+		player.IsConnected = dump.Connected[index]
+		player.Team = store.Team(dump.Team[index])
+		player.Alive = dump.Alive[index]
+		player.Health = dump.Health[index]
+		player.Valid = dump.Valid[index]
+		player.UserID = dump.UserID[index]
+
+		d.playersMu.Unlock()
+	}
+
 	// TODO g15_dumpplayer
 	// Sent to client, response via direct rcon response
 	lobbyStatus, errDebug := d.rconConn.Exec("tf_lobby_debug")
@@ -1252,6 +1294,7 @@ func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 
 		testPlayers = append(testPlayers, player)
 	}
+
 	detector.playersMu.Lock()
 	detector.players = testPlayers
 	detector.playersMu.Unlock()
