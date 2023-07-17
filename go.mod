@@ -11,7 +11,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/jeandeaual/go-locale v0.0.0-20220711133428-7de61946b173
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
-	github.com/leighmacdonald/bd-api v0.0.0-20230709091415-54411b91069d
+	github.com/leighmacdonald/bd-api v0.0.0-20230717075241-ae63e9ed6cd2
 	github.com/leighmacdonald/rcon v1.0.10
 	github.com/leighmacdonald/steamid/v3 v3.0.4
 	github.com/leighmacdonald/steamweb/v2 v2.1.1
