@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/internal/platform"
@@ -94,9 +93,8 @@ const (
 )
 
 type UserSettings struct {
-	*sync.RWMutex `yaml:"-"`
 	// Path to config used when reading UserSettings
-	configPath string        `yaml:"-"`
+	ConfigPath string        `yaml:"-" json:"config_path"`
 	SteamID    steamid.SID64 `yaml:"steam_id" json:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
@@ -124,285 +122,13 @@ type UserSettings struct {
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level"`
 	UseBDAPIDataSource      bool                 `yaml:"use_bdapi_data_source"`
-	rcon                    RCONConfigProvider   `yaml:"-" `
+	Rcon                    RCONConfig           `yaml:"-"`
 }
 
-func (s *UserSettings) GetVoiceBansEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.VoiceBansEnabled
-}
-
-func (s *UserSettings) SetVoiceBansEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-	s.VoiceBansEnabled = enabled
-}
-
-func (s *UserSettings) GetDebugLogEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.DebugLogEnabled
-}
-
-func (s *UserSettings) SetDebugLogEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-	s.DebugLogEnabled = enabled
-}
-
-func (s *UserSettings) GetHTTPEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.HTTPEnabled
-}
-
-func (s *UserSettings) SetHTTPEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-	s.HTTPEnabled = enabled
-}
-
-func (s *UserSettings) GetRcon() RCONConfigProvider { // nolint:ireturn
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.rcon
-}
-
-func (s *UserSettings) GetRCONStatic() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.RCONStatic
-}
-
-func (s *UserSettings) GetKickerEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.KickerEnabled
-}
-
-func (s *UserSettings) GetAutoCloseOnGameExit() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.AutoCloseOnGameExit
-}
-
-func (s *UserSettings) SetSteamID(steamID steamid.SID64) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.SteamID = steamID
-}
-
-func (s *UserSettings) SetAutoCloseOnGameExit(autoClose bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.AutoCloseOnGameExit = autoClose
-}
-
-func (s *UserSettings) SetAutoLaunchGame(autoLaunch bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.AutoLaunchGame = autoLaunch
-}
-
-func (s *UserSettings) SetRconStatic(static bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.RCONStatic = static
-}
-
-func (s *UserSettings) SetChatWarningsEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.ChatWarningsEnabled = enabled
-}
-
-func (s *UserSettings) SetPartyWarningsEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.PartyWarningsEnabled = enabled
-}
-
-func (s *UserSettings) SetKickerEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.KickerEnabled = enabled
-}
-
-func (s *UserSettings) SetTF2Dir(dir string) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.TF2Dir = dir
-}
-
-func (s *UserSettings) SetSteamDir(dir string) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.SteamDir = dir
-}
-
-func (s *UserSettings) SetKickTags(tags []string) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.KickTags = tags
-}
-
-func (s *UserSettings) SetAPIKey(key string) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.APIKey = key
-}
-
-func (s *UserSettings) SetLists(lists ListConfigCollection) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.Lists = lists
-}
-
-func (s *UserSettings) SetLinks(links []*LinkConfig) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.Links = links
-}
-
-func (s *UserSettings) GetAutoLaunchGame() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.AutoLaunchGame
-}
-
-func (s *UserSettings) SetDiscordPresenceEnabled(enabled bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.DiscordPresenceEnabled = enabled
-}
-
-func (s *UserSettings) GetDiscordPresenceEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.DiscordPresenceEnabled
-}
-
-func (s *UserSettings) GetPartyWarningsEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.PartyWarningsEnabled
-}
-
-func (s *UserSettings) GetChatWarningsEnabled() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.ChatWarningsEnabled
-}
-
-func (s *UserSettings) GetAPIKey() string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.APIKey
-}
-
-func (s *UserSettings) GetConfigPath() string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.configPath
-}
-
-func (s *UserSettings) GetTF2Dir() string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.TF2Dir
-}
-
-func (s *UserSettings) GetSteamDir() string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.SteamDir
-}
-
-func (s *UserSettings) GetLists() ListConfigCollection {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.Lists
-}
-
-func (s *UserSettings) GetUseBDAPIDataSource() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.UseBDAPIDataSource
-}
-
-func (s *UserSettings) GetKickTags() []string {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.KickTags
-}
-
-func (s *UserSettings) GetSteamID() steamid.SID64 {
-	s.RLock()
-	defer s.RUnlock()
-	return s.SteamID
-}
-
-func (s *UserSettings) AddList(config *ListConfig) error {
-	s.Lock()
-	defer s.Unlock()
-
-	for _, known := range s.Lists {
-		if config.ListType == known.ListType &&
-			strings.EqualFold(config.URL, known.URL) {
-			return errDuplicateList
-		}
-	}
-
-	s.Lists = append(s.Lists, config)
-
-	return nil
-}
-
-func (s *UserSettings) GetLinks() LinkConfigCollection {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.Links
-}
-
-func NewSettings() (*UserSettings, error) {
+func NewSettings() (UserSettings, error) {
 	plat := platform.New()
 	newSettings := UserSettings{
-		RWMutex:                 &sync.RWMutex{},
-		configPath:              ".",
+		ConfigPath:              ".",
 		SteamID:                 "",
 		SteamDir:                plat.DefaultSteamRoot(),
 		TF2Dir:                  plat.DefaultTF2Root(),
@@ -507,20 +233,33 @@ func NewSettings() (*UserSettings, error) {
 		HTTPEnabled:        true,
 		HTTPListenAddr:     "localhost:8900",
 		UseBDAPIDataSource: true,
-		rcon:               NewRconConfig(false),
+		Rcon:               NewRconConfig(false),
 	}
 
 	if !util.Exists(newSettings.ListRoot()) {
 		if err := os.MkdirAll(newSettings.ListRoot(), 0o755); err != nil {
-			return nil, errors.Wrap(err, "Failed to initialize UserSettings directory")
+			return newSettings, errors.Wrap(err, "Failed to initialize UserSettings directory")
 		}
 	}
 
-	return &newSettings, nil
+	return newSettings, nil
 }
 
 func (s *UserSettings) LogFilePath() string {
 	return filepath.Join(configdir.LocalConfig(configRoot), "bd.log")
+}
+
+func (s *UserSettings) AddList(config *ListConfig) error {
+	for _, known := range s.Lists {
+		if config.ListType == known.ListType &&
+			strings.EqualFold(config.URL, known.URL) {
+			return errDuplicateList
+		}
+	}
+
+	s.Lists = append(s.Lists, config)
+
+	return nil
 }
 
 func (s *UserSettings) ReadDefaultOrCreate() error {
@@ -541,8 +280,7 @@ func (s *UserSettings) ReadDefaultOrCreate() error {
 
 func (s *UserSettings) Validate() error {
 	var err error
-
-	if !s.SteamID.Valid() {
+	if s.SteamID != "" && !s.SteamID.Valid() {
 		err = errjoin.Join(err, steamid.ErrInvalidSID)
 	}
 
@@ -581,7 +319,7 @@ func (s *UserSettings) LocalRulesListPath() string {
 func (s *UserSettings) ReadFilePath(filePath string) error {
 	if !util.Exists(filePath) {
 		// Use defaults
-		s.configPath = filePath
+		s.ConfigPath = filePath
 
 		return errConfigNotFound
 	}
@@ -597,27 +335,23 @@ func (s *UserSettings) ReadFilePath(filePath string) error {
 		return errRead
 	}
 
-	s.configPath = filePath
+	s.ConfigPath = filePath
 
 	return nil
 }
 
 func (s *UserSettings) Read(inputFile io.Reader) error {
-	s.Lock()
 	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
-		s.Unlock()
-
 		return errors.Wrap(errDecode, "Failed to decode settings")
 	}
 
-	s.Unlock()
 	s.reload()
 
 	return nil
 }
 
 func (s *UserSettings) Save() error {
-	if errWrite := s.WriteFilePath(s.GetConfigPath()); errWrite != nil {
+	if errWrite := s.WriteFilePath(s.ConfigPath); errWrite != nil {
 		return errWrite
 	}
 
@@ -627,10 +361,9 @@ func (s *UserSettings) Save() error {
 }
 
 func (s *UserSettings) reload() {
-	newCfg := NewRconConfig(s.GetRCONStatic())
-	s.Lock()
-	s.rcon = newCfg
-	s.Unlock()
+	newCfg := NewRconConfig(s.RCONStatic)
+
+	s.Rcon = newCfg
 }
 
 func (s *UserSettings) WriteFilePath(filePath string) error {
@@ -645,9 +378,6 @@ func (s *UserSettings) WriteFilePath(filePath string) error {
 }
 
 func (s *UserSettings) Write(outputFile io.Writer) error {
-	s.RLock()
-	defer s.RUnlock()
-
 	if errEncode := yaml.NewEncoder(outputFile).Encode(s); errEncode != nil {
 		return errors.Wrap(errEncode, "Failed to encode settings")
 	}
@@ -662,25 +392,13 @@ const (
 )
 
 type RCONConfig struct {
-	address  string
-	password string
-	port     uint16
+	Address  string `json:"address"`
+	Password string
+	Port     uint16
 }
 
 func (cfg RCONConfig) String() string {
-	return fmt.Sprintf("%s:%d", cfg.address, cfg.port)
-}
-
-func (cfg RCONConfig) Host() string {
-	return cfg.address
-}
-
-func (cfg RCONConfig) Port() uint16 {
-	return cfg.port
-}
-
-func (cfg RCONConfig) Password() string {
-	return cfg.password
+	return fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 }
 
 func randPort() uint16 {
@@ -694,25 +412,18 @@ func randPort() uint16 {
 	return uint16(binary.LittleEndian.Uint64(b[:]))
 }
 
-type RCONConfigProvider interface {
-	String() string
-	Host() string
-	Port() uint16
-	Password() string
-}
-
 func NewRconConfig(static bool) RCONConfig {
 	if static {
 		return RCONConfig{
-			address:  rconDefaultListenAddr,
-			port:     rconDefaultPort,
-			password: rconDefaultPassword,
+			Address:  rconDefaultListenAddr,
+			Port:     rconDefaultPort,
+			Password: rconDefaultPassword,
 		}
 	}
 
 	return RCONConfig{
-		address:  rconDefaultListenAddr,
-		port:     randPort(),
-		password: util.RandomString(10),
+		Address:  rconDefaultListenAddr,
+		Port:     randPort(),
+		Password: util.RandomString(10),
 	}
 }

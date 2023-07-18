@@ -20,13 +20,13 @@ type Web struct {
 }
 
 func NewWeb(detector *Detector) (*Web, error) {
-	engine := createRouter(detector.log, detector.settings.RunMode)
+	engine := createRouter(detector.log, detector.Settings().RunMode)
 	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
 		return nil, errRoutes
 	}
 
 	httpServer := &http.Server{
-		Addr:         detector.settings.HTTPListenAddr,
+		Addr:         detector.Settings().HTTPListenAddr,
 		Handler:      engine,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -101,7 +101,7 @@ func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
 }
 
 func setupRoutes(engine *gin.Engine, detector *Detector) error {
-	if detector.settings.RunMode != gin.TestMode {
+	if detector.settings.RunMode != ModeTest {
 		absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
 		if errStaticPath != nil {
 			return errors.Wrap(errStaticPath, "Failed to setup static paths")

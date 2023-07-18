@@ -67,7 +67,7 @@ func main() {
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.GetTF2Dir(), "console.log"), logChan)
+	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
 	if errLogReader != nil {
 		logger.Error("Failed to create logreader", zap.Error(errLogReader))
 
@@ -75,21 +75,21 @@ func main() {
 	}
 
 	var (
-		ds    detector.DataSource
-		errDS error
+		dataSource detector.DataSource
+		errDS      error
 	)
 
-	if userSettings.GetUseBDAPIDataSource() {
-		ds, errDS = detector.NewAPIDataSource("")
+	if userSettings.UseBDAPIDataSource {
+		dataSource, errDS = detector.NewAPIDataSource("")
 	} else {
-		ds, errDS = detector.NewLocalDataSource(userSettings.APIKey)
+		dataSource, errDS = detector.NewLocalDataSource(userSettings.APIKey)
 	}
 
 	if errDS != nil {
 		logger.Fatal("Failed to initialize data source", zap.Error(errDS))
 	}
 
-	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan, ds)
+	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
 
 	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
 

@@ -383,7 +383,7 @@ func (d *Detector) onKill(evt killEvent) {
 	d.playersMu.Lock()
 	defer d.playersMu.Unlock()
 
-	ourSid := d.settings.GetSteamID()
+	ourSid := d.Settings().SteamID
 
 	src, srcOk := d.players.ByName(evt.sourceName)
 	if !srcOk {

@@ -119,7 +119,7 @@ func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNam
 	query, args, errSQL := sq.
 		Insert("player_names").
 		Columns("steam_id", "name", "created_on").
-		Values(hist.SteamID, hist.Name, time.Now()).
+		Values(hist.SteamID.Int64(), hist.Name, time.Now()).
 		ToSql()
 	if errSQL != nil {
 		return errors.Wrap(errSQL, "Failed to generate query")
@@ -198,7 +198,7 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 		Set("whitelist", state.Whitelisted).
 		Set("updated_on", state.UpdatedOn).
 		Set("profile_updated_on", state.ProfileUpdatedOn).
-		Where(sq.Eq{"steam_id": state.SteamID}).ToSql()
+		Where(sq.Eq{"steam_id": state.SteamID.Int64()}).ToSql()
 
 	if errSQL != nil {
 		return errors.Wrap(errSQL, "Failed to generate query")
@@ -275,15 +275,18 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 		var (
 			prevName *string
 			player   Player
+			sid      int64
 		)
 
-		if errScan := rows.Scan(&player.SteamID, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
+		if errScan := rows.Scan(&sid, &player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
 			&player.CommunityBanned, &player.NumberOfGameBans, &player.NumberOfVACBans,
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		); errScan != nil {
 			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
+
+		player.SteamID = steamid.New(sid)
 
 		if prevName != nil {
 			player.Name = *prevName
@@ -377,6 +380,8 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
 
+		h.SteamID = steamID
+
 		hist = append(hist, h)
 	}
 
@@ -411,11 +416,16 @@ func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID
 	var messages UserMessageCollection
 
 	for rows.Next() {
-		var message UserMessage
-		if errScan := rows.Scan(&message.SteamID, &message.MessageID, &message.Message, &message.Created); errScan != nil {
+		var (
+			message UserMessage
+			sid     int64
+		)
+
+		if errScan := rows.Scan(&sid, &message.MessageID, &message.Message, &message.Created); errScan != nil {
 			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
 
+		message.SteamID = steamid.New(sid)
 		messages = append(messages, message)
 	}
 
