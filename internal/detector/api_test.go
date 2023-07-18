@@ -33,8 +33,8 @@ func TestDataSource(t *testing.T) {
 	}
 
 	baseURL := ""
-	if _, isTest := os.LookupEnv("TEST"); isTest {
-		baseURL = "http://localhost:8888"
+	if apiURL, isTest := os.LookupEnv("API_URL"); isTest {
+		baseURL = apiURL
 	}
 
 	apiDataSource, errAPI := detector.NewAPIDataSource(baseURL)
