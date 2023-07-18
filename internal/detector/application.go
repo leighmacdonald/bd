@@ -436,10 +436,12 @@ func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string
 	}
 
 	d.playersMu.RLock()
+
 	name := player.Name
 	if name == "" {
 		name = player.NamePrevious
 	}
+
 	d.playersMu.RUnlock()
 
 	if errMark := d.rules.Mark(rules.MarkOpts{

@@ -392,9 +392,9 @@ const (
 )
 
 type RCONConfig struct {
-	Address  string `json:"address"`
-	Password string
-	Port     uint16
+	Address  string `json:"address" yaml:"address"`
+	Password string `json:"password" yaml:"password"`
+	Port     uint16 `json:"port" yaml:"port"`
 }
 
 func (cfg RCONConfig) String() string {
