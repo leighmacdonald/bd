@@ -146,7 +146,6 @@ func newNoteEvent(sid steamid.SID64, body string) updateStateEvent {
 }
 
 type whitelistEvent struct {
-	tags         []string
 	addWhitelist bool
 }
 
@@ -156,20 +155,6 @@ func newWhitelistEvent(sid steamid.SID64, addWhitelist bool) updateStateEvent {
 		source: sid,
 		data: whitelistEvent{
 			addWhitelist: addWhitelist, // false to unmark
-		},
-	}
-}
-
-type teamEvent struct {
-	team store.Team
-}
-
-func newTeamEvent(sid steamid.SID64, team store.Team) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateTeam,
-		source: sid,
-		data: teamEvent{
-			team: team,
 		},
 	}
 }
@@ -330,13 +315,6 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 				}
 
 				d.onStatus(ctx, update.source, evt)
-			case updateLobby:
-				evt, ok := update.data.(lobbyEvent)
-				if !ok {
-					continue
-				}
-
-				d.onTeamChange(update.source, evt)
 			case updateTags:
 				evt, ok := update.data.(tagsEvent)
 				if !ok {
@@ -462,20 +440,6 @@ func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt stat
 		zap.Int("uid", evt.userID),
 		zap.String("name", evt.name),
 		zap.Int("connected", int(evt.connected.Seconds())))
-}
-
-func (d *Detector) onTeamChange(steamID steamid.SID64, evt lobbyEvent) {
-	player, exists := d.GetPlayer(steamID)
-	if !exists {
-		return
-	}
-
-	d.playersMu.Lock()
-	defer d.playersMu.Unlock()
-
-	player.Team = evt.team
-
-	d.log.Debug("Team updated", zap.String("sid", steamID.String()), zap.String("tags", evt.team.String()))
 }
 
 func (d *Detector) onTags(evt tagsEvent) {
