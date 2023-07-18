@@ -50,7 +50,8 @@ type Detector struct {
 	serverMu           *sync.RWMutex
 	reader             *LogReader
 	parser             *LogParser
-	rconConn           rconConnection
+	rconConn           *rcon.RemoteConsole
+	rconMu             *sync.RWMutex
 	settings           UserSettings
 	settingsMu         *sync.RWMutex
 	discordPresence    *client.Client
@@ -152,6 +153,7 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 		reader:             reader,
 		parser:             parser,
 		rconConn:           nil,
+		rconMu:             &sync.RWMutex{},
 		settings:           settings,
 		dataStore:          database,
 		stateUpdates:       make(chan updateStateEvent),
@@ -306,7 +308,9 @@ func (d *Detector) exportVoiceBans() error {
 func (d *Detector) LaunchGameAndWait() {
 	defer func() {
 		d.gameProcessActive.Store(false)
+		d.rconMu.Lock()
 		d.rconConn = nil
+		d.rconMu.Unlock()
 	}()
 
 	settings := d.Settings()
@@ -461,12 +465,12 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 	}
 
 	// Sent to client, response via log output
-	_, errStatus := d.rconConn.Exec("status")
+	_, errStatus := d.rconMulti("status")
 	if errStatus != nil {
 		return "", errors.Wrap(errStatus, "Failed to get status results")
 	}
 
-	dumpPlayer, errDumpPlayer := d.rconConn.Exec("g15_dumpplayer")
+	dumpPlayer, errDumpPlayer := d.rconMulti("g15_dumpplayer")
 	if errDumpPlayer != nil {
 		return "", errors.Wrap(errDumpPlayer, "Failed to get g15_dumpplayer results")
 	}
@@ -505,7 +509,7 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 
 	// TODO g15_dumpplayer
 	// Sent to client, response via direct rcon response
-	lobbyStatus, errDebug := d.rconConn.Exec("tf_lobby_debug")
+	lobbyStatus, errDebug := d.rconMulti("tf_lobby_debug")
 	if errDebug != nil {
 		return "", errors.Wrap(errDebug, "Failed to get debug results")
 	}
@@ -823,9 +827,13 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 }
 
 func (d *Detector) ensureRcon(ctx context.Context) error {
+	d.rconMu.RLock()
 	if d.rconConn != nil {
+		d.rconMu.RUnlock()
+
 		return nil
 	}
+	d.rconMu.RUnlock()
 
 	settings := d.Settings()
 
@@ -834,7 +842,9 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
 	}
 
+	d.rconMu.Lock()
 	d.rconConn = conn
+	d.rconMu.Unlock()
 
 	return nil
 }
@@ -871,10 +881,16 @@ func (d *Detector) SendChat(ctx context.Context, destination ChatDest, format st
 		return errors.Errorf("Invalid destination: %s", destination)
 	}
 
+	d.rconMu.Lock()
+
 	_, errExec := d.rconConn.Exec(cmd)
 	if errExec != nil {
+		d.rconMu.Unlock()
+
 		return errors.Wrap(errExec, "Failed to send rcon chat message")
 	}
+
+	d.rconMu.Unlock()
 
 	return nil
 }
@@ -884,10 +900,16 @@ func (d *Detector) CallVote(ctx context.Context, userID int, reason KickReason) 
 		return ErrInvalidReadyState
 	}
 
+	d.rconMu.Lock()
+
 	_, errExec := d.rconConn.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
 	if errExec != nil {
+		d.rconMu.Unlock()
+
 		return errors.Wrap(errExec, "Failed to send rcon callvote")
 	}
+
+	d.rconMu.Unlock()
 
 	return nil
 }
@@ -935,9 +957,13 @@ func (d *Detector) Shutdown(ctx context.Context) error {
 
 	var err error
 
+	d.rconMu.Lock()
+
 	if d.rconConn != nil {
 		util.LogClose(d.log, d.rconConn)
 	}
+
+	d.rconMu.Unlock()
 
 	if errCloseDB := d.dataStore.Close(); errCloseDB != nil {
 		err = gerrors.Join(errCloseDB)
@@ -1150,6 +1176,36 @@ func (d *Detector) fetchProfileUpdates(ctx context.Context, queued steamid.Colle
 	waitGroup.Wait()
 
 	return updated
+}
+
+func (d *Detector) rconMulti(cmd string) (string, error) {
+	d.rconMu.Lock()
+	defer d.rconMu.Unlock()
+
+	cmdID, errWrite := d.rconConn.Write(cmd)
+	if errWrite != nil {
+		return "", errors.Wrap(errWrite, "Failed to send rcon command")
+	}
+
+	var response string
+
+	for {
+		resp, respID, errRead := d.rconConn.Read()
+		if errRead != nil {
+			return "", errors.Wrap(errRead, "Failed to read rcon response")
+		}
+
+		if cmdID == respID {
+			s := len(resp)
+			response += resp
+
+			if s < 4000 {
+				break
+			}
+		}
+	}
+
+	return response, nil
 }
 
 // CreateTestPlayers will generate fake player data for testing purposes.

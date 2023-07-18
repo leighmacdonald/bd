@@ -10,11 +10,6 @@ import (
 
 var lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
 
-type rconConnection interface {
-	Exec(command string) (string, error)
-	Close() error
-}
-
 func ParseLobbyPlayers(body string) []*store.Player {
 	var lobbyPlayers []*store.Player //nolint:prealloc
 
