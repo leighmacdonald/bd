@@ -19,6 +19,8 @@ type Translator struct {
 }
 
 func NewTranslator() (*Translator, error) {
+	const defaultLocale = "en-GB"
+
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 
@@ -31,7 +33,7 @@ func NewTranslator() (*Translator, error) {
 
 	userLocales, err := locale.GetLocales()
 	if err != nil {
-		userLocales = append(userLocales, "en-GB")
+		userLocales = append(userLocales, defaultLocale)
 	}
 
 	validLanguages := make([]string, len(userLocales))
@@ -39,7 +41,10 @@ func NewTranslator() (*Translator, error) {
 	for index, userLocale := range userLocales {
 		langTag, langTagErr := language.Parse(userLocale)
 		if langTagErr != nil {
-			return nil, errors.Wrapf(langTagErr, "Failed to parse language tag: %s", userLocale)
+			// Fallback to our default
+			if langTag, langTagErr = language.Parse(defaultLocale); langTagErr != nil {
+				return nil, errors.Wrapf(langTagErr, "Failed to parse language tag: %s", userLocale)
+			}
 		}
 
 		validLanguages[index] = langTag.String()
