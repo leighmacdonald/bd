@@ -44,9 +44,9 @@ func (reader *LogReader) start(ctx context.Context) {
 }
 
 func newLogReader(logger *zap.Logger, path string, outChan chan string, echo bool) (*LogReader, error) {
-	tailLogger := tail.DiscardingLogger
-	if echo {
-		tailLogger = tail.DefaultLogger
+	log := tail.DefaultLogger
+	if !echo {
+		log = tail.DiscardingLogger
 	}
 	//goland:noinspection GoBoolExpressions
 	tailConfig := tail.Config{
@@ -58,7 +58,7 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 		ReOpen:    true,
 		MustExist: false,
 		Poll:      runtime.GOOS == "windows", // TODO Is this still required years later?
-		Logger:    tailLogger,
+		Logger:    log,
 	}
 	//goland:noinspection ALL
 	tailFile, errTail := tail.TailFile(path, tailConfig)

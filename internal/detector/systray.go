@@ -50,14 +50,13 @@ func (s *Systray) OnReady(cancel context.CancelFunc) func() {
 				select {
 				case <-launchGame.ClickedCh:
 					s.log.Debug("launchGame clicked")
-					s.onLaunch()
+					go s.onLaunch()
 				case <-openWeb.ClickedCh:
 					s.log.Debug("openWeb Clicked")
+					s.onOpen()
 				case <-s.quit.ClickedCh:
 					s.log.Debug("User Quit")
 					cancel()
-					// systray.Quit()
-					s.onOpen()
 				}
 			}
 		}()
