@@ -2,7 +2,6 @@ package detector
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/internal/store"
@@ -46,12 +45,12 @@ func getNames(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func getState(detector *Detector) gin.HandlerFunc {
-	type currentState struct {
-		Server  *Server         `json:"server"`
-		Players []*store.Player `json:"players"`
-	}
+type CurrentState struct {
+	Server  *Server         `json:"server"`
+	Players []*store.Player `json:"players"`
+}
 
+func getState(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		detector.playersMu.RLock()
 		defer detector.playersMu.RUnlock()
@@ -63,19 +62,19 @@ func getState(detector *Detector) gin.HandlerFunc {
 			players = []*store.Player{}
 		}
 
-		responseOK(ctx, http.StatusOK, currentState{Server: detector.server, Players: players})
+		responseOK(ctx, http.StatusOK, CurrentState{Server: detector.server, Players: players})
 	}
 }
 
 type WebUserSettings struct {
-	*UserSettings
+	UserSettings
 	UniqueTags []string `json:"unique_tags"`
 }
 
 func getSettings(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		wus := WebUserSettings{
-			UserSettings: detector.settings,
+			UserSettings: detector.Settings(),
 			UniqueTags:   detector.rules.UniqueTags(),
 		}
 
@@ -90,9 +89,11 @@ func postSettings(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		wus.RWMutex = &sync.RWMutex{}
-		// TODO Proper validation
-		detector.settings = wus.UserSettings
+		if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
+			responseErr(ctx, http.StatusBadRequest, errSave.Error())
+
+			return
+		}
 
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
@@ -135,7 +136,9 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 		}
 
 		detector.playersMu.Unlock()
-		detector.updateState(newNoteEvent(sid, opts.Note))
+
+		go detector.updateState(newNoteEvent(sid, opts.Note))
+
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }

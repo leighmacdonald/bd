@@ -16,6 +16,7 @@ import (
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,6 +25,8 @@ import (
 func testApp() (*detector.Detector, error) {
 	logger := zap.NewNop()
 	userSettings, _ := detector.NewSettings()
+	userSettings.RunMode = detector.ModeTest
+	userSettings.SteamID = steamid.RandSID64()
 
 	var dataStore store.DataStore
 
@@ -54,7 +57,7 @@ func testApp() (*detector.Detector, error) {
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.GetTF2Dir(), "console.log"), logChan)
+	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
 	if errLogReader != nil {
 		return nil, errors.Wrap(errLogReader, "Failed to create test app")
 	}
@@ -66,10 +69,8 @@ func testApp() (*detector.Detector, error) {
 	return application, nil
 }
 
-func fetchIntoWithStatus(t *testing.T, method string, path string, status int, out any, body any) {
+func fetchIntoWithStatus(t *testing.T, app *detector.Detector, method string, path string, status int, out any, body any) {
 	t.Helper()
-
-	app, _ := testApp()
 
 	var bodyReader io.Reader
 
@@ -95,26 +96,22 @@ func fetchIntoWithStatus(t *testing.T, method string, path string, status int, o
 }
 
 func TestGetPlayers(t *testing.T) {
-	t.Parallel()
-
 	app, _ := testApp()
 	tp := detector.CreateTestPlayers(app, 5)
 
-	var players store.PlayerCollection
+	var state detector.CurrentState
 
-	fetchIntoWithStatus(t, http.MethodGet, "/players", http.StatusOK, &players, nil)
+	fetchIntoWithStatus(t, app, http.MethodGet, "/state", http.StatusOK, &state, nil)
 
-	require.Equal(t, len(tp), len(players))
+	require.Equal(t, len(tp), len(state.Players))
 }
 
 func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 
 	t.Run("Get Settings", func(t *testing.T) { //nolint:tparallel
 		var wus detector.WebUserSettings
-		fetchIntoWithStatus(t, "GET", "/settings", http.StatusOK, &wus, nil)
+		fetchIntoWithStatus(t, app, "GET", "/settings", http.StatusOK, &wus, nil)
 		settings := detector.WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
 		require.Equal(t, settings.SteamID, wus.SteamID)
 		require.Equal(t, settings.SteamDir, wus.SteamDir)
@@ -139,18 +136,18 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 	})
 
 	t.Run("Save Settings", func(t *testing.T) { //nolint:tparallel
-		s := app.Settings()
-		newSettings := *s
+		newSettings := app.Settings()
 		newSettings.TF2Dir = "new/dir"
-		fetchIntoWithStatus(t, http.MethodPost, "/settings", http.StatusNoContent, nil, newSettings)
-		s2 := app.Settings()
-		require.Equal(t, newSettings.TF2Dir, s2.TF2Dir)
+		newSettings.SteamID = steamid.RandSID64()
+
+		require.NoError(t, app.SaveSettings(newSettings))
+		fetchIntoWithStatus(t, app, http.MethodPost, "/settings", http.StatusNoContent, nil, newSettings)
+
+		require.EqualValues(t, newSettings, app.Settings())
 	})
 }
 
 func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostMarkPlayerOpts{
@@ -158,19 +155,19 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 	}
 
 	t.Run("Mark Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark Duplicate Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusConflict, nil, req)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusConflict, nil, req)
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark Without Attrs", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
 			Attrs: []string{},
 		})
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
@@ -178,7 +175,7 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 	})
 
 	t.Run("Mark bad steamid", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", "/mark/blah", http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
+		fetchIntoWithStatus(t, app, "POST", "/mark/blah", http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
 			Attrs: []string{"cheater", "test"},
 		})
 		matches := app.Rules().MatchSteam(pls[0].SteamID)
@@ -187,15 +184,13 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 }
 
 func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 
 	require.NoError(t, app.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
 
 	t.Run("Whitelist Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
 		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
 		require.NoError(t, e)
 		require.True(t, plr.Whitelisted)
@@ -204,7 +199,7 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 	})
 
 	t.Run("Remove Player Whitelist", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
+		fetchIntoWithStatus(t, app, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
 		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
 		require.NoError(t, e)
 		require.False(t, plr.Whitelisted)
@@ -214,8 +209,6 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 }
 
 func TestPlayerNotes(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostNotesOpts{
@@ -223,15 +216,13 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 	}
 
 	t.Run("Set Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
 		np, _ := app.GetPlayerOrCreate(context.TODO(), pls[0].SteamID)
 		require.Equal(t, req.Note, np.Notes)
 	})
 }
 
 func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 1)
 
@@ -241,14 +232,12 @@ func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
 
 	t.Run("Get Chat History", func(t *testing.T) { //nolint:tparallel
 		var messages []*store.UserMessage
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamID), http.StatusOK, &messages, nil)
+		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamID), http.StatusOK, &messages, nil)
 		require.Equal(t, 10, len(messages))
 	})
 }
 
 func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
 	app, _ := testApp()
 	pls := detector.CreateTestPlayers(app, 2)
 
@@ -258,7 +247,7 @@ func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 
 	t.Run("Get Name History", func(t *testing.T) {
 		var names store.UserMessageCollection
-		fetchIntoWithStatus(t, "GET", fmt.Sprintf("/names/%s", pls[1].SteamID), http.StatusOK, &names, nil)
-		require.Equal(t, 5+1, len(names))
+		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/names/%s", pls[1].SteamID), http.StatusOK, &names, nil)
+		require.Equal(t, 5, len(names))
 	})
 }

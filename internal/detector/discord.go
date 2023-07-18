@@ -202,7 +202,7 @@ func (d *Detector) discordStateUpdater(ctx context.Context) {
 	for {
 		select {
 		case <-timer.C:
-			if !d.settings.GetDiscordPresenceEnabled() {
+			if !d.Settings().DiscordPresenceEnabled {
 				if isRunning {
 					// Logout of existing connection on settings change
 					if errLogout := d.discordPresence.Logout(); errLogout != nil {
