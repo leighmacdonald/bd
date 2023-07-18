@@ -53,8 +53,8 @@
     "@types/node": "^20.4.2",
     "@types/react-dom": "^18.2.7",
     "@types/steamid": "^2.0.1",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.1.0",
+    "@typescript-eslint/parser": "^6.1.0",
     "browserslist": "^4.21.9",
     "copy-webpack-plugin": "^11.0.0",
     "cross-env": "^7.0.3",
@@ -75,7 +75,7 @@
     "prettier": "^3.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.14.1",
+    "react-router-dom": "^6.14.2",
     "sass": "^1.63.6",
     "sass-loader": "^13.3.2",
     "steamid": "^2.0.0",
@@ -83,7 +83,7 @@
     "ts-loader": "^9.4.4",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6",
-    "webpack": "^5.88.1",
+    "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.15.1"
   }
