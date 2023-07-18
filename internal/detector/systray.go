@@ -53,11 +53,11 @@ func (s *Systray) OnReady(cancel context.CancelFunc) func() {
 					s.onLaunch()
 				case <-openWeb.ClickedCh:
 					s.log.Debug("openWeb Clicked")
-					s.onOpen()
 				case <-s.quit.ClickedCh:
 					s.log.Debug("User Quit")
 					cancel()
 					// systray.Quit()
+					s.onOpen()
 				}
 			}
 		}()

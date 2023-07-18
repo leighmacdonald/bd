@@ -97,13 +97,13 @@ func fetchIntoWithStatus(t *testing.T, app *detector.Detector, method string, pa
 
 func TestGetPlayers(t *testing.T) {
 	app, _ := testApp()
-	tp := detector.CreateTestPlayers(app, 5)
+	testPlayers := detector.CreateTestPlayers(app, 5)
 
 	var state detector.CurrentState
 
 	fetchIntoWithStatus(t, app, http.MethodGet, "/state", http.StatusOK, &state, nil)
 
-	require.Equal(t, len(tp), len(state.Players))
+	require.Equal(t, len(testPlayers), len(state.Players))
 }
 
 func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
