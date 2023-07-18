@@ -375,14 +375,14 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 	var hist UserNameHistoryCollection
 
 	for rows.Next() {
-		var h UserNameHistory
-		if errScan := rows.Scan(&h.NameID, &h.Name, &h.FirstSeen); errScan != nil {
+		var nameHistory UserNameHistory
+		if errScan := rows.Scan(&nameHistory.NameID, &nameHistory.Name, &nameHistory.FirstSeen); errScan != nil {
 			return nil, errors.Wrap(errScan, "Failed to scan row")
 		}
 
-		h.SteamID = steamID
+		nameHistory.SteamID = steamID
 
-		hist = append(hist, h)
+		hist = append(hist, nameHistory)
 	}
 
 	if rows.Err() != nil {

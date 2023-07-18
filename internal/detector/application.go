@@ -7,9 +7,7 @@ import (
 	"encoding/json"
 	gerrors "errors"
 	"fmt"
-	"io"
 	"math/rand"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,50 +270,6 @@ func (d *Detector) SaveSettings(settings UserSettings) error {
 
 func (d *Detector) Rules() *rules.Engine {
 	return d.rules
-}
-
-func (d *Detector) fetchAvatar(ctx context.Context, hash string) ([]byte, error) {
-	httpClient := &http.Client{}
-	buf := bytes.NewBuffer(nil)
-	errCache := d.cache.Get(TypeAvatar, hash, buf)
-
-	if errCache == nil {
-		return buf.Bytes(), nil
-	}
-
-	if errCache != nil && !errors.Is(errCache, ErrCacheExpired) {
-		return nil, errors.Wrap(errCache, "unexpected cache error")
-	}
-
-	localCtx, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
-	defer cancel()
-
-	req, reqErr := http.NewRequestWithContext(localCtx, http.MethodGet, store.AvatarURL(hash), nil)
-	if reqErr != nil {
-		return nil, errors.Wrap(reqErr, "Failed to create avatar download request")
-	}
-
-	resp, respErr := httpClient.Do(req) //nolint:bodyclose
-	if respErr != nil {
-		return nil, errors.Wrapf(respErr, "Failed to download avatar: %s", hash)
-	}
-
-	defer util.LogClose(d.log, resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("Invalid response code downloading avatar: %d", resp.StatusCode)
-	}
-
-	body, bodyErr := io.ReadAll(resp.Body)
-	if bodyErr != nil {
-		return nil, errors.Wrap(bodyErr, "Failed to read avatar response body")
-	}
-
-	if errSet := d.cache.Set(TypeAvatar, hash, bytes.NewReader(body)); errSet != nil {
-		return nil, errors.Wrap(errSet, "failed to set cached value")
-	}
-
-	return body, nil
 }
 
 func NewLogReader(logger *zap.Logger, logPath string, logChan chan string) (*LogReader, error) {
@@ -671,9 +625,13 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 			log.Debug("Delete update input received", zap.String("state", "start"))
 			d.serverMu.Lock()
 			if time.Since(d.server.LastUpdate) > time.Second*time.Duration(settings.PlayerDisconnectTimeout) {
-				old := d.server.ServerName
+				name := d.server.ServerName
+				if !strings.HasPrefix(name, "[TIMEOUT]") {
+					name = fmt.Sprintf("[TIMEOUT] %s", name)
+				}
+
 				d.server = &Server{
-					ServerName: fmt.Sprintf("[TIMEOUT] %s", old),
+					ServerName: name,
 				}
 			}
 
@@ -705,32 +663,6 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 			deleteTimer.Reset(time.Second * time.Duration(settings.PlayerExpiredTimeout))
 		}
 	}
-}
-
-func (d *Detector) performAvatarDownload(ctx context.Context, hash string) {
-	_, errDownload := d.fetchAvatar(ctx, hash)
-	if errDownload != nil {
-		d.log.Error("Failed to download avatar", zap.String("hash", hash), zap.Error(errDownload))
-
-		return
-	}
-}
-
-func (d *Detector) nameToSid(players store.PlayerCollection, name string) steamid.SID64 {
-	d.playersMu.RLock()
-	defer d.playersMu.RUnlock()
-
-	for _, player := range players {
-		if name == player.Name {
-			return player.SteamID
-		}
-	}
-
-	return ""
-}
-
-func (d *Detector) onUpdateLobby(steamID steamid.SID64, evt lobbyEvent) {
-	d.updateState(newTeamEvent(steamID, evt.team))
 }
 
 func (d *Detector) AddUserName(ctx context.Context, player *store.Player, name string) error {
@@ -765,39 +697,6 @@ func (d *Detector) AddUserMessage(ctx context.Context, player *store.Player, mes
 	}
 
 	return nil
-}
-
-func (d *Detector) onUpdateKill(kill killEvent) {
-	var (
-		source = d.nameToSid(d.players, kill.sourceName)
-		target = d.nameToSid(d.players, kill.victimName)
-		ourSid = d.settings.SteamID
-	)
-
-	if !source.Valid() || !target.Valid() {
-		return
-	}
-
-	sourcePlayer, inGameSource := d.GetPlayer(source)
-	targetPlayer, inGameTarget := d.GetPlayer(target)
-
-	if !inGameSource || !inGameTarget {
-		return
-	}
-
-	sourcePlayer.Kills++
-	targetPlayer.Deaths++
-
-	if targetPlayer.SteamID == ourSid {
-		sourcePlayer.DeathsBy++
-	}
-
-	if sourcePlayer.SteamID == ourSid {
-		targetPlayer.KillsOn++
-	}
-
-	sourcePlayer.Touch()
-	targetPlayer.Touch()
 }
 
 func (d *Detector) refreshLists(ctx context.Context) {

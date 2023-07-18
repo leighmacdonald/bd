@@ -1,7 +1,6 @@
 package store
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
@@ -75,10 +74,8 @@ type Player struct {
 	Alive       bool `json:"alive"`
 	Health      int  `json:"health"`
 	Valid       bool `json:"valid"` // What is it?
-
-	// Parsed stats from logs
-	Kills  int `json:"kills"`
-	Deaths int `json:"deaths"`
+	Deaths      int  `json:"deaths"`
+	Kills       int  `json:"kills"`
 
 	// - Misc
 
@@ -92,7 +89,6 @@ type Player struct {
 
 	OurFriend bool `json:"our_friend"`
 
-	InGame     bool
 	Sourcebans []models.SbBanRecord
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
@@ -100,58 +96,20 @@ type Player struct {
 	Matches []*rules.MatchResult `json:"matches"`
 }
 
-func (ps Player) IsMatched() bool {
-	return len(ps.Matches) > 0
-}
-
-func (ps Player) GetAvatarHash() string {
-	if ps.AvatarHash == "" {
-		return defaultAvatarHash
-	}
-
-	return ps.AvatarHash
-}
-
-func (ps Player) IsDisconnected() bool {
+func (ps *Player) IsDisconnected() bool {
 	return time.Since(ps.UpdatedOn) > time.Second*6
 }
 
-func (ps Player) IsExpired() bool {
+func (ps *Player) IsExpired() bool {
 	return time.Since(ps.UpdatedOn) > time.Second*20
 }
 
-func (ps Player) Touch() {
+func (ps *Player) Touch() {
 	ps.UpdatedOn = time.Now()
 	ps.Dirty = true
 }
 
-func firstN(text string, count int) string {
-	index := 0
-
-	for j := range text {
-		if index == count {
-			return text[:j]
-		}
-
-		index++
-	}
-
-	return text
-}
-
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
-
-// API returns non https urls, this will resolve them over https.
-const baseAvatarURL = "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars"
-
-func AvatarURL(hash string) string {
-	avatarHash := defaultAvatarHash
-	if hash != "" {
-		avatarHash = hash
-	}
-
-	return fmt.Sprintf("%s/%s/%s_full.jpg", baseAvatarURL, firstN(avatarHash, 2), avatarHash)
-}
 
 type PlayerCollection []*Player
 
@@ -175,18 +133,6 @@ func (players *PlayerCollection) Player(sid64 steamid.SID64) *Player {
 	return nil
 }
 
-func (players *PlayerCollection) GetOrCreate(sid64 steamid.SID64) *Player {
-	if player := players.Player(sid64); player != nil {
-		return player
-	}
-
-	newPlayer := NewPlayer(sid64, "")
-
-	*players = append(*players, newPlayer)
-
-	return newPlayer
-}
-
 func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	curTIme := time.Now()
 
@@ -194,6 +140,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 		BaseSID:          BaseSID{sid64},
 		Name:             name,
 		Matches:          []*rules.MatchResult{},
+		AvatarHash:       defaultAvatarHash,
 		AccountCreatedOn: time.Time{},
 		Visibility:       steamweb.VisibilityPublic,
 		CreatedOn:        curTIme,
@@ -204,21 +151,12 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 
 type UserNameHistory struct {
 	BaseSID
-	NameID    int64
-	Name      string
-	FirstSeen time.Time
+	NameID    int64     `json:"name_id"`
+	Name      string    `json:"name"`
+	FirstSeen time.Time `json:"first_seen"`
 }
 
 type UserNameHistoryCollection []UserNameHistory
-
-func (names UserNameHistoryCollection) AsAny() []any {
-	bl := make([]any, len(names))
-	for i, r := range names {
-		bl[i] = r
-	}
-
-	return bl
-}
 
 func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, error) {
 	if name == "" {
