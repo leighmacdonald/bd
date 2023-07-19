@@ -30,7 +30,7 @@ import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuItem from '@mui/material/MenuItem';
-import { Link, List, UserSettings } from '../api';
+import { Link, List, saveUserSettings, UserSettings } from '../api';
 import _ from 'lodash';
 import { SettingsContext } from '../context/settings';
 import Grid2 from '@mui/material/Unstable_Grid2';
@@ -260,11 +260,16 @@ export const SettingsEditor = ({
 
     useEffect(() => {
         handleReset();
-        console.log('Loaded in');
     }, [handleReset, origSettings]);
 
     const handleSave = useCallback(() => {
-        setSettings(settings);
+        saveUserSettings(settings)
+            .then(() => {
+                setSettings(settings);
+            })
+            .catch((reason) => {
+                console.log(reason);
+            });
     }, [settings]);
 
     const handleClose = () => {

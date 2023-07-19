@@ -15,7 +15,11 @@ export const createThemeByMode = () => {
             MuiTableCell: {
                 styleOverrides: {
                     root: {
-                        border: 0
+                        borderLeft: '1px solid #000000',
+                        borderBottom: '1px solid #000000',
+                        borderRight: '1px solid #000000',
+                        paddingLeft: '6px',
+                        paddingRight: '6px'
                     }
                 }
             },
@@ -41,7 +45,7 @@ export const createThemeByMode = () => {
             body1: {
                 //...baseFontSet
             },
-            fontSize: 12,
+            fontSize: 14,
             h1: {
                 fontSize: 18
             },

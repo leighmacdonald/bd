@@ -42,6 +42,17 @@ enum ProfileVisibility {
     ProfileVisibilityPublic = 3
 }
 
+export const visibilityString = (v: ProfileVisibility): string => {
+    switch (v) {
+        case ProfileVisibility.ProfileVisibilityPublic:
+            return 'Public';
+        case ProfileVisibility.ProfileVisibilityFriendsOnly:
+            return 'Friends Only';
+        default:
+            return 'Private';
+    }
+};
+
 export enum Team {
     SPEC,
     UNASSIGNED,
@@ -101,8 +112,8 @@ export interface Player {
     deaths: number;
     health: number;
     our_friend: boolean;
-    sourcebans: SourcebansRecord[];
-    matches: Match[];
+    sourcebans: SourcebansRecord[] | null;
+    matches: Match[] | null;
 }
 
 export interface SourcebansRecord {
@@ -114,7 +125,7 @@ export interface SourcebansRecord {
     reason: string;
     duration: number;
     permanent: boolean;
-    created_on: Date;
+    created_on: string;
 }
 
 export const formatSeconds = (seconds: number): string => {
@@ -188,6 +199,10 @@ const getState = async () => await callJson<State>('GET', '/state');
 const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/settings');
 
+export const saveUserSettings = async (settings: UserSettings) => {
+    await call('PUT', '/settings', settings);
+};
+
 export const useUserSettings = () => {
     const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
     const [error, setError] = useState<unknown>(null);
@@ -209,7 +224,7 @@ export const useUserSettings = () => {
 };
 
 export const useCurrentState = () => {
-    const [players, setPlayers] = useState<State>({
+    const [state, setState] = useState<State>({
         server: {
             server_name: 'Unknown',
             current_map: 'Unknown',
@@ -221,7 +236,7 @@ export const useCurrentState = () => {
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                setPlayers(await getState());
+                setState(await getState());
             } catch (e) {
                 console.log(e);
             }
@@ -230,5 +245,5 @@ export const useCurrentState = () => {
             clearInterval(interval);
         };
     }, []);
-    return players;
+    return state;
 };

@@ -82,7 +82,7 @@ func getSettings(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func postSettings(detector *Detector) gin.HandlerFunc {
+func putSettings(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var wus WebUserSettings
 		if !bind(ctx, &wus) {

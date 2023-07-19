@@ -116,7 +116,7 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	engine.GET("/names/:steam_id", getNames(detector))
 	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
 	engine.GET("/settings", getSettings(detector))
-	engine.POST("/settings", postSettings(detector))
+	engine.PUT("/settings", putSettings(detector))
 	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(detector, true))
 	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(detector, false))
 	engine.POST("/notes/:steam_id", postNotes(detector))

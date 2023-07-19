@@ -348,7 +348,7 @@ export const PlayerTable = () => {
     const visibleRows = useMemo(
         () =>
             stableSort(
-                state.players.filter((p) => !matchesOnly || p.matches.length),
+                state.players.filter((p) => !matchesOnly || p.matches?.length),
                 getComparator(order, orderBy)
             ),
         [order, orderBy, state, matchesOnly]

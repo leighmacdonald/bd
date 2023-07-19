@@ -71,11 +71,12 @@ const config: Configuration = {
                 use: ['style-loader', 'css-loader', 'sass-loader']
             },
             {
-                test: /\.(jpg|png|svg)$/,
-                loader: 'url-loader',
-                options: {
-                    limit: 250000
-                }
+                test: /\.(png|jpe?g|gif)$/i,
+                use: [
+                    {
+                        loader: 'file-loader'
+                    }
+                ]
             },
             {
                 test: /\.(woff|otf|ttf|svg|eot)$/,
