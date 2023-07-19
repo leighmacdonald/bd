@@ -5,20 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/leighmacdonald/bd/pkg/discord/ipc"
 	"github.com/pkg/errors"
-	"go.uber.org/atomic"
 )
 
 type Client struct {
-	ipcOpened *atomic.Bool
+	ipcOpened atomic.Bool
 	ipc       *ipc.DiscordIPC
 }
 
 func New() *Client {
-	return &Client{ipcOpened: atomic.NewBool(false), ipc: ipc.New()}
+	client := &Client{ipc: ipc.New()}
+	client.ipcOpened.Store(false)
+
+	return client
 }
 
 func (d *Client) Login(clientID string) error {
