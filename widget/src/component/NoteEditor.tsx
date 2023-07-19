@@ -14,9 +14,9 @@ interface NoteEditorProps {
     setOpen: (open: boolean) => void;
     notes: string;
     setNotes: (note: string) => void;
-    steamId: bigint;
-    setSteamId: (steamId: bigint) => void;
-    onSave: (steamId: bigint, note: string) => void;
+    steamId: string;
+    setSteamId: (steamId: string) => void;
+    onSave: (steamId: string, note: string) => void;
 }
 
 export const NoteEditor = ({

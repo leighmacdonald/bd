@@ -614,6 +614,8 @@ func (d *Detector) checkHandler(ctx context.Context) {
 }
 
 func (d *Detector) cleanupHandler(ctx context.Context) {
+	const disconnectMsg = "Disconnected"
+
 	log := d.log.Named("cleanupHandler")
 	defer log.Debug("cleanupHandler exited")
 
@@ -630,8 +632,8 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 			d.serverMu.Lock()
 			if time.Since(d.server.LastUpdate) > time.Second*time.Duration(settings.PlayerDisconnectTimeout) {
 				name := d.server.ServerName
-				if !strings.HasPrefix(name, "[TIMEOUT]") {
-					name = fmt.Sprintf("[TIMEOUT] %s", name)
+				if !strings.HasPrefix(name, disconnectMsg) {
+					name = fmt.Sprintf("%s %s", disconnectMsg, name)
 				}
 
 				d.server = &Server{

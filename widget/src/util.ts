@@ -18,7 +18,7 @@ export const openInNewTab = (url: string) => {
     window.open(url, '_blank');
 };
 
-export const formatExternalLink = (steam_id: bigint, link: Link): string => {
+export const formatExternalLink = (steam_id: string, link: Link): string => {
     const sid = new SteamID(steam_id);
     switch (link.id_format) {
         case 'steam':

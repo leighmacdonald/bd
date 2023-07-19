@@ -12,6 +12,13 @@ const baseFontSet = [
 export const createThemeByMode = () => {
     return createTheme({
         components: {
+            MuiTableCell: {
+                styleOverrides: {
+                    root: {
+                        border: 0
+                    }
+                }
+            },
             MuiCssBaseline: {
                 styleOverrides: {
                     body: darkScrollbar()
