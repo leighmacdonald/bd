@@ -3,11 +3,10 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Popover from '@mui/material/Popover';
-import Stack from '@mui/material/Stack';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
-import Grid2 from '@mui/material/Unstable_Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import FlagIcon from '@mui/icons-material/Flag';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
@@ -23,12 +22,21 @@ import {
     deleteWhitelist,
     formatSeconds,
     Player,
-    Team
+    Team,
+    visibilityString
 } from '../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import SteamID from 'steamid';
 import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
 import { SettingsContext } from '../context/settings';
+import sb from '../img/sb.png';
+import dead from '../img/dead.png';
+import vac from '../img/vac.png';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableBody from '@mui/material/TableBody';
+import { format, parseJSON } from 'date-fns';
+import { TextareaAutosize } from '@mui/material';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -53,7 +61,7 @@ const createUserTheme = (): userTheme => {
     // TODO user configurable
     return {
         connectingBg: '#032a23',
-        teamABg: '#002a84',
+        teamABg: '#001d49',
         matchBotBg: '#901380',
         matchCheaterBg: '#500e0e',
         matchOtherBg: '#0c1341',
@@ -66,7 +74,7 @@ const createUserTheme = (): userTheme => {
 const curTheme = createUserTheme();
 
 export const rowColour = (player: Player): string => {
-    if (player.matches.length) {
+    if (player.matches && player.matches.length) {
         if (
             player.matches.filter((m) => {
                 m.attributes.includes('cheater');
@@ -81,10 +89,6 @@ export const rowColour = (player: Player): string => {
             return curTheme.matchBotBg;
         }
         return curTheme.matchOtherBg;
-    } else if (player.number_of_vac_bans) {
-        return curTheme.vacBansBg;
-    } else if (player.number_of_game_bans) {
-        return curTheme.gameBansBg;
     } else if (player.team == Team.RED) {
         return curTheme.teamABg;
     } else if (player.team == Team.BLU) {
@@ -156,14 +160,14 @@ export const TableRowContextMenu = ({
 
     const makeInfoRow = (key: string, value: string): JSX.Element[] => {
         return [
-            <Grid2 xs={3} key={`${key}-key`} padding={0}>
+            <Grid xs={3} key={`${key}-key`} padding={0}>
                 <Typography variant={'button'} textAlign={'right'}>
                     {key}
                 </Typography>
-            </Grid2>,
-            <Grid2 xs={9} key={`${key}-val`} padding={0}>
-                <Typography variant={'button'}>{value}</Typography>
-            </Grid2>
+            </Grid>,
+            <Grid xs={9} key={`${key}-val`} padding={0}>
+                <Typography variant={'body1'}>{value}</Typography>
+            </Grid>
         ];
     };
     if (loading || !settings) {
@@ -190,7 +194,7 @@ export const TableRowContextMenu = ({
                 }}
             >
                 {enabledColumns.includes('user_id') && (
-                    <TableCell align={'right'} style={{ paddingRight: 6 }}>
+                    <TableCell align={'right'}>
                         <Typography variant={'overline'}>
                             {player.user_id}
                         </Typography>
@@ -198,14 +202,66 @@ export const TableRowContextMenu = ({
                 )}
                 {enabledColumns.includes('name') && (
                     <TableCell>
-                        <Typography
-                            sx={{ fontFamily: 'Monospace' }}
-                            overflow={'ellipsis'}
-                        >
-                            {player.alive
-                                ? player.name
-                                : `*DEAD* ${player.name}`}
-                        </Typography>
+                        <Grid container spacing={1}>
+                            {!player.alive && (
+                                <Grid
+                                    xs={'auto'}
+                                    display="flex"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    <img
+                                        width={18}
+                                        height={18}
+                                        src={dead}
+                                        alt={`Player is dead (lol)`}
+                                    />
+                                </Grid>
+                            )}
+                            <Grid xs textOverflow={'clip'} overflow={'hidden'}>
+                                <Typography
+                                    sx={{
+                                        fontFamily: 'Monospace',
+                                        maxWidth: '250px'
+                                    }}
+                                    variant={'subtitle1'}
+                                >
+                                    {player.name}
+                                </Typography>
+                            </Grid>
+
+                            {player.number_of_vac_bans > 0 && (
+                                <Grid
+                                    xs={'auto'}
+                                    display="flex"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    <img
+                                        width={18}
+                                        height={18}
+                                        src={vac}
+                                        alt={`${player.number_of_vac_bans} VAC bans on record`}
+                                    />
+                                </Grid>
+                            )}
+                            {player.sourcebans &&
+                                player.sourcebans.length > 0 && (
+                                    <Grid
+                                        xs={'auto'}
+                                        display="flex"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                    >
+                                        <img
+                                            width={18}
+                                            height={18}
+                                            src={sb}
+                                            alt={`${player.sourcebans.length} Sourcebans entries on record`}
+                                        />
+                                    </Grid>
+                                )}
+                        </Grid>
                     </TableCell>
                 )}
                 {enabledColumns.includes('score') && (
@@ -232,7 +288,7 @@ export const TableRowContextMenu = ({
                 {enabledColumns.includes('health') && (
                     <TableCell align={'right'}>
                         <Typography variant={'overline'}>
-                            {player.health}
+                            {player.alive ? player.health : 0}
                         </Typography>
                     </TableCell>
                 )}
@@ -415,34 +471,174 @@ export const TableRowContextMenu = ({
                 disablePortal={false}
                 //disableRestoreFocus
             >
-                <Paper style={{ maxWidth: 650 }}>
-                    <Stack padding={1} direction={'row'} spacing={1}>
-                        <img
-                            height={184}
-                            width={184}
-                            alt={player.name}
-                            src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
-                        />
-                        <Grid2 container>
-                            {...makeInfoRow('UID', player.user_id.toString())}
-                            {...makeInfoRow('Name', player.name)}
-                            {...makeInfoRow('Kills', player.kills.toString())}
-                            {...makeInfoRow('Deaths', player.deaths.toString())}
-                            {...makeInfoRow(
-                                'Time',
-                                formatSeconds(player.connected)
-                            )}
-                            {...makeInfoRow('Ping', player.ping.toString())}
-                            {...makeInfoRow(
-                                'Vac Bans',
-                                player.number_of_vac_bans.toString()
-                            )}
-                            {...makeInfoRow(
-                                'Game Bans',
-                                player.number_of_game_bans.toString()
-                            )}
-                        </Grid2>
-                    </Stack>
+                <Paper style={{ maxWidth: 650 }} sx={{ padding: 1 }}>
+                    <Grid container spacing={1}>
+                        <Grid xs={'auto'}>
+                            <img
+                                height={184}
+                                width={184}
+                                alt={player.name}
+                                src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
+                            />
+                        </Grid>
+                        <Grid xs>
+                            <div>
+                                <Grid container>
+                                    {...makeInfoRow(
+                                        'UID',
+                                        player.user_id.toString()
+                                    )}
+                                    {...makeInfoRow('Name', player.name)}
+                                    {...makeInfoRow(
+                                        'Profile Visibility',
+                                        visibilityString(player.visibility)
+                                    )}
+                                    {...makeInfoRow(
+                                        'Vac Bans',
+                                        player.number_of_vac_bans.toString()
+                                    )}
+                                    {...makeInfoRow(
+                                        'Game Bans',
+                                        player.number_of_game_bans.toString()
+                                    )}
+                                </Grid>
+                            </div>
+                        </Grid>
+                        {player.notes.length > 0 && (
+                            <Grid xs={12}>
+                                <TextareaAutosize value={player.notes} />
+                            </Grid>
+                        )}
+                        {player.matches && player.matches.length > 0 && (
+                            <Grid xs={12}>
+                                <TableContainer>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell padding={'normal'}>
+                                                Origin
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                Tags
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                Type
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {player.matches?.map((match) => {
+                                            return (
+                                                <TableRow
+                                                    key={`match-${match.origin}`}
+                                                >
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.origin}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.attributes.join(
+                                                                ', '
+                                                            )}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.matcher_type}
+                                                        </Typography>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </TableContainer>
+                            </Grid>
+                        )}
+                        {player.sourcebans && player.sourcebans.length > 0 && (
+                            <Grid xs={12}>
+                                <TableContainer>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell padding={'normal'}>
+                                                Site&nbsp;Name
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                Created
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                Perm
+                                            </TableCell>
+                                            <TableCell
+                                                padding={'normal'}
+                                                width={'100%'}
+                                            >
+                                                Reason
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {player.sourcebans.map((ban) => {
+                                            return (
+                                                <TableRow
+                                                    key={`sb-${ban.ban_id}`}
+                                                >
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {ban.site_name}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {format(
+                                                                parseJSON(
+                                                                    ban.created_on
+                                                                ),
+                                                                'MM/dd/yyyy'
+                                                            )}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {ban.permanent
+                                                                ? 'yes'
+                                                                : 'no'}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'body1'}
+                                                        >
+                                                            {ban.reason}
+                                                        </Typography>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </TableContainer>
+                            </Grid>
+                        )}
+                    </Grid>
                 </Paper>
             </Popover>
         </Fragment>

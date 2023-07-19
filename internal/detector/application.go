@@ -262,6 +262,10 @@ func (d *Detector) SaveSettings(settings UserSettings) error {
 		return errValidate
 	}
 
+	if errSave := settings.Save(); errSave != nil {
+		return errSave
+	}
+
 	d.settingsMu.Lock()
 	defer d.settingsMu.Unlock()
 
@@ -1000,7 +1004,7 @@ func (d *Detector) Start(ctx context.Context) {
 
 	go func() {
 		if errWeb := d.Web.startWeb(ctx); errWeb != nil {
-			d.log.Error("Web start returned error")
+			d.log.Error("Web start returned error", zap.Error(errWeb))
 		}
 	}()
 
