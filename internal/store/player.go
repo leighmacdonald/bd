@@ -89,7 +89,7 @@ type Player struct {
 
 	OurFriend bool `json:"our_friend"`
 
-	Sourcebans []models.SbBanRecord
+	Sourcebans []models.SbBanRecord `json:"sourcebans"`
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
 

@@ -86,10 +86,13 @@ interface HeadCell {
 export type validColumns =
     | 'user_id'
     | 'name'
+    | 'score'
     | 'kills'
     | 'deaths'
     | 'connected'
-    | 'ping';
+    | 'ping'
+    | 'health'
+    | 'alive';
 
 const headCells: readonly HeadCell[] = [
     {
@@ -105,6 +108,12 @@ const headCells: readonly HeadCell[] = [
         label: 'name'
     },
     {
+        id: 'score',
+        numeric: true,
+        disablePadding: false,
+        label: 'score'
+    },
+    {
         id: 'kills',
         numeric: true,
         disablePadding: false,
@@ -115,6 +124,12 @@ const headCells: readonly HeadCell[] = [
         numeric: true,
         disablePadding: false,
         label: 'deaths'
+    },
+    {
+        id: 'health',
+        numeric: true,
+        disablePadding: false,
+        label: 'health'
     },
     {
         id: 'connected',
@@ -258,10 +273,13 @@ const getDefaultColumns = (): validColumns[] => {
     const defaultCols: validColumns[] = [
         'user_id',
         'name',
+        'score',
         'kills',
         'deaths',
+        'health',
         'connected',
-        'ping'
+        'ping',
+        'alive'
     ];
 
     const val = localStorage.getItem('enabledColumns');
@@ -289,20 +307,20 @@ export const PlayerTable = () => {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [openNotes, setOpenNotes] = useState(false);
     const [notesValue, setNotesValue] = useState('');
-    const [notesSteamId, setNotesSteamId] = useState<bigint>(BigInt(0));
+    const [notesSteamId, setNotesSteamId] = useState<string>('');
     const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
         getDefaultColumns()
     );
     const { settings } = useContext(SettingsContext);
     const state = useCurrentState();
 
-    const onOpenNotes = useCallback((steamId: bigint, notes: string) => {
+    const onOpenNotes = useCallback((steamId: string, notes: string) => {
         setNotesSteamId(steamId);
         setNotesValue(notes);
         setOpenNotes(true);
     }, []);
 
-    const onSaveNotes = useCallback(async (steamId: bigint, notes: string) => {
+    const onSaveNotes = useCallback(async (steamId: string, notes: string) => {
         try {
             await saveUserNote(steamId, notes);
             setOpenNotes(false);
@@ -312,7 +330,7 @@ export const PlayerTable = () => {
         }
     }, []);
 
-    const onWhitelist = useCallback(async (steamId: bigint) => {
+    const onWhitelist = useCallback(async (steamId: string) => {
         await addWhitelist(steamId);
         console.log('Whitelist added');
     }, []);
@@ -380,11 +398,21 @@ export const PlayerTable = () => {
                             <SettingsOutlinedIcon color={'primary'} />
                         </IconButton>
                     </ButtonGroup>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
-                        <Typography variant={'h1'}>{state.server.server_name}</Typography>
+                    <Box
+                        sx={{ display: 'flex', alignItems: 'center' }}
+                        paddingLeft={2}
+                    >
+                        <Typography variant={'h1'}>
+                            {state.server.server_name}
+                        </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
-                        <Typography variant={'subtitle1'}>{state.server.current_map}</Typography>
+                    <Box
+                        sx={{ display: 'flex', alignItems: 'center' }}
+                        paddingLeft={2}
+                    >
+                        <Typography variant={'subtitle1'}>
+                            {state.server.current_map}
+                        </Typography>
                     </Box>
                 </Stack>
                 <TableContainer>

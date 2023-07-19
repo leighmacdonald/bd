@@ -57,3 +57,6 @@ update:
 fmt:
 	gci write . --skip-generated -s standard -s default
 	gofumpt -l -w .
+
+watch:
+	cd widget && yarn run watch

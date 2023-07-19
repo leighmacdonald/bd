@@ -33,9 +33,9 @@ import { SettingsContext } from '../context/settings';
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
     player: Player;
-    onOpenNotes: (steamId: bigint, notes: string) => void;
-    onSaveNotes: (steamId: bigint, notes: string) => void;
-    onWhitelist: (steamId: bigint) => void;
+    onOpenNotes: (steamId: string, notes: string) => void;
+    onSaveNotes: (steamId: string, notes: string) => void;
+    onWhitelist: (steamId: string) => void;
 }
 
 interface userTheme {
@@ -53,11 +53,11 @@ const createUserTheme = (): userTheme => {
     // TODO user configurable
     return {
         connectingBg: '#032a23',
-        teamABg: '#062c15',
+        teamABg: '#002a84',
         matchBotBg: '#901380',
         matchCheaterBg: '#500e0e',
         matchOtherBg: '#0c1341',
-        teamBBg: '#032a23',
+        teamBBg: '#3e020e',
         gameBansBg: '#383615',
         vacBansBg: '#55521f'
     };
@@ -142,11 +142,11 @@ export const TableRowContextMenu = ({
         );
     };
 
-    const onDeleteWhitelist = useCallback(async (steamId: bigint) => {
+    const onDeleteWhitelist = useCallback(async (steamId: string) => {
         await deleteWhitelist(steamId);
     }, []);
 
-    const onAddWhitelist = useCallback(async (steamId: bigint) => {
+    const onAddWhitelist = useCallback(async (steamId: string) => {
         await addWhitelist(steamId);
     }, []);
 
@@ -202,7 +202,16 @@ export const TableRowContextMenu = ({
                             sx={{ fontFamily: 'Monospace' }}
                             overflow={'ellipsis'}
                         >
-                            {player.name}
+                            {player.alive
+                                ? player.name
+                                : `*DEAD* ${player.name}`}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('score') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {player.score}
                         </Typography>
                     </TableCell>
                 )}
@@ -217,6 +226,13 @@ export const TableRowContextMenu = ({
                     <TableCell align={'right'}>
                         <Typography variant={'overline'}>
                             {player.deaths}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('health') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {player.health}
                         </Typography>
                     </TableCell>
                 )}

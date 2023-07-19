@@ -1,5 +1,5 @@
-import {useEffect, useState} from 'react';
-import {defaultUserSettings} from './context/settings';
+import { useEffect, useState } from 'react';
+import { defaultUserSettings } from './context/settings';
 
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
@@ -68,7 +68,7 @@ export interface State {
 }
 
 export interface Player {
-    steam_id: bigint;
+    steam_id: string;
     name: string;
     created_on: Date;
     updated_on: Date;
@@ -93,9 +93,28 @@ export interface Player {
     user_id: number;
     ping: number;
     kills: number;
+    valid: boolean;
+    score: number;
+    is_connected: boolean;
+    kick_attempt_count: number;
+    alive: boolean;
     deaths: number;
+    health: number;
     our_friend: boolean;
+    sourcebans: SourcebansRecord[];
     matches: Match[];
+}
+
+export interface SourcebansRecord {
+    ban_id: number;
+    site_name: string;
+    site_id: number;
+    persona_name: string;
+    steam_id: string;
+    reason: string;
+    duration: number;
+    permanent: boolean;
+    created_on: Date;
 }
 
 export const formatSeconds = (seconds: number): string => {
@@ -152,17 +171,17 @@ export interface UserNote {
     note: string;
 }
 
-export const addWhitelist = async (steamId: bigint) =>
+export const addWhitelist = async (steamId: string) =>
     await call('POST', `/whitelist/${steamId}`);
 
-export const deleteWhitelist = async (steamId: bigint) =>
+export const deleteWhitelist = async (steamId: string) =>
     await call('DELETE', `/whitelist/${steamId}`);
 
-export const saveUserNote = async (steamId: bigint, notes: string) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, {note: notes});
+export const saveUserNote = async (steamId: string, notes: string) =>
+    await call<UserNote>('POST', `/notes/${steamId}`, { note: notes });
 
-export const deleteUserNote = async (steamId: bigint) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, {note: ''});
+export const deleteUserNote = async (steamId: string) =>
+    await call<UserNote>('POST', `/notes/${steamId}`, { note: '' });
 
 const getState = async () => await callJson<State>('GET', '/state');
 
@@ -186,12 +205,19 @@ export const useUserSettings = () => {
             .finally(() => setLoading(false));
     }, []);
 
-    return {settings, error, loading};
+    return { settings, error, loading };
 };
 
 export const useCurrentState = () => {
-    const [players, setPlayers] = useState<State>(
-        {server: {server_name: "Unknown", current_map: "Unknown", tags: [], last_update: ""}, players: []});
+    const [players, setPlayers] = useState<State>({
+        server: {
+            server_name: 'Unknown',
+            current_map: 'Unknown',
+            tags: [],
+            last_update: ''
+        },
+        players: []
+    });
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
