@@ -95,6 +95,7 @@ const config: Configuration = {
             template: path.join(paths.src, 'index.html'),
             filename: path.join(paths.dist, 'index.html'),
             inject: true,
+            favicon: './src/img/favicon.png',
             hash: !devMode,
             minify: {
                 removeComments: !devMode,
