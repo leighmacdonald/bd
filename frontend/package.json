@@ -78,7 +78,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.14.2",
-    "sass": "^1.63.6",
+    "sass": "^1.64.0",
     "sass-loader": "^13.3.2",
     "steamid": "^2.0.0",
     "style-loader": "^3.3.3",
