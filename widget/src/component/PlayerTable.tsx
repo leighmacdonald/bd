@@ -89,7 +89,9 @@ export type validColumns =
     | 'score'
     | 'kills'
     | 'deaths'
+    | 'kpm'
     | 'connected'
+    | 'map_time'
     | 'ping'
     | 'health'
     | 'alive';
@@ -126,6 +128,12 @@ const headCells: readonly HeadCell[] = [
         label: 'deaths'
     },
     {
+        id: 'kpm',
+        numeric: true,
+        disablePadding: false,
+        label: 'kpm'
+    },
+    {
         id: 'health',
         numeric: true,
         disablePadding: false,
@@ -136,6 +144,12 @@ const headCells: readonly HeadCell[] = [
         numeric: true,
         disablePadding: false,
         label: 'time'
+    },
+    {
+        id: 'map_time',
+        numeric: true,
+        disablePadding: false,
+        label: 'map time'
     },
     {
         id: 'ping',
@@ -275,6 +289,7 @@ const getDefaultColumns = (): validColumns[] => {
         'name',
         'score',
         'kills',
+        'kpm',
         'deaths',
         'health',
         'connected',

@@ -498,6 +498,12 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 
 		d.playersMu.Lock()
 
+		player.MapTime = time.Since(player.MapTimeStart).Seconds()
+
+		if player.Kills > 0 {
+			player.KPM = float64(player.Kills) / (player.MapTime / 60)
+		}
+
 		player.Ping = dump.Ping[index]
 		player.Score = dump.Score[index]
 		player.Deaths = dump.Deaths[index]
@@ -507,6 +513,7 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 		player.Health = dump.Health[index]
 		player.Valid = dump.Valid[index]
 		player.UserID = dump.UserID[index]
+		player.UpdatedOn = time.Now()
 
 		d.playersMu.Unlock()
 	}
@@ -566,6 +573,8 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (
 	if time.Since(player.ProfileUpdatedOn) < profileAgeLimit && player.Name != "" {
 		return player, nil
 	}
+
+	player.MapTimeStart = time.Now()
 
 	go func() { d.profileUpdateQueue <- sid64 }()
 
@@ -649,19 +658,23 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 
 			var expired steamid.Collection
 
-			d.playersMu.RLock()
+			d.playersMu.Lock()
 
 			for _, currentState := range d.players {
 				player := currentState
+				if player.IsDisconnected() {
+					player.IsConnected = false
+				}
+
 				if player.IsExpired() {
 					expired = append(expired, player.SteamID)
 				}
 			}
 
-			d.playersMu.RUnlock()
+			d.playersMu.Unlock()
 
 			for _, exp := range expired {
-				d.updateState(newPlayerTimeoutEvent(exp))
+				go d.updateState(newPlayerTimeoutEvent(exp))
 			}
 
 			if len(expired) > 0 {

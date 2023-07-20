@@ -47,12 +47,11 @@ export interface TableRowContextMenuProps {
 }
 
 interface userTheme {
+    disconnected: string;
     connectingBg: string;
     matchCheaterBg: string;
     matchBotBg: string;
     matchOtherBg: string;
-    vacBansBg: string;
-    gameBansBg: string;
     teamABg: string;
     teamBBg: string;
 }
@@ -60,21 +59,22 @@ interface userTheme {
 const createUserTheme = (): userTheme => {
     // TODO user configurable
     return {
+        disconnected: '#383838',
         connectingBg: '#032a23',
         teamABg: '#001d49',
         matchBotBg: '#901380',
         matchCheaterBg: '#500e0e',
         matchOtherBg: '#0c1341',
-        teamBBg: '#3e020e',
-        gameBansBg: '#383615',
-        vacBansBg: '#55521f'
+        teamBBg: '#3e020e'
     };
 };
 
 const curTheme = createUserTheme();
 
 export const rowColour = (player: Player): string => {
-    if (player.matches && player.matches.length) {
+    if (!player.is_connected) {
+        return curTheme.disconnected;
+    } else if (player.matches && player.matches.length) {
         if (
             player.matches.filter((m) => {
                 m.attributes.includes('cheater');
@@ -285,6 +285,13 @@ export const TableRowContextMenu = ({
                         </Typography>
                     </TableCell>
                 )}
+                {enabledColumns.includes('kpm') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {player.kpm.toPrecision(2)}
+                        </Typography>
+                    </TableCell>
+                )}
                 {enabledColumns.includes('health') && (
                     <TableCell align={'right'}>
                         <Typography variant={'overline'}>
@@ -296,6 +303,13 @@ export const TableRowContextMenu = ({
                     <TableCell align={'right'}>
                         <Typography variant={'overline'}>
                             {formatSeconds(player.connected)}
+                        </Typography>
+                    </TableCell>
+                )}
+                {enabledColumns.includes('map_time') && (
+                    <TableCell align={'right'}>
+                        <Typography variant={'overline'}>
+                            {formatSeconds(player.map_time)}
                         </Typography>
                     </TableCell>
                 )}

@@ -101,6 +101,10 @@ type updateStateEvent struct {
 	data   any
 }
 
+type timeoutEvent struct {
+	remove bool
+}
+
 func newPlayerTimeoutEvent(sid steamid.SID64) updateStateEvent {
 	return updateStateEvent{
 		kind:   playerTimeout,
@@ -268,6 +272,21 @@ func newStatusUpdate(sid steamid.SID64, ping int, userID int, name string, conne
 	}
 }
 
+func (d *Detector) removePlayer(sid64 steamid.SID64) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	var valid []*store.Player
+
+	for _, player := range d.players {
+		if player.SteamID != sid64 {
+			valid = append(valid, player)
+		}
+	}
+
+	d.players = valid
+}
+
 func (d *Detector) stateUpdater(ctx context.Context) {
 	log := d.log.Named("stateUpdater")
 
@@ -285,6 +304,8 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 			}
 
 			switch update.kind {
+			case playerTimeout:
+				d.removePlayer(update.source)
 			case updateMessage:
 				evt, ok := update.data.(messageEvent)
 				if !ok {
@@ -481,6 +502,8 @@ func (d *Detector) onMapChange() {
 	for _, p := range d.players {
 		p.Kills = 0
 		p.Deaths = 0
+		p.MapTimeStart = time.Now()
+		p.MapTime = 0
 	}
 
 	d.server.CurrentMap = ""
