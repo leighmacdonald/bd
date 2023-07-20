@@ -10,7 +10,7 @@ extract: tr_extract
 
 bump_deps:
 	go get -u ./...
-	cd widget && yarn upgrade-interactive --latest
+	cd frontend && yarn upgrade-interactive --latest
 
 check: lint_golangci static
 
@@ -59,4 +59,4 @@ fmt:
 	gofumpt -l -w .
 
 watch:
-	cd widget && yarn run watch
+	cd frontend && yarn run watch

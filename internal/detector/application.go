@@ -198,7 +198,7 @@ func MustCreateLogger(conf UserSettings) *zap.Logger {
 	var loggingConfig zap.Config
 
 	switch conf.RunMode {
-	case ModeProd:
+	case ModeRelease:
 		loggingConfig = zap.NewProductionConfig()
 		loggingConfig.DisableCaller = true
 	case ModeDebug:

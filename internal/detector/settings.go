@@ -87,9 +87,9 @@ func (list ListConfigCollection) AsAny() []any {
 type RunModes string
 
 const (
-	ModeProd  = "prod"
-	ModeTest  = "test"
-	ModeDebug = "debug"
+	ModeRelease = "release"
+	ModeTest    = "test"
+	ModeDebug   = "debug"
 )
 
 type UserSettings struct {
@@ -143,7 +143,7 @@ func NewSettings() (UserSettings, error) {
 		KickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
 		VoiceBansEnabled:        false,
 		DebugLogEnabled:         false,
-		RunMode:                 ModeProd,
+		RunMode:                 ModeRelease,
 		LogLevel:                "info",
 		PlayerExpiredTimeout:    6,
 		PlayerDisconnectTimeout: 20,
