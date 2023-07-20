@@ -11,7 +11,50 @@ import (
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+func MustCreateLogger(conf UserSettings) *zap.Logger {
+	var loggingConfig zap.Config
+
+	switch conf.RunMode {
+	case ModeRelease:
+		loggingConfig = zap.NewProductionConfig()
+		loggingConfig.DisableCaller = true
+	case ModeDebug:
+		loggingConfig = zap.NewDevelopmentConfig()
+		loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	case ModeTest:
+		return zap.NewNop()
+	default:
+		panic(fmt.Sprintf("Unknown run mode: %s", conf.RunMode))
+	}
+
+	if conf.DebugLogEnabled {
+		if util.Exists(conf.LogFilePath()) {
+			if err := os.Remove(conf.LogFilePath()); err != nil {
+				panic(fmt.Sprintf("Failed to remove log file: %v", err))
+			}
+		}
+
+		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, conf.LogFilePath())
+	}
+
+	level, errLevel := zap.ParseAtomicLevel(conf.LogLevel)
+	if errLevel != nil {
+		panic(fmt.Sprintf("Failed to parse log level: %v", errLevel))
+	}
+
+	loggingConfig.Level.SetLevel(level.Level())
+
+	l, errLogger := loggingConfig.Build()
+	if errLogger != nil {
+		panic("Failed to create log config")
+	}
+
+	return l.Named("bd")
+}
 
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
 	if !steamID.Valid() { //nolint:nestif

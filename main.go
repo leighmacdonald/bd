@@ -49,7 +49,11 @@ func main() {
 
 	logger := detector.MustCreateLogger(userSettings)
 
-	logger.Info("Starting...")
+	logger.Info("Starting BD",
+		zap.String("version", versionInfo.Version),
+		zap.String("date", versionInfo.Date),
+		zap.String("commit", versionInfo.Commit),
+		zap.String("via", versionInfo.BuiltBy))
 
 	dataStore := store.New(userSettings.DBPath(), logger)
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {

@@ -74,6 +74,7 @@ export interface Server {
 }
 
 export interface State {
+    game_running: boolean;
     server: Server;
     players: Player[];
 }
@@ -227,9 +228,10 @@ export const useUserSettings = () => {
 
 export const useCurrentState = () => {
     const [state, setState] = useState<State>({
+        game_running: false,
         server: {
-            server_name: 'Unknown',
-            current_map: 'Unknown',
+            server_name: '',
+            current_map: '',
             tags: [],
             last_update: ''
         },

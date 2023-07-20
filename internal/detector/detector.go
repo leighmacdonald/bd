@@ -8,8 +8,10 @@ import (
 	gerrors "errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,7 +31,6 @@ import (
 	"github.com/leighmacdonald/steamweb/v2"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var ErrInvalidReadyState = errors.New("Invalid ready state")
@@ -194,47 +195,6 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 	return application
 }
 
-func MustCreateLogger(conf UserSettings) *zap.Logger {
-	var loggingConfig zap.Config
-
-	switch conf.RunMode {
-	case ModeRelease:
-		loggingConfig = zap.NewProductionConfig()
-		loggingConfig.DisableCaller = true
-	case ModeDebug:
-		loggingConfig = zap.NewDevelopmentConfig()
-		loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	case ModeTest:
-		return zap.NewNop()
-	default:
-		panic(fmt.Sprintf("Unknown run mode: %s", conf.RunMode))
-	}
-
-	if conf.DebugLogEnabled {
-		if util.Exists(conf.LogFilePath()) {
-			if err := os.Remove(conf.LogFilePath()); err != nil {
-				panic(fmt.Sprintf("Failed to remove log file: %v", err))
-			}
-		}
-
-		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, conf.LogFilePath())
-	}
-
-	level, errLevel := zap.ParseAtomicLevel(conf.LogLevel)
-	if errLevel != nil {
-		panic(fmt.Sprintf("Failed to parse log level: %v", errLevel))
-	}
-
-	loggingConfig.Level.SetLevel(level.Level())
-
-	l, errLogger := loggingConfig.Build()
-	if errLogger != nil {
-		panic("Failed to create log config")
-	}
-
-	return l.Named("bd")
-}
-
 // // BD is the main application container
 // type BD struct {
 //	// TODO
@@ -276,10 +236,6 @@ func (d *Detector) SaveSettings(settings UserSettings) error {
 
 func (d *Detector) Rules() *rules.Engine {
 	return d.rules
-}
-
-func NewLogReader(logger *zap.Logger, logPath string, logChan chan string) (*LogReader, error) {
-	return newLogReader(logger, logPath, logChan, true)
 }
 
 const (
@@ -856,7 +812,7 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 
 	settings := d.Settings()
 
-	conn, errConn := rcon.Dial(ctx, settings.Rcon.String(), settings.Rcon.Password, time.Second*5)
+	conn, errConn := rcon.Dial(ctx, settings.Rcon.String(), settings.Rcon.Password, DurationRCONRequestTimeout)
 	if errConn != nil {
 		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
 	}
@@ -1044,7 +1000,7 @@ func (d *Detector) profileUpdater(ctx context.Context) {
 	var (
 		queue       steamid.Collection
 		update      = make(chan any)
-		updateTimer = time.NewTicker(time.Second)
+		updateTimer = time.NewTicker(DurationUpdateTimer)
 	)
 
 	for {
@@ -1302,4 +1258,363 @@ func CreateTestPlayers(detector *Detector, count int) store.PlayerCollection {
 	detector.playersMu.Unlock()
 
 	return testPlayers
+}
+
+func (d *Detector) removePlayer(sid64 steamid.SID64) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	var valid []*store.Player
+
+	for _, player := range d.players {
+		if player.SteamID != sid64 {
+			valid = append(valid, player)
+		}
+	}
+
+	d.players = valid
+}
+
+func (d *Detector) stateUpdater(ctx context.Context) {
+	log := d.log.Named("stateUpdater")
+
+	defer log.Debug("stateUpdater exited")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update := <-d.stateUpdates:
+			log.Debug("Game state update input received", zap.String("kind", update.kind.String()))
+
+			if update.kind == updateStatus && !update.source.Valid() {
+				continue
+			}
+
+			switch update.kind {
+			case playerTimeout:
+				d.removePlayer(update.source)
+			case updateMessage:
+				evt, ok := update.data.(messageEvent)
+				if !ok {
+					continue
+				}
+
+				d.onUpdateMessage(ctx, log, evt)
+			case updateKill:
+				evt, ok := update.data.(killEvent)
+				if !ok {
+					continue
+				}
+
+				d.onKill(evt)
+			case updateBans:
+				evt, ok := update.data.(steamweb.PlayerBanState)
+				if !ok {
+					continue
+				}
+
+				d.onBans(evt)
+			case updateKickAttempts:
+				d.onKickAttempt(update.source)
+			case updateStatus:
+				evt, ok := update.data.(statusEvent)
+				if !ok {
+					continue
+				}
+
+				d.onStatus(ctx, update.source, evt)
+			case updateTags:
+				evt, ok := update.data.(tagsEvent)
+				if !ok {
+					continue
+				}
+
+				d.onTags(evt)
+			case updateHostname:
+				evt, ok := update.data.(hostnameEvent)
+				if !ok {
+					continue
+				}
+
+				d.onHostname(evt)
+			case updateMap:
+				evt, ok := update.data.(mapEvent)
+				if !ok {
+					continue
+				}
+
+				d.onMapName(evt)
+			case changeMap:
+				d.onMapChange()
+			}
+		}
+	}
+}
+
+func (d *Detector) onUpdateMessage(ctx context.Context, log *zap.Logger, evt messageEvent) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	namedPlayer, srdOk := d.players.ByName(evt.name)
+	if !srdOk {
+		return
+	}
+
+	if errUm := d.AddUserMessage(ctx, namedPlayer, evt.message, evt.dead, evt.teamOnly); errUm != nil {
+		log.Error("Failed to handle user message", zap.Error(errUm))
+	}
+}
+
+func (d *Detector) onKill(evt killEvent) {
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	ourSid := d.Settings().SteamID
+
+	src, srcOk := d.players.ByName(evt.sourceName)
+	if !srcOk {
+		return
+	}
+
+	target, targetOk := d.players.ByName(evt.sourceName)
+	if !targetOk {
+		return
+	}
+
+	src.Kills++
+	target.Deaths++
+
+	if target.SteamID == ourSid {
+		src.DeathsBy++
+	}
+
+	if src.SteamID == ourSid {
+		target.KillsOn++
+	}
+}
+
+func (d *Detector) onBans(evt steamweb.PlayerBanState) {
+	player, exists := d.GetPlayer(evt.SteamID)
+	if !exists {
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.NumberOfVACBans = evt.NumberOfVACBans
+	player.NumberOfGameBans = evt.NumberOfGameBans
+	player.CommunityBanned = evt.CommunityBanned
+	player.EconomyBan = evt.EconomyBan
+
+	if evt.DaysSinceLastBan > 0 {
+		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
+		player.LastVACBanOn = &subTime
+	}
+}
+
+func (d *Detector) onKickAttempt(steamID steamid.SID64) {
+	player, exists := d.GetPlayer(steamID)
+	if !exists {
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.KickAttemptCount++
+}
+
+func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
+	player, errPlayer := d.GetPlayerOrCreate(ctx, steamID)
+	if errPlayer != nil {
+		d.log.Error("Failed to get or create player", zap.Error(errPlayer))
+
+		return
+	}
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	player.Ping = evt.ping
+	player.UserID = evt.userID
+	player.Name = evt.name
+	player.Connected = evt.connected.Seconds()
+	player.UpdatedOn = time.Now()
+
+	d.log.Debug("Player status updated",
+		zap.String("sid", steamID.String()),
+		zap.Int("tags", evt.ping),
+		zap.Int("uid", evt.userID),
+		zap.String("name", evt.name),
+		zap.Int("connected", int(evt.connected.Seconds())))
+}
+
+func (d *Detector) onTags(evt tagsEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.Tags = evt.tags
+	d.server.LastUpdate = time.Now()
+
+	d.log.Debug("Tags updated", zap.Strings("tags", evt.tags))
+}
+
+func (d *Detector) onHostname(evt hostnameEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.ServerName = evt.hostname
+	d.server.LastUpdate = time.Now()
+
+	d.log.Debug("Hostname changed", zap.String("hostname", evt.hostname))
+}
+
+func (d *Detector) onMapName(evt mapEvent) {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.server.CurrentMap = evt.mapName
+
+	d.log.Debug("Map changed", zap.String("map", evt.mapName))
+}
+
+func (d *Detector) onMapChange() {
+	d.serverMu.Lock()
+	defer d.serverMu.Unlock()
+
+	d.playersMu.Lock()
+	defer d.playersMu.Unlock()
+
+	for _, p := range d.players {
+		p.Kills = 0
+		p.Deaths = 0
+		p.MapTimeStart = time.Now()
+		p.MapTime = 0
+	}
+
+	d.server.CurrentMap = ""
+	d.server.ServerName = ""
+}
+
+// incomingLogEventHandler handles mapping incoming LogEvent payloads into the more generalized
+// updateStateEvent used for all state updates.
+func (d *Detector) incomingLogEventHandler(ctx context.Context) {
+	log := d.log.Named("LogEventHandler")
+	defer log.Info("log event handler exited")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt := <-d.eventChan:
+			var update updateStateEvent
+
+			switch evt.Type {
+			case EvtMap:
+				update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
+			case EvtHostname:
+				update = updateStateEvent{kind: updateHostname, data: hostnameEvent{hostname: evt.MetaData}}
+			case EvtTags:
+				update = updateStateEvent{kind: updateTags, data: tagsEvent{tags: strings.Split(evt.MetaData, ",")}}
+			case EvtAddress:
+				pcs := strings.Split(evt.MetaData, ":")
+
+				portValue, errPort := strconv.ParseUint(pcs[1], 10, 16)
+				if errPort != nil {
+					log.Error("Failed to parse port: %v", zap.Error(errPort), zap.String("port", pcs[1]))
+
+					continue
+				}
+
+				parsedIP := net.ParseIP(pcs[0])
+				if parsedIP == nil {
+					log.Error("Failed to parse ip", zap.String("ip", pcs[0]))
+
+					continue
+				}
+
+				update = updateStateEvent{kind: updateAddress, data: addressEvent{ip: parsedIP, port: uint16(portValue)}}
+			case EvtDisconnect:
+				update = updateStateEvent{kind: changeMap, source: evt.PlayerSID, data: mapChangeEvent{}}
+			case EvtKill:
+				update = updateStateEvent{
+					kind:   updateKill,
+					source: evt.PlayerSID,
+					data:   killEvent{victimName: evt.Victim, sourceName: evt.Player},
+				}
+			case EvtMsg:
+				update = updateStateEvent{
+					kind:   updateMessage,
+					source: evt.PlayerSID,
+					data: messageEvent{
+						name:      evt.Player,
+						createdAt: evt.Timestamp,
+						message:   evt.Message,
+						teamOnly:  evt.TeamOnly,
+						dead:      evt.Dead,
+					},
+				}
+			case EvtStatusID:
+				update = newStatusUpdate(evt.PlayerSID, evt.PlayerPing, evt.UserID, evt.Player, evt.PlayerConnected)
+			case EvtLobby:
+				update = updateStateEvent{kind: updateLobby, source: evt.PlayerSID, data: lobbyEvent{team: evt.Team}}
+			}
+
+			d.stateUpdates <- update
+		}
+	}
+}
+
+func (d *Detector) discordStateUpdater(ctx context.Context) {
+	const discordAppID = "1076716221162082364"
+
+	log := d.log.Named("discord")
+	defer log.Debug("discordStateUpdater exited")
+
+	timer := time.NewTicker(time.Second * 10)
+	isRunning := false
+
+	for {
+		select {
+		case <-timer.C:
+			if !d.Settings().DiscordPresenceEnabled {
+				if isRunning {
+					// Logout of existing connection on settings change
+					if errLogout := d.discordPresence.Logout(); errLogout != nil {
+						log.Error("Failed to logout of discord client", zap.Error(errLogout))
+					}
+
+					isRunning = false
+				}
+
+				continue
+			}
+
+			if !isRunning {
+				if errLogin := d.discordPresence.Login(discordAppID); errLogin != nil {
+					log.Debug("Failed to login to discord", zap.Error(errLogin))
+
+					continue
+				}
+
+				isRunning = true
+			}
+
+			if isRunning {
+				d.serverMu.RLock()
+				d.playersMu.RLock()
+				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), d.server, d.gameProcessActive.Load(), d.startupTime); errUpdate != nil {
+					log.Error("Failed to update discord activity", zap.Error(errUpdate))
+
+					isRunning = false
+				}
+				d.playersMu.RUnlock()
+				d.serverMu.RUnlock()
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }

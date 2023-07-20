@@ -43,6 +43,10 @@ func (reader *LogReader) start(ctx context.Context) {
 	}
 }
 
+func NewLogReader(logger *zap.Logger, logPath string, logChan chan string) (*LogReader, error) {
+	return newLogReader(logger, logPath, logChan, true)
+}
+
 func newLogReader(logger *zap.Logger, path string, outChan chan string, echo bool) (*LogReader, error) {
 	log := tail.DefaultLogger
 	if !echo {
@@ -249,4 +253,28 @@ func NewLogParser(logger *zap.Logger, readChannel chan string, evtChan chan LogE
 			regexp.MustCompile(`^\s{2}(Member|Pending)\[\d+]\s+(?P<sid>\[.+?]).+?TF_GC_TEAM_(?P<team>(DEFENDERS|INVADERS))\s{2}type\s=\sMATCH_PLAYER$`),
 		},
 	}
+}
+
+var lobbyPlayerRx = regexp.MustCompile(`^\s+(Pending|Member)\[(\d+)]\s+(\S+)\s+team\s=\s(TF_GC_TEAM_INVADERS|TF_GC_TEAM_DEFENDERS).+?$`)
+
+func ParseLobbyPlayers(body string) []*store.Player {
+	var lobbyPlayers []*store.Player //nolint:prealloc
+
+	for _, line := range strings.Split(body, "\n") {
+		match := lobbyPlayerRx.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+
+		player := store.NewPlayer(steamid.SID3ToSID64(steamid.SID3(match[3])), "")
+		if match[4] == "TF_GC_TEAM_INVADERS" {
+			player.Team = store.Blu
+		} else {
+			player.Team = store.Red
+		}
+
+		lobbyPlayers = append(lobbyPlayers, player)
+	}
+
+	return lobbyPlayers
 }

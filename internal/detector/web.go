@@ -100,7 +100,8 @@ func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
 	return engine
 }
 
-// setupRoutes configures the routes. If the run mode
+// setupRoutes configures the routes. If the `release` tag is enabled, serves files from the embedded assets
+// in the binary.
 func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	if errStatic := assets.StaticRoutes(engine); errStatic != nil {
 		return errors.Wrap(errStatic, "Failed to setup static routes")
@@ -111,6 +112,7 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	engine.GET("/names/:steam_id", getNames(detector))
 	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
 	engine.GET("/settings", getSettings(detector))
+	engine.GET("/launch", getLaunch(detector))
 	engine.PUT("/settings", putSettings(detector))
 	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(detector, true))
 	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(detector, false))

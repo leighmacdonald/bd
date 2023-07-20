@@ -18,6 +18,8 @@ import Tooltip from '@mui/material/Tooltip';
 import visuallyHidden from '@mui/utils/visuallyHidden';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
 import {
@@ -409,31 +411,67 @@ export const PlayerTable = () => {
                                 'Show only players with some sort of negative status'
                             }
                         >
-                            <IconButton
-                                onClick={() => {
-                                    setMatchesOnly((prevState) => {
-                                        localStorage.setItem(
-                                            'matchesOnly',
-                                            `${!prevState}`
-                                        );
-                                        return !prevState;
-                                    });
-                                }}
-                            >
-                                <FilterListOutlinedIcon color={'primary'} />
-                            </IconButton>
+                            <Box>
+                                <IconButton
+                                    onClick={() => {
+                                        setMatchesOnly((prevState) => {
+                                            localStorage.setItem(
+                                                'matchesOnly',
+                                                `${!prevState}`
+                                            );
+                                            return !prevState;
+                                        });
+                                    }}
+                                >
+                                    <FilterListOutlinedIcon color={'primary'} />
+                                </IconButton>
+                            </Box>
                         </Tooltip>
-                        <ColumnConfigButton
-                            enabledColumns={enabledColumns}
-                            setEnabledColumns={updateSelectedColumns}
-                        />
-                        <IconButton
-                            onClick={() => {
-                                setSettingsOpen(true);
-                            }}
+
+                        <Tooltip title={'Configure which columns are shown'}>
+                            <Box>
+                                <ColumnConfigButton
+                                    enabledColumns={enabledColumns}
+                                    setEnabledColumns={updateSelectedColumns}
+                                />
+                            </Box>
+                        </Tooltip>
+
+                        <Tooltip title={'Open the settings dialogue'}>
+                            <Box>
+                                <IconButton
+                                    onClick={() => {
+                                        setSettingsOpen(true);
+                                    }}
+                                >
+                                    <SettingsOutlinedIcon color={'primary'} />
+                                </IconButton>
+                            </Box>
+                        </Tooltip>
+
+                        <Tooltip
+                            title={
+                                state.game_running
+                                    ? 'Game is currently running'
+                                    : 'Launch TF2!'
+                            }
                         >
-                            <SettingsOutlinedIcon color={'primary'} />
-                        </IconButton>
+                            <Box>
+                                <IconButton
+                                    disableRipple
+                                    color={
+                                        state.game_running ? 'success' : 'error'
+                                    }
+                                    onClick={() => {}}
+                                >
+                                    {state.game_running ? (
+                                        <PlayArrowIcon />
+                                    ) : (
+                                        <StopIcon />
+                                    )}
+                                </IconButton>
+                            </Box>
+                        </Tooltip>
                     </ButtonGroup>
                     <Box
                         sx={{ display: 'flex', alignItems: 'center' }}
