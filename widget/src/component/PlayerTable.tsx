@@ -145,7 +145,7 @@ const headCells: readonly HeadCell[] = [
         disablePadding: false,
         label: 'kpm',
         tooltip:
-            'Players kills per minute. Calculated from when you first see the player in the server, not how long they have actaully been in the server'
+            'Players kills per minute. Calculated from when you first see the player in the server, not how long they have actually been in the server'
     },
     {
         id: 'health',
@@ -268,33 +268,37 @@ const PlayerTableHead = ({
                         (c) => enabledColumns.includes(c.id) || !enabledColumns
                     )
                     .map((headCell) => (
-                        <TableCell
-                            key={headCell.id}
-                            align={headCell.numeric ? 'right' : 'left'}
-                            padding={
-                                headCell.disablePadding ? 'none' : 'normal'
-                            }
-                            sortDirection={
-                                orderBy === headCell.id ? order : false
-                            }
-                        >
-                            <TableSortLabel
-                                active={orderBy === headCell.id}
-                                direction={
-                                    orderBy === headCell.id ? order : 'asc'
+                        <Tooltip title={headCell.tooltip} key={headCell.id}>
+                            <TableCell
+                                align={headCell.numeric ? 'right' : 'left'}
+                                padding={
+                                    headCell.disablePadding ? 'none' : 'normal'
                                 }
-                                onClick={createSortHandler(headCell.id)}
+                                sortDirection={
+                                    orderBy === headCell.id ? order : false
+                                }
                             >
-                                {headCell.label}
-                                {orderBy === headCell.id ? (
-                                    <Box component="span" sx={visuallyHidden}>
-                                        {order === 'desc'
-                                            ? 'sorted descending'
-                                            : 'sorted ascending'}
-                                    </Box>
-                                ) : null}
-                            </TableSortLabel>
-                        </TableCell>
+                                <TableSortLabel
+                                    active={orderBy === headCell.id}
+                                    direction={
+                                        orderBy === headCell.id ? order : 'asc'
+                                    }
+                                    onClick={createSortHandler(headCell.id)}
+                                >
+                                    {headCell.label}
+                                    {orderBy === headCell.id ? (
+                                        <Box
+                                            component="span"
+                                            sx={visuallyHidden}
+                                        >
+                                            {order === 'desc'
+                                                ? 'sorted descending'
+                                                : 'sorted ascending'}
+                                        </Box>
+                                    ) : null}
+                                </TableSortLabel>
+                            </TableCell>
+                        </Tooltip>
                     ))}
             </TableRow>
         </TableHead>
@@ -331,8 +335,8 @@ const getDefaultColumns = (): validColumns[] => {
 };
 
 export const PlayerTable = () => {
-    const [order, setOrder] = React.useState<Order>('desc');
-    const [orderBy, setOrderBy] = React.useState<keyof Player>('name');
+    const [order, setOrder] = useState<Order>('desc');
+    const [orderBy, setOrderBy] = useState<keyof Player>('name');
     const [matchesOnly, setMatchesOnly] = useState(
         // Surely strings are the only types
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true

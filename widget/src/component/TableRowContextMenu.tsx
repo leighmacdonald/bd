@@ -32,6 +32,7 @@ import { SettingsContext } from '../context/settings';
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
 import vac from '../img/vac.png';
+import notes from '../img/notes.png';
 import whitelist from '../img/whitelist.png';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
@@ -278,6 +279,21 @@ export const TableRowContextMenu = ({
                                         height={18}
                                         src={whitelist}
                                         alt={`Player is marked, but whitelisted`}
+                                    />
+                                </Grid>
+                            )}
+                            {player.notes.length > 0 && (
+                                <Grid
+                                    xs={'auto'}
+                                    display="flex"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    <img
+                                        width={18}
+                                        height={18}
+                                        src={notes}
+                                        alt={`Player has notes`}
                                     />
                                 </Grid>
                             )}

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     Button,
@@ -8,6 +8,8 @@ import {
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
+import CloseIcon from '@mui/icons-material/Close';
+import SaveIcon from '@mui/icons-material/Save';
 
 interface NoteEditorProps {
     open: boolean;
@@ -27,34 +29,50 @@ export const NoteEditor = ({
     steamId,
     onSave
 }: NoteEditorProps) => {
+    const [newNotes, setNewNotes] = useState<string>(notes);
     const handleClose = useCallback(() => setOpen(false), [setOpen]);
 
     const handleSave = useCallback(async () => {
         await onSave(steamId, notes);
+        setNotes(newNotes);
         handleClose();
-    }, [onSave, steamId, notes, handleClose]);
+    }, [onSave, steamId, notes, setNotes, newNotes, handleClose]);
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth>
             <DialogTitle>Edit Player Notes</DialogTitle>
             <DialogContent>
-                <Stack spacing={1} padding={1}>
+                <Stack spacing={1} padding={0}>
                     <TextField
-                        id="outlined-multiline-flexible"
+                        id="notes-editor-field"
                         label="Note"
                         fullWidth
                         minRows={10}
-                        value={notes}
+                        value={newNotes}
                         onChange={(evt) => {
-                            setNotes(evt.target.value);
+                            setNewNotes(evt.target.value);
                         }}
                         multiline
                     />
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose}>Cancel</Button>
-                <Button onClick={handleSave}>Save</Button>
+                <Button
+                    startIcon={<CloseIcon />}
+                    color={'error'}
+                    variant={'contained'}
+                    onClick={handleClose}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    startIcon={<SaveIcon />}
+                    color={'success'}
+                    variant={'contained'}
+                    onClick={handleSave}
+                >
+                    Save
+                </Button>
             </DialogActions>
         </Dialog>
     );
