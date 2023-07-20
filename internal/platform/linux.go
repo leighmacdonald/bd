@@ -5,7 +5,6 @@ package platform
 import (
 	"os/exec"
 
-	"github.com/leighmacdonald/bd/internal/asset"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
@@ -79,7 +78,7 @@ func (l LinuxPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l LinuxPlatform) Icon() []byte {
-	return asset.Read(asset.IconOther)
+	return assets.Read(assets.IconOther)
 }
 
 func (l LinuxPlatform) OpenURL(url string) error {
