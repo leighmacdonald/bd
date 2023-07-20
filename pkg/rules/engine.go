@@ -468,7 +468,7 @@ func (rs *RuleSchema) matchTextType(text string, matchType TextMatchType) *Match
 	return nil
 }
 
-func (e *Engine) MatchSteam(steamID steamid.SID64) []*MatchResult {
+func (e *Engine) MatchSteam(steamID steamid.SID64) MatchResults {
 	if e.Whitelisted(steamID) {
 		return nil
 	}
@@ -476,7 +476,7 @@ func (e *Engine) MatchSteam(steamID steamid.SID64) []*MatchResult {
 	e.RLock()
 	defer e.RUnlock()
 
-	var matches []*MatchResult
+	var matches MatchResults
 
 	for _, list := range e.playerLists {
 		for _, sm := range list.matchersSteam {
@@ -493,7 +493,7 @@ func (e *Engine) MatchSteam(steamID steamid.SID64) []*MatchResult {
 }
 
 func (e *Engine) MatchName(name string) []*MatchResult {
-	var found []*MatchResult
+	var found MatchResults
 
 	for _, list := range e.rulesLists {
 		match := list.matchTextType(name, TextMatchTypeName)
@@ -508,7 +508,7 @@ func (e *Engine) MatchName(name string) []*MatchResult {
 }
 
 func (e *Engine) MatchMessage(text string) []*MatchResult {
-	var found []*MatchResult
+	var found MatchResults
 
 	for _, list := range e.rulesLists {
 		match := list.matchTextType(text, TextMatchTypeMessage)

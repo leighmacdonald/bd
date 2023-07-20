@@ -714,13 +714,13 @@ func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) 
 		}
 
 		if matchSteam := d.rules.MatchSteam(player.SteamID); matchSteam != nil { //nolint:nestif
-			player.Matches = append(player.Matches, matchSteam...)
+			player.Matches = matchSteam
 			if validTeam == player.Team {
 				d.triggerMatch(ctx, player, matchSteam)
 			}
 		} else if player.Name != "" {
 			if matchName := d.rules.MatchName(player.Name); matchName != nil && validTeam == player.Team {
-				player.Matches = append(player.Matches, matchSteam...)
+				player.Matches = matchName
 				if validTeam == player.Team {
 					d.triggerMatch(ctx, player, matchSteam)
 				}

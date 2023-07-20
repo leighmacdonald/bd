@@ -197,6 +197,9 @@ export const saveUserNote = async (steamId: string, notes: string) =>
 export const deleteUserNote = async (steamId: string) =>
     await call<UserNote>('POST', `/notes/${steamId}`, { note: '' });
 
+export const markUser = async (steamId: string, attrs: string[]) =>
+    await call('POST', `/mark/${steamId}`, { attrs });
+
 const getState = async () => await callJson<State>('GET', '/state');
 
 const getUserSettings = async () =>
