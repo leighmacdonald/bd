@@ -15,6 +15,8 @@ type MatchResult struct {
 	MatcherType string `json:"matcher_type"`
 }
 
+type MatchResults []*MatchResult
+
 type TextMatchType string
 
 const (

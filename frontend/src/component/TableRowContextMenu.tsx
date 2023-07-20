@@ -21,6 +21,7 @@ import {
     addWhitelist,
     deleteWhitelist,
     formatSeconds,
+    markUser,
     Player,
     Team,
     visibilityString
@@ -33,12 +34,14 @@ import sb from '../img/sb.png';
 import dead from '../img/dead.png';
 import vac from '../img/vac.png';
 import notes from '../img/notes.png';
+import marked from '../img/marked.png';
 import whitelist from '../img/whitelist.png';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableBody from '@mui/material/TableBody';
 import { format, parseJSON } from 'date-fns';
 import { TextareaAutosize } from '@mui/material';
+import Table from '@mui/material/Table';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -159,6 +162,14 @@ export const TableRowContextMenu = ({
         await addWhitelist(steamId);
     }, []);
 
+    const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
+        try {
+            await markUser(steamId, attrs);
+        } catch (e) {
+            console.log(e);
+        }
+    }, []);
+
     const mouseLeave = () => {
         setHoverMenuPos(null);
     };
@@ -269,6 +280,21 @@ export const TableRowContextMenu = ({
                                         />
                                     </Grid>
                                 )}
+                            {player.matches && player.matches?.length > 0 && (
+                                <Grid
+                                    xs={'auto'}
+                                    display="flex"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    <img
+                                        width={18}
+                                        height={18}
+                                        src={marked}
+                                        alt={`Player is marked on one or more lists`}
+                                    />
+                                </Grid>
+                            )}
                             {player.whitelisted && (
                                 <Grid
                                     xs={'auto'}
@@ -384,15 +410,15 @@ export const TableRowContextMenu = ({
                     label="Mark Player As"
                     parentMenuOpen={contextMenuPos !== null}
                 >
-                    {[...settings.unique_tags, 'new'].map((tag) => {
+                    {[...settings.unique_tags, 'new'].map((attr) => {
                         return (
                             <IconMenuItem
                                 leftIcon={<FlagIcon color={'primary'} />}
-                                onClick={() => {
-                                    console.log(`tag as ${tag}`);
+                                onClick={async () => {
+                                    await onMarkAs(player.steam_id, [attr]);
                                 }}
-                                label={tag}
-                                key={`tag-${player.steam_id}-${tag}`}
+                                label={attr}
+                                key={`tag-${player.steam_id}-${attr}`}
                             />
                         );
                     })}
@@ -564,129 +590,153 @@ export const TableRowContextMenu = ({
                         {player.matches && player.matches.length > 0 && (
                             <Grid xs={12}>
                                 <TableContainer>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell padding={'normal'}>
-                                                Origin
-                                            </TableCell>
-                                            <TableCell padding={'normal'}>
-                                                Tags
-                                            </TableCell>
-                                            <TableCell padding={'normal'}>
-                                                Type
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {player.matches?.map((match) => {
-                                            return (
-                                                <TableRow
-                                                    key={`match-${match.origin}`}
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell padding={'normal'}>
+                                                    Origin
+                                                </TableCell>
+
+                                                <TableCell padding={'normal'}>
+                                                    Type
+                                                </TableCell>
+                                                <TableCell
+                                                    padding={'normal'}
+                                                    width={'100%'}
                                                 >
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {match.origin}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {match.attributes.join(
-                                                                ', '
-                                                            )}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {match.matcher_type}
-                                                        </Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
+                                                    Tags
+                                                </TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {player.matches?.map((match) => {
+                                                return (
+                                                    <TableRow
+                                                        key={`match-${match.origin}`}
+                                                    >
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {match.origin}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {
+                                                                    match.matcher_type
+                                                                }
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {match.attributes.join(
+                                                                    ', '
+                                                                )}
+                                                            </Typography>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
                                 </TableContainer>
                             </Grid>
                         )}
                         {player.sourcebans && player.sourcebans.length > 0 && (
                             <Grid xs={12}>
                                 <TableContainer>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell padding={'normal'}>
-                                                Site&nbsp;Name
-                                            </TableCell>
-                                            <TableCell padding={'normal'}>
-                                                Created
-                                            </TableCell>
-                                            <TableCell padding={'normal'}>
-                                                Perm
-                                            </TableCell>
-                                            <TableCell
-                                                padding={'normal'}
-                                                width={'100%'}
-                                            >
-                                                Reason
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {player.sourcebans.map((ban) => {
-                                            return (
-                                                <TableRow
-                                                    key={`sb-${ban.ban_id}`}
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell padding={'normal'}>
+                                                    Site&nbsp;Name
+                                                </TableCell>
+                                                <TableCell padding={'normal'}>
+                                                    Created
+                                                </TableCell>
+                                                <TableCell padding={'normal'}>
+                                                    Perm
+                                                </TableCell>
+                                                <TableCell
+                                                    padding={'normal'}
+                                                    width={'100%'}
                                                 >
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {ban.site_name}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {format(
-                                                                parseJSON(
-                                                                    ban.created_on
-                                                                ),
-                                                                'MM/dd/yyyy'
-                                                            )}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'button'}
-                                                        >
-                                                            {ban.permanent
-                                                                ? 'yes'
-                                                                : 'no'}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography
-                                                            padding={1}
-                                                            variant={'body1'}
-                                                        >
-                                                            {ban.reason}
-                                                        </Typography>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
+                                                    Reason
+                                                </TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {player.sourcebans.map((ban) => {
+                                                return (
+                                                    <TableRow
+                                                        key={`sb-${ban.ban_id}`}
+                                                    >
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {ban.site_name}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {format(
+                                                                    parseJSON(
+                                                                        ban.created_on
+                                                                    ),
+                                                                    'MM/dd/yyyy'
+                                                                )}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'button'
+                                                                }
+                                                            >
+                                                                {ban.permanent
+                                                                    ? 'yes'
+                                                                    : 'no'}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography
+                                                                padding={1}
+                                                                variant={
+                                                                    'body1'
+                                                                }
+                                                            >
+                                                                {ban.reason}
+                                                            </Typography>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
                                 </TableContainer>
                             </Grid>
                         )}

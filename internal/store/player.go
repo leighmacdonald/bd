@@ -99,7 +99,7 @@ type Player struct {
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
 
-	Matches []*rules.MatchResult `json:"matches"`
+	Matches rules.MatchResults `json:"matches"`
 }
 
 const (
@@ -150,7 +150,7 @@ func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	return &Player{
 		BaseSID:          BaseSID{sid64},
 		Name:             name,
-		Matches:          []*rules.MatchResult{},
+		Matches:          rules.MatchResults{},
 		AvatarHash:       defaultAvatarHash,
 		AccountCreatedOn: time.Time{},
 		Visibility:       steamweb.VisibilityPublic,
