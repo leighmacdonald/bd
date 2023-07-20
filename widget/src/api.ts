@@ -111,6 +111,8 @@ export interface Player {
     alive: boolean;
     deaths: number;
     health: number;
+    kpm: number;
+    map_time: number;
     our_friend: boolean;
     sourcebans: SourcebansRecord[] | null;
     matches: Match[] | null;

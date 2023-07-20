@@ -64,13 +64,17 @@ type Player struct {
 	// status
 	// Connected is how long the user has been in the server
 	Connected float64 `json:"connected"`
+
+	MapTimeStart time.Time `json:"-"`
+	MapTime      float64   `json:"map_time"`
+
 	// In game user id
 	UserID int `json:"user_id"`
 	Ping   int `json:"ping"`
 
 	// g15_dumpplayer
 	Score       int  `json:"score"`
-	IsConnected bool `json:"is_connected"` // probably not needed
+	IsConnected bool `json:"is_connected"`
 	Alive       bool `json:"alive"`
 	Health      int  `json:"health"`
 	Valid       bool `json:"valid"` // What is it?
@@ -78,6 +82,8 @@ type Player struct {
 	Kills       int  `json:"kills"`
 
 	// - Misc
+
+	KPM float64 `json:"kpm"`
 
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int `json:"kick_attempt_count"`
@@ -96,12 +102,17 @@ type Player struct {
 	Matches []*rules.MatchResult `json:"matches"`
 }
 
+const (
+	playerDisconnect = time.Second * 5
+	playerExpiration = time.Second * 60
+)
+
 func (ps *Player) IsDisconnected() bool {
-	return time.Since(ps.UpdatedOn) > time.Second*6
+	return time.Since(ps.UpdatedOn) > playerDisconnect
 }
 
 func (ps *Player) IsExpired() bool {
-	return time.Since(ps.UpdatedOn) > time.Second*20
+	return time.Since(ps.UpdatedOn) > playerExpiration
 }
 
 func (ps *Player) Touch() {
