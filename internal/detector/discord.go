@@ -1,13 +1,11 @@
 package detector
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"github.com/leighmacdonald/bd/pkg/discord/client"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 type mapConfig struct {
@@ -188,56 +186,4 @@ func discordUpdateActivity(discordClient *client.Client, cnt int, server *Server
 	}
 
 	return nil
-}
-
-func (d *Detector) discordStateUpdater(ctx context.Context) {
-	const discordAppID = "1076716221162082364"
-
-	log := d.log.Named("discord")
-	defer log.Debug("discordStateUpdater exited")
-
-	timer := time.NewTicker(time.Second * 10)
-	isRunning := false
-
-	for {
-		select {
-		case <-timer.C:
-			if !d.Settings().DiscordPresenceEnabled {
-				if isRunning {
-					// Logout of existing connection on settings change
-					if errLogout := d.discordPresence.Logout(); errLogout != nil {
-						log.Error("Failed to logout of discord client", zap.Error(errLogout))
-					}
-
-					isRunning = false
-				}
-
-				continue
-			}
-
-			if !isRunning {
-				if errLogin := d.discordPresence.Login(discordAppID); errLogin != nil {
-					log.Debug("Failed to login to discord", zap.Error(errLogin))
-
-					continue
-				}
-
-				isRunning = true
-			}
-
-			if isRunning {
-				d.serverMu.RLock()
-				d.playersMu.RLock()
-				if errUpdate := discordUpdateActivity(d.discordPresence, len(d.players), d.server, d.gameProcessActive.Load(), d.startupTime); errUpdate != nil {
-					log.Error("Failed to update discord activity", zap.Error(errUpdate))
-
-					isRunning = false
-				}
-				d.playersMu.RUnlock()
-				d.serverMu.RUnlock()
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
 }

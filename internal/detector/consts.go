@@ -1,11 +1,7 @@
 package detector
 
 import (
-	"context"
 	"time"
-
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 const (
@@ -16,7 +12,7 @@ const (
 	DurationAnnounceMatchTimeout = time.Minute * 5
 	DurationCacheTimeout         = time.Hour * 12
 	DurationWebRequestTimeout    = time.Second * 5
-	DurationRCONRequestTimeout   = time.Second
+	DurationRCONRequestTimeout   = time.Second * 2
 	DurationProcessTimeout       = time.Second * 3
 )
 
@@ -35,22 +31,6 @@ const (
 	EvtLobby
 )
 
-type SteamIDFn func(sid64 steamid.SID64)
-
-type SteamIDErrFn func(sid64 steamid.SID64) error
-
-type GetPlayerFm func(sid64 steamid.SID64) *store.Player
-
-type GetPlayerOffline func(ctx context.Context, sid64 steamid.SID64, player *store.Player) error
-
-type SavePlayer func(ctx context.Context, state *store.Player) error
-
-type SearchPlayers func(ctx context.Context, opts store.SearchOpts) (store.PlayerCollection, error)
-
-type MarkFunc func(sid64 steamid.SID64, attrs []string) error
-
-type NoteFunc func(sid64 steamid.SID64, note string) error
-
 type KickReason string
 
 const (
@@ -60,8 +40,6 @@ const (
 	KickReasonOther    KickReason = "other"
 )
 
-type KickFunc func(userId int64, reason KickReason) error
-
 type ChatDest string
 
 const (
@@ -69,10 +47,6 @@ const (
 	ChatDestTeam  ChatDest = "team"
 	ChatDestParty ChatDest = "party"
 )
-
-type ChatFunc func(destination ChatDest, format string, args ...any) error
-
-type LaunchFunc func()
 
 type Version struct {
 	Version string

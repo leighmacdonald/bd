@@ -46,8 +46,9 @@ func getNames(detector *Detector) gin.HandlerFunc {
 }
 
 type CurrentState struct {
-	Server  *Server         `json:"server"`
-	Players []*store.Player `json:"players"`
+	GameRunning bool            `json:"game_running"`
+	Server      *Server         `json:"server"`
+	Players     []*store.Player `json:"players"`
 }
 
 func getState(detector *Detector) gin.HandlerFunc {
@@ -62,7 +63,25 @@ func getState(detector *Detector) gin.HandlerFunc {
 			players = []*store.Player{}
 		}
 
-		responseOK(ctx, http.StatusOK, CurrentState{Server: detector.server, Players: players})
+		responseOK(ctx, http.StatusOK, CurrentState{
+			Server:      detector.server,
+			Players:     players,
+			GameRunning: detector.gameProcessActive.Load(),
+		})
+	}
+}
+
+func getLaunch(detector *Detector) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if detector.gameProcessActive.Load() {
+			responseErr(ctx, http.StatusConflict, "Game process active")
+
+			return
+		}
+
+		go detector.LaunchGameAndWait()
+
+		responseOK(ctx, http.StatusNoContent, gin.H{})
 	}
 }
 
