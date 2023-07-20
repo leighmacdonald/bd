@@ -5,6 +5,8 @@ package platform
 import (
 	"os/exec"
 
+	"github.com/leighmacdonald/bd/internal/assets"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
