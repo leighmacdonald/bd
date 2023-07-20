@@ -590,7 +590,7 @@ export const TableRowContextMenu = ({
                         {player.matches && player.matches.length > 0 && (
                             <Grid xs={12}>
                                 <TableContainer>
-                                    <Table>
+                                    <Table size={'small'}>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell padding={'normal'}>
@@ -659,7 +659,7 @@ export const TableRowContextMenu = ({
                         {player.sourcebans && player.sourcebans.length > 0 && (
                             <Grid xs={12}>
                                 <TableContainer>
-                                    <Table>
+                                    <Table size={'small'}>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell padding={'normal'}>
