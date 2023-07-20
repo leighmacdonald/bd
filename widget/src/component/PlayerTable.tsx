@@ -20,7 +20,13 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
-import { addWhitelist, Player, saveUserNote, useCurrentState } from '../api';
+import {
+    addWhitelist,
+    Player,
+    saveUserNote,
+    Team,
+    useCurrentState
+} from '../api';
 import { NoteEditor } from './NoteEditor';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
@@ -81,6 +87,7 @@ interface HeadCell {
     id: validColumns;
     label: string;
     numeric: boolean;
+    tooltip: string;
 }
 
 export type validColumns =
@@ -101,61 +108,72 @@ const headCells: readonly HeadCell[] = [
         id: 'user_id',
         numeric: true,
         disablePadding: false,
-        label: 'uid'
+        label: 'uid',
+        tooltip: 'Players in-Game user id'
     },
     {
         id: 'name',
         numeric: false,
         disablePadding: false,
-        label: 'name'
+        label: 'name',
+        tooltip: 'Players current name, as reported by the game server'
     },
     {
         id: 'score',
         numeric: true,
         disablePadding: false,
-        label: 'score'
+        label: 'score',
+        tooltip: 'Players current score'
     },
     {
         id: 'kills',
         numeric: true,
         disablePadding: false,
-        label: 'kills'
+        label: 'kills',
+        tooltip: 'Players current kills'
     },
     {
         id: 'deaths',
         numeric: true,
         disablePadding: false,
-        label: 'deaths'
+        label: 'deaths',
+        tooltip: 'Players current deaths'
     },
     {
         id: 'kpm',
         numeric: true,
         disablePadding: false,
-        label: 'kpm'
+        label: 'kpm',
+        tooltip:
+            'Players kills per minute. Calculated from when you first see the player in the server, not how long they have actaully been in the server'
     },
     {
         id: 'health',
         numeric: true,
         disablePadding: false,
-        label: 'health'
+        label: 'health',
+        tooltip: 'Shows player current health'
     },
     {
         id: 'connected',
         numeric: true,
         disablePadding: false,
-        label: 'time'
+        label: 'time',
+        tooltip: 'How long the player has been connected to the server'
     },
     {
         id: 'map_time',
         numeric: true,
         disablePadding: false,
-        label: 'map time'
+        label: 'map time',
+        tooltip: 'How long ist been since you first joined the map'
     },
     {
         id: 'ping',
         numeric: true,
         disablePadding: false,
-        label: 'ping'
+        label: 'ping',
+        tooltip: 'Players current latency'
     }
 ];
 
@@ -415,6 +433,37 @@ export const PlayerTable = () => {
                     </ButtonGroup>
                     <Box
                         sx={{ display: 'flex', alignItems: 'center' }}
+                        paddingLeft={1}
+                    >
+                        <Typography
+                            variant={'button'}
+                            style={{ color: '#004ec2' }}
+                        >
+                            {
+                                state.players.filter(
+                                    (p) => p.team == Team.BLU && p.is_connected
+                                ).length
+                            }
+                        </Typography>
+                        <Typography
+                            variant={'button'}
+                            style={{ paddingLeft: 3, paddingRight: 3 }}
+                        >
+                            :
+                        </Typography>
+                        <Typography
+                            variant={'button'}
+                            style={{ color: '#b40a2a' }}
+                        >
+                            {
+                                state.players.filter(
+                                    (p) => p.team == Team.RED && p.is_connected
+                                ).length
+                            }
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{ display: 'flex', alignItems: 'center' }}
                         paddingLeft={2}
                     >
                         <Typography variant={'h1'}>
@@ -425,15 +474,14 @@ export const PlayerTable = () => {
                         sx={{ display: 'flex', alignItems: 'center' }}
                         paddingLeft={2}
                     >
-                        <Typography variant={'subtitle1'}>
+                        <Typography variant={'subtitle1'} paddingRight={1}>
                             {state.server.current_map}
                         </Typography>
                     </Box>
                 </Stack>
-                <TableContainer>
+                <TableContainer sx={{ overflow: 'hidden' }}>
                     <Table
-                        stickyHeader
-                        aria-label="sticky table"
+                        aria-label="Player table"
                         size="small"
                         padding={'none'}
                     >

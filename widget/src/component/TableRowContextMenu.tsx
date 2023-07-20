@@ -32,6 +32,7 @@ import { SettingsContext } from '../context/settings';
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
 import vac from '../img/vac.png';
+import whitelist from '../img/whitelist.png';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableBody from '@mui/material/TableBody';
@@ -46,6 +47,9 @@ export interface TableRowContextMenuProps {
     onWhitelist: (steamId: string) => void;
 }
 
+export const bluColour = 'rgba(0,18,45,0.82)';
+export const redColour = 'rgba(44,0,10,0.81)';
+
 interface userTheme {
     disconnected: string;
     connectingBg: string;
@@ -59,13 +63,13 @@ interface userTheme {
 const createUserTheme = (): userTheme => {
     // TODO user configurable
     return {
-        disconnected: '#383838',
+        disconnected: '#2d2d2d',
         connectingBg: '#032a23',
-        teamABg: '#001d49',
+        teamABg: bluColour,
         matchBotBg: '#901380',
         matchCheaterBg: '#500e0e',
         matchOtherBg: '#0c1341',
-        teamBBg: '#3e020e'
+        teamBBg: redColour
     };
 };
 
@@ -218,6 +222,7 @@ export const TableRowContextMenu = ({
                                     />
                                 </Grid>
                             )}
+
                             <Grid xs textOverflow={'clip'} overflow={'hidden'}>
                                 <Typography
                                     sx={{
@@ -261,6 +266,21 @@ export const TableRowContextMenu = ({
                                         />
                                     </Grid>
                                 )}
+                            {player.whitelisted && (
+                                <Grid
+                                    xs={'auto'}
+                                    display="flex"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    <img
+                                        width={18}
+                                        height={18}
+                                        src={whitelist}
+                                        alt={`Player is marked, but whitelisted`}
+                                    />
+                                </Grid>
+                            )}
                         </Grid>
                     </TableCell>
                 )}
