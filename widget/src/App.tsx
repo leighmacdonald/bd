@@ -19,7 +19,7 @@ export const App = (): JSX.Element => {
                 <ThemeProvider theme={theme}>
                     <React.StrictMode>
                         <CssBaseline />
-                        <Container maxWidth={'lg'}>
+                        <Container maxWidth={'lg'} disableGutters>
                             {!userSettings.loading && (
                                 <SettingsContext.Provider value={userSettings}>
                                     <ErrorBoundary>

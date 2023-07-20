@@ -16,7 +16,7 @@ export const createThemeByMode = () => {
                 styleOverrides: {
                     root: {
                         borderLeft: '1px solid #000000',
-                        borderBottom: '1px solid #000000',
+                        borderBottom: 'none',
                         borderRight: '1px solid #000000',
                         paddingLeft: '6px',
                         paddingRight: '6px'
