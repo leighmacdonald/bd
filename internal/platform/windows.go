@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/internal/asset"
+	"github.com/leighmacdonald/bd/internal/assets"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
@@ -185,7 +185,7 @@ func (l WindowsPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l WindowsPlatform) Icon() []byte {
-	return asset.Read(asset.IconWindows)
+	return assets.Read(assets.IconWindows)
 }
 
 func (l WindowsPlatform) OpenURL(url string) error {

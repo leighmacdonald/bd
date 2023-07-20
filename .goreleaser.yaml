@@ -7,6 +7,8 @@ builds:
       - linux
     goarch:
       - amd64
+    tags:
+      - release
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
   - id: windows
@@ -14,8 +16,11 @@ builds:
       - windows
     goarch:
       - amd64
+    tags:
+      - release
     ldflags:
-      - -H=windowsgui -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
+      # - -H=windowsgui -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
 archives:
   - format: tar.gz
     name_template: >-

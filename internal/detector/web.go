@@ -2,16 +2,13 @@ package detector
 
 import (
 	"context"
-	"embed"
-	"html/template"
-	"io/fs"
 	"net"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/internal/assets"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -103,31 +100,10 @@ func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
 	return engine
 }
 
-//go:embed dist/*
-var embedFS embed.FS
-
 // setupRoutes configures the routes. If the run mode
 func setupRoutes(engine *gin.Engine, detector *Detector) error {
-	if detector.settings.RunMode == ModeRelease {
-		absStaticPath, errStaticPath := filepath.Abs("./internal/detector/dist")
-		if errStaticPath != nil {
-			return errors.Wrap(errStaticPath, "Failed to setup static paths")
-		}
-
-		engine.StaticFS("/dist", http.Dir(absStaticPath))
-		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
-	} else {
-		subFs, errSubFS := fs.Sub(embedFS, "dist")
-		if errSubFS != nil {
-			return errors.Wrap(errSubFS, "Could not setup embedfs")
-		}
-
-		engine.SetHTMLTemplate(template.
-			Must(template.New("").
-				Delims("{{", "}}").
-				Funcs(engine.FuncMap).
-				ParseFS(subFs, "index.html")))
-		engine.StaticFS("/dist", http.FS(subFs))
+	if errStatic := assets.StaticRoutes(engine); errStatic != nil {
+		return errors.Wrap(errStatic, "Failed to setup static routes")
 	}
 
 	engine.GET("/state", getState(detector))

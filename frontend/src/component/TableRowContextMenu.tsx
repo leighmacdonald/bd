@@ -226,10 +226,12 @@ export const TableRowContextMenu = ({
 
                             <Grid xs textOverflow={'clip'} overflow={'hidden'}>
                                 <Typography
+                                    overflow={'clip'}
                                     sx={{
                                         fontFamily: 'Monospace',
                                         maxWidth: '250px'
                                     }}
+                                    textOverflow={'clip'}
                                     variant={'subtitle1'}
                                 >
                                     {player.name}
