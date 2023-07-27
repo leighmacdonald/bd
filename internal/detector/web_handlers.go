@@ -46,6 +46,7 @@ func getNames(detector *Detector) gin.HandlerFunc {
 }
 
 type CurrentState struct {
+	Tags        []string        `json:"tags"`
 	GameRunning bool            `json:"game_running"`
 	Server      *Server         `json:"server"`
 	Players     []*store.Player `json:"players"`
