@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const maxDataSize = 34
+const maxDataSize = 102
 
 type DumpPlayer struct {
 	Names     [maxDataSize]string
