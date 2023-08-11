@@ -1,7 +1,7 @@
 all: fmt check
 	go build
 
-deps:
+deps_release:
 	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
 	# go install github.com/goreleaser/goreleaser@latest
 	# for pro install from: https://github.com/goreleaser/goreleaser-pro/releases
@@ -60,3 +60,11 @@ fmt:
 
 watch:
 	cd frontend && yarn run watch
+
+deps:
+	cd frontend && yarn install
+	go mod download
+
+local: deps
+	cd frontend && yarn run build
+	go build -o bd
