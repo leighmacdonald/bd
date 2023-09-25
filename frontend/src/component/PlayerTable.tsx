@@ -383,17 +383,12 @@ export const PlayerTable = () => {
         setOrderBy(property);
     };
 
-    // exampleArray.slice().sort(exampleComparator)
-    const visibleRows = useMemo(
-        () =>
-            stableSort(
-                state.players.filter(
-                    (p) => !matchesOnly || (!p.whitelisted && p.matches?.length)
-                ),
-                getComparator(order, orderBy)
-            ),
-        [order, orderBy, state, matchesOnly]
-    );
+    const visibleRows = useMemo(() => {
+        const filteredPlayers = state.players.filter(
+            (p) => !matchesOnly || (!p.whitelisted && p.matches?.length)
+        );
+        return stableSort(filteredPlayers, getComparator(order, orderBy));
+    }, [order, orderBy, state.players, matchesOnly]);
 
     const updateSelectedColumns = useCallback(
         (columns: validColumns[]) => {

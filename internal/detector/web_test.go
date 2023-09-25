@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -22,51 +23,49 @@ import (
 	"go.uber.org/zap"
 )
 
-func testApp() (*detector.Detector, error) {
+func testApp() (*detector.Detector, func(), error) {
+	tempDir, errTemp := os.MkdirTemp("", "bd-test")
+	if errTemp != nil {
+		return nil, func() {}, errors.Wrap(errTemp, "Failed to create temp dir")
+	}
+
 	logger := zap.NewNop()
 	userSettings, _ := detector.NewSettings()
 	userSettings.RunMode = detector.ModeTest
 	userSettings.SteamID = steamid.RandSID64()
+	userSettings.ConfigPath = path.Join(tempDir, "bd.yaml")
 
 	var dataStore store.DataStore
 
 	if os.Getenv("WRITE_TEST_DB") != "" {
 		// Toggle if you want to inspect the database
-		dir, errDir := os.MkdirTemp("", "bd-test")
-		if errDir != nil {
-			panic(errDir)
-		}
-
-		localDBPath := filepath.Join(dir, "db.sqlite?cache=shared")
+		localDBPath := filepath.Join(tempDir, "db.sqlite?cache=shared")
 		dataStore = store.New(localDBPath, logger)
-
-		defer func() {
-			_ = dataStore.Close()
-
-			if errRemove := os.RemoveAll(dir); errRemove != nil {
-				logger.Error("Failed to remove temp db")
-			}
-		}()
 	} else {
 		dataStore = store.New(":memory:", logger)
 	}
 
+	cleanup := func() {
+		_ = dataStore.Close()
+		_ = os.RemoveAll(tempDir)
+	}
+
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		return nil, errors.Wrap(errMigrate, "Failed to create test app")
+		return nil, cleanup, errors.Wrap(errMigrate, "Failed to create test app")
 	}
 
 	logChan := make(chan string)
 
 	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
 	if errLogReader != nil {
-		return nil, errors.Wrap(errLogReader, "Failed to create test app")
+		return nil, cleanup, errors.Wrap(errLogReader, "Failed to create test app")
 	}
 
 	versionInfo := detector.Version{Version: "", Commit: "", Date: "", BuiltBy: ""}
 	ds, _ := detector.NewAPIDataSource("")
 	application := detector.New(logger, userSettings, dataStore, versionInfo, &detector.NopCache{}, logReader, logChan, ds)
 
-	return application, nil
+	return application, cleanup, nil
 }
 
 func fetchIntoWithStatus(t *testing.T, app *detector.Detector, method string, path string, status int, out any, body any) {
@@ -96,7 +95,11 @@ func fetchIntoWithStatus(t *testing.T, app *detector.Detector, method string, pa
 }
 
 func TestGetPlayers(t *testing.T) {
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+
+	defer cleanup()
+
 	testPlayers := detector.CreateTestPlayers(app, 5)
 
 	var state detector.CurrentState
@@ -107,7 +110,10 @@ func TestGetPlayers(t *testing.T) {
 }
 
 func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+
+	defer cleanup()
 
 	t.Run("Get Settings", func(t *testing.T) { //nolint:tparallel
 		var wus detector.WebUserSettings
@@ -141,14 +147,20 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 		newSettings.SteamID = steamid.RandSID64()
 
 		require.NoError(t, app.SaveSettings(newSettings))
-		fetchIntoWithStatus(t, app, http.MethodPost, "/settings", http.StatusNoContent, nil, newSettings)
+		fetchIntoWithStatus(t, app, http.MethodPut, "/settings", http.StatusNoContent, nil, newSettings)
 
-		require.EqualValues(t, newSettings, app.Settings())
+		updated := app.Settings()
+
+		require.EqualValues(t, newSettings, updated)
 	})
 }
 
 func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+
+	defer cleanup()
+
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostMarkPlayerOpts{
 		Attrs: []string{"cheater", "test"},
@@ -183,8 +195,27 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 	})
 }
 
+func TestUnmarkPlayerHandler(t *testing.T) {
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+	defer cleanup()
+
+	markedPlayer := detector.CreateTestPlayers(app, 1)[0]
+
+	testAttrs := []string{"cheater"}
+	require.NoError(t, app.Mark(context.Background(), markedPlayer.SteamID, testAttrs))
+
+	t.Run("Unmark Non-Marked Player", func(t *testing.T) {
+		fetchIntoWithStatus(t, app, http.MethodDelete,
+			fmt.Sprintf("/mark/%d", steamid.RandSID64().Int64()), http.StatusNotFound, nil, nil)
+	})
+}
+
 func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+	defer cleanup()
+
 	pls := detector.CreateTestPlayers(app, 1)
 
 	require.NoError(t, app.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
@@ -209,7 +240,10 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 }
 
 func TestPlayerNotes(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+	defer cleanup()
+
 	pls := detector.CreateTestPlayers(app, 1)
 	req := detector.PostNotesOpts{
 		Note: "New Note",
@@ -223,7 +257,10 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 }
 
 func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+	defer cleanup()
+
 	pls := detector.CreateTestPlayers(app, 1)
 
 	for i := 0; i < 10; i++ {
@@ -238,7 +275,10 @@ func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
 }
 
 func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
-	app, _ := testApp()
+	app, cleanup, errApp := testApp()
+	require.NoError(t, errApp, "Failed to create test app")
+	defer cleanup()
+
 	pls := detector.CreateTestPlayers(app, 2)
 
 	for i := 0; i < 5; i++ {

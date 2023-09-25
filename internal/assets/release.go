@@ -15,7 +15,7 @@ import (
 //go:embed dist/*
 var embedFS embed.FS
 
-func StaticRoutes(engine *gin.Engine) error {
+func StaticRoutes(engine *gin.Engine, _ bool) error {
 	subFs, errSubFS := fs.Sub(embedFS, "dist")
 	if errSubFS != nil {
 		return errors.Wrap(errSubFS, "Could not setup embedfs")

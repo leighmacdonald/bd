@@ -50,11 +50,13 @@ func (w *Web) startWeb(ctx context.Context) error {
 	return nil
 }
 
-func bind(ctx *gin.Context, receiver any) bool {
+func bind(ctx *gin.Context, receiver any, log *zap.Logger) bool {
 	if errBind := ctx.BindJSON(&receiver); errBind != nil {
 		responseErr(ctx, http.StatusBadRequest, gin.H{
 			"error": "Invalid request parameters",
 		})
+
+		log.Error("Received malformed request", zap.Error(errBind))
 
 		return false
 	}
@@ -103,7 +105,7 @@ func createRouter(logger *zap.Logger, mode RunModes) *gin.Engine {
 // setupRoutes configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
 func setupRoutes(engine *gin.Engine, detector *Detector) error {
-	if errStatic := assets.StaticRoutes(engine); errStatic != nil {
+	if errStatic := assets.StaticRoutes(engine, detector.Settings().RunMode == ModeTest); errStatic != nil {
 		return errors.Wrap(errStatic, "Failed to setup static routes")
 	}
 
@@ -111,6 +113,7 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	engine.GET("/messages/:steam_id", getMessages(detector))
 	engine.GET("/names/:steam_id", getNames(detector))
 	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
+	engine.DELETE("/mark/:steam_id", deleteMarkedPlayer(detector))
 	engine.GET("/settings", getSettings(detector))
 	engine.GET("/launch", getLaunch(detector))
 	engine.PUT("/settings", putSettings(detector))
@@ -136,10 +139,11 @@ type jsConfig struct {
 	SiteName string `json:"site_name"`
 }
 
-func steamIDParam(ctx *gin.Context) (steamid.SID64, bool) {
+func steamIDParam(ctx *gin.Context, log *zap.Logger) (steamid.SID64, bool) {
 	steamID := steamid.New(ctx.Param("steam_id"))
 	if !steamID.Valid() {
 		responseErr(ctx, http.StatusBadRequest, nil)
+		log.Error("Failed to parse steam id param", zap.String("steam_id", ctx.Param("steam_id")))
 
 		return "", false
 	}

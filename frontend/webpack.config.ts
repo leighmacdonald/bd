@@ -25,7 +25,7 @@ const config: Configuration = {
     output: {
         path: path.join(paths.dist),
         publicPath: '/dist/',
-        filename: devMode ? '[name].js' : '[name].[chunkhash:8].bundle.js',
+        filename: '[name].bundle.js',
         clean: false
     },
     devtool: devMode ? 'inline-source-map' : false,
@@ -82,7 +82,7 @@ const config: Configuration = {
                 test: /\.(woff|otf|ttf|svg|eot)$/,
                 type: 'asset/resource',
                 generator: {
-                    filename: 'static/[hash][ext][query]'
+                    filename: 'static/[name][ext][query]'
                 }
             }
         ]
@@ -96,7 +96,7 @@ const config: Configuration = {
             filename: path.join(paths.dist, 'index.html'),
             inject: true,
             favicon: './src/img/favicon.png',
-            hash: !devMode,
+            hash: false,
             minify: {
                 removeComments: !devMode,
                 collapseWhitespace: !devMode,

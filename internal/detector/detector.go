@@ -310,20 +310,20 @@ func (d *Detector) updateState(updates ...updateStateEvent) {
 	}
 }
 
-func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) error {
+func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) (int, error) {
 	_, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
-		return errPlayer
+		return 0, errPlayer
 	}
 
 	if !d.rules.Unmark(sid64) {
-		return errors.New("Mark does not exist")
+		return 0, errors.New("Mark does not exist")
 	}
 
 	// Remove existing mark data
 	player, exists := d.GetPlayer(sid64)
 	if !exists {
-		return nil
+		return 0, nil
 	}
 
 	var valid []*rules.MatchResult //nolint:prealloc
@@ -344,7 +344,7 @@ func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) error {
 
 	go d.updateState(newMarkEvent(sid64, nil, false))
 
-	return nil
+	return len(valid), nil
 }
 
 func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
@@ -474,7 +474,6 @@ func (d *Detector) updatePlayerState(ctx context.Context) (string, error) {
 		d.playersMu.Unlock()
 	}
 
-	// TODO g15_dumpplayer
 	// Sent to client, response via direct rcon response
 	lobbyStatus, errDebug := d.rconMulti("tf_lobby_debug")
 	if errDebug != nil {
@@ -814,7 +813,7 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 
 	conn, errConn := rcon.Dial(ctx, settings.Rcon.String(), settings.Rcon.Password, DurationRCONRequestTimeout)
 	if errConn != nil {
-		return errors.Wrapf(errConn, "Failed to connect to client: %v\n", errConn)
+		return errors.Wrapf(errConn, "failed to connect to client: %v", errConn)
 	}
 
 	d.rconMu.Lock()
@@ -1291,7 +1290,7 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 				continue
 			}
 
-			switch update.kind {
+			switch update.kind { //nolint:exhaustive
 			case playerTimeout:
 				d.removePlayer(update.source)
 			case updateMessage:
@@ -1511,7 +1510,7 @@ func (d *Detector) incomingLogEventHandler(ctx context.Context) {
 		case evt := <-d.eventChan:
 			var update updateStateEvent
 
-			switch evt.Type {
+			switch evt.Type { //nolint:exhaustive
 			case EvtMap:
 				update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
 			case EvtHostname:

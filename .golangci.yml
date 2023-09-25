@@ -13,7 +13,7 @@ linters:
     - contextcheck
     - cyclop
     - decorder
-    - depguard
+    #- depguard
     - dogsled
     - dupl
     - dupword
@@ -24,7 +24,7 @@ linters:
     - errorlint
     - execinquery
     - exhaustive
-    - exhaustruct
+    #- exhaustruct
     - exportloopref
     - forbidigo
     - forcetypeassert
@@ -85,7 +85,7 @@ linters:
     - tagliatelle
     - tenv
     - testableexamples
-    - testpackage
+    #- testpackage
     - thelper
     #- tparallel
     - typecheck
@@ -101,6 +101,11 @@ linters:
     #- zerologlint
 
 linters-settings:
+  cyclop:
+    max-complexity: 30
+    skip-tests: true
+  gocognit:
+    min-complexity: 40
   tagliatelle:
     case:
       use-field-name: true
