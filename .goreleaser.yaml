@@ -1,34 +1,48 @@
-env:
-  - CGO_ENABLED=1
+project_name: bd
+
+dist: build
 
 builds:
-  - id: linux
+  - id: bd
+    env: [CGO_ENABLED=0]
     goos:
       - linux
-    goarch:
-      - amd64
-    tags:
-      - release
-    ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
-  - id: windows
-    goos:
       - windows
     goarch:
       - amd64
+      - 386
     tags:
       - release
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
-      # - -H=windowsgui -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
+
+nfpms:
+  - maintainer: Leigh MacDonald <leigh.macdonald@gmail.com>
+    description: TF2 Bot Detector & Player Tracker
+    homepage: https://github.com/leighmacdonald/bd
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+
+
 archives:
-  - format: tar.gz
+  - builds:
+      - bd
     name_template: >-
-      {{ .ProjectName }}-{{.Version}}-{{- .Os }}
-    # use zip for windows archives
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE.md
+      - README.md
     format_overrides:
-    - goos: windows
-      format: zip
+      - goos: windows
+        format: zip
 
 checksum:
   name_template: 'checksums.txt'
@@ -36,31 +50,28 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
-nightly:
-  name_template: '{{ incpatch .Version }}-devel'
-  tag_name: devel
-  publish_release: true
-  keep_single_release: true
-
 release:
   github:
     owner: leighmacdonald
     name: bd
   ids:
-    - linux
-    - windows
+    - bd
   draft: true
   replace_existing_draft: true
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
-#
-#signs:
-#  - artifacts: checksum
+  use: github-native
+
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "-u"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
 
 announce:
   discord:
