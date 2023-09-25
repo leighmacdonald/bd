@@ -11,10 +11,13 @@ builds:
     goarch:
       - amd64
       - 386
+    mod_timestamp: '{{ .CommitTimestamp }}'
     tags:
       - release
+    flags:
+      - -trimpath
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=releaser
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate }} -X main.builtBy=releaser
 
 nfpms:
   - maintainer: Leigh MacDonald <leigh.macdonald@gmail.com>
