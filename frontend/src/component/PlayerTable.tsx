@@ -15,7 +15,6 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
-import visuallyHidden from '@mui/utils/visuallyHidden';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -291,7 +290,7 @@ const PlayerTableHead = ({
                                     {orderBy === headCell.id ? (
                                         <Box
                                             component="span"
-                                            sx={visuallyHidden}
+                                            sx={{ display: 'none' }}
                                         >
                                             {order === 'desc'
                                                 ? 'sorted descending'
