@@ -7,6 +7,8 @@ import '@fontsource/roboto/700.css';
 import { App } from './App';
 import { createRoot } from 'react-dom/client';
 
+import './i18n';
+
 // extend window with our own items that we inject
 declare global {
     interface Window {
