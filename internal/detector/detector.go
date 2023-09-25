@@ -795,7 +795,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 				d.log.Error("Error calling vote", zap.Error(errVote))
 			}
 		} else {
-			d.log.Info("Skipping kick, no acceptable tag found")
+			d.log.Info("Skipping kick on matched player, no acceptable tag found")
 		}
 	}
 
@@ -1031,6 +1031,20 @@ func (d *Detector) profileUpdater(ctx context.Context) {
 				}
 
 				d.playersMu.RUnlock()
+			}
+
+			ourSteamID := d.Settings().SteamID
+
+			for steamID, friends := range updateData.friends {
+				for _, friend := range friends {
+					if friend.SteamID == ourSteamID {
+						if actualPlayer, online := d.GetPlayer(steamID); online {
+							actualPlayer.OurFriend = true
+
+							break
+						}
+					}
+				}
 			}
 
 			d.log.Info("Updated",
