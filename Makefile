@@ -51,6 +51,6 @@ deps:
 	cd frontend && yarn install
 	go mod download
 
-local: deps
+build:
 	cd frontend && yarn run build
-	go build -o bd
+	go build

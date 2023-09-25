@@ -11,20 +11,20 @@ linters:
     - bodyclose
     - containedctx
     - contextcheck
-    #- cyclop
+    - cyclop
     - decorder
-    #- depguard
+    - depguard
     - dogsled
-    #- dupl
-    #- dupword
+    - dupl
+    - dupword
     - durationcheck
     - errcheck
     - errchkjson
     - errname
     - errorlint
     - execinquery
-    #- exhaustive
-    #- exhaustruct
+    - exhaustive
+    - exhaustruct
     - exportloopref
     - forbidigo
     - forcetypeassert
@@ -34,12 +34,12 @@ linters:
     - gocheckcompilerdirectives
     - gochecknoglobals
     - gochecknoinits
-    #- gocognit
-    #- goconst
+    - gocognit
+    - goconst
     - gocritic
-    #- gocyclo
+    - gocyclo
     - godot
-    #- godox
+    - godox
     - goerr113
     - gofmt
     - gofumpt
@@ -77,12 +77,12 @@ linters:
     - predeclared
     #- promlinter
     - reassign
-    #- revive
+    - revive
     - rowserrcheck
     - sqlclosecheck
     #- staticcheck
     - stylecheck
-    #- tagliatelle
+    - tagliatelle
     - tenv
     - testableexamples
     - testpackage
@@ -90,8 +90,8 @@ linters:
     #- tparallel
     - typecheck
     - unconvert
-    #- unparam
-    #- unused
+    - unparam
+    - unused
     - usestdlibvars
     - varnamelen
     - wastedassign

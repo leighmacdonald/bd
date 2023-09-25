@@ -18,7 +18,7 @@ jobs:
 
       - name: Install modules
         working-directory: ./frontend
-        run: yarn
+        run: yarn install --frozen-lockfile
 
       - name: Prettier
         working-directory: ./frontend
@@ -95,6 +95,14 @@ jobs:
           fetch-depth: 0
 
       - run: git fetch --force --tags
+
+      - name: Install modules
+        working-directory: ./frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: yarn build
 
       - uses: actions/setup-go@v4
         with:

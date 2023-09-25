@@ -1,4 +1,4 @@
-*.go -text diff=golang
+*.go -text diff=golang eol=lf
 
 *                 text=auto
 
@@ -44,7 +44,7 @@ Dockerfile        text
 # Documentation
 *.ipynb           text eol=lf
 *.markdown        text diff=markdown
-*.md              text diff=markdown
+*.md              text diff=markdown eol=lf
 *.mdwn            text diff=markdown
 *.mdown           text diff=markdown
 *.mkd             text diff=markdown
@@ -103,7 +103,7 @@ pnpm-lock.yaml    text eol=lf -diff
 yarn.lock         text -diff
 *.toml            text
 *.yaml            text
-*.yml             text
+*.yml             text eol=lf
 browserslist      text
 Makefile          text
 makefile          text

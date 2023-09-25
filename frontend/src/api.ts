@@ -240,10 +240,12 @@ export const useCurrentState = () => {
         },
         players: []
     });
+
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                setState(await getState());
+                const newState = await getState();
+                setState(newState);
             } catch (e) {
                 console.log(e);
             }
@@ -252,5 +254,6 @@ export const useCurrentState = () => {
             clearInterval(interval);
         };
     }, []);
+
     return state;
 };
