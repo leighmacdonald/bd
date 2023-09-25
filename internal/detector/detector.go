@@ -68,6 +68,8 @@ type Detector struct {
 	gameHasStartedOnce atomic.Bool
 	dataSource         DataSource
 	g15                g15.Parser
+	kicker             *Kicker
+	kickerChan         chan KickRequest
 }
 
 func New(logger *zap.Logger, settings UserSettings, database store.DataStore, versionInfo Version, cache Cache,
@@ -141,6 +143,8 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 	eventChan := make(chan LogEvent)
 	parser := NewLogParser(logger, logChan, eventChan)
 
+	kicker, kickerChan := NewKicker(logger)
+
 	application := &Detector{
 		log:                logger,
 		players:            nil,
@@ -166,6 +170,8 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 		profileUpdateQueue: make(chan steamid.SID64),
 		dataSource:         dataSource,
 		g15:                g15.New(),
+		kicker:             kicker,
+		kickerChan:         kickerChan,
 	}
 
 	application.gameProcessActive.Store(isRunning)
@@ -791,15 +797,15 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		}
 
 		if kickTag {
-			if errVote := d.CallVote(ctx, player.UserID, KickReasonCheating); errVote != nil {
-				d.log.Error("Error calling vote", zap.Error(errVote))
+			if errAdd := d.kicker.Add(player.SteamID, player.UserID, KickReasonCheating); errAdd != nil {
+				if !errors.Is(errAdd, errAlreadyQueued) {
+					d.log.Error("Failed to add player to kick queue", zap.Error(errAdd))
+				}
 			}
 		} else {
 			d.log.Info("Skipping kick on matched player, no acceptable tag found")
 		}
 	}
-
-	go d.updateState(newKickAttemptEvent(player.SteamID))
 }
 
 func (d *Detector) ensureRcon(ctx context.Context) error {
@@ -971,6 +977,7 @@ func (d *Detector) Start(ctx context.Context) {
 	go d.processChecker(ctx)
 	go d.discordStateUpdater(ctx)
 	go d.profileUpdater(ctx)
+	go d.kickHandler(ctx)
 
 	go func() {
 		if errWeb := d.Web.startWeb(ctx); errWeb != nil {
@@ -992,6 +999,23 @@ func SteamIDStringList(collection steamid.Collection) string {
 	}
 
 	return strings.Join(ids, ",")
+}
+
+func (d *Detector) kickHandler(ctx context.Context) {
+	for {
+		select {
+		case req := <-d.kickerChan:
+			d.log.Info("Kicking queued player",
+				zap.String("steam_id", req.steamID.String()),
+				zap.Int("user_id", req.userID))
+
+			if errVote := d.CallVote(ctx, req.userID, req.reason); errVote != nil {
+				d.log.Error("Failed to call vote on player", zap.Error(errVote))
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // profileUpdater will update the 3rd party data from remote APIs.
@@ -1330,8 +1354,6 @@ func (d *Detector) stateUpdater(ctx context.Context) {
 				}
 
 				d.onBans(evt)
-			case updateKickAttempts:
-				d.onKickAttempt(update.source)
 			case updateStatus:
 				evt, ok := update.data.(statusEvent)
 				if !ok {
@@ -1427,18 +1449,6 @@ func (d *Detector) onBans(evt steamweb.PlayerBanState) {
 		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
 		player.LastVACBanOn = &subTime
 	}
-}
-
-func (d *Detector) onKickAttempt(steamID steamid.SID64) {
-	player, exists := d.GetPlayer(steamID)
-	if !exists {
-		return
-	}
-
-	d.playersMu.Lock()
-	defer d.playersMu.Unlock()
-
-	player.KickAttemptCount++
 }
 
 func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {

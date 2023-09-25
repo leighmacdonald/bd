@@ -3,6 +3,16 @@
 To build, you'll need to install the prerequisite libraries first.
 Node/yarn are both required on all platforms.
 
+
+## Environment Differences
+
+When the binary is built with the `release` tag enabled `go build -tags release`, frontend assets
+are embedded into the binary using `embed.FS`. This has the additional benefit of simplifying the creation
+of verifiable builds.
+
+Assets are otherwise served from the same source directory `internal/assets/dist` which is useful for development,
+like when running `make watch`, so that recompiling the binary on frontend changes is not necessary.
+
 ## Install OS Dependencies
 
 - Linux (debian/ubuntu)
@@ -64,4 +74,3 @@ Windows `%AppData%\bd\`
     bd.yaml                         Config file (Dont edit with app open)
     lists/                          Local and 3rd party user lists
     lists/playerlist.local.json     The users personal playerlist
-    

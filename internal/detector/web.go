@@ -2,6 +2,7 @@ package detector
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -17,10 +18,13 @@ import (
 type Web struct {
 	*http.Server
 	Engine *gin.Engine
+	log    *zap.Logger
 }
 
 func NewWeb(detector *Detector) (*Web, error) {
-	engine := createRouter(detector.log, detector.Settings().RunMode)
+	log := detector.log.Named("api")
+
+	engine := createRouter(log, detector.Settings().RunMode)
 	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
 		return nil, errRoutes
 	}
@@ -35,6 +39,7 @@ func NewWeb(detector *Detector) (*Web, error) {
 	return &Web{
 		Server: httpServer,
 		Engine: engine,
+		log:    log,
 	}, nil
 }
 
@@ -42,6 +47,8 @@ func (w *Web) startWeb(ctx context.Context) error {
 	w.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
+
+	w.log.Info("Starting HTTP Server", zap.String("addr", fmt.Sprintf("http://%s", w.Addr)))
 
 	if errServe := w.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
 		return errors.Wrap(errServe, "HTTP server returned error")

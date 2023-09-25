@@ -80,7 +80,6 @@ const (
 	updateMark
 	updateWhitelist
 	updateTeam
-	updateKickAttempts
 	updateNotes
 	playerTimeout
 	updateTestPlayer = 1000
@@ -116,8 +115,6 @@ func (ut updateType) String() string {
 		return "whitelist"
 	case updateTeam:
 		return "team"
-	case updateKickAttempts:
-		return "kicks"
 	case updateNotes:
 		return "notes"
 	case playerTimeout:
@@ -161,13 +158,6 @@ func newPlayerTimeoutEvent(sid steamid.SID64) updateStateEvent {
 type markEvent struct {
 	tags    []string
 	addMark bool
-}
-
-func newKickAttemptEvent(sid steamid.SID64) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateKickAttempts,
-		source: sid,
-	}
 }
 
 func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEvent {
