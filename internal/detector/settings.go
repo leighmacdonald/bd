@@ -351,11 +351,7 @@ func (s *UserSettings) Read(inputFile io.Reader) error {
 }
 
 func (s *UserSettings) Save() error {
-	if errWrite := s.WriteFilePath(s.ConfigPath); errWrite != nil {
-		return errWrite
-	}
-
-	return nil
+	return s.WriteFilePath(s.ConfigPath)
 }
 
 func (s *UserSettings) reload() {

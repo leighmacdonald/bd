@@ -198,6 +198,7 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 func TestUnmarkPlayerHandler(t *testing.T) {
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
+
 	defer cleanup()
 
 	markedPlayer := detector.CreateTestPlayers(app, 1)[0]
@@ -221,6 +222,7 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
+
 	defer cleanup()
 
 	pls := detector.CreateTestPlayers(app, 1)
@@ -249,6 +251,7 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
+
 	defer cleanup()
 
 	pls := detector.CreateTestPlayers(app, 1)
@@ -266,6 +269,7 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
+
 	defer cleanup()
 
 	pls := detector.CreateTestPlayers(app, 1)
@@ -284,6 +288,7 @@ func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
 func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
+
 	defer cleanup()
 
 	pls := detector.CreateTestPlayers(app, 2)
