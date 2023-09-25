@@ -186,6 +186,10 @@ type PostMarkPlayerOpts struct {
 	Attrs []string `json:"attrs"`
 }
 
+type UnmarkResponse struct {
+	Remaining int `json:"remaining"`
+}
+
 func deleteMarkedPlayer(detector *Detector) gin.HandlerFunc {
 	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
 
@@ -197,12 +201,18 @@ func deleteMarkedPlayer(detector *Detector) gin.HandlerFunc {
 
 		remaining, errUnmark := detector.UnMark(ctx, sid)
 		if errUnmark != nil {
+			if errors.Is(errUnmark, errNotMarked) {
+				responseOK(ctx, http.StatusNotFound, nil)
+
+				return
+			}
+
 			responseErr(ctx, http.StatusInternalServerError, "Failed to unmark player")
 
 			log.Error("Failed to unmark player", zap.Error(errUnmark))
 		}
 
-		ctx.JSON(http.StatusOK, gin.H{"remaining": remaining})
+		ctx.JSON(http.StatusOK, UnmarkResponse{Remaining: remaining})
 	}
 }
 
