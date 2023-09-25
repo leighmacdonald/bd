@@ -14,10 +14,10 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	_ "modernc.org/sqlite"
 )
 
 var (
