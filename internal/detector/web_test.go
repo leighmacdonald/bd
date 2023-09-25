@@ -209,6 +209,13 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 		fetchIntoWithStatus(t, app, http.MethodDelete,
 			fmt.Sprintf("/mark/%d", steamid.RandSID64().Int64()), http.StatusNotFound, nil, nil)
 	})
+
+	t.Run("Unmark Marked Player", func(t *testing.T) {
+		var resp detector.UnmarkResponse
+		fetchIntoWithStatus(t, app, http.MethodDelete,
+			fmt.Sprintf("/mark/%d", markedPlayer.SteamID.Int64()), http.StatusOK, &resp, nil)
+		require.Equal(t, 0, resp.Remaining)
+	})
 }
 
 func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel

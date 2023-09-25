@@ -310,6 +310,8 @@ func (d *Detector) updateState(updates ...updateStateEvent) {
 	}
 }
 
+var errNotMarked = errors.New("Mark does not exist")
+
 func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) (int, error) {
 	_, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
@@ -317,7 +319,7 @@ func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) (int, error)
 	}
 
 	if !d.rules.Unmark(sid64) {
-		return 0, errors.New("Mark does not exist")
+		return 0, errNotMarked
 	}
 
 	// Remove existing mark data
