@@ -10,7 +10,8 @@ builds:
       - windows
     goarch:
       - amd64
-      - 386
+      # There is no 32bit support for sqlite on win
+      # - 386
     mod_timestamp: '{{ .CommitTimestamp }}'
     tags:
       - release
@@ -27,8 +28,6 @@ nfpms:
     formats:
       - deb
       - rpm
-      - apk
-
 
 archives:
   - builds:
