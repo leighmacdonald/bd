@@ -28,7 +28,7 @@ const (
 )
 
 type BaseSchema struct {
-	Schema   string   `json:"$schema" yaml:"schema"`
+	Schema   string   `json:"$schema" yaml:"schema"` //nolint:tagliatelle
 	FileInfo FileInfo `json:"file_info" yaml:"file_info"`
 }
 
@@ -106,8 +106,8 @@ type RuleTriggerTextMatch struct {
 type RuleTriggers struct {
 	AvatarMatch       []RuleTriggerAvatarMatch `json:"avatar_match" yaml:"avatar_match"`
 	Mode              RuleTriggerMode          `json:"mode" yaml:"mode"`
-	UsernameTextMatch *RuleTriggerNameMatch    `json:"username_text_match" yaml:"username_text_match"`
-	ChatMsgTextMatch  *RuleTriggerTextMatch    `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`
+	UsernameTextMatch *RuleTriggerNameMatch    `json:"username_text_match" yaml:"username_text_match"` //nolint:tagliatelle
+	ChatMsgTextMatch  *RuleTriggerTextMatch    `json:"chatmsg_text_match" yaml:"chat_msg_text_match"`  //nolint:tagliatelle
 }
 
 type RuleActions struct {
@@ -136,7 +136,7 @@ type PlayerLastSeen struct {
 type PlayerDefinition struct {
 	Attributes []string       `json:"attributes"`
 	LastSeen   PlayerLastSeen `json:"last_seen,omitempty"`
-	SteamID    steamid.SID64  `json:"steamid"`
+	SteamID    steamid.SID64  `json:"steamid"` //nolint:tagliatelle
 	Proof      []string       `json:"proof,omitempty"`
-	Origin     string         `json:"origin,omitempty"` // TODO add to schema?
+	Origin     string         `json:"origin,omitempty"`
 }

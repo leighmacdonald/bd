@@ -355,8 +355,6 @@ func (s *UserSettings) Save() error {
 		return errWrite
 	}
 
-	s.reload()
-
 	return nil
 }
 

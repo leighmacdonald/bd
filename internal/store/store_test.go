@@ -67,7 +67,7 @@ func TestPlayer(t *testing.T) {
 		knownIds := steamid.Collection{
 			"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
 		}
-		knownNames := []string{"test name 1", "test name 2", "Blah Blah", "bob", "sally"}
+		knownNames := []string{"test name 1", "test name 2", "Blah Blax", "bob", "sally"}
 		for idx, sid := range knownIds {
 			player := store.NewPlayer(sid, knownNames[idx])
 			require.NoError(t, database.GetPlayer(context.TODO(), player.SteamID, true, player), "Failed to create player")

@@ -61,7 +61,7 @@ func newLogReader(logger *zap.Logger, path string, outChan chan string, echo boo
 		Follow:    true,
 		ReOpen:    true,
 		MustExist: false,
-		Poll:      runtime.GOOS == "windows", // TODO Is this still required years later?
+		Poll:      runtime.GOOS == "windows",
 		Logger:    log,
 	}
 	//goland:noinspection ALL
@@ -213,7 +213,6 @@ func parseConnected(d string) (time.Duration, error) {
 	return dur, nil
 }
 
-// TODO why keep this?
 func (parser *LogParser) start(ctx context.Context) {
 	for {
 		select {

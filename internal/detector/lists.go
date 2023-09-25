@@ -29,12 +29,12 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 
 		req, reqErr := http.NewRequestWithContext(timeout, http.MethodGet, url, nil)
 		if reqErr != nil {
-			return nil, errors.Wrap(reqErr, "Failed to create request\n")
+			return nil, errors.Wrap(reqErr, "failed to create request")
 		}
 
 		resp, errResp := client.Do(req)
 		if errResp != nil {
-			return nil, errors.Wrapf(errResp, "Failed to download urlLocation: %s\n", url)
+			return nil, errors.Wrapf(errResp, "failed to download urlLocation: %s", url)
 		}
 
 		defer func() {
@@ -43,7 +43,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 
 		body, errBody := io.ReadAll(resp.Body)
 		if errBody != nil {
-			return nil, errors.Wrapf(errBody, "Failed to read body: %s\n", url)
+			return nil, errors.Wrapf(errBody, "failed to read body: %s", url)
 		}
 
 		return body, nil
@@ -61,7 +61,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 
 		body, errFetch := fetchURL(ctx, client, listConfig.URL)
 		if errFetch != nil {
-			return errors.Wrapf(errFetch, "Failed to fetch player list: %s", listConfig.URL)
+			return errors.Wrapf(errFetch, "failed to fetch player list: %s", listConfig.URL)
 		}
 
 		body = FixSteamIDFormat(body)
@@ -71,7 +71,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 		case ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
-				return errors.Wrap(errParse, "Failed to parse request")
+				return errors.Wrap(errParse, "failed to parse request")
 			}
 
 			mutex.Lock()
@@ -82,7 +82,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
-				return errors.Wrap(errParse, "Failed to parse request")
+				return errors.Wrap(errParse, "failed to parse request")
 			}
 
 			mutex.Lock()

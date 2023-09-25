@@ -24,6 +24,7 @@ import {
     markUser,
     Player,
     Team,
+    unmarkUser,
     visibilityString
 } from '../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
@@ -165,6 +166,14 @@ export const TableRowContextMenu = ({
     const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
         try {
             await markUser(steamId, attrs);
+        } catch (e) {
+            console.log(e);
+        }
+    }, []);
+
+    const onUnmark = useCallback(async (steamId: string) => {
+        try {
+            await unmarkUser(steamId);
         } catch (e) {
             console.log(e);
         }
@@ -410,7 +419,12 @@ export const TableRowContextMenu = ({
                     label="Mark Player As"
                     parentMenuOpen={contextMenuPos !== null}
                 >
-                    {[...settings.unique_tags, 'new'].map((attr) => {
+                    {[
+                        ...settings.unique_tags.filter(
+                            (t) => t.toLowerCase() != 'new'
+                        ),
+                        'new'
+                    ].map((attr) => {
                         return (
                             <IconMenuItem
                                 leftIcon={<FlagIcon color={'primary'} />}
@@ -426,7 +440,9 @@ export const TableRowContextMenu = ({
                 <IconMenuItem
                     leftIcon={<DeleteOutlinedIcon color={'primary'} />}
                     label={'Unmark'}
-                    disabled
+                    onClick={async () => {
+                        await onUnmark(player.steam_id);
+                    }}
                 />
                 <NestedMenuItem
                     rightIcon={<ArrowRightOutlinedIcon />}

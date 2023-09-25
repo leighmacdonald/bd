@@ -150,12 +150,12 @@ func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
-		return errors.Wrap(errStart, "Failed to launch TF2\n")
+		return errors.Wrap(errStart, "failed to launch TF2")
 	}
 
 	_, errWait := process.Wait()
 	if errWait != nil {
-		return errors.Wrap(errWait, "Error waiting for game process")
+		return errors.Wrap(errWait, "error waiting for game process")
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 
 func (l WindowsPlatform) OpenFolder(dir string) error {
 	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil { //nolint:gosec
-		return errors.Wrap(errRun, "Failed to start process")
+		return errors.Wrap(errRun, "failed to start process")
 	}
 
 	return nil

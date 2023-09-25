@@ -55,7 +55,7 @@ func (store *SqliteStore) Close() error {
 	}
 
 	if errClose := store.db.Close(); errClose != nil {
-		return errors.Wrapf(errClose, "Failed to Close database\n")
+		return errors.Wrapf(errClose, "failed to close database")
 	}
 
 	return nil

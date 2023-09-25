@@ -150,8 +150,10 @@ type GeneralTextMatcher struct {
 	origin        string
 }
 
-func (m GeneralTextMatcher) Match(value string) *MatchResult {
+func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit,cyclop
 	switch m.mode {
+	case TextMatchModeRegex:
+		// Not implemented
 	case TextMatchModeStartsWith:
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {

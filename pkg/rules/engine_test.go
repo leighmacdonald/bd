@@ -138,12 +138,15 @@ func TestTextRules(t *testing.T) {
 		{mt: rules.TextMatchTypeMessage, text: "A sample ok message", matched: false},
 	}
 
-	for num, tc := range testCases {
-		switch tc.mt {
+	for num, testCase := range testCases {
+		switch testCase.mt {
+		case rules.TextMatchTypeAny:
+			// Not Implemented
+			continue
 		case rules.TextMatchTypeName:
-			require.Equal(t, tc.matched, engine.MatchName(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, testCase.matched, engine.MatchName(testCase.text) != nil, "Test %d failed", num)
 		case rules.TextMatchTypeMessage:
-			require.Equal(t, tc.matched, engine.MatchMessage(tc.text) != nil, "Test %d failed", num)
+			require.Equal(t, testCase.matched, engine.MatchMessage(testCase.text) != nil, "Test %d failed", num)
 		}
 	}
 
