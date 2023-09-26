@@ -6,3 +6,5 @@ dist/
 *.sqlite
 /fyne-cross/
 /bd
+/frontend/node_modules
+/frontend/lib/

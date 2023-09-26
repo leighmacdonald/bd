@@ -1,13 +1,14 @@
-package detector
+package detector_test
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/leighmacdonald/bd/internal/detector"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListParse(t *testing.T) {
-
-	var badSchema = []byte(`{
+	badSchema := []byte(`{
     "$schema": "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/playerlist.schema.json",
     "file_info": {
         "authors": [
@@ -50,7 +51,7 @@ func TestListParse(t *testing.T) {
     ]
 }
 `)
-	var goodSchema = []byte(`{
+	goodSchema := []byte(`{
     "$schema": "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/playerlist.schema.json",
     "file_info": {
         "authors": [
@@ -94,6 +95,6 @@ func TestListParse(t *testing.T) {
 }
 `)
 
-	good := fixSteamIdFormat(badSchema)
+	good := detector.FixSteamIDFormat(badSchema)
 	require.Equal(t, goodSchema, good)
 }

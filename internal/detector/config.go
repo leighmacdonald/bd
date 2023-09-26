@@ -2,21 +2,99 @@ package detector
 
 import (
 	"fmt"
-	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/steamid/v2/steamid"
-	"github.com/pkg/errors"
 	"os"
 	"path"
+	"strconv"
 	"strings"
+
+	"github.com/andygrunwald/vdf"
+	"github.com/leighmacdonald/bd/pkg/util"
+	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
+func MustCreateLogger(conf UserSettings) *zap.Logger {
+	var loggingConfig zap.Config
+
+	switch conf.RunMode {
+	case ModeRelease:
+		loggingConfig = zap.NewProductionConfig()
+		loggingConfig.DisableCaller = true
+	case ModeDebug:
+		loggingConfig = zap.NewDevelopmentConfig()
+		loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	case ModeTest:
+		return zap.NewNop()
+	default:
+		panic(fmt.Sprintf("Unknown run mode: %s", conf.RunMode))
+	}
+
+	if conf.DebugLogEnabled {
+		if util.Exists(conf.LogFilePath()) {
+			if err := os.Remove(conf.LogFilePath()); err != nil {
+				panic(fmt.Sprintf("Failed to remove log file: %v", err))
+			}
+		}
+
+		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, conf.LogFilePath())
+	}
+
+	level, errLevel := zap.ParseAtomicLevel(conf.LogLevel)
+	if errLevel != nil {
+		panic(fmt.Sprintf("Failed to parse log level: %v", errLevel))
+	}
+
+	loggingConfig.Level.SetLevel(level.Level())
+
+	l, errLogger := loggingConfig.Build()
+	if errLogger != nil {
+		panic("Failed to create log config")
+	}
+
+	return l.Named("bd")
+}
+
 func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
-	fp := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamid.SID64ToSID32(steamID)), "config", "localconfig.vdf")
-	if !util.Exists(fp) {
+	if !steamID.Valid() { //nolint:nestif
+		userDataRoot := path.Join(steamRoot, "userdata")
+		// Attempt to use the id found in the userdata if only one exists
+		entries, err := os.ReadDir(userDataRoot)
+		if err != nil {
+			return "", errors.Wrap(err, "Failed to read userdata root")
+		}
+
+		dirCount := 0
+
+		// List the userdata folder to find potential steamid. If there is more than one steamid looking
+		// directory, then error out as we don't know which is the correct.
+		for _, entry := range entries {
+			if entry.IsDir() {
+				sidInt, errParse := strconv.ParseInt(entry.Name(), 10, 32)
+				if errParse != nil {
+					continue
+				}
+
+				maybeSteamID := steamid.SID32ToSID64(steamid.SID32(sidInt))
+				if maybeSteamID.Valid() {
+					steamID = maybeSteamID
+				}
+
+				dirCount++
+				if dirCount == 2 {
+					return "", errors.Wrap(err, "Failed to guess userdata root, too many choices")
+				}
+			}
+		}
+	}
+
+	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.SID32()), "config", "localconfig.vdf")
+	if !util.Exists(configPath) {
 		return "", errors.New("Path does not exist")
 	}
-	return fp, nil
+
+	return configPath, nil
 }
 
 func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
@@ -24,51 +102,73 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 	if errConfigPath != nil {
 		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
 	}
+
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
 		return nil, errors.Wrap(errOpen, "failed to open vdf")
 	}
-	parser := vdf.NewParser(openVDF)
-	result, errParse := parser.Parse()
+
+	newParser := vdf.NewParser(openVDF)
+
+	result, errParse := newParser.Parse()
 	if errParse != nil {
 		return nil, errors.Wrap(errOpen, "failed to parse vdf")
 	}
+
 	var (
-		ok         bool
+		castOk     bool
+		found      bool
 		launchOpts []string
-		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "Steam", "apps", "440"}
+		pathKeys   = []string{"UserLocalConfigStore", "Software", "Valve", "sTeam", "apps", "440"}
 	)
-	for i, key := range pathKeys {
-		result, ok = result[key].(map[string]any)
-		if !ok {
+
+	for index, key := range pathKeys {
+		// Find a matching existing key using case-insensitive match since casing can vary
+		csKey := key
+
+		for k := range result {
+			if strings.EqualFold(k, key) {
+				csKey = k
+
+				break
+			}
+		}
+
+		result, castOk = result[csKey].(map[string]any)
+		if !castOk {
 			return nil, errors.Wrapf(errOpen, "failed to find child key %s", key)
 		}
-		if i == len(pathKeys)-1 {
-			launchOpts = strings.Split(result["LaunchOptions"].(string), "-")
+
+		if index == len(pathKeys)-1 {
+			launchStr, launchStrOk := result["LaunchOptions"].(string)
+			if !launchStrOk {
+				return nil, errors.New("Failed to cast LaunchOptions")
+			}
+
+			launchOpts = strings.Split(launchStr, " ")
+			found = true
 		}
 	}
-	var normOpts []string
-	for _, opt := range launchOpts {
-		if opt == "" {
-			continue
-		}
-		normOpts = append(normOpts, fmt.Sprintf("-%s", opt))
+
+	if !found {
+		return nil, errors.New("Failed to read LaunchOptions key")
 	}
-	return normOpts, nil
+
+	return launchOpts, nil
 }
 
 func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
-	currentArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
+	userArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
 	}
-	newArgs := []string{
+
+	bdArgs := []string{
 		"-game", "tf",
 		"-noreactlogin", // needed for vac to load as of late 2022?
 		"-steam",
 		"-secure",
 		"-usercon",
-		"+developer", "1", "+alias", "developer",
 		"+ip", "0.0.0.0", "+alias", "ip",
 		"+sv_rcon_whitelist_address", "127.0.0.1",
 		"+sv_quota_stringcmdspersecond", "1000000",
@@ -78,10 +178,37 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		"+con_timestamp", "1", "+alias", "con_timestamp",
 		"-condebug",
 		"-conclearlog",
+		"-g15",
+		"xx",
 	}
-	var out []string
-	for _, arg := range append(currentArgs, newArgs...) {
-		out = append(out, strings.Trim(arg, " "))
+
+	var full []string //nolint:prealloc
+
+	for _, arg := range append(bdArgs, userArgs...) {
+		arg = strings.Trim(arg, " ")
+		if !strings.HasSuffix(arg, "-") || strings.HasPrefix(arg, "+") {
+			full = append(full, arg)
+
+			continue
+		}
+
+		alreadyKnown := false
+
+		for _, known := range full {
+			if known == arg {
+				// duplicate arg
+				alreadyKnown = true
+
+				break
+			}
+		}
+
+		if alreadyKnown {
+			continue
+		}
+
+		full = append(full, arg)
 	}
-	return out, nil
+
+	return full, nil
 }

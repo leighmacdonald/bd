@@ -1,0 +1,48 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "settings": {
+    "react": {
+      "version": "18"
+    }
+  },
+  "env": {
+    "browser": true
+  },
+  "plugins": [
+    "prettier",
+    "@typescript-eslint",
+    "no-loops",
+    "jest",
+    "react",
+    "compat"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:compat/recommended",
+    "prettier",
+    "plugin:jest/recommended",
+    "plugin:react-hooks/recommended",
+    "plugin:react/recommended"
+  ],
+  "rules": {
+    "prettier/prettier": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    //"no-console": 2,
+    "no-loops/no-loops": "error",
+    "react/prop-types": [
+      2,
+      {
+        "ignore": [
+          "children"
+        ]
+      }
+    ]
+  }
+}

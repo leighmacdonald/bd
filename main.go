@@ -2,121 +2,160 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"fyne.io/systray"
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/leighmacdonald/bd/internal/cache"
 	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/model"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/tr"
-	"github.com/leighmacdonald/bd/internal/ui"
-	"github.com/leighmacdonald/bd/pkg/rules"
-	"github.com/leighmacdonald/bd/pkg/util"
-	"github.com/leighmacdonald/steamweb"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"os"
+	"golang.org/x/sync/errgroup"
+	_ "modernc.org/sqlite"
 )
 
 var (
-	// Build info
-	version string = "master"
-	commit  string = "latest"
-	date    string = "n/a"
-	builtBy string = "src"
+	// Build info.
+	version = "master" //nolint:gochecknoglobals
+	commit  = "latest" //nolint:gochecknoglobals
+	date    = "n/a"    //nolint:gochecknoglobals
+	builtBy = "src"    //nolint:gochecknoglobals
 )
 
-func mustCreateLogger(logFile string) *zap.Logger {
-	loggingConfig := zap.NewProductionConfig()
-	//loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	if logFile != "" {
-		loggingConfig.OutputPaths = append(loggingConfig.OutputPaths, logFile)
-	}
-	logger, errLogger := loggingConfig.Build()
-	if errLogger != nil {
-		fmt.Printf("Failed to create logger: %v\n", errLogger)
-		os.Exit(1)
-	}
-	return logger
-}
-
 func main() {
-	ctx := context.Background()
-	versionInfo := model.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
-	settings, errSettings := model.NewSettings()
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+
+	userSettings, errSettings := detector.NewSettings()
 	if errSettings != nil {
-		fmt.Printf("Failed to initialize settings: %v\n", errSettings)
-		os.Exit(1)
-	}
-	if errReadSettings := settings.ReadDefaultOrCreate(); errReadSettings != nil {
-		fmt.Printf("Failed to read settings: %v", errReadSettings)
-	}
-	logFilePath := ""
-	if settings.DebugLogEnabled {
-		logFilePath = settings.LogFilePath()
-	}
-	logger := mustCreateLogger(logFilePath)
-	defer func() {
-		if errSync := logger.Sync(); errSync != nil {
-			fmt.Printf("Failed to sync log: %v\n", errSync)
-		}
-	}()
-	if errTranslations := tr.Init(); errTranslations != nil {
-		logger.Error("Failed to load translations", zap.Error(errTranslations))
-	}
-	if settings.GetAPIKey() != "" {
-		if errAPIKey := steamweb.SetKey(settings.GetAPIKey()); errAPIKey != nil {
-			logger.Error("Failed to set steam api key", zap.Error(errAPIKey))
-		}
+		panic(fmt.Sprintf("Failed to initialize settings: %v\n", errSettings))
 	}
 
-	localRules := rules.NewRuleSchema()
-	localPlayersList := rules.NewPlayerListSchema()
-
-	// Try and load our existing custom players/rules
-	if util.Exists(settings.LocalPlayerListPath()) {
-		input, errInput := os.Open(settings.LocalPlayerListPath())
-		if errInput != nil {
-			logger.Error("Failed to open local player list", zap.Error(errInput))
-		} else {
-			if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
-				logger.Error("Failed to parse local player list", zap.Error(errRead))
-			} else {
-				logger.Debug("Loaded local player list", zap.Int("count", len(localPlayersList.Players)))
-			}
-			util.LogClose(input)
-		}
-	}
-	if util.Exists(settings.LocalRulesListPath()) {
-		input, errInput := os.Open(settings.LocalRulesListPath())
-		if errInput != nil {
-			logger.Error("Failed to open local rules list", zap.Error(errInput))
-		} else {
-			if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
-				logger.Error("Failed to parse local rules list", zap.Error(errRead))
-			} else {
-				logger.Debug("Loaded local rules list", zap.Int("count", len(localRules.Rules)))
-			}
-			util.LogClose(input)
-		}
-	}
-	engine, ruleEngineErr := rules.New(&localRules, &localPlayersList)
-	if ruleEngineErr != nil {
-		logger.Panic("Failed to setup rules engine", zap.Error(ruleEngineErr))
+	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
+		panic(fmt.Sprintf("Failed to read settings: %v", errReadSettings))
 	}
 
-	dataStore := store.New(settings.DBPath())
+	if errValidate := userSettings.Validate(); errValidate != nil {
+		panic(fmt.Sprintf("Failed to validate settings: %v", errValidate))
+	}
+
+	logger := detector.MustCreateLogger(userSettings)
+
+	logger.Info("Starting BD",
+		zap.String("version", versionInfo.Version),
+		zap.String("date", versionInfo.Date),
+		zap.String("commit", versionInfo.Commit),
+		zap.String("via", versionInfo.BuiltBy))
+
+	dataStore := store.New(userSettings.DBPath(), logger)
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		logger.Panic("Failed to migrate database", zap.Error(errMigrate))
+		logger.Error("Failed to migrate database", zap.Error(errMigrate))
+
+		return
 	}
-	defer util.LogClose(dataStore)
 
-	fileSystemCache := cache.New(logger, settings.ConfigRoot(), model.DurationCacheTimeout)
+	fsCache, cacheErr := detector.NewCache(logger, userSettings.ConfigRoot(), detector.DurationCacheTimeout)
+	if cacheErr != nil {
+		logger.Error("Failed to setup cache", zap.Error(cacheErr))
 
-	bd := detector.New(logger, settings, dataStore, engine, fileSystemCache)
+		return
+	}
 
-	gui := ui.New(ctx, logger, &bd, settings, versionInfo)
-	gui.Start(ctx)
+	logChan := make(chan string)
+
+	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
+	if errLogReader != nil {
+		logger.Error("Failed to create logreader", zap.Error(errLogReader))
+
+		return
+	}
+
+	var (
+		dataSource detector.DataSource
+		errDS      error
+	)
+
+	if userSettings.UseBDAPIDataSource {
+		dataSource, errDS = detector.NewAPIDataSource("")
+	} else {
+		dataSource, errDS = detector.NewLocalDataSource(userSettings.APIKey)
+	}
+
+	if errDS != nil {
+		logger.Fatal("Failed to initialize data source", zap.Error(errDS))
+	}
+
+	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
+
+	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
+
+	if isTest {
+		body, errRead := os.ReadFile(testLogPath)
+		if errRead != nil {
+			logger.Fatal("Failed to load TEST_CONSOLE_LOG", zap.String("path", testLogPath), zap.Error(errRead))
+		}
+
+		lines := strings.Split(string(body), "\n")
+		curLine := 0
+		lineCount := len(lines)
+
+		go func() {
+			updateTicker := time.NewTicker(time.Millisecond * 10)
+
+			for {
+				<-updateTicker.C
+				logChan <- strings.Trim(lines[curLine], "\r")
+				curLine++
+
+				if curLine >= lineCount {
+					curLine = 0
+				}
+			}
+		}()
+	}
+
+	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
+	serviceGroup.Go(func() error {
+		application.Start(serviceCtx)
+
+		return nil
+	})
+
+	serviceGroup.Go(func() error {
+		systray.Run(application.Systray.OnReady(stop), func() {
+			if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
+				logger.Error("Failed to shutdown cleanly")
+			}
+		})
+
+		return nil
+	})
+
+	serviceGroup.Go(func() error {
+		<-serviceCtx.Done()
+
+		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil { //nolint:contextcheck
+			logger.Error("Failed to gracefully shutdown", zap.Error(errShutdown))
+		}
+
+		systray.Quit()
+
+		return nil
+	})
+
+	if err := serviceGroup.Wait(); err != nil {
+		logger.Error("Sad Goodbye", zap.Error(err))
+
+		return
+	}
+
+	logger.Info("Happy Goodbye")
 }
