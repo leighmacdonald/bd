@@ -47,6 +47,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SaveIcon from '@mui/icons-material/Save';
 import { SettingsListEditor } from './SettingsListEditor';
 import { SettingsLinkEditor } from './SettingsLinkEditor';
+import { Trans, useTranslation } from 'react-i18next';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -240,6 +241,8 @@ export const SettingsEditor = ({
     const [currentList, setCurrentList] = useState<List>();
     const [currentLink, setCurrentLink] = useState<Link>();
 
+    const { t } = useTranslation();
+
     const [settings, setSettings] = useState<UserSettings>(
         _.cloneDeep(origSettings)
     );
@@ -336,20 +339,22 @@ export const SettingsEditor = ({
                         id="general-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            General
+                            {t('settings.general.label')}
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Kicker, Tags, Chat Warnings
+                            {t('settings.general.description')}
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container spacing={1}>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Chat Warnings'}
-                                    tooltip={
-                                        'Enable in-game chat warnings to be broadcast to the active game'
-                                    }
+                                    label={t(
+                                        'settings.general.chat_warnings_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.chat_warnings_tooltip'
+                                    )}
                                     enabled={settings.chat_warnings_enabled}
                                     setEnabled={(chat_warnings_enabled) => {
                                         setSettings({
@@ -361,10 +366,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Kicker Enabled'}
-                                    tooltip={
-                                        'Enable the bot auto kick functionality when a match is found'
-                                    }
+                                    label={t(
+                                        'settings.general.kicker_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.kicker_enabled_description'
+                                    )}
                                     enabled={settings.kicker_enabled}
                                     setEnabled={(kicker_enabled) => {
                                         setSettings({
@@ -376,10 +383,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={12}>
                                 <SettingsMultiSelect
-                                    label={'Kickable Tag Matches'}
-                                    tooltip={
-                                        'Only matches which also match these tags will trigger a kick or notification.'
-                                    }
+                                    label={t(
+                                        'settings.general.kick_tags_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.kick_tags_description'
+                                    )}
                                     values={settings.kick_tags}
                                     setValues={(kick_tags) => {
                                         setSettings({ ...settings, kick_tags });
@@ -388,10 +397,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Party Warnings Enabled'}
-                                    tooltip={
-                                        'Enable log messages to be broadcast to the lobby chat window'
-                                    }
+                                    label={t(
+                                        'settings.general.party_warnings_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.party_warnings_enabled_description'
+                                    )}
                                     enabled={settings.party_warnings_enabled}
                                     setEnabled={(party_warnings_enabled) => {
                                         setSettings({
@@ -403,10 +414,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Discord Presence Enabled'}
-                                    tooltip={
-                                        'Enable game status presence updates to your local discord client.'
-                                    }
+                                    label={t(
+                                        'settings.general.discord_presence_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.discord_presence_enabled_tooltip'
+                                    )}
                                     enabled={settings.discord_presence_enabled}
                                     setEnabled={(discord_presence_enabled) => {
                                         setSettings({
@@ -418,10 +431,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Auto Launch Game On Start Up'}
-                                    tooltip={
-                                        'When enabled, upon launching bd, TF2 will also be launched at the same time'
-                                    }
+                                    label={t(
+                                        'settings.general.auto_launch_game_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.auto_launch_game_tooltip'
+                                    )}
                                     enabled={settings.auto_launch_game}
                                     setEnabled={(auto_launch_game) => {
                                         setSettings({
@@ -433,10 +448,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Auto Close On Game Exit'}
-                                    tooltip={
-                                        'When enabled, upon the game existing, also shutdown bd.'
-                                    }
+                                    label={t(
+                                        'settings.general.auto_close_on_game_exit_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.auto_close_on_game_exit_tooltip'
+                                    )}
                                     enabled={settings.auto_close_on_game_exit}
                                     setEnabled={(auto_close_on_game_exit) => {
                                         setSettings({
@@ -449,10 +466,12 @@ export const SettingsEditor = ({
 
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Enabled Debug Log'}
-                                    tooltip={
-                                        'When enabled, logs are written to bd.log in the application config root'
-                                    }
+                                    label={t(
+                                        'settings.general.debug_log_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.general.debug_log_enabled_tooltip'
+                                    )}
                                     enabled={settings.debug_log_enabled}
                                     setEnabled={(debug_log_enabled) => {
                                         setSettings({
@@ -465,6 +484,7 @@ export const SettingsEditor = ({
                         </Grid2>
                     </AccordionDetails>
                 </Accordion>
+
                 <Accordion
                     TransitionProps={{ unmountOnExit: true }}
                     expanded={expanded === 'lists'}
@@ -476,10 +496,12 @@ export const SettingsEditor = ({
                         id="lists-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            Player &amp; Rules Lists
+                            <Trans i18nKey={'settings.player_lists.label'} />
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Auth-Kicker, Tags, Chat Warnings
+                            <Trans
+                                i18nKey={'settings.player_lists.description'}
+                            />
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
@@ -558,10 +580,12 @@ export const SettingsEditor = ({
                         id="links-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            External Links
+                            <Trans i18nKey={'settings.external_links.label'} />
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Configure custom menu links
+                            <Trans
+                                i18nKey={'settings.external_links.description'}
+                            />
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
@@ -640,21 +664,22 @@ export const SettingsEditor = ({
                         id="http-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            HTTP Service
+                            <Trans i18nKey={'settings.http.label'} />
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Basic HTTP service settings
+                            <Trans i18nKey={'settings.http.description'} />
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Enable The HTTP Service*'}
-                                    tooltip={
-                                        'WARN: The HTTP service enabled the browser widget (this page) to function. You can only re-enable this ' +
-                                        'service by editing the config file manually'
-                                    }
+                                    label={t(
+                                        'settings.http.http_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.http.http_enabled_tooltip'
+                                    )}
                                     enabled={settings.http_enabled}
                                     setEnabled={(http_enabled) => {
                                         setSettings({
@@ -666,11 +691,12 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsTextBox
-                                    label={'Listen Address (host:port)'}
-                                    tooltip={
-                                        'What address the http service will listen on. (The URL you are connected to right now). You should use localhost' +
-                                        'unless you know what you are doing as there is no authentication system.'
-                                    }
+                                    label={t(
+                                        'settings.http.http_listen_addr_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.http.http_listen_addr_tooltip'
+                                    )}
                                     value={settings.http_listen_addr}
                                     setValue={(http_listen_addr) => {
                                         setSettings({
@@ -696,49 +722,51 @@ export const SettingsEditor = ({
                         id="steam-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            Steam Config
+                            <Trans i18nKey={'settings.steam.label'} />
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Configure steam api &amp; client
+                            <Trans i18nKey={'settings.steam.description'} />
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
                             <Grid2 xs={6}>
                                 <SettingsTextBox
-                                    label={'Steam ID'}
+                                    label={t('settings.steam.steam_id_label')}
+                                    tooltip={t(
+                                        'settings.steam.steam_id_tooltip'
+                                    )}
                                     value={settings.steam_id}
                                     setValue={(steam_id) => {
                                         setSettings({ ...settings, steam_id });
                                     }}
                                     validator={validatorSteamID}
-                                    tooltip={
-                                        'You can choose one of the following formats: steam,steam3,steam64'
-                                    }
                                 />
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsTextBox
-                                    label={'Steam API Key'}
+                                    label={t('settings.steam.api_key_label')}
+                                    tooltip={t(
+                                        'settings.steam.api_key_tooltip'
+                                    )}
                                     value={settings.api_key}
                                     secrets
                                     validator={makeValidatorLength(32)}
                                     setValue={(api_key) => {
                                         setSettings({ ...settings, api_key });
                                     }}
-                                    tooltip={'Your personal steam web api key'}
                                 />
                             </Grid2>
                             <Grid2 xs={12}>
                                 <SettingsTextBox
-                                    label={'Steam Root Directory'}
+                                    label={t('settings.steam.steam_dir_label')}
+                                    tooltip={t(
+                                        'settings.steam.steam_dir_tooltip'
+                                    )}
                                     value={settings.steam_dir}
                                     setValue={(steam_dir) => {
                                         setSettings({ ...settings, steam_dir });
                                     }}
-                                    tooltip={
-                                        'Location of your steam installation directory containing your userdata folder'
-                                    }
                                 />
                             </Grid2>
                         </Grid2>
@@ -756,33 +784,31 @@ export const SettingsEditor = ({
                         id="tf2-header"
                     >
                         <Typography sx={{ width: '33%', flexShrink: 0 }}>
-                            TF2 Config
+                            <Trans i18nKey={'settings.tf2.label'} />
                         </Typography>
                         <Typography sx={{ color: 'text.secondary' }}>
-                            Configure game settings
+                            <Trans i18nKey={'settings.tf2.label'} />
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
                             <Grid2 xs={12}>
                                 <SettingsTextBox
-                                    label={'TF2 Root Directory'}
+                                    label={t('settings.tf2.tf2_dir_label')}
+                                    tooltip={t('settings.tf2.tf2_dir_tooltip')}
                                     value={settings.tf2_dir}
                                     setValue={(tf2_dir) => {
                                         setSettings({ ...settings, tf2_dir });
                                     }}
-                                    tooltip={
-                                        'Path to your steamapps/common/Team Fortress 2/tf` Folder'
-                                    }
                                 />
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'RCON Static Mode'}
-                                    tooltip={
-                                        'When enabled, rcon will always use the static port and password of 21212 / pazer_sux_lol. Otherwise these are generated randomly on game launch'
-                                    }
-                                    enabled={settings.chat_warnings_enabled}
+                                    label={t('settings.tf2.rcon_static_label')}
+                                    tooltip={t(
+                                        'settings.tf2.rcon_static_tooltip'
+                                    )}
+                                    enabled={settings.rcon_static}
                                     setEnabled={(rcon_static) => {
                                         setSettings({
                                             ...settings,
@@ -793,11 +819,13 @@ export const SettingsEditor = ({
                             </Grid2>
                             <Grid2 xs={6}>
                                 <SettingsCheckBox
-                                    label={'Generate Voice Bans'}
-                                    tooltip={
-                                        'WARN: This will overwrite your current ban list. Mutes the 200 most recent marked entries.'
-                                    }
-                                    enabled={settings.chat_warnings_enabled}
+                                    label={t(
+                                        'settings.tf2.voice_bans_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.tf2.voice_bans_enabled_tooltip'
+                                    )}
+                                    enabled={settings.voice_bans_enabled}
                                     setEnabled={(voice_bans_enabled) => {
                                         setSettings({
                                             ...settings,
@@ -817,7 +845,7 @@ export const SettingsEditor = ({
                     color={'error'}
                     variant={'contained'}
                 >
-                    Cancel
+                    <Trans i18nKey={'button.cancel'} />
                 </Button>
                 <Button
                     onClick={handleSave}
@@ -825,7 +853,7 @@ export const SettingsEditor = ({
                     color={'success'}
                     variant={'contained'}
                 >
-                    Save
+                    <Trans i18nKey={'button.save'} />
                 </Button>
             </DialogActions>
         </Dialog>

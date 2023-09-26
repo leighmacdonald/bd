@@ -21,6 +21,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { inputValidator } from './SettingsEditor';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
+import { Trans, useTranslation } from 'react-i18next';
 
 interface SettingsLinkProps {
     value: Link;
@@ -39,6 +40,7 @@ export const SettingsLinkEditor = ({
     isNew
 }: SettingsLinkProps) => {
     const [list, setList] = useState<Link>({ ...value });
+    const { t } = useTranslation();
 
     const onEnabledChanged = (
         _: ChangeEvent<HTMLInputElement>,
@@ -71,7 +73,9 @@ export const SettingsLinkEditor = ({
     return (
         <Dialog open={open} fullWidth>
             <DialogTitle component={Typography} variant={'h1'}>
-                {isNew ? `Create New Link` : `Edit Link: ${list.name}`}
+                {isNew
+                    ? t('settings.link_editor.create_title')
+                    : `${t('settings.link_editor.edit_title')} ${list.name}`}
             </DialogTitle>
             <DialogContent dividers>
                 <Stack spacing={2}>
@@ -83,20 +87,21 @@ export const SettingsLinkEditor = ({
                                     onChange={onEnabledChanged}
                                 />
                             }
-                            label="Enabled"
+                            label={t('settings.link_editor.enabled_label')}
                         />
                     </FormGroup>
 
                     <TextField value={list.name} onChange={onNameChanged} />
                     <FormControl fullWidth>
-                        <InputLabel id="demo-simple-select-label">
-                            Steam ID Format
+                        <InputLabel id="steam_id_format-select-label">
+                            <Trans
+                                i18nKey={'settings.link_editor.steam_id_format'}
+                            />
                         </InputLabel>
                         <Select<steamIdFormat>
-                            labelId="demo-simple-select-label"
-                            id="demo-simple-select"
+                            labelId="steam_id_format-select-label"
+                            id="steam_id_format-select"
                             value={list.id_format}
-                            label="Age"
                             onChange={onFormatChanged}
                         >
                             {(
@@ -128,7 +133,7 @@ export const SettingsLinkEditor = ({
                     color={'error'}
                     variant={'contained'}
                 >
-                    Cancel
+                    <Trans i18nKey={'button.cancel'} />
                 </Button>
                 <Button
                     onClick={handleSave}
@@ -136,7 +141,7 @@ export const SettingsLinkEditor = ({
                     color={'success'}
                     variant={'contained'}
                 >
-                    Accept
+                    <Trans i18nKey={'button.save'} />
                 </Button>
             </DialogActions>
         </Dialog>

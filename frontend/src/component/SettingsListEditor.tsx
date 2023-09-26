@@ -14,6 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
 import { inputValidator } from './SettingsEditor';
 import Typography from '@mui/material/Typography';
+import { Trans, useTranslation } from 'react-i18next';
 
 interface SettingsListProps {
     value: List;
@@ -32,6 +33,7 @@ export const SettingsListEditor = ({
     isNew
 }: SettingsListProps) => {
     const [list, setList] = useState<List>({ ...value });
+    const { t } = useTranslation();
 
     const handleClose = () => {
         setOpen(false);
@@ -60,7 +62,9 @@ export const SettingsListEditor = ({
     return (
         <Dialog open={open}>
             <DialogTitle component={Typography} variant={'h1'}>
-                {isNew ? `Create New List` : `Edit List: ${list.name}`}
+                {isNew
+                    ? t('settings.list_editor.create_title')
+                    : `${t('settings.list_editor.edit_title')} ${list.name}`}
             </DialogTitle>
             <DialogContent dividers>
                 <Stack>
@@ -84,7 +88,7 @@ export const SettingsListEditor = ({
                     color={'error'}
                     variant={'contained'}
                 >
-                    Cancel
+                    <Trans i18nKey={'button.cancel'} />
                 </Button>
                 <Button
                     onClick={handleSave}
@@ -92,7 +96,7 @@ export const SettingsListEditor = ({
                     color={'success'}
                     variant={'contained'}
                 >
-                    Accept
+                    <Trans i18nKey={'button.save'} />
                 </Button>
             </DialogActions>
         </Dialog>

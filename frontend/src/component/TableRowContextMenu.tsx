@@ -43,6 +43,7 @@ import TableBody from '@mui/material/TableBody';
 import { format, parseJSON } from 'date-fns';
 import { TextareaAutosize } from '@mui/material';
 import Table from '@mui/material/Table';
+import { Trans, useTranslation } from 'react-i18next';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -113,6 +114,7 @@ export const TableRowContextMenu = ({
 }: TableRowContextMenuProps): JSX.Element => {
     //const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
+    const { t } = useTranslation();
 
     const [hoverMenuPos, setHoverMenuPos] = React.useState<{
         mouseX: number;
@@ -239,7 +241,7 @@ export const TableRowContextMenu = ({
                                         width={18}
                                         height={18}
                                         src={dead}
-                                        alt={`Player is dead (lol)`}
+                                        alt={t('player_table.row.icon_dead')}
                                     />
                                 </Grid>
                             )}
@@ -269,7 +271,9 @@ export const TableRowContextMenu = ({
                                         width={18}
                                         height={18}
                                         src={vac}
-                                        alt={`${player.number_of_vac_bans} VAC bans on record`}
+                                        alt={`${player.number_of_vac_bans} ${t(
+                                            'player_table.row.vac_bans'
+                                        )}`}
                                     />
                                 </Grid>
                             )}
@@ -285,7 +289,11 @@ export const TableRowContextMenu = ({
                                             width={18}
                                             height={18}
                                             src={sb}
-                                            alt={`${player.sourcebans.length} Sourcebans entries on record`}
+                                            alt={`${
+                                                player.sourcebans.length
+                                            } ${t(
+                                                'player_table.row.source_bans'
+                                            )}`}
                                         />
                                     </Grid>
                                 )}
@@ -300,7 +308,9 @@ export const TableRowContextMenu = ({
                                         width={18}
                                         height={18}
                                         src={marked}
-                                        alt={`Player is marked on one or more lists`}
+                                        alt={t(
+                                            'player_table.row.player_on_lists'
+                                        )}
                                     />
                                 </Grid>
                             )}
@@ -315,7 +325,9 @@ export const TableRowContextMenu = ({
                                         width={18}
                                         height={18}
                                         src={whitelist}
-                                        alt={`Player is marked, but whitelisted`}
+                                        alt={t(
+                                            'player_table.row.player_on_lists_whitelisted'
+                                        )}
                                     />
                                 </Grid>
                             )}
@@ -330,7 +342,7 @@ export const TableRowContextMenu = ({
                                         width={18}
                                         height={18}
                                         src={notes}
-                                        alt={`Player has notes`}
+                                        alt={t('player_table.row.player_notes')}
                                     />
                                 </Grid>
                             )}
@@ -416,7 +428,7 @@ export const TableRowContextMenu = ({
                 <NestedMenuItem
                     rightIcon={<ArrowRightOutlinedIcon />}
                     leftIcon={<FlagIcon color={'primary'} />}
-                    label="Mark Player As"
+                    label={t('player_table.menu.mark_label')}
                     parentMenuOpen={contextMenuPos !== null}
                 >
                     {[
@@ -447,7 +459,7 @@ export const TableRowContextMenu = ({
                 <NestedMenuItem
                     rightIcon={<ArrowRightOutlinedIcon />}
                     leftIcon={<LinkOutlinedIcon color={'primary'} />}
-                    label="Open External Link"
+                    label={t('player_table.menu.external')}
                     parentMenuOpen={contextMenuPos !== null}
                 >
                     {settings.links.map((l) => (
@@ -466,7 +478,7 @@ export const TableRowContextMenu = ({
                 <NestedMenuItem
                     rightIcon={<ArrowRightOutlinedIcon />}
                     leftIcon={<ContentCopyOutlinedIcon color={'primary'} />}
-                    label="Copy SteamID"
+                    label={t('player_table.menu.copy_label')}
                     parentMenuOpen={contextMenuPos !== null}
                 >
                     <IconMenuItem
@@ -507,11 +519,11 @@ export const TableRowContextMenu = ({
                 </NestedMenuItem>
                 <IconMenuItem
                     leftIcon={<ForumOutlinedIcon color={'primary'} />}
-                    label={'Chat History'}
+                    label={t('player_table.menu.chat_history_label')}
                 />
                 <IconMenuItem
                     leftIcon={<BadgeOutlinedIcon color={'primary'} />}
-                    label={'Name History'}
+                    label={t('player_table.menu.name_history_label')}
                 />
                 {player.whitelisted ? (
                     <IconMenuItem
@@ -520,7 +532,7 @@ export const TableRowContextMenu = ({
                                 color={'primary'}
                             />
                         }
-                        label={'Remove Whitelist'}
+                        label={t('player_table.menu.remove_whitelist_label')}
                         onClick={async () => {
                             await onDeleteWhitelist(player.steam_id);
                         }}
@@ -532,7 +544,7 @@ export const TableRowContextMenu = ({
                                 color={'primary'}
                             />
                         }
-                        label={'Whitelist'}
+                        label={t('player_table.menu.whitelist_label')}
                         onClick={async () => {
                             await onAddWhitelist(player.steam_id);
                         }}
@@ -579,20 +591,29 @@ export const TableRowContextMenu = ({
                             <div>
                                 <Grid container>
                                     {...makeInfoRow(
-                                        'UID',
+                                        t('player_table.details.uid_label'),
                                         player.user_id.toString()
                                     )}
-                                    {...makeInfoRow('Name', player.name)}
                                     {...makeInfoRow(
-                                        'Profile Visibility',
+                                        t('player_table.details.name_label'),
+                                        player.name
+                                    )}
+                                    {...makeInfoRow(
+                                        t(
+                                            'player_table.details.visibility_label'
+                                        ),
                                         visibilityString(player.visibility)
                                     )}
                                     {...makeInfoRow(
-                                        'Vac Bans',
+                                        t(
+                                            'player_table.details.vac_bans_label'
+                                        ),
                                         player.number_of_vac_bans.toString()
                                     )}
                                     {...makeInfoRow(
-                                        'Game Bans',
+                                        t(
+                                            'player_table.details.game_bans_label'
+                                        ),
                                         player.number_of_game_bans.toString()
                                     )}
                                 </Grid>
@@ -610,17 +631,29 @@ export const TableRowContextMenu = ({
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell padding={'normal'}>
-                                                    Origin
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.matches.origin_label'
+                                                        }
+                                                    />
                                                 </TableCell>
 
                                                 <TableCell padding={'normal'}>
-                                                    Type
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.matches.type_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                                 <TableCell
                                                     padding={'normal'}
                                                     width={'100%'}
                                                 >
-                                                    Tags
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.matches.tags_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                             </TableRow>
                                         </TableHead>
@@ -679,19 +712,35 @@ export const TableRowContextMenu = ({
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell padding={'normal'}>
-                                                    Site&nbsp;Name
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.sourcebans.site_name_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                                 <TableCell padding={'normal'}>
-                                                    Created
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.sourcebans.created_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                                 <TableCell padding={'normal'}>
-                                                    Perm
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.sourcebans.perm_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                                 <TableCell
                                                     padding={'normal'}
                                                     width={'100%'}
                                                 >
-                                                    Reason
+                                                    <Trans
+                                                        i18nKey={
+                                                            'player_table.details.sourcebans.reason_label'
+                                                        }
+                                                    />
                                                 </TableCell>
                                             </TableRow>
                                         </TableHead>
@@ -734,8 +783,8 @@ export const TableRowContextMenu = ({
                                                                 }
                                                             >
                                                                 {ban.permanent
-                                                                    ? 'yes'
-                                                                    : 'no'}
+                                                                    ? t('yes')
+                                                                    : t('no')}
                                                             </Typography>
                                                         </TableCell>
                                                         <TableCell>
