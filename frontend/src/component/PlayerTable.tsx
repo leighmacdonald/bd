@@ -32,6 +32,7 @@ import { NoteEditor } from './NoteEditor';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
 import { SettingsContext } from '../context/settings';
+import { Trans, useTranslation } from 'react-i18next';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -238,7 +239,9 @@ export const ColumnConfigButton = ({
                                         value={r.id}
                                         key={`column-toggle-${r.id}`}
                                     >
-                                        {r.label}
+                                        <Trans
+                                            i18nKey={`player_table.column.${r.id}`}
+                                        />
                                     </ToggleButton>
                                 );
                             })}
@@ -286,7 +289,9 @@ const PlayerTableHead = ({
                                     }
                                     onClick={createSortHandler(headCell.id)}
                                 >
-                                    {headCell.label}
+                                    <Trans
+                                        i18nKey={`player_table.column.${headCell.id}`}
+                                    />
                                     {orderBy === headCell.id ? (
                                         <Box
                                             component="span"
@@ -351,6 +356,7 @@ export const PlayerTable = () => {
     );
     const { settings } = useContext(SettingsContext);
     const state = useCurrentState();
+    const { t } = useTranslation();
 
     const onOpenNotes = useCallback((steamId: string, notes: string) => {
         setNotesSteamId(steamId);
@@ -402,11 +408,7 @@ export const PlayerTable = () => {
             <Stack>
                 <Stack direction={'row'}>
                     <ButtonGroup>
-                        <Tooltip
-                            title={
-                                'Show only players with some sort of negative status'
-                            }
-                        >
+                        <Tooltip title={t('toolbar.button.show_only_negative')}>
                             <Box>
                                 <IconButton
                                     onClick={() => {
@@ -424,7 +426,7 @@ export const PlayerTable = () => {
                             </Box>
                         </Tooltip>
 
-                        <Tooltip title={'Configure which columns are shown'}>
+                        <Tooltip title={t('toolbar.button.shown_columns')}>
                             <Box>
                                 <ColumnConfigButton
                                     enabledColumns={enabledColumns}
@@ -433,7 +435,7 @@ export const PlayerTable = () => {
                             </Box>
                         </Tooltip>
 
-                        <Tooltip title={'Open the settings dialogue'}>
+                        <Tooltip title={t('toolbar.button.open_settings')}>
                             <Box>
                                 <IconButton
                                     onClick={() => {
@@ -446,11 +448,11 @@ export const PlayerTable = () => {
                         </Tooltip>
 
                         <Tooltip
-                            title={
+                            title={t(
                                 state.game_running
-                                    ? 'Game is currently running'
-                                    : 'Launch TF2!'
-                            }
+                                    ? 'toolbar.button.game_state_running'
+                                    : 'toolbar.button.game_state_stopped'
+                            )}
                         >
                             <Box>
                                 <IconButton

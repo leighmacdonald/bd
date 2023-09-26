@@ -10,6 +10,7 @@ import {
 import Stack from '@mui/material/Stack';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
+import { Trans, useTranslation } from 'react-i18next';
 
 interface NoteEditorProps {
     open: boolean;
@@ -31,6 +32,7 @@ export const NoteEditor = ({
 }: NoteEditorProps) => {
     const [newNotes, setNewNotes] = useState<string>(notes);
     const handleClose = useCallback(() => setOpen(false), [setOpen]);
+    const { t } = useTranslation();
 
     const handleSave = useCallback(async () => {
         await onSave(steamId, notes);
@@ -40,12 +42,14 @@ export const NoteEditor = ({
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth>
-            <DialogTitle>Edit Player Notes</DialogTitle>
+            <DialogTitle>
+                <Trans i18nKey={'notes.title'} />
+            </DialogTitle>
             <DialogContent>
                 <Stack spacing={1} padding={0}>
                     <TextField
                         id="notes-editor-field"
-                        label="Note"
+                        label={t('notes.note_label')}
                         fullWidth
                         minRows={10}
                         value={newNotes}
@@ -63,7 +67,7 @@ export const NoteEditor = ({
                     variant={'contained'}
                     onClick={handleClose}
                 >
-                    Cancel
+                    <Trans i18nKey={'button.cancel'} />
                 </Button>
                 <Button
                     startIcon={<SaveIcon />}
@@ -71,7 +75,7 @@ export const NoteEditor = ({
                     variant={'contained'}
                     onClick={handleSave}
                 >
-                    Save
+                    <Trans i18nKey={'button.save'} />
                 </Button>
             </DialogActions>
         </Dialog>
