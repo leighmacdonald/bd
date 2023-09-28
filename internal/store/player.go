@@ -122,28 +122,6 @@ func (ps *Player) Touch() {
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-type PlayerCollection []*Player
-
-func (players *PlayerCollection) ByName(name string) (*Player, bool) {
-	for _, player := range *players {
-		if player.Name == name {
-			return player, true
-		}
-	}
-
-	return nil, false
-}
-
-func (players *PlayerCollection) Player(sid64 steamid.SID64) *Player {
-	for _, player := range *players {
-		if player.SteamID == sid64 {
-			return player
-		}
-	}
-
-	return nil
-}
-
 func NewPlayer(sid64 steamid.SID64, name string) *Player {
 	curTIme := time.Now()
 

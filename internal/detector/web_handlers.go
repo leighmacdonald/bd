@@ -54,22 +54,20 @@ func getNames(detector *Detector) gin.HandlerFunc {
 }
 
 type CurrentState struct {
-	Tags        []string        `json:"tags"`
-	GameRunning bool            `json:"game_running"`
-	Server      *Server         `json:"server"`
-	Players     []*store.Player `json:"players"`
+	Tags        []string       `json:"tags"`
+	GameRunning bool           `json:"game_running"`
+	Server      *Server        `json:"server"`
+	Players     []store.Player `json:"players"`
 }
 
 func getState(detector *Detector) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		detector.playersMu.RLock()
-		defer detector.playersMu.RUnlock()
 		detector.serverMu.RLock()
 		defer detector.serverMu.RUnlock()
 
-		players := detector.players
+		players := detector.players.all()
 		if players == nil {
-			players = []*store.Player{}
+			players = []store.Player{}
 		}
 
 		responseOK(ctx, http.StatusOK, CurrentState{
@@ -153,6 +151,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 		}
 
 		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid)
+
 		if errPlayer != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			log.Error("Failed to get or create player", zap.Error(errPlayer))
@@ -160,23 +159,18 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		detector.playersMu.Lock()
-
 		player.Notes = opts.Note
 
 		player.Touch()
 
-		if errSave := detector.dataStore.SavePlayer(ctx, player); errSave != nil {
+		if errSave := detector.dataStore.SavePlayer(ctx, &player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
-			detector.playersMu.Unlock()
 			log.Error("Failed to save player notes", zap.Error(errSave))
 
 			return
 		}
 
-		detector.playersMu.Unlock()
-
-		go detector.updateState(newNoteEvent(sid, opts.Note))
+		detector.players.update(player)
 
 		responseOK(ctx, http.StatusNoContent, nil)
 	}
