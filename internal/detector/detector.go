@@ -901,6 +901,13 @@ func (d *Detector) Shutdown(ctx context.Context) error {
 	return err
 }
 
+func (d *Detector) openApplicationPage() {
+	appURL := fmt.Sprintf("http://%s", d.settings.HTTPListenAddr)
+	if errOpen := d.platform.OpenURL(appURL); errOpen != nil {
+		d.log.Error("Failed to open URL", zap.String("url", appURL), zap.Error(errOpen))
+	}
+}
+
 func (d *Detector) Start(ctx context.Context) {
 	go d.reader.start(ctx)
 	go d.parser.start(ctx)
@@ -940,6 +947,8 @@ func (d *Detector) Start(ctx context.Context) {
 			go d.LaunchGameAndWait()
 		}
 	}
+
+	d.openApplicationPage()
 }
 
 func SteamIDStringList(collection steamid.Collection) string {
