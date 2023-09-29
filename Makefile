@@ -10,10 +10,13 @@ bump_deps:
 	go get -u ./...
 	cd frontend && yarn upgrade-interactive --latest
 
-check: lint_golangci static
+check: lint_golangci static lint_ts
 
 lint_golangci:
 	@golangci-lint run --timeout 3m
+
+lint_ts:
+	cd frontend && yarn run eslint:check && yarn prettier src/ --check
 
 static:
 	@staticcheck -go 1.20 ./...

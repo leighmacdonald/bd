@@ -55,11 +55,13 @@ type Order = 'asc' | 'desc';
 const getComparator = <Key extends keyof any>(
     order: Order,
     orderBy: Key
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): ((a: { [key in Key]: any }, b: { [key in Key]: any }) => number) =>
     order === 'asc'
         ? (a, b) => descendingComparator(a, b, orderBy)
         : (a, b) => -descendingComparator(a, b, orderBy);
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const stableSort = <T,>(
     array: readonly T[],
     comparator: (a: T, b: T) => number

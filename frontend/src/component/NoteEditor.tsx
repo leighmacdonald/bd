@@ -33,7 +33,7 @@ export const NoteEditor = NiceModal.create<NoteEditorProps>(
             } catch (e) {
                 console.log(`Error updating note: ${e}`);
             }
-        }, [newNotes]);
+        }, [newNotes, steamId, modal]);
 
         return (
             <Dialog fullWidth {...muiDialog(modal)}>
