@@ -28,11 +28,11 @@ func TestPlayer(t *testing.T) {
 	player1 := store.NewPlayer(steamid.New(76561197961279983), util.RandomString(10))
 
 	t.Run("Create New Player", func(t *testing.T) {
-		require.NoError(t, database.GetPlayer(context.TODO(), player1.SteamID, true, player1), "Failed to create player")
+		require.NoError(t, database.GetPlayer(context.TODO(), player1.SteamID, true, &player1), "Failed to create player")
 	})
 
 	t.Run("Fetch Existing Player", func(t *testing.T) {
-		require.NoError(t, database.GetPlayer(context.TODO(), player1.SteamID, false, player1), "Failed to create player")
+		require.NoError(t, database.GetPlayer(context.TODO(), player1.SteamID, false, &player1), "Failed to create player")
 	})
 
 	t.Run("Add User Messages", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestPlayer(t *testing.T) {
 		knownNames := []string{"test name 1", "test name 2", "Blah Blax", "bob", "sally"}
 		for idx, sid := range knownIds {
 			player := store.NewPlayer(sid, knownNames[idx])
-			require.NoError(t, database.GetPlayer(context.TODO(), player.SteamID, true, player), "Failed to create player")
+			require.NoError(t, database.GetPlayer(context.TODO(), player.SteamID, true, &player), "Failed to create player")
 		}
 		t.Run("By SteamID", func(t *testing.T) {
 			sid3Matches, errSid3Matches := database.SearchPlayers(context.TODO(), store.SearchOpts{Query: string(steamid.SID64ToSID3(knownIds[0]))})

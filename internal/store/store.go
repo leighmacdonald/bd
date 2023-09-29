@@ -33,7 +33,7 @@ type DataStore interface {
 	SaveUserNameHistory(ctx context.Context, hist *UserNameHistory) error
 	SaveMessage(ctx context.Context, message *UserMessage) error
 	SavePlayer(ctx context.Context, state *Player) error
-	SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error)
+	SearchPlayers(ctx context.Context, opts SearchOpts) ([]Player, error)
 	FetchNames(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
 	FetchMessages(ctx context.Context, sid steamid.SID64) (UserMessageCollection, error)
 	GetPlayer(ctx context.Context, steamID steamid.SID64, create bool, player *Player) error
@@ -240,7 +240,7 @@ type SearchOpts struct {
 	Query string
 }
 
-func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (PlayerCollection, error) {
+func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) ([]Player, error) {
 	builder := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -269,7 +269,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 
 	defer util.LogClose(store.logger, rows)
 
-	var col PlayerCollection
+	var col []Player
 
 	for rows.Next() {
 		var (
@@ -293,7 +293,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) (P
 			player.NamePrevious = *prevName
 		}
 
-		col = append(col, &player)
+		col = append(col, player)
 	}
 
 	if rows.Err() != nil {

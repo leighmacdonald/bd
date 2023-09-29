@@ -6,5 +6,6 @@ dist/
 *.sqlite
 /fyne-cross/
 /bd
-/frontend/node_modules
+node_modules
 /frontend/lib/
+package-lock.json

@@ -1,4 +1,4 @@
-package detector_test
+package detector
 
 import (
 	"bytes"
@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/leighmacdonald/bd/internal/detector"
 	"github.com/leighmacdonald/bd/internal/store"
 	"github.com/leighmacdonald/bd/pkg/util"
 	"github.com/leighmacdonald/steamid/v3/steamid"
@@ -23,15 +22,15 @@ import (
 	"go.uber.org/zap"
 )
 
-func testApp() (*detector.Detector, func(), error) {
+func testApp() (*Detector, func(), error) {
 	tempDir, errTemp := os.MkdirTemp("", "bd-test")
 	if errTemp != nil {
 		return nil, func() {}, errors.Wrap(errTemp, "Failed to create temp dir")
 	}
 
 	logger := zap.NewNop()
-	userSettings, _ := detector.NewSettings()
-	userSettings.RunMode = detector.ModeTest
+	userSettings, _ := NewSettings()
+	userSettings.RunMode = ModeTest
 	userSettings.SteamID = steamid.RandSID64()
 	userSettings.ConfigPath = path.Join(tempDir, "bd.yaml")
 
@@ -56,19 +55,19 @@ func testApp() (*detector.Detector, func(), error) {
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
+	logReader, errLogReader := NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
 	if errLogReader != nil {
 		return nil, cleanup, errors.Wrap(errLogReader, "Failed to create test app")
 	}
 
-	versionInfo := detector.Version{Version: "", Commit: "", Date: "", BuiltBy: ""}
-	ds, _ := detector.NewAPIDataSource("")
-	application := detector.New(logger, userSettings, dataStore, versionInfo, &detector.NopCache{}, logReader, logChan, ds)
+	versionInfo := Version{Version: "", Commit: "", Date: "", BuiltBy: ""}
+	ds, _ := NewAPIDataSource("")
+	application := New(logger, userSettings, dataStore, versionInfo, &NopCache{}, logReader, logChan, ds)
 
 	return application, cleanup, nil
 }
 
-func fetchIntoWithStatus(t *testing.T, app *detector.Detector, method string, path string, status int, out any, body any) {
+func fetchIntoWithStatus(t *testing.T, app *Detector, method string, path string, status int, out any, body any) {
 	t.Helper()
 
 	var bodyReader io.Reader
@@ -100,13 +99,13 @@ func TestGetPlayers(t *testing.T) {
 
 	defer cleanup()
 
-	testPlayers := detector.CreateTestPlayers(app, 5)
+	CreateTestPlayers(app, 5)
 
-	var state detector.CurrentState
+	var state CurrentState
 
 	fetchIntoWithStatus(t, app, http.MethodGet, "/state", http.StatusOK, &state, nil)
 
-	require.Equal(t, len(testPlayers), len(state.Players))
+	require.Equal(t, len(app.players.all()), len(state.Players))
 }
 
 func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
@@ -116,9 +115,9 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 	defer cleanup()
 
 	t.Run("Get Settings", func(t *testing.T) { //nolint:tparallel
-		var wus detector.WebUserSettings
+		var wus WebUserSettings
 		fetchIntoWithStatus(t, app, "GET", "/settings", http.StatusOK, &wus, nil)
-		settings := detector.WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
+		settings := WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
 		require.Equal(t, settings.SteamID, wus.SteamID)
 		require.Equal(t, settings.SteamDir, wus.SteamDir)
 		require.Equal(t, settings.AutoLaunchGame, wus.AutoLaunchGame)
@@ -161,36 +160,39 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	defer cleanup()
 
-	pls := detector.CreateTestPlayers(app, 1)
-	req := detector.PostMarkPlayerOpts{
+	CreateTestPlayers(app, 1)
+
+	req := PostMarkPlayerOpts{
 		Attrs: []string{"cheater", "test"},
 	}
 
+	players := app.players.all()
+
 	t.Run("Mark Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
-		matches := app.Rules().MatchSteam(pls[0].SteamID)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusNoContent, nil, req)
+		matches := app.Rules().MatchSteam(players[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark Duplicate Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusConflict, nil, req)
-		matches := app.Rules().MatchSteam(pls[0].SteamID)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusConflict, nil, req)
+		matches := app.Rules().MatchSteam(players[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark Without Attrs", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", pls[0].SteamID), http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusBadRequest, nil, PostMarkPlayerOpts{
 			Attrs: []string{},
 		})
-		matches := app.Rules().MatchSteam(pls[0].SteamID)
+		matches := app.Rules().MatchSteam(players[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark bad steamid", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", "/mark/blah", http.StatusBadRequest, nil, detector.PostMarkPlayerOpts{
+		fetchIntoWithStatus(t, app, "POST", "/mark/blah", http.StatusBadRequest, nil, PostMarkPlayerOpts{
 			Attrs: []string{"cheater", "test"},
 		})
-		matches := app.Rules().MatchSteam(pls[0].SteamID)
+		matches := app.Rules().MatchSteam(players[0].SteamID)
 		require.True(t, len(matches) > 0)
 	})
 }
@@ -201,7 +203,9 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 
 	defer cleanup()
 
-	markedPlayer := detector.CreateTestPlayers(app, 1)[0]
+	CreateTestPlayers(app, 1)
+
+	markedPlayer := app.players.all()[0]
 
 	testAttrs := []string{"cheater"}
 	require.NoError(t, app.Mark(context.Background(), markedPlayer.SteamID, testAttrs))
@@ -212,7 +216,7 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 	})
 
 	t.Run("Unmark Marked Player", func(t *testing.T) {
-		var resp detector.UnmarkResponse
+		var resp UnmarkResponse
 		fetchIntoWithStatus(t, app, http.MethodDelete,
 			fmt.Sprintf("/mark/%d", markedPlayer.SteamID.Int64()), http.StatusOK, &resp, nil)
 		require.Equal(t, 0, resp.Remaining)
@@ -225,26 +229,28 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	defer cleanup()
 
-	pls := detector.CreateTestPlayers(app, 1)
+	CreateTestPlayers(app, 1)
 
-	require.NoError(t, app.Mark(context.TODO(), pls[0].SteamID, []string{"test_mark"}))
+	players := app.players.all()
+
+	require.NoError(t, app.Mark(context.TODO(), players[0].SteamID, []string{"test_mark"}))
 
 	t.Run("Whitelist Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
-		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
-		require.NoError(t, e)
-		require.True(t, plr.Whitelisted)
-		require.Nil(t, app.Rules().MatchSteam(pls[0].SteamID))
-		require.True(t, app.Rules().Whitelisted(pls[0].SteamID))
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/whitelist/%s", players[0].SteamID), http.StatusNoContent, nil, nil)
+		player, errPlayer := app.GetPlayerOrCreate(context.Background(), players[0].SteamID)
+		require.NoError(t, errPlayer)
+		require.True(t, player.Whitelisted)
+		require.Nil(t, app.Rules().MatchSteam(players[0].SteamID))
+		require.True(t, app.Rules().Whitelisted(players[0].SteamID))
 	})
 
 	t.Run("Remove Player Whitelist", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "DELETE", fmt.Sprintf("/whitelist/%s", pls[0].SteamID), http.StatusNoContent, nil, nil)
-		plr, e := app.GetPlayerOrCreate(context.Background(), pls[0].SteamID)
-		require.NoError(t, e)
-		require.False(t, plr.Whitelisted)
-		require.NotNil(t, app.Rules().MatchSteam(pls[0].SteamID))
-		require.False(t, app.Rules().Whitelisted(pls[0].SteamID))
+		fetchIntoWithStatus(t, app, "DELETE", fmt.Sprintf("/whitelist/%s", players[0].SteamID), http.StatusNoContent, nil, nil)
+		player, errPlayer := app.GetPlayerOrCreate(context.Background(), players[0].SteamID)
+		require.NoError(t, errPlayer)
+		require.False(t, player.Whitelisted)
+		require.NotNil(t, app.Rules().MatchSteam(players[0].SteamID))
+		require.False(t, app.Rules().Whitelisted(players[0].SteamID))
 	})
 }
 
@@ -254,15 +260,19 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 
 	defer cleanup()
 
-	pls := detector.CreateTestPlayers(app, 1)
-	req := detector.PostNotesOpts{
+	CreateTestPlayers(app, 1)
+
+	players := app.players.all()
+
+	req := PostNotesOpts{
 		Note: "New Note",
 	}
 
 	t.Run("Set Player", func(t *testing.T) { //nolint:tparallel
-		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/notes/%s", pls[0].SteamID), http.StatusNoContent, nil, req)
-		np, _ := app.GetPlayerOrCreate(context.TODO(), pls[0].SteamID)
-		require.Equal(t, req.Note, np.Notes)
+		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/notes/%s", players[0].SteamID), http.StatusNoContent, nil, req)
+		player, errPlayer := app.GetPlayerOrCreate(context.TODO(), players[0].SteamID)
+		require.NoError(t, errPlayer)
+		require.Equal(t, req.Note, player.Notes)
 	})
 }
 
@@ -272,15 +282,17 @@ func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
 
 	defer cleanup()
 
-	pls := detector.CreateTestPlayers(app, 1)
+	CreateTestPlayers(app, 1)
+
+	players := app.players.all()
 
 	for i := 0; i < 10; i++ {
-		require.NoError(t, app.AddUserMessage(context.TODO(), pls[0], util.RandomString(i+1*2), false, true))
+		require.NoError(t, app.AddUserMessage(context.TODO(), &players[0], util.RandomString(i+1*2), false, true))
 	}
 
 	t.Run("Get Chat History", func(t *testing.T) { //nolint:tparallel
 		var messages []*store.UserMessage
-		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/messages/%s", pls[0].SteamID), http.StatusOK, &messages, nil)
+		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/messages/%s", players[0].SteamID), http.StatusOK, &messages, nil)
 		require.Equal(t, 10, len(messages))
 	})
 }
@@ -291,15 +303,17 @@ func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 
 	defer cleanup()
 
-	pls := detector.CreateTestPlayers(app, 2)
+	CreateTestPlayers(app, 2)
+
+	players := app.players.all()
 
 	for i := 0; i < 5; i++ {
-		require.NoError(t, app.AddUserName(context.TODO(), pls[1], util.RandomString(i+1*2)))
+		require.NoError(t, app.AddUserName(context.TODO(), &players[1], util.RandomString(i+1*2)))
 	}
 
 	t.Run("Get Name History", func(t *testing.T) {
 		var names store.UserMessageCollection
-		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/names/%s", pls[1].SteamID), http.StatusOK, &names, nil)
+		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/names/%s", players[1].SteamID), http.StatusOK, &names, nil)
 		require.Equal(t, 5, len(names))
 	})
 }

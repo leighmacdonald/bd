@@ -70,19 +70,15 @@ const (
 	updateProfile
 	updateBans
 	updateStatus
-	updateMessage
 	updateLobby
 	updateMap
 	updateHostname
 	updateTags
-	updateAddress
 	changeMap
 	updateMark
 	updateWhitelist
 	updateTeam
 	updateKickAttempts
-	updateNotes
-	playerTimeout
 	updateTestPlayer = 1000
 )
 
@@ -96,8 +92,6 @@ func (ut updateType) String() string {
 		return "bans"
 	case updateStatus:
 		return "status"
-	case updateMessage:
-		return "message"
 	case updateLobby:
 		return "lobby"
 	case updateMap:
@@ -106,8 +100,6 @@ func (ut updateType) String() string {
 		return "hostname"
 	case updateTags:
 		return "tags"
-	case updateAddress:
-		return "address"
 	case changeMap:
 		return "change_map"
 	case updateMark:
@@ -118,10 +110,6 @@ func (ut updateType) String() string {
 		return "team"
 	case updateKickAttempts:
 		return "kicks"
-	case updateNotes:
-		return "notes"
-	case playerTimeout:
-		return "timeout"
 	case updateTestPlayer:
 		return "test_player"
 	default:
@@ -132,10 +120,6 @@ func (ut updateType) String() string {
 type killEvent struct {
 	sourceName string
 	victimName string
-}
-
-type lobbyEvent struct {
-	team store.Team
 }
 
 type statusEvent struct {
@@ -149,13 +133,6 @@ type updateStateEvent struct {
 	kind   updateType
 	source steamid.SID64
 	data   any
-}
-
-func newPlayerTimeoutEvent(sid steamid.SID64) updateStateEvent {
-	return updateStateEvent{
-		kind:   playerTimeout,
-		source: sid,
-	}
 }
 
 type markEvent struct {
@@ -181,20 +158,6 @@ func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEve
 	}
 }
 
-type noteEvent struct {
-	body string
-}
-
-func newNoteEvent(sid steamid.SID64, body string) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateNotes,
-		source: sid,
-		data: noteEvent{
-			body: body,
-		},
-	}
-}
-
 type whitelistEvent struct {
 	addWhitelist bool
 }
@@ -210,6 +173,7 @@ func newWhitelistEvent(sid steamid.SID64, addWhitelist bool) updateStateEvent {
 }
 
 type messageEvent struct {
+	steamID   steamid.SID64
 	name      string
 	createdAt time.Time
 	message   string
@@ -225,26 +189,6 @@ type mapEvent struct {
 	mapName string
 }
 
-type mapChangeEvent struct{}
-
 type tagsEvent struct {
 	tags []string
-}
-
-type addressEvent struct {
-	ip   net.IP
-	port uint16
-}
-
-func newStatusUpdate(sid steamid.SID64, ping int, userID int, name string, connected time.Duration) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateStatus,
-		source: sid,
-		data: statusEvent{
-			ping:      ping,
-			userID:    userID,
-			name:      name,
-			connected: connected,
-		},
-	}
 }

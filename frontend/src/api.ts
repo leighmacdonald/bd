@@ -223,7 +223,6 @@ export const useUserSettings = () => {
             .then((resp) => resp)
             .then(setSettings)
             .catch((e) => {
-                console.log(e);
                 setError(e);
             })
             .finally(() => setLoading(false));

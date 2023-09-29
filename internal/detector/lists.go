@@ -78,7 +78,7 @@ func downloadLists(ctx context.Context, logger *zap.Logger, lists ListConfigColl
 			playerLists = append(playerLists, result)
 			mutex.Unlock()
 
-			logger.Info("Downloaded players successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
+			logger.Info("Downloaded activePlayers successfully", zap.Duration("duration", dur), zap.String("name", result.FileInfo.Title))
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {

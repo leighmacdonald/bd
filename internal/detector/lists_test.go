@@ -18,7 +18,7 @@ func TestListParse(t *testing.T) {
         "title": "local",
         "update_url": ""
     },
-    "players": [
+    "activePlayers": [
         {
             "attributes": [
                 "bot"
@@ -61,7 +61,7 @@ func TestListParse(t *testing.T) {
         "title": "local",
         "update_url": ""
     },
-    "players": [
+    "activePlayers": [
         {
             "attributes": [
                 "bot"

@@ -21,14 +21,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { TableRowContextMenu } from './TableRowContextMenu';
-import {
-    addWhitelist,
-    Player,
-    saveUserNote,
-    Team,
-    useCurrentState
-} from '../api';
-import { NoteEditor } from './NoteEditor';
+import { addWhitelist, Player, Team, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
 import { SettingsContext } from '../context/settings';
@@ -348,9 +341,6 @@ export const PlayerTable = () => {
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [openNotes, setOpenNotes] = useState(false);
-    const [notesValue, setNotesValue] = useState('');
-    const [notesSteamId, setNotesSteamId] = useState<string>('');
     const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
         getDefaultColumns()
     );
@@ -358,25 +348,13 @@ export const PlayerTable = () => {
     const state = useCurrentState();
     const { t } = useTranslation();
 
-    const onOpenNotes = useCallback((steamId: string, notes: string) => {
-        setNotesSteamId(steamId);
-        setNotesValue(notes);
-        setOpenNotes(true);
-    }, []);
-
-    const onSaveNotes = useCallback(async (steamId: string, notes: string) => {
-        try {
-            await saveUserNote(steamId, notes);
-            setOpenNotes(false);
-            console.log('Updated note successfully');
-        } catch (e) {
-            console.log(`Error updating note: ${e}`);
-        }
-    }, []);
-
     const onWhitelist = useCallback(async (steamId: string) => {
-        await addWhitelist(steamId);
-        console.log('Whitelist added');
+        try {
+            await addWhitelist(steamId);
+            console.log('Whitelist added');
+        } catch (e) {
+            console.log(`Error adding whitelist: ${e}`);
+        }
     }, []);
 
     const handleRequestSort = (
@@ -537,8 +515,6 @@ export const PlayerTable = () => {
                             {visibleRows.map((player, i) => (
                                 <TableRowContextMenu
                                     enabledColumns={enabledColumns}
-                                    onOpenNotes={onOpenNotes}
-                                    onSaveNotes={onSaveNotes}
                                     onWhitelist={onWhitelist}
                                     player={player}
                                     key={`row-${i}-${player.steam_id}`}
@@ -551,15 +527,6 @@ export const PlayerTable = () => {
                     open={settingsOpen}
                     setOpen={setSettingsOpen}
                     origSettings={settings}
-                />
-                <NoteEditor
-                    notes={notesValue}
-                    setNotes={setNotesValue}
-                    steamId={notesSteamId}
-                    setSteamId={setNotesSteamId}
-                    open={openNotes}
-                    setOpen={setOpenNotes}
-                    onSave={onSaveNotes}
                 />
             </Stack>
         </Paper>
