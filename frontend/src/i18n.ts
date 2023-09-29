@@ -123,7 +123,7 @@ const resources = {
                         'service by editing the config file manually',
                     http_listen_addr_label: 'Listen Address (host:port)',
                     http_listen_addr_tooltip:
-                        'What address the http service will listen on. (The URL you are connected to right now). You should use localhost' +
+                        'What address the http service will listen on. (The URL you are connected to right now). You should use localhost ' +
                         'unless you know what you are doing as there is no authentication system.'
                 },
                 steam: {
@@ -287,7 +287,7 @@ const resources = {
                         'только вручную изменив файл конфигурации',
                     http_listen_addr_label: 'Прослушиваемый Адрес (host:port)',
                     http_listen_addr_tooltip:
-                        'Какой адрес http сервис будет прослушивать. (Ссылка по которой вы сейчас подключены). Вам стоит использовать localhost' +
+                        'Какой адрес http сервис будет прослушивать. (Ссылка по которой вы сейчас подключены). Вам стоит использовать localhost ' +
                         'если вы не знаете что делаете, так как системы аутенфикации нет.'
                 },
                 steam: {
