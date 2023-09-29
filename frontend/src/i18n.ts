@@ -107,7 +107,7 @@ const resources = {
                 },
                 player_lists: {
                     label: 'Player & Rules Lists',
-                    description: 'Auth-Kicker, Tags, Chat Warnings'
+                    description: 'Auto-Kicker, Tags, Chat Warnings'
                 },
                 external_links: {
                     label: 'External Links',
@@ -142,7 +142,7 @@ const resources = {
                     description: 'Configure game settings',
                     tf2_dir_label: 'TF2 Root Directory',
                     tf2_dir_tooltip:
-                        'Path to your steamapps/common/Team Fortress 2/tf` Folder',
+                        'Path to your `steamapps/common/Team Fortress 2/tf` Folder',
                     rcon_static_label: 'RCON Static Mode',
                     rcon_static_tooltip:
                         'When enabled, rcon will always use the static port and password of 21212 / pazer_sux_lol. Otherwise these are generated randomly on game launch',
@@ -163,7 +163,7 @@ const resources = {
             }
         }
     },
-    ru: {
+ru: {
         common: {
             settings: {
                 general: {
