@@ -169,7 +169,8 @@ const resources = {
             appname: 'Bot Detector',
             button: {
                 save: 'Сохранить',
-                cancel: 'Отмена'
+                cancel: 'Отмена',
+                clear: 'Очистить'
             },
             yes: 'да',
             no: 'нет',
