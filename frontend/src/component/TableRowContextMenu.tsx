@@ -44,12 +44,12 @@ import { format, parseJSON } from 'date-fns';
 import { TextareaAutosize } from '@mui/material';
 import Table from '@mui/material/Table';
 import { Trans, useTranslation } from 'react-i18next';
+import { ModalNotes } from '../App';
+import NiceModal from '@ebay/nice-modal-react';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
     player: Player;
-    onOpenNotes: (steamId: string, notes: string) => void;
-    onSaveNotes: (steamId: string, notes: string) => void;
     onWhitelist: (steamId: string) => void;
 }
 
@@ -109,8 +109,7 @@ export const rowColour = (player: Player): string => {
 
 export const TableRowContextMenu = ({
     player,
-    enabledColumns,
-    onOpenNotes
+    enabledColumns
 }: TableRowContextMenuProps): JSX.Element => {
     //const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
@@ -554,7 +553,13 @@ export const TableRowContextMenu = ({
                     leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
                     label={'Edit Notes'}
                     onClick={() => {
-                        onOpenNotes(player.steam_id, player.notes);
+                        NiceModal.show(ModalNotes, {
+                            steamId: player.steam_id,
+                            notes: player.notes
+                        }).then((value) => {
+                            console.log(value);
+                        });
+                        console.log(`player note ${player.notes}`);
                         handleMenuClose();
                     }}
                 />

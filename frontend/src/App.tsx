@@ -8,6 +8,13 @@ import { createThemeByMode } from './theme';
 import { Home } from './page/Home';
 import { useUserSettings } from './api';
 import { SettingsContext } from './context/settings';
+import NiceModal from '@ebay/nice-modal-react';
+import { NoteEditor } from './component/NoteEditor';
+
+export const ModalNotes = 'modal-notes';
+//export const ModalSettings = 'modal-settings';
+
+NiceModal.register(ModalNotes, NoteEditor);
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);
@@ -18,35 +25,39 @@ export const App = (): JSX.Element => {
             <React.Fragment>
                 <ThemeProvider theme={theme}>
                     <React.StrictMode>
-                        <CssBaseline />
-                        <Container maxWidth={'lg'} disableGutters>
-                            {!userSettings.loading && (
-                                <SettingsContext.Provider value={userSettings}>
-                                    <ErrorBoundary>
-                                        <Routes>
-                                            <Route
-                                                path={'/'}
-                                                element={
-                                                    <ErrorBoundary>
-                                                        <Home />
-                                                    </ErrorBoundary>
-                                                }
-                                            />
-                                            <Route
-                                                path="/404"
-                                                element={
-                                                    <ErrorBoundary>
-                                                        <Fragment>
-                                                            not found
-                                                        </Fragment>
-                                                    </ErrorBoundary>
-                                                }
-                                            />
-                                        </Routes>
-                                    </ErrorBoundary>
-                                </SettingsContext.Provider>
-                            )}
-                        </Container>
+                        <NiceModal.Provider>
+                            <CssBaseline />
+                            <Container maxWidth={'lg'} disableGutters>
+                                {!userSettings.loading && (
+                                    <SettingsContext.Provider
+                                        value={userSettings}
+                                    >
+                                        <ErrorBoundary>
+                                            <Routes>
+                                                <Route
+                                                    path={'/'}
+                                                    element={
+                                                        <ErrorBoundary>
+                                                            <Home />
+                                                        </ErrorBoundary>
+                                                    }
+                                                />
+                                                <Route
+                                                    path="/404"
+                                                    element={
+                                                        <ErrorBoundary>
+                                                            <Fragment>
+                                                                not found
+                                                            </Fragment>
+                                                        </ErrorBoundary>
+                                                    }
+                                                />
+                                            </Routes>
+                                        </ErrorBoundary>
+                                    </SettingsContext.Provider>
+                                )}
+                            </Container>
+                        </NiceModal.Provider>
                     </React.StrictMode>
                 </ThemeProvider>
             </React.Fragment>

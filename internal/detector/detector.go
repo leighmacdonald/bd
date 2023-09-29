@@ -40,9 +40,9 @@ const (
 )
 
 type Detector struct {
-	log                *zap.Logger
-	players            *playerState
-	logChan            chan string
+	log     *zap.Logger
+	players *playerState
+	// logChan            chan string
 	eventChan          chan LogEvent
 	gameProcessActive  atomic.Bool
 	startupTime        time.Time
@@ -143,7 +143,6 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 	application := &Detector{
 		log:                logger,
 		players:            newPlayerState(),
-		logChan:            logChan,
 		eventChan:          eventChan,
 		startupTime:        time.Now(),
 		server:             &Server{},
@@ -484,6 +483,8 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (
 	if errPlayer == nil {
 		return player, nil
 	}
+
+	player = store.NewPlayer(sid64, "")
 
 	if errGet := d.dataStore.GetPlayer(ctx, sid64, true, &player); errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {
@@ -1190,6 +1191,7 @@ func CreateTestPlayers(detector *Detector, count int) {
 			player.Name = fmt.Sprintf("%d - %s", userId, player.SteamID.String())
 		}
 
+		player.Visibility = steamweb.VisibilityPublic
 		player.KillsOn = rand.Intn(20)
 		player.RageQuits = rand.Intn(10)
 		player.DeathsBy = rand.Intn(20)
@@ -1482,6 +1484,13 @@ func (d *Detector) incomingLogEventHandler(ctx context.Context) {
 
 					continue
 				}
+			case EvtStatusID:
+				d.onStatus(ctx, evt.PlayerSID, statusEvent{
+					ping:      evt.PlayerPing,
+					userID:    evt.UserID,
+					name:      evt.Player,
+					connected: evt.PlayerConnected,
+				})
 			case EvtDisconnect:
 				d.onMapChange()
 			case EvtKill:

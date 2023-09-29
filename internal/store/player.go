@@ -41,7 +41,7 @@ type Player struct {
 
 	// ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
 	// Note that because this WebAPI does not use authentication, there are only two possible values returned:
-	// 1 - the profile is not visible to you (Private, Friends Only, etc),
+	// 1 - the profile is not visible to you (Private, Friends Only, etc.),
 	// 3 - the profile is "Public", and the data is visible.
 	// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
 	// from the privacy state. It's the effective visibility state from the account making the request to the account
@@ -122,10 +122,10 @@ func (ps *Player) Touch() {
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-func NewPlayer(sid64 steamid.SID64, name string) *Player {
+func NewPlayer(sid64 steamid.SID64, name string) Player {
 	curTIme := time.Now()
 
-	return &Player{
+	return Player{
 		BaseSID:          BaseSID{sid64},
 		Name:             name,
 		Matches:          rules.MatchResults{},

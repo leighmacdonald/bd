@@ -11,73 +11,79 @@ import Stack from '@mui/material/Stack';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import { Trans, useTranslation } from 'react-i18next';
+import ClearIcon from '@mui/icons-material/Clear';
+import { saveUserNote } from '../api';
+import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 
 interface NoteEditorProps {
-    open: boolean;
-    setOpen: (open: boolean) => void;
     notes: string;
-    setNotes: (note: string) => void;
     steamId: string;
-    setSteamId: (steamId: string) => void;
-    onSave: (steamId: string, note: string) => void;
 }
 
-export const NoteEditor = ({
-    open,
-    setOpen,
-    notes,
-    setNotes,
-    steamId,
-    onSave
-}: NoteEditorProps) => {
-    const [newNotes, setNewNotes] = useState<string>(notes);
-    const handleClose = useCallback(() => setOpen(false), [setOpen]);
-    const { t } = useTranslation();
+export const NoteEditor = NiceModal.create<NoteEditorProps>(
+    ({ steamId, notes }) => {
+        const [newNotes, setNewNotes] = useState<string>(notes);
+        const { t } = useTranslation();
+        const modal = useModal();
 
-    const handleSave = useCallback(async () => {
-        await onSave(steamId, notes);
-        setNotes(newNotes);
-        handleClose();
-    }, [onSave, steamId, notes, setNotes, newNotes, handleClose]);
+        const onSaveNotes = useCallback(async () => {
+            try {
+                await saveUserNote(steamId, newNotes);
+                await modal.hide();
+            } catch (e) {
+                console.log(`Error updating note: ${e}`);
+            }
+        }, [newNotes]);
 
-    return (
-        <Dialog open={open} onClose={handleClose} fullWidth>
-            <DialogTitle>
-                <Trans i18nKey={'notes.title'} />
-            </DialogTitle>
-            <DialogContent>
-                <Stack spacing={1} padding={0}>
-                    <TextField
-                        id="notes-editor-field"
-                        label={t('notes.note_label')}
-                        fullWidth
-                        minRows={10}
-                        value={newNotes}
-                        onChange={(evt) => {
-                            setNewNotes(evt.target.value);
+        return (
+            <Dialog fullWidth {...muiDialog(modal)}>
+                <DialogTitle>
+                    <Trans i18nKey={'player_table.notes.title'} />
+                </DialogTitle>
+                <DialogContent>
+                    <Stack spacing={1} padding={0}>
+                        <TextField
+                            id="notes-editor-field"
+                            label={t('player_table.notes.note_label')}
+                            fullWidth
+                            minRows={10}
+                            value={newNotes}
+                            onChange={(evt) => {
+                                setNewNotes(evt.target.value);
+                            }}
+                            multiline
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        startIcon={<ClearIcon />}
+                        color={'warning'}
+                        variant={'contained'}
+                        onClick={() => {
+                            setNewNotes('');
                         }}
-                        multiline
-                    />
-                </Stack>
-            </DialogContent>
-            <DialogActions>
-                <Button
-                    startIcon={<CloseIcon />}
-                    color={'error'}
-                    variant={'contained'}
-                    onClick={handleClose}
-                >
-                    <Trans i18nKey={'button.cancel'} />
-                </Button>
-                <Button
-                    startIcon={<SaveIcon />}
-                    color={'success'}
-                    variant={'contained'}
-                    onClick={handleSave}
-                >
-                    <Trans i18nKey={'button.save'} />
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+                    >
+                        <Trans i18nKey={'button.clear'} />
+                    </Button>
+                    <Button
+                        startIcon={<CloseIcon />}
+                        color={'error'}
+                        variant={'contained'}
+                        onClick={modal.hide}
+                    >
+                        <Trans i18nKey={'button.cancel'} />
+                    </Button>
+                    <Button
+                        startIcon={<SaveIcon />}
+                        color={'success'}
+                        variant={'contained'}
+                        onClick={onSaveNotes}
+                    >
+                        <Trans i18nKey={'button.save'} />
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    }
+);

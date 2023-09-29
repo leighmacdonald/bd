@@ -8,7 +8,8 @@ const resources = {
             appname: 'Bot Detector',
             button: {
                 save: 'Save',
-                cancel: 'Cancel'
+                cancel: 'Cancel',
+                clear: 'Clear'
             },
             yes: 'yes',
             no: 'no',
@@ -193,7 +194,8 @@ const resources = {
                     icon_dead: 'Игрок мёртв (хах)',
                     vac_bans: 'Известные VAC баны',
                     source_bans: 'Известные Sourcebans',
-                    player_on_lists: 'Игрок отмечен в одном или нескольких списках',
+                    player_on_lists:
+                        'Игрок отмечен в одном или нескольких списках',
                     player_on_lists_whitelisted:
                         'Игрок отмечен, но находится в белом списке',
                     player_notes: 'Есть заметки о игроке'
@@ -249,16 +251,19 @@ const resources = {
                     kick_tags_label: 'Выгоняемые метки',
                     kick_tags_tooltip:
                         'Только при совпадениях по этим меткам сработает начало голосования или предупреждение.',
-                    party_warnings_enabled_label: 'Предупреждения Лобби Активированы',
+                    party_warnings_enabled_label:
+                        'Предупреждения Лобби Активированы',
                     party_warnings_enabled_tooltip:
                         'Активировать отправку лог сообщений в чат лобби',
-                    discord_presence_enabled_label: 'Discord Presence Активирован',
+                    discord_presence_enabled_label:
+                        'Discord Presence Активирован',
                     discord_presence_enabled_tooltip:
                         'Активировать отображение игрового статуса в твоём дискорд профиле.',
                     auto_launch_game_label: 'Авто Запуск Игры',
                     auto_launch_game_tooltip:
                         'Когда активирован, при запуске bd, TF2 так же будет запущена',
-                    auto_close_on_game_exit_label: 'Авто Закрытие При Выходе Из Игры',
+                    auto_close_on_game_exit_label:
+                        'Авто Закрытие При Выходе Из Игры',
                     auto_close_on_game_exit_tooltip:
                         'Когда активирован, при выходе из игры, так же закрывается bd.',
                     debug_log_enabled_label: 'Активирован Дебаг Лог',
