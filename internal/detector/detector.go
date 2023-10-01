@@ -431,7 +431,7 @@ func (d *Detector) updatePlayerState(ctx context.Context) error {
 		}
 
 		player, errPlayer := d.players.bySteamID(sid)
-		if errPlayer != nil && errors.Is(errPlayer, errPlayerNotFound) {
+		if errPlayer != nil {
 			// status command is what we use to add players to the active game.
 			continue
 		}

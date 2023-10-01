@@ -21,10 +21,12 @@ import {
     addWhitelist,
     deleteWhitelist,
     formatSeconds,
+    Link,
     markUser,
     Player,
     Team,
     unmarkUser,
+    UserSettings,
     visibilityString
 } from '../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
@@ -46,6 +48,11 @@ import Table from '@mui/material/Table';
 import { Trans, useTranslation } from 'react-i18next';
 import { ModalNotes } from '../App';
 import NiceModal from '@ebay/nice-modal-react';
+
+type NullablePosition = {
+    mouseX: number;
+    mouseY: number;
+} | null;
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -107,6 +114,221 @@ export const rowColour = (player: Player): string => {
     return curTheme.connectingBg;
 };
 
+const UnmarkMenu = ({ steam_id }: SteamIDProps) => {
+    const onUnmark = useCallback(async (steamId: string) => {
+        try {
+            await unmarkUser(steamId);
+        } catch (e) {
+            console.log(e);
+        }
+    }, []);
+
+    return (
+        <IconMenuItem
+            leftIcon={<DeleteOutlinedIcon color={'primary'} />}
+            label={'Unmark'}
+            onClick={async () => {
+                await onUnmark(steam_id);
+            }}
+        />
+    );
+};
+
+interface MarkMenuProps {
+    contextMenuPos: NullablePosition;
+    unique_tags: string[];
+}
+
+const MarkMenu = ({
+    contextMenuPos,
+    unique_tags,
+    steam_id
+}: MarkMenuProps & SteamIDProps) => {
+    const { t } = useTranslation();
+
+    const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
+        try {
+            await markUser(steamId, attrs);
+        } catch (e) {
+            console.log(e);
+        }
+    }, []);
+
+    return (
+        <NestedMenuItem
+            rightIcon={<ArrowRightOutlinedIcon />}
+            leftIcon={<FlagIcon color={'primary'} />}
+            label={t('player_table.menu.mark_label')}
+            parentMenuOpen={contextMenuPos !== null}
+        >
+            {[
+                ...unique_tags.filter((t) => t.toLowerCase() != 'new'),
+                'new'
+            ].map((attr) => {
+                return (
+                    <IconMenuItem
+                        leftIcon={<FlagIcon color={'primary'} />}
+                        onClick={async () => {
+                            await onMarkAs(steam_id, [attr]);
+                        }}
+                        label={attr}
+                        key={`tag-${steam_id}-${attr}`}
+                    />
+                );
+            })}
+        </NestedMenuItem>
+    );
+};
+
+interface SteamIDProps {
+    steam_id: string;
+}
+
+const RemoveWhitelistMenu = ({ steam_id }: SteamIDProps) => {
+    const { t } = useTranslation();
+
+    const onDeleteWhitelist = useCallback(async (steam_id: string) => {
+        await deleteWhitelist(steam_id);
+    }, []);
+
+    return (
+        <IconMenuItem
+            leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
+            label={t('player_table.menu.remove_whitelist_label')}
+            onClick={async () => {
+                await onDeleteWhitelist(steam_id);
+            }}
+        />
+    );
+};
+
+const WhitelistMenu = ({ steam_id }: SteamIDProps) => {
+    const { t } = useTranslation();
+
+    const onAddWhitelist = useCallback(async (steamId: string) => {
+        await addWhitelist(steamId);
+    }, []);
+
+    return (
+        <IconMenuItem
+            leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
+            label={t('player_table.menu.whitelist_label')}
+            onClick={async () => {
+                await onAddWhitelist(steam_id);
+            }}
+        />
+    );
+};
+
+interface NotesMenuProps {
+    notes: string;
+    onClose: () => void;
+}
+
+const NotesMenu = ({
+    notes,
+    onClose,
+    steam_id
+}: NotesMenuProps & SteamIDProps) => {
+    return (
+        <IconMenuItem
+            leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
+            label={'Edit Notes'}
+            onClick={() => {
+                NiceModal.show(ModalNotes, {
+                    steamId: steam_id,
+                    notes: notes
+                }).then((value) => {
+                    console.log(value);
+                });
+                console.log(`player note ${notes}`);
+                onClose();
+            }}
+        />
+    );
+};
+
+interface SteamIDMenuProps {
+    contextMenuPos: NullablePosition;
+}
+
+const SteamIDMenu = ({
+    contextMenuPos,
+    steam_id
+}: SteamIDMenuProps & SteamIDProps) => {
+    const { t } = useTranslation();
+
+    return (
+        <NestedMenuItem
+            rightIcon={<ArrowRightOutlinedIcon />}
+            leftIcon={<ContentCopyOutlinedIcon color={'primary'} />}
+            label={t('player_table.menu.copy_label')}
+            parentMenuOpen={contextMenuPos !== null}
+        >
+            <IconMenuItem
+                leftIcon={<FlagIcon color={'primary'} />}
+                onClick={async () => {
+                    await writeToClipboard(
+                        new SteamID(steam_id).getSteam2RenderedID()
+                    );
+                }}
+                label={new SteamID(steam_id).getSteam2RenderedID()}
+            />
+            <IconMenuItem
+                leftIcon={<FlagIcon color={'primary'} />}
+                onClick={async () => {
+                    await writeToClipboard(
+                        new SteamID(steam_id).getSteam3RenderedID()
+                    );
+                }}
+                label={new SteamID(steam_id).getSteam3RenderedID()}
+            />
+            <IconMenuItem
+                leftIcon={<FlagIcon color={'primary'} />}
+                onClick={async () => {
+                    await writeToClipboard(
+                        new SteamID(steam_id).getSteamID64()
+                    );
+                }}
+                label={new SteamID(steam_id).getSteamID64()}
+            />
+        </NestedMenuItem>
+    );
+};
+
+interface LinksMenuProps {
+    contextMenuPos: NullablePosition;
+    links: Link[];
+}
+
+const LinksMenu = ({
+    contextMenuPos,
+    links,
+    steam_id
+}: LinksMenuProps & SteamIDProps) => {
+    const { t } = useTranslation();
+
+    return (
+        <NestedMenuItem
+            rightIcon={<ArrowRightOutlinedIcon />}
+            leftIcon={<LinkOutlinedIcon color={'primary'} />}
+            label={t('player_table.menu.external')}
+            parentMenuOpen={contextMenuPos !== null}
+        >
+            {links.map((l) => (
+                <IconMenuItem
+                    leftIcon={<FlagIcon color={'primary'} />}
+                    onClick={() => {
+                        openInNewTab(formatExternalLink(steam_id, l));
+                    }}
+                    label={l.name}
+                    key={`link-${steam_id}-${l.name}`}
+                />
+            ))}
+        </NestedMenuItem>
+    );
+};
+
 export const TableRowContextMenu = ({
     player,
     enabledColumns
@@ -115,17 +337,17 @@ export const TableRowContextMenu = ({
     //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
     const { t } = useTranslation();
 
-    const [hoverMenuPos, setHoverMenuPos] = React.useState<{
-        mouseX: number;
-        mouseY: number;
-    } | null>(null);
+    const [hoverMenuPos, setHoverMenuPos] =
+        React.useState<NullablePosition>(null);
 
-    const [contextMenuPos, setContextMenuPos] = React.useState<{
-        mouseX: number;
-        mouseY: number;
-    } | null>(null);
+    const [contextMenuPos, setContextMenuPos] =
+        React.useState<NullablePosition>(null);
 
     const { settings, loading } = useContext(SettingsContext);
+
+    const handleMenuClose = () => {
+        setContextMenuPos(null);
+    };
 
     const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
         setContextMenuPos(
@@ -141,10 +363,6 @@ export const TableRowContextMenu = ({
         );
     };
 
-    const handleMenuClose = () => {
-        setContextMenuPos(null);
-    };
-
     const mouseEnter = (event: React.MouseEvent<HTMLTableRowElement>) => {
         setHoverMenuPos(
             contextMenuPos === null
@@ -156,46 +374,10 @@ export const TableRowContextMenu = ({
         );
     };
 
-    const onDeleteWhitelist = useCallback(async (steamId: string) => {
-        await deleteWhitelist(steamId);
-    }, []);
-
-    const onAddWhitelist = useCallback(async (steamId: string) => {
-        await addWhitelist(steamId);
-    }, []);
-
-    const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
-        try {
-            await markUser(steamId, attrs);
-        } catch (e) {
-            console.log(e);
-        }
-    }, []);
-
-    const onUnmark = useCallback(async (steamId: string) => {
-        try {
-            await unmarkUser(steamId);
-        } catch (e) {
-            console.log(e);
-        }
-    }, []);
-
     const mouseLeave = () => {
         setHoverMenuPos(null);
     };
 
-    const makeInfoRow = (key: string, value: string): JSX.Element[] => {
-        return [
-            <Grid xs={3} key={`${key}-key`} padding={0}>
-                <Typography variant={'button'} textAlign={'right'}>
-                    {key}
-                </Typography>
-            </Grid>,
-            <Grid xs={9} key={`${key}-val`} padding={0}>
-                <Typography variant={'body1'}>{value}</Typography>
-            </Grid>
-        ];
-    };
     if (loading || !settings) {
         return <></>;
     }
@@ -203,8 +385,6 @@ export const TableRowContextMenu = ({
         <Fragment key={`${player.steam_id}`}>
             <TableRow
                 hover
-                //onClick={handleClick}
-                //onContextMenu={handleContextMenu}
                 style={{
                     backgroundColor: rowColour(player),
                     cursor: 'pointer'
@@ -405,414 +585,337 @@ export const TableRowContextMenu = ({
                     </TableCell>
                 )}
             </TableRow>
-            <Menu
-                open={contextMenuPos !== null}
+
+            <PlayerContextMenu
+                contextMenuPos={contextMenuPos}
+                player={player}
+                settings={settings}
                 onClose={handleMenuClose}
-                anchorReference="anchorPosition"
-                anchorPosition={
-                    contextMenuPos !== null
-                        ? {
-                              top: contextMenuPos.mouseY,
-                              left: contextMenuPos.mouseX
-                          }
-                        : undefined
-                }
-            >
-                <MenuItem disableRipple>
-                    <img
-                        alt={`Avatar`}
-                        src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
-                    />
-                </MenuItem>
-                <NestedMenuItem
-                    rightIcon={<ArrowRightOutlinedIcon />}
-                    leftIcon={<FlagIcon color={'primary'} />}
-                    label={t('player_table.menu.mark_label')}
-                    parentMenuOpen={contextMenuPos !== null}
-                >
-                    {[
-                        ...settings.unique_tags.filter(
-                            (t) => t.toLowerCase() != 'new'
-                        ),
-                        'new'
-                    ].map((attr) => {
-                        return (
-                            <IconMenuItem
-                                leftIcon={<FlagIcon color={'primary'} />}
-                                onClick={async () => {
-                                    await onMarkAs(player.steam_id, [attr]);
-                                }}
-                                label={attr}
-                                key={`tag-${player.steam_id}-${attr}`}
-                            />
-                        );
-                    })}
-                </NestedMenuItem>
-                <IconMenuItem
-                    leftIcon={<DeleteOutlinedIcon color={'primary'} />}
-                    label={'Unmark'}
-                    onClick={async () => {
-                        await onUnmark(player.steam_id);
-                    }}
-                />
-                <NestedMenuItem
-                    rightIcon={<ArrowRightOutlinedIcon />}
-                    leftIcon={<LinkOutlinedIcon color={'primary'} />}
-                    label={t('player_table.menu.external')}
-                    parentMenuOpen={contextMenuPos !== null}
-                >
-                    {settings.links.map((l) => (
-                        <IconMenuItem
-                            leftIcon={<FlagIcon color={'primary'} />}
-                            onClick={() => {
-                                openInNewTab(
-                                    formatExternalLink(player.steam_id, l)
-                                );
-                            }}
-                            label={l.name}
-                            key={`link-${player.steam_id}-${l.name}`}
-                        />
-                    ))}
-                </NestedMenuItem>
-                <NestedMenuItem
-                    rightIcon={<ArrowRightOutlinedIcon />}
-                    leftIcon={<ContentCopyOutlinedIcon color={'primary'} />}
-                    label={t('player_table.menu.copy_label')}
-                    parentMenuOpen={contextMenuPos !== null}
-                >
-                    <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
-                        onClick={async () => {
-                            await writeToClipboard(
-                                new SteamID(
-                                    player.steam_id
-                                ).getSteam2RenderedID()
-                            );
-                        }}
-                        label={new SteamID(
-                            player.steam_id
-                        ).getSteam2RenderedID()}
-                    />
-                    <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
-                        onClick={async () => {
-                            await writeToClipboard(
-                                new SteamID(
-                                    player.steam_id
-                                ).getSteam3RenderedID()
-                            );
-                        }}
-                        label={new SteamID(
-                            player.steam_id
-                        ).getSteam3RenderedID()}
-                    />
-                    <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
-                        onClick={async () => {
-                            await writeToClipboard(
-                                new SteamID(player.steam_id).getSteamID64()
-                            );
-                        }}
-                        label={new SteamID(player.steam_id).getSteamID64()}
-                    />
-                </NestedMenuItem>
-                <IconMenuItem
-                    leftIcon={<ForumOutlinedIcon color={'primary'} />}
-                    label={t('player_table.menu.chat_history_label')}
-                />
-                <IconMenuItem
-                    leftIcon={<BadgeOutlinedIcon color={'primary'} />}
-                    label={t('player_table.menu.name_history_label')}
-                />
-                {player.whitelisted ? (
-                    <IconMenuItem
-                        leftIcon={
-                            <NotificationsPausedOutlinedIcon
-                                color={'primary'}
-                            />
-                        }
-                        label={t('player_table.menu.remove_whitelist_label')}
-                        onClick={async () => {
-                            await onDeleteWhitelist(player.steam_id);
-                        }}
-                    />
-                ) : (
-                    <IconMenuItem
-                        leftIcon={
-                            <NotificationsPausedOutlinedIcon
-                                color={'primary'}
-                            />
-                        }
-                        label={t('player_table.menu.whitelist_label')}
-                        onClick={async () => {
-                            await onAddWhitelist(player.steam_id);
-                        }}
-                    />
-                )}
-                <IconMenuItem
-                    leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
-                    label={'Edit Notes'}
-                    onClick={() => {
-                        NiceModal.show(ModalNotes, {
-                            steamId: player.steam_id,
-                            notes: player.notes
-                        }).then((value) => {
-                            console.log(value);
-                        });
-                        console.log(`player note ${player.notes}`);
-                        handleMenuClose();
-                    }}
-                />
-            </Menu>
+            />
 
-            <Popover
-                open={hoverMenuPos !== null}
-                sx={{
-                    pointerEvents: 'none'
-                }}
-                anchorReference="anchorPosition"
-                anchorPosition={
-                    hoverMenuPos !== null
-                        ? {
-                              top: hoverMenuPos.mouseY,
-                              left: hoverMenuPos.mouseX
-                          }
-                        : undefined
-                }
-                disablePortal={false}
-                //disableRestoreFocus
-            >
-                <Paper style={{ maxWidth: 650 }} sx={{ padding: 1 }}>
-                    <Grid container spacing={1}>
-                        <Grid xs={'auto'}>
-                            <img
-                                height={184}
-                                width={184}
-                                alt={player.name}
-                                src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
-                            />
-                        </Grid>
-                        <Grid xs>
-                            <div>
-                                <Grid container>
-                                    {...makeInfoRow(
-                                        t('player_table.details.uid_label'),
-                                        player.user_id.toString()
-                                    )}
-                                    {...makeInfoRow(
-                                        t('player_table.details.name_label'),
-                                        player.name
-                                    )}
-                                    {...makeInfoRow(
-                                        t(
-                                            'player_table.details.visibility_label'
-                                        ),
-                                        visibilityString(player.visibility)
-                                    )}
-                                    {...makeInfoRow(
-                                        t(
-                                            'player_table.details.vac_bans_label'
-                                        ),
-                                        player.number_of_vac_bans.toString()
-                                    )}
-                                    {...makeInfoRow(
-                                        t(
-                                            'player_table.details.game_bans_label'
-                                        ),
-                                        player.number_of_game_bans.toString()
-                                    )}
-                                </Grid>
-                            </div>
-                        </Grid>
-                        {player.notes.length > 0 && (
-                            <Grid xs={12}>
-                                <TextareaAutosize value={player.notes} />
-                            </Grid>
-                        )}
-                        {player.matches && player.matches.length > 0 && (
-                            <Grid xs={12}>
-                                <TableContainer>
-                                    <Table size={'small'}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell padding={'normal'}>
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.matches.origin_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-
-                                                <TableCell padding={'normal'}>
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.matches.type_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                                <TableCell
-                                                    padding={'normal'}
-                                                    width={'100%'}
-                                                >
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.matches.tags_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {player.matches?.map((match) => {
-                                                return (
-                                                    <TableRow
-                                                        key={`match-${match.origin}`}
-                                                    >
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {match.origin}
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {
-                                                                    match.matcher_type
-                                                                }
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {match.attributes.join(
-                                                                    ', '
-                                                                )}
-                                                            </Typography>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Grid>
-                        )}
-                        {player.sourcebans && player.sourcebans.length > 0 && (
-                            <Grid xs={12}>
-                                <TableContainer>
-                                    <Table size={'small'}>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell padding={'normal'}>
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.sourcebans.site_name_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                                <TableCell padding={'normal'}>
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.sourcebans.created_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                                <TableCell padding={'normal'}>
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.sourcebans.perm_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                                <TableCell
-                                                    padding={'normal'}
-                                                    width={'100%'}
-                                                >
-                                                    <Trans
-                                                        i18nKey={
-                                                            'player_table.details.sourcebans.reason_label'
-                                                        }
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {player.sourcebans.map((ban) => {
-                                                return (
-                                                    <TableRow
-                                                        key={`sb-${ban.ban_id}`}
-                                                    >
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {ban.site_name}
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {format(
-                                                                    parseJSON(
-                                                                        ban.created_on
-                                                                    ),
-                                                                    'MM/dd/yyyy'
-                                                                )}
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'button'
-                                                                }
-                                                            >
-                                                                {ban.permanent
-                                                                    ? t('yes')
-                                                                    : t('no')}
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Typography
-                                                                padding={1}
-                                                                variant={
-                                                                    'body1'
-                                                                }
-                                                            >
-                                                                {ban.reason}
-                                                            </Typography>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Grid>
-                        )}
-                    </Grid>
-                </Paper>
-            </Popover>
+            <PlayerHoverInfo player={player} hoverMenuPos={hoverMenuPos} />
         </Fragment>
+    );
+};
+interface PlayerHoverInfoProps {
+    player: Player;
+    hoverMenuPos: NullablePosition;
+}
+
+const makeInfoRow = (key: string, value: string): JSX.Element[] => {
+    return [
+        <Grid xs={3} key={`${key}-key`} padding={0}>
+            <Typography variant={'button'} textAlign={'right'}>
+                {key}
+            </Typography>
+        </Grid>,
+        <Grid xs={9} key={`${key}-val`} padding={0}>
+            <Typography variant={'body1'}>{value}</Typography>
+        </Grid>
+    ];
+};
+
+const PlayerHoverInfo = ({ player, hoverMenuPos }: PlayerHoverInfoProps) => {
+    const { t } = useTranslation();
+
+    return (
+        <Popover
+            open={hoverMenuPos !== null}
+            sx={{
+                pointerEvents: 'none'
+            }}
+            anchorReference="anchorPosition"
+            anchorPosition={
+                hoverMenuPos !== null
+                    ? {
+                          top: hoverMenuPos.mouseY,
+                          left: hoverMenuPos.mouseX
+                      }
+                    : undefined
+            }
+            disablePortal={false}
+            //disableRestoreFocus
+        >
+            <Paper style={{ maxWidth: 650 }} sx={{ padding: 1 }}>
+                <Grid container spacing={1}>
+                    <Grid xs={'auto'}>
+                        <img
+                            height={184}
+                            width={184}
+                            alt={player.name}
+                            src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
+                        />
+                    </Grid>
+                    <Grid xs>
+                        <div>
+                            <Grid container>
+                                {...makeInfoRow(
+                                    t('player_table.details.uid_label'),
+                                    player.user_id.toString()
+                                )}
+                                {...makeInfoRow(
+                                    t('player_table.details.name_label'),
+                                    player.name
+                                )}
+                                {...makeInfoRow(
+                                    t('player_table.details.visibility_label'),
+                                    visibilityString(player.visibility)
+                                )}
+                                {...makeInfoRow(
+                                    t('player_table.details.vac_bans_label'),
+                                    player.number_of_vac_bans.toString()
+                                )}
+                                {...makeInfoRow(
+                                    t('player_table.details.game_bans_label'),
+                                    player.number_of_game_bans.toString()
+                                )}
+                            </Grid>
+                        </div>
+                    </Grid>
+                    {player.notes.length > 0 && (
+                        <Grid xs={12}>
+                            <TextareaAutosize value={player.notes} />
+                        </Grid>
+                    )}
+                    {player.matches && player.matches.length > 0 && (
+                        <Grid xs={12}>
+                            <TableContainer>
+                                <Table size={'small'}>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell padding={'normal'}>
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.matches.origin_label'
+                                                    }
+                                                />
+                                            </TableCell>
+
+                                            <TableCell padding={'normal'}>
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.matches.type_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell
+                                                padding={'normal'}
+                                                width={'100%'}
+                                            >
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.matches.tags_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {player.matches?.map((match) => {
+                                            return (
+                                                <TableRow
+                                                    key={`match-${match.origin}`}
+                                                >
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.origin}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.matcher_type}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {match.attributes.join(
+                                                                ', '
+                                                            )}
+                                                        </Typography>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </Grid>
+                    )}
+                    {player.sourcebans && player.sourcebans.length > 0 && (
+                        <Grid xs={12}>
+                            <TableContainer>
+                                <Table size={'small'}>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell padding={'normal'}>
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.sourcebans.site_name_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.sourcebans.created_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell padding={'normal'}>
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.sourcebans.perm_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell
+                                                padding={'normal'}
+                                                width={'100%'}
+                                            >
+                                                <Trans
+                                                    i18nKey={
+                                                        'player_table.details.sourcebans.reason_label'
+                                                    }
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {player.sourcebans.map((ban) => {
+                                            return (
+                                                <TableRow
+                                                    key={`sb-${ban.ban_id}`}
+                                                >
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {ban.site_name}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {format(
+                                                                parseJSON(
+                                                                    ban.created_on
+                                                                ),
+                                                                'MM/dd/yyyy'
+                                                            )}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'button'}
+                                                        >
+                                                            {ban.permanent
+                                                                ? t('yes')
+                                                                : t('no')}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography
+                                                            padding={1}
+                                                            variant={'body1'}
+                                                        >
+                                                            {ban.reason}
+                                                        </Typography>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </Grid>
+                    )}
+                </Grid>
+            </Paper>
+        </Popover>
+    );
+};
+
+interface PlayerContextMenuProps {
+    contextMenuPos: NullablePosition;
+    player: Player;
+    settings: UserSettings;
+    onClose: () => void;
+}
+
+const PlayerContextMenu = ({
+    contextMenuPos,
+    player,
+    settings,
+    onClose
+}: PlayerContextMenuProps) => {
+    const { t } = useTranslation();
+
+    return (
+        <Menu
+            open={contextMenuPos !== null}
+            onClose={onClose}
+            anchorReference="anchorPosition"
+            anchorPosition={
+                contextMenuPos !== null
+                    ? {
+                          top: contextMenuPos.mouseY,
+                          left: contextMenuPos.mouseX
+                      }
+                    : undefined
+            }
+        >
+            <MenuItem disableRipple>
+                <img
+                    alt={`Avatar`}
+                    src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
+                />
+            </MenuItem>
+            <MarkMenu
+                contextMenuPos={contextMenuPos}
+                unique_tags={settings.unique_tags}
+                steam_id={player.steam_id}
+            />
+            <UnmarkMenu steam_id={player.steam_id} />
+            <LinksMenu
+                contextMenuPos={contextMenuPos}
+                links={settings.links}
+                steam_id={player.steam_id}
+            />
+            <SteamIDMenu
+                steam_id={player.steam_id}
+                contextMenuPos={contextMenuPos}
+            />
+            <IconMenuItem
+                leftIcon={<ForumOutlinedIcon color={'primary'} />}
+                label={t('player_table.menu.chat_history_label')}
+            />
+            <IconMenuItem
+                leftIcon={<BadgeOutlinedIcon color={'primary'} />}
+                label={t('player_table.menu.name_history_label')}
+            />
+            {player.whitelisted ? (
+                <RemoveWhitelistMenu steam_id={player.steam_id} />
+            ) : (
+                <WhitelistMenu steam_id={player.steam_id} />
+            )}
+            <NotesMenu
+                notes={player.notes}
+                steam_id={player.steam_id}
+                onClose={onClose}
+            />
+        </Menu>
     );
 };
