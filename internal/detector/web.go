@@ -120,6 +120,7 @@ func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(detector, true))
 	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(detector, false))
 	engine.POST("/notes/:steam_id", postNotes(detector))
+	engine.POST("/callvote/:steam_id/:reason", callVote(detector))
 
 	// These should match any routes defined in the frontend. This allows us to use the browser
 	// based routing
