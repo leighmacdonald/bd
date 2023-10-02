@@ -132,6 +132,43 @@ func putSettings(detector *Detector) gin.HandlerFunc {
 	}
 }
 
+func callVote(detector *Detector) gin.HandlerFunc {
+	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
+
+	return func(ctx *gin.Context) {
+		sid, sidOk := steamIDParam(ctx, log)
+		if !sidOk {
+			return
+		}
+
+		player, errPlayer := detector.players.bySteamID(sid)
+		if errPlayer != nil {
+			responseErr(ctx, http.StatusNotFound, nil)
+			log.Error("Failed to get player state", zap.Error(errPlayer), zap.String("steam_id", sid.String()))
+
+			return
+		}
+
+		if player.UserID <= 0 {
+			responseErr(ctx, http.StatusNotFound, nil)
+			log.Error("Failed to get player user id", zap.String("steam_id", sid.String()))
+
+			return
+		}
+
+		reason := KickReason(ctx.Param("reason"))
+
+		if errVote := detector.CallVote(ctx, player.UserID, reason); errVote != nil {
+			responseErr(ctx, http.StatusInternalServerError, nil)
+			log.Error("Failed to call vote", zap.String("steam_id", sid.String()), zap.Error(errVote))
+
+			return
+		}
+
+		responseOK(ctx, http.StatusNoContent, nil)
+	}
+}
+
 type PostNotesOpts struct {
 	Note string `json:"note"`
 }
