@@ -46,7 +46,8 @@ const resources = {
                     chat_history_label: 'Chat History',
                     name_history_label: 'Name History',
                     remove_whitelist_label: 'Remove Whitelist',
-                    whitelist_label: 'Whitelist'
+                    whitelist_label: 'Whitelist',
+                    vote_label: 'Call Vote'
                 },
                 details: {
                     uid_label: 'UID',

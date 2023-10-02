@@ -10,7 +10,7 @@ export const writeToClipboard = async (rawData: string) => {
     try {
         await navigator.clipboard.write(data);
     } catch (e) {
-        console.error(`Unable to write to clipboard: ${e}`);
+        logError(`Unable to write to clipboard: ${e}`);
     }
 };
 
@@ -30,4 +30,10 @@ export const formatExternalLink = (steam_id: string, link: Link): string => {
         default:
             return link.url;
     }
+};
+
+// TODO Send errors to backend for logging
+// TODO Show error modal or notice somewhere
+export const logError = (error: unknown) => {
+    console.error(error);
 };

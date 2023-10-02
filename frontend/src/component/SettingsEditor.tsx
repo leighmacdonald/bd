@@ -48,6 +48,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import { SettingsListEditor } from './SettingsListEditor';
 import { SettingsLinkEditor } from './SettingsLinkEditor';
 import { Trans, useTranslation } from 'react-i18next';
+import { logError } from '../util';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -271,7 +272,7 @@ export const SettingsEditor = ({
                 setSettings(settings);
             })
             .catch((reason) => {
-                console.log(reason);
+                logError(reason);
             });
     }, [settings]);
 

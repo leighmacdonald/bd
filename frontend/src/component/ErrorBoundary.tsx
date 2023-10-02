@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import Typography from '@mui/material/Typography';
+import { logError } from '../util';
 
 interface BoundaryState {
     hasError: boolean;
@@ -21,8 +22,8 @@ export class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         // TODO record somewhere
-        console.log(error);
-        console.log(errorInfo);
+        logError(error);
+        logError(errorInfo);
     }
 
     render(): ReactNode {

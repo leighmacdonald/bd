@@ -1,37 +1,18 @@
-import React, { Fragment, useCallback, useContext } from 'react';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
+import React, { Fragment, useContext } from 'react';
 import Paper from '@mui/material/Paper';
 import Popover from '@mui/material/Popover';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Unstable_Grid2';
-import FlagIcon from '@mui/icons-material/Flag';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
-import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
-import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
-import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
-import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';
-import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
-import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import { validColumns } from './PlayerTable';
 import {
-    addWhitelist,
-    deleteWhitelist,
+    avatarURL,
     formatSeconds,
-    Link,
-    markUser,
     Player,
     Team,
-    unmarkUser,
-    UserSettings,
     visibilityString
 } from '../api';
-import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
-import SteamID from 'steamid';
-import { formatExternalLink, openInNewTab, writeToClipboard } from '../util';
 import { SettingsContext } from '../context/settings';
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
@@ -46,13 +27,8 @@ import { format, parseJSON } from 'date-fns';
 import { TextareaAutosize } from '@mui/material';
 import Table from '@mui/material/Table';
 import { Trans, useTranslation } from 'react-i18next';
-import { ModalNotes } from '../App';
-import NiceModal from '@ebay/nice-modal-react';
-
-type NullablePosition = {
-    mouseX: number;
-    mouseY: number;
-} | null;
+import { PlayerContextMenu } from './menu/PlayerContextMenu';
+import { NullablePosition } from './menu/common';
 
 export interface TableRowContextMenuProps {
     enabledColumns: validColumns[];
@@ -114,222 +90,7 @@ export const rowColour = (player: Player): string => {
     return curTheme.connectingBg;
 };
 
-const UnmarkMenu = ({ steam_id }: SteamIDProps) => {
-    const onUnmark = useCallback(async (steamId: string) => {
-        try {
-            await unmarkUser(steamId);
-        } catch (e) {
-            console.log(e);
-        }
-    }, []);
-
-    return (
-        <IconMenuItem
-            leftIcon={<DeleteOutlinedIcon color={'primary'} />}
-            label={'Unmark'}
-            onClick={async () => {
-                await onUnmark(steam_id);
-            }}
-        />
-    );
-};
-
-interface MarkMenuProps {
-    contextMenuPos: NullablePosition;
-    unique_tags: string[];
-}
-
-const MarkMenu = ({
-    contextMenuPos,
-    unique_tags,
-    steam_id
-}: MarkMenuProps & SteamIDProps) => {
-    const { t } = useTranslation();
-
-    const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
-        try {
-            await markUser(steamId, attrs);
-        } catch (e) {
-            console.log(e);
-        }
-    }, []);
-
-    return (
-        <NestedMenuItem
-            rightIcon={<ArrowRightOutlinedIcon />}
-            leftIcon={<FlagIcon color={'primary'} />}
-            label={t('player_table.menu.mark_label')}
-            parentMenuOpen={contextMenuPos !== null}
-        >
-            {[
-                ...unique_tags.filter((t) => t.toLowerCase() != 'new'),
-                'new'
-            ].map((attr) => {
-                return (
-                    <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
-                        onClick={async () => {
-                            await onMarkAs(steam_id, [attr]);
-                        }}
-                        label={attr}
-                        key={`tag-${steam_id}-${attr}`}
-                    />
-                );
-            })}
-        </NestedMenuItem>
-    );
-};
-
-interface SteamIDProps {
-    steam_id: string;
-}
-
-const RemoveWhitelistMenu = ({ steam_id }: SteamIDProps) => {
-    const { t } = useTranslation();
-
-    const onDeleteWhitelist = useCallback(async (steam_id: string) => {
-        await deleteWhitelist(steam_id);
-    }, []);
-
-    return (
-        <IconMenuItem
-            leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
-            label={t('player_table.menu.remove_whitelist_label')}
-            onClick={async () => {
-                await onDeleteWhitelist(steam_id);
-            }}
-        />
-    );
-};
-
-const WhitelistMenu = ({ steam_id }: SteamIDProps) => {
-    const { t } = useTranslation();
-
-    const onAddWhitelist = useCallback(async (steamId: string) => {
-        await addWhitelist(steamId);
-    }, []);
-
-    return (
-        <IconMenuItem
-            leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
-            label={t('player_table.menu.whitelist_label')}
-            onClick={async () => {
-                await onAddWhitelist(steam_id);
-            }}
-        />
-    );
-};
-
-interface NotesMenuProps {
-    notes: string;
-    onClose: () => void;
-}
-
-const NotesMenu = ({
-    notes,
-    onClose,
-    steam_id
-}: NotesMenuProps & SteamIDProps) => {
-    return (
-        <IconMenuItem
-            leftIcon={<NoteAltOutlinedIcon color={'primary'} />}
-            label={'Edit Notes'}
-            onClick={() => {
-                NiceModal.show(ModalNotes, {
-                    steamId: steam_id,
-                    notes: notes
-                }).then((value) => {
-                    console.log(value);
-                });
-                console.log(`player note ${notes}`);
-                onClose();
-            }}
-        />
-    );
-};
-
-interface SteamIDMenuProps {
-    contextMenuPos: NullablePosition;
-}
-
-const SteamIDMenu = ({
-    contextMenuPos,
-    steam_id
-}: SteamIDMenuProps & SteamIDProps) => {
-    const { t } = useTranslation();
-
-    return (
-        <NestedMenuItem
-            rightIcon={<ArrowRightOutlinedIcon />}
-            leftIcon={<ContentCopyOutlinedIcon color={'primary'} />}
-            label={t('player_table.menu.copy_label')}
-            parentMenuOpen={contextMenuPos !== null}
-        >
-            <IconMenuItem
-                leftIcon={<FlagIcon color={'primary'} />}
-                onClick={async () => {
-                    await writeToClipboard(
-                        new SteamID(steam_id).getSteam2RenderedID()
-                    );
-                }}
-                label={new SteamID(steam_id).getSteam2RenderedID()}
-            />
-            <IconMenuItem
-                leftIcon={<FlagIcon color={'primary'} />}
-                onClick={async () => {
-                    await writeToClipboard(
-                        new SteamID(steam_id).getSteam3RenderedID()
-                    );
-                }}
-                label={new SteamID(steam_id).getSteam3RenderedID()}
-            />
-            <IconMenuItem
-                leftIcon={<FlagIcon color={'primary'} />}
-                onClick={async () => {
-                    await writeToClipboard(
-                        new SteamID(steam_id).getSteamID64()
-                    );
-                }}
-                label={new SteamID(steam_id).getSteamID64()}
-            />
-        </NestedMenuItem>
-    );
-};
-
-interface LinksMenuProps {
-    contextMenuPos: NullablePosition;
-    links: Link[];
-}
-
-const LinksMenu = ({
-    contextMenuPos,
-    links,
-    steam_id
-}: LinksMenuProps & SteamIDProps) => {
-    const { t } = useTranslation();
-
-    return (
-        <NestedMenuItem
-            rightIcon={<ArrowRightOutlinedIcon />}
-            leftIcon={<LinkOutlinedIcon color={'primary'} />}
-            label={t('player_table.menu.external')}
-            parentMenuOpen={contextMenuPos !== null}
-        >
-            {links.map((l) => (
-                <IconMenuItem
-                    leftIcon={<FlagIcon color={'primary'} />}
-                    onClick={() => {
-                        openInNewTab(formatExternalLink(steam_id, l));
-                    }}
-                    label={l.name}
-                    key={`link-${steam_id}-${l.name}`}
-                />
-            ))}
-        </NestedMenuItem>
-    );
-};
-
-export const TableRowContextMenu = ({
+export const PlayerTableRow = ({
     player,
     enabledColumns
 }: TableRowContextMenuProps): JSX.Element => {
@@ -643,7 +404,7 @@ const PlayerHoverInfo = ({ player, hoverMenuPos }: PlayerHoverInfoProps) => {
                             height={184}
                             width={184}
                             alt={player.name}
-                            src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
+                            src={avatarURL(player.avatar_hash)}
                         />
                     </Grid>
                     <Grid xs>
@@ -845,77 +606,5 @@ const PlayerHoverInfo = ({ player, hoverMenuPos }: PlayerHoverInfoProps) => {
                 </Grid>
             </Paper>
         </Popover>
-    );
-};
-
-interface PlayerContextMenuProps {
-    contextMenuPos: NullablePosition;
-    player: Player;
-    settings: UserSettings;
-    onClose: () => void;
-}
-
-const PlayerContextMenu = ({
-    contextMenuPos,
-    player,
-    settings,
-    onClose
-}: PlayerContextMenuProps) => {
-    const { t } = useTranslation();
-
-    return (
-        <Menu
-            open={contextMenuPos !== null}
-            onClose={onClose}
-            anchorReference="anchorPosition"
-            anchorPosition={
-                contextMenuPos !== null
-                    ? {
-                          top: contextMenuPos.mouseY,
-                          left: contextMenuPos.mouseX
-                      }
-                    : undefined
-            }
-        >
-            <MenuItem disableRipple>
-                <img
-                    alt={`Avatar`}
-                    src={`https://avatars.cloudflare.steamstatic.com/${player.avatar_hash}_full.jpg`}
-                />
-            </MenuItem>
-            <MarkMenu
-                contextMenuPos={contextMenuPos}
-                unique_tags={settings.unique_tags}
-                steam_id={player.steam_id}
-            />
-            <UnmarkMenu steam_id={player.steam_id} />
-            <LinksMenu
-                contextMenuPos={contextMenuPos}
-                links={settings.links}
-                steam_id={player.steam_id}
-            />
-            <SteamIDMenu
-                steam_id={player.steam_id}
-                contextMenuPos={contextMenuPos}
-            />
-            <IconMenuItem
-                leftIcon={<ForumOutlinedIcon color={'primary'} />}
-                label={t('player_table.menu.chat_history_label')}
-            />
-            <IconMenuItem
-                leftIcon={<BadgeOutlinedIcon color={'primary'} />}
-                label={t('player_table.menu.name_history_label')}
-            />
-            {player.whitelisted ? (
-                <RemoveWhitelistMenu steam_id={player.steam_id} />
-            ) : (
-                <WhitelistMenu steam_id={player.steam_id} />
-            )}
-            <NotesMenu
-                notes={player.notes}
-                steam_id={player.steam_id}
-                onClose={onClose}
-            />
-        </Menu>
     );
 };
