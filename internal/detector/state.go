@@ -12,7 +12,7 @@ var errPlayerNotFound = errors.New("player not found")
 
 type playerState struct {
 	activePlayers []store.Player
-	mu            sync.RWMutex
+	sync.RWMutex
 }
 
 func newPlayerState() *playerState {
@@ -20,8 +20,8 @@ func newPlayerState() *playerState {
 }
 
 func (state *playerState) byName(name string) (store.Player, error) {
-	state.mu.RLock()
-	defer state.mu.RUnlock()
+	state.RLock()
+	defer state.RUnlock()
 
 	for _, knownPlayer := range state.activePlayers {
 		if knownPlayer.Name == name {
@@ -33,8 +33,8 @@ func (state *playerState) byName(name string) (store.Player, error) {
 }
 
 func (state *playerState) bySteamID(sid64 steamid.SID64) (store.Player, error) {
-	state.mu.RLock()
-	defer state.mu.RUnlock()
+	state.RLock()
+	defer state.RUnlock()
 
 	for _, knownPlayer := range state.activePlayers {
 		if knownPlayer.SteamID == sid64 {
@@ -46,8 +46,8 @@ func (state *playerState) bySteamID(sid64 steamid.SID64) (store.Player, error) {
 }
 
 func (state *playerState) update(updated store.Player) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
+	state.Lock()
+	defer state.Unlock()
 
 	var valid []store.Player //nolint:prealloc
 
@@ -65,22 +65,37 @@ func (state *playerState) update(updated store.Player) {
 }
 
 func (state *playerState) all() []store.Player {
-	state.mu.RLock()
-	defer state.mu.RUnlock()
+	state.Lock()
+	defer state.Unlock()
 
 	return state.activePlayers
 }
 
+func (state *playerState) kickable() []store.Player {
+	state.Lock()
+	defer state.Unlock()
+
+	var kickable []store.Player
+
+	for _, player := range state.activePlayers {
+		if len(player.Matches) > 0 && !player.Whitelisted {
+			kickable = append(kickable, player)
+		}
+	}
+
+	return kickable
+}
+
 func (state *playerState) replace(replacementPlayers []store.Player) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
+	state.Lock()
+	defer state.Unlock()
 
 	state.activePlayers = replacementPlayers
 }
 
 func (state *playerState) remove(sid64 steamid.SID64) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
+	state.Lock()
+	defer state.Unlock()
 
 	var valid []store.Player //nolint:prealloc
 

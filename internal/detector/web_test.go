@@ -308,7 +308,8 @@ func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 	players := app.players.all()
 
 	for i := 0; i < 5; i++ {
-		require.NoError(t, app.AddUserName(context.TODO(), &players[1], util.RandomString(i+1*2)))
+		players[1].Name = util.RandomString(i + 1*2)
+		require.NoError(t, app.AddUserName(context.TODO(), &players[1]))
 	}
 
 	t.Run("Get Name History", func(t *testing.T) {

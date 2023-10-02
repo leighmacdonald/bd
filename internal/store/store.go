@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"sync"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -40,13 +41,14 @@ type DataStore interface {
 }
 
 type SqliteStore struct {
+	sync.RWMutex
 	db     *sql.DB
 	dsn    string
 	logger *zap.Logger
 }
 
 func New(dsn string, logger *zap.Logger) *SqliteStore {
-	return &SqliteStore{dsn: dsn, logger: logger.Named("sqlite")}
+	return &SqliteStore{dsn: dsn + "?cache=shared&mode=rwc", logger: logger.Named("sqlite")}
 }
 
 func (store *SqliteStore) Close() error {
@@ -116,6 +118,9 @@ func (store *SqliteStore) Init() error {
 }
 
 func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNameHistory) error {
+	store.Lock()
+	defer store.Unlock()
+
 	query, args, errSQL := sq.
 		Insert("player_names").
 		Columns("steam_id", "name", "created_on").
@@ -133,6 +138,9 @@ func (store *SqliteStore) SaveUserNameHistory(ctx context.Context, hist *UserNam
 }
 
 func (store *SqliteStore) SaveMessage(ctx context.Context, message *UserMessage) error {
+	store.Lock()
+	defer store.Unlock()
+
 	query := sq.
 		Insert("player_messages").
 		Columns("steam_id", "message", "created_on").
@@ -162,9 +170,14 @@ func (store *SqliteStore) insertPlayer(ctx context.Context, state *Player) error
 		return errors.Wrap(errSQL, "Failed to generate query")
 	}
 
+	store.Lock()
 	if _, errExec := store.db.ExecContext(ctx, query, args...); errExec != nil {
+		store.Unlock()
+
 		return errors.Wrap(errExec, "Could not save player state")
 	}
+
+	store.Unlock()
 
 	if state.Name != "" {
 		name, errName := NewUserNameHistory(state.SteamID, state.Name)
@@ -204,10 +217,16 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 		return errors.Wrap(errSQL, "Failed to generate query")
 	}
 
+	store.Lock()
+
 	_, errExec := store.db.ExecContext(ctx, query, args...)
 	if errExec != nil {
+		store.Unlock()
+
 		return errors.Wrap(errExec, "Could not update player state")
 	}
+
+	store.Unlock()
 
 	var existing Player
 	if errExisting := store.GetPlayer(ctx, state.SteamID, false, &existing); errExisting != nil {
@@ -241,6 +260,9 @@ type SearchOpts struct {
 }
 
 func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) ([]Player, error) {
+	store.RUnlock()
+	defer store.RUnlock()
+
 	builder := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
 			"p.community_banned", "p.game_bans", "p.vac_bans", "p.last_vac_ban_on", "p.kills_on", "p.deaths_by",
@@ -324,6 +346,8 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 
 	var prevName *string
 
+	store.Lock()
+
 	rowErr := store.db.
 		QueryRowContext(ctx, query, args...).
 		Scan(&player.Visibility, &player.RealName, &player.AccountCreatedOn, &player.AvatarHash,
@@ -331,6 +355,9 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 			&player.LastVACBanOn, &player.KillsOn, &player.DeathsBy, &player.RageQuits, &player.Notes,
 			&player.Whitelisted, &player.CreatedOn, &player.UpdatedOn, &player.ProfileUpdatedOn, &prevName,
 		)
+
+	store.Unlock()
+
 	player.SteamID = steamID
 	player.Matches = []*rules.MatchResult{}
 
@@ -352,6 +379,9 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 }
 
 func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (UserNameHistoryCollection, error) {
+	store.RUnlock()
+	defer store.RUnlock()
+
 	query, args, errSQL := sq.
 		Select("name_id", "name", "created_on").
 		From("player_names").
@@ -393,6 +423,9 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 }
 
 func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (UserMessageCollection, error) {
+	store.RUnlock()
+	defer store.RUnlock()
+
 	query, args, errSQL := sq.
 		Select("steam_id", "message_id", "message", "created_on").
 		From("player_messages").

@@ -14,15 +14,18 @@ export const CallVoteMenu = ({
 }: SubMenuProps & SteamIDProps) => {
     const { t } = useTranslation();
 
-    const onCallVote = useCallback(async (reason: kickReasons) => {
-        try {
-            await callVote(steam_id, reason);
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onCallVote = useCallback(
+        async (reason: kickReasons) => {
+            try {
+                await callVote(steam_id, reason);
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose, steam_id]
+    );
 
     return (
         <NestedMenuItem
@@ -34,6 +37,7 @@ export const CallVoteMenu = ({
             {(['idle', 'scamming', 'cheating', 'other'] as kickReasons[]).map(
                 (reason: kickReasons) => (
                     <IconMenuItem
+                        key={`vote-type-icon-${reason}`}
                         onClick={async () => {
                             await onCallVote(reason);
                         }}

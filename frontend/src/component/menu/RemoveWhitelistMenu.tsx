@@ -12,15 +12,18 @@ export const RemoveWhitelistMenu = ({
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
-    const onDeleteWhitelist = useCallback(async (steam_id: string) => {
-        try {
-            await deleteWhitelist(steam_id);
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onDeleteWhitelist = useCallback(
+        async (steam_id: string) => {
+            try {
+                await deleteWhitelist(steam_id);
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose]
+    );
 
     return (
         <IconMenuItem

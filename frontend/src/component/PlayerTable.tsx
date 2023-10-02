@@ -25,8 +25,8 @@ import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
 import { SettingsContext } from '../context/settings';
 import { Trans, useTranslation } from 'react-i18next';
-import { PlayerTableRow } from './PlayerTableRow';
 import { logError } from '../util';
+import { PlayerTableRow } from './PlayerTableRow';
 
 export interface PlayerTableProps {
     onRequestSort: (

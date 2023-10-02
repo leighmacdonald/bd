@@ -29,6 +29,7 @@ export const SteamIDMenu = ({
             ].map((sid) => {
                 return (
                     <IconMenuItem
+                        key={`steam-id-link-${sid}`}
                         leftIcon={<FlagIcon color={'primary'} />}
                         onClick={async () => {
                             try {
