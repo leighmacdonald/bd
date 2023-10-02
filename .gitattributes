@@ -2,6 +2,8 @@
 
 *                 text=auto
 
+*.res linguist-vendored
+
 # Source code
 *.bash            text eol=lf
 *.bat             text eol=crlf
