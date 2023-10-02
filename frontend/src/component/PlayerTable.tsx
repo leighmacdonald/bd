@@ -20,12 +20,13 @@ import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
-import { TableRowContextMenu } from './TableRowContextMenu';
 import { addWhitelist, Player, Team, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { SettingsEditor } from './SettingsEditor';
 import { SettingsContext } from '../context/settings';
 import { Trans, useTranslation } from 'react-i18next';
+import { PlayerTableRow } from './PlayerTableRow';
+import { logError } from '../util';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -351,9 +352,8 @@ export const PlayerTable = () => {
     const onWhitelist = useCallback(async (steamId: string) => {
         try {
             await addWhitelist(steamId);
-            console.log('Whitelist added');
         } catch (e) {
-            console.log(`Error adding whitelist: ${e}`);
+            logError(`Error adding whitelist: ${e}`);
         }
     }, []);
 
@@ -513,7 +513,7 @@ export const PlayerTable = () => {
 
                         <TableBody>
                             {visibleRows.map((player, i) => (
-                                <TableRowContextMenu
+                                <PlayerTableRow
                                     enabledColumns={enabledColumns}
                                     onWhitelist={onWhitelist}
                                     player={player}

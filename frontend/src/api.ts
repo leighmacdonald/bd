@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { defaultUserSettings } from './context/settings';
+import { logError } from './util';
 
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
@@ -78,6 +79,13 @@ export interface State {
     server: Server;
     players: Player[];
 }
+
+const defaultSteamAvatarHash = 'fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb';
+
+export const avatarURL = (hash: string, size = 'full'): string =>
+    `https://avatars.cloudflare.steamstatic.com/${
+        hash != '' ? hash : defaultSteamAvatarHash
+    }_${size}.jpg`;
 
 export interface Player {
     steam_id: string;
@@ -185,6 +193,15 @@ export interface UserNote {
     note: string;
 }
 
+export type kickReasons = 'idle' | 'scamming' | 'cheating' | 'other';
+
+export const callVote = async (
+    steamID: string,
+    reason: kickReasons = 'cheating'
+) => {
+    await call('POST', `/callvote/${steamID}/${reason}`);
+};
+
 export const addWhitelist = async (steamId: string) =>
     await call('POST', `/whitelist/${steamId}`);
 
@@ -195,7 +212,7 @@ export const saveUserNote = async (steamId: string, notes: string) =>
     await call<UserNote>('POST', `/notes/${steamId}`, { note: notes });
 
 export const deleteUserNote = async (steamId: string) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, { note: '' });
+    await call<UserNote>('DELETE', `/notes/${steamId}`);
 
 export const markUser = async (steamId: string, attrs: string[]) =>
     await call('POST', `/mark/${steamId}`, { attrs });
@@ -208,9 +225,8 @@ const getState = async () => await callJson<State>('GET', '/state');
 const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/settings');
 
-export const saveUserSettings = async (settings: UserSettings) => {
+export const saveUserSettings = async (settings: UserSettings) =>
     await call('PUT', '/settings', settings);
-};
 
 export const useUserSettings = () => {
     const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
@@ -249,7 +265,7 @@ export const useCurrentState = () => {
                 const newState = await getState();
                 setState(newState);
             } catch (e) {
-                console.log(e);
+                logError(e);
             }
         }, 1000);
         return () => {

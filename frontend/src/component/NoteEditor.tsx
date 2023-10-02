@@ -14,6 +14,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import ClearIcon from '@mui/icons-material/Clear';
 import { saveUserNote } from '../api';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
+import { logError } from '../util';
 
 interface NoteEditorProps {
     notes: string;
@@ -31,7 +32,7 @@ export const NoteEditor = NiceModal.create<NoteEditorProps>(
                 await saveUserNote(steamId, newNotes);
                 await modal.hide();
             } catch (e) {
-                console.log(`Error updating note: ${e}`);
+                logError(`Error updating note: ${e}`);
             }
         }, [newNotes, steamId, modal]);
 
