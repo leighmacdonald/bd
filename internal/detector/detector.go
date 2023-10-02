@@ -21,7 +21,6 @@ import (
 	"github.com/leighmacdonald/bd/internal/addons"
 	"github.com/leighmacdonald/bd/internal/platform"
 	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/leighmacdonald/bd/internal/tr"
 	"github.com/leighmacdonald/bd/pkg/discord/client"
 	"github.com/leighmacdonald/bd/pkg/g15"
 	"github.com/leighmacdonald/bd/pkg/rules"
@@ -34,7 +33,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrInvalidReadyState = errors.New("Invalid ready state")
+var (
+	errInvalidReadyState = errors.New("Invalid ready state")
+	errNotMarked         = errors.New("Mark does not exist")
+)
 
 const (
 	profileAgeLimit = time.Hour * 24
@@ -57,7 +59,6 @@ type Detector struct {
 	settingsMu         *sync.RWMutex
 	discordPresence    *client.Client
 	rules              *rules.Engine
-	tr                 *tr.Translator
 	Web                *Web
 	dataStore          store.DataStore
 	profileUpdateQueue chan steamid.SID64
@@ -71,23 +72,14 @@ type Detector struct {
 	kickRequestChan    chan kickRequest
 }
 
+// New allocates and configures the root detector application.
 func New(logger *zap.Logger, settings UserSettings, database store.DataStore, versionInfo Version, cache Cache,
 	reader *LogReader, logChan chan string, dataSource DataSource,
 ) *Detector {
 	plat := platform.New()
 	isRunning, _ := plat.IsGameRunning()
 
-	translator, errTrans := tr.NewTranslator()
-	if errTrans != nil {
-		panic(errTrans)
-	}
-
 	logger.Info("bd starting", zap.String("version", versionInfo.Version))
-
-	// tr, errTranslator := tr.NewTranslator()
-	// if errTranslator != nil {
-	// 	rootLogger.Error("Failed to load translations", "err", errTranslator)
-	// }
 
 	if settings.APIKey != "" {
 		if errAPIKey := steamweb.SetKey(settings.APIKey); errAPIKey != nil {
@@ -98,7 +90,7 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 	rulesEngine := rules.New()
 
 	if settings.RunMode != ModeTest { //nolint:nestif
-		// Try and load our existing custom players/rules
+		// Try and load our existing custom players
 		if util.Exists(settings.LocalPlayerListPath()) {
 			input, errInput := os.Open(settings.LocalPlayerListPath())
 			if errInput != nil {
@@ -119,6 +111,7 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 			}
 		}
 
+		// Try and load our existing custom rules
 		if util.Exists(settings.LocalRulesListPath()) {
 			input, errInput := os.Open(settings.LocalRulesListPath())
 			if errInput != nil {
@@ -160,7 +153,6 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 		cache:              cache,
 		discordPresence:    client.New(),
 		rules:              rulesEngine,
-		tr:                 translator,
 		platform:           plat,
 		profileUpdateQueue: make(chan steamid.SID64),
 		dataSource:         dataSource,
@@ -207,9 +199,9 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 //	// - track history of interactions with players
 //	// - colourise messages that trigger
 //	// - track stopwatch time-ish via 02/28/2023 - 23:40:21: Teams have been switched.
-//
 // }
 
+// Settings returns a copy of the current user settings.
 func (d *Detector) Settings() UserSettings {
 	d.settingsMu.RLock()
 	defer d.settingsMu.RUnlock()
@@ -217,6 +209,7 @@ func (d *Detector) Settings() UserSettings {
 	return d.settings
 }
 
+// SaveSettings first validates, then writes the current settings to disk.
 func (d *Detector) SaveSettings(settings UserSettings) error {
 	if errValidate := settings.Validate(); errValidate != nil {
 		return errValidate
@@ -243,6 +236,8 @@ const (
 	voiceBansPerms = 0o755
 )
 
+// exportVoiceBans will write the most recent 200 bans to the `voice_ban.dt`. This must be done while the game is not
+// currently running.
 func (d *Detector) exportVoiceBans() error {
 	bannedIds := d.rules.FindNewestEntries(maxVoiceBans, d.Settings().KickTags)
 	if len(bannedIds) == 0 {
@@ -265,6 +260,8 @@ func (d *Detector) exportVoiceBans() error {
 	return nil
 }
 
+// LaunchGameAndWait is the main entry point to launching the game. It will install the included addon, write the
+// voice bans out if enabled and execute the platform specific launcher command, blocking until exit.
 func (d *Detector) LaunchGameAndWait() {
 	defer func() {
 		d.gameProcessActive.Store(false)
@@ -310,9 +307,9 @@ func (d *Detector) updateState(updates ...updateStateEvent) {
 	}
 }
 
-var errNotMarked = errors.New("Mark does not exist")
-
-func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) (int, error) {
+// unMark will unmark & remove a player from your local list. This *will not* unmark players from any
+// other list sources. If you want to not kick someone on a 3rd party list, you can instead whitelist the player.
+func (d *Detector) unMark(ctx context.Context, sid64 steamid.SID64) (int, error) {
 	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
 		return 0, errPlayer
@@ -339,7 +336,8 @@ func (d *Detector) UnMark(ctx context.Context, sid64 steamid.SID64) (int, error)
 	return len(valid), nil
 }
 
-func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
+// mark will add a new entry in your local player list.
+func (d *Detector) mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
 	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
 		return errPlayer
@@ -377,7 +375,8 @@ func (d *Detector) Mark(ctx context.Context, sid64 steamid.SID64, attrs []string
 	return nil
 }
 
-func (d *Detector) Whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
+// whitelist prevents a player marked in 3rd party lists from being flagged for kicking.
+func (d *Detector) whitelist(ctx context.Context, sid64 steamid.SID64, enabled bool) error {
 	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
 	if errPlayer != nil {
 		return errPlayer
@@ -406,9 +405,11 @@ func (d *Detector) Whitelist(ctx context.Context, sid64 steamid.SID64, enabled b
 	return nil
 }
 
+// updatePlayerState fetches the current game state over rcon using both the `status` and `g15_dumpplayer` command
+// output. The results are then parsed and applied to the current player and server states.
 func (d *Detector) updatePlayerState(ctx context.Context) error {
 	if !d.ready(ctx) {
-		return ErrInvalidReadyState
+		return errInvalidReadyState
 	}
 
 	// Sent to client, response via log output
@@ -462,6 +463,7 @@ func (d *Detector) updatePlayerState(ctx context.Context) error {
 	return nil
 }
 
+// statusUpdater is the background worker handling updating the game state.
 func (d *Detector) statusUpdater(ctx context.Context) {
 	defer d.log.Debug("status updater exited")
 
@@ -481,6 +483,9 @@ func (d *Detector) statusUpdater(ctx context.Context) {
 	}
 }
 
+// GetPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
+// inserted into the database and returned. If you only want players actively in the game, use the playerState functions
+// instead.
 func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (store.Player, error) {
 	player, errPlayer := d.players.bySteamID(sid64)
 	if errPlayer == nil {
@@ -542,6 +547,8 @@ func (d *Detector) checkHandler(ctx context.Context) {
 	}
 }
 
+// cleanupHandler is used to track of players and their expiration times. It will remove and reset expired players
+// and server from the current known state once they have been disconnected for the timeout periods.
 func (d *Detector) cleanupHandler(ctx context.Context) {
 	const disconnectMsg = "Disconnected"
 
@@ -589,7 +596,9 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 	}
 }
 
-func (d *Detector) AddUserName(ctx context.Context, player *store.Player) error {
+// addUserName will add an entry into the players username history table and check the username
+// against the rules sets.
+func (d *Detector) addUserName(ctx context.Context, player *store.Player) error {
 	unh, errMessage := store.NewUserNameHistory(player.SteamID, player.Name)
 	if errMessage != nil {
 		return errors.Wrap(errMessage, "Failed to load messages")
@@ -606,7 +615,9 @@ func (d *Detector) AddUserName(ctx context.Context, player *store.Player) error 
 	return nil
 }
 
-func (d *Detector) AddUserMessage(ctx context.Context, player *store.Player, message string, dead bool, teamOnly bool) error {
+// addUserMessage will add an entry into the players message history table and check the message
+// against the rules sets.
+func (d *Detector) addUserMessage(ctx context.Context, player *store.Player, message string, dead bool, teamOnly bool) error {
 	userMessage, errMessage := store.NewUserMessage(player.SteamID, message, dead, teamOnly)
 	if errMessage != nil {
 		return errors.Wrap(errMessage, "Failed to create new message")
@@ -623,6 +634,7 @@ func (d *Detector) AddUserMessage(ctx context.Context, player *store.Player, mes
 	return nil
 }
 
+// refreshLists updates the 3rd party player lists using their update url.
 func (d *Detector) refreshLists(ctx context.Context) {
 	playerLists, ruleLists := downloadLists(ctx, d.log, d.settings.Lists)
 	for _, list := range playerLists {
@@ -648,6 +660,7 @@ func (d *Detector) refreshLists(ctx context.Context) {
 	}
 }
 
+// checkPlayerStates will run a check against the current player state for matches.
 func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) {
 	for _, curPlayer := range d.players.all() {
 		player := curPlayer
@@ -686,6 +699,7 @@ func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) 
 	}
 }
 
+// triggerMatch handles announcing after a match is triggered against a player.
 func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, matches []*rules.MatchResult) {
 	announceGeneralLast := player.AnnouncedGeneralLast
 	announcePartyLast := player.AnnouncedPartyLast
@@ -716,7 +730,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 	if settings.PartyWarningsEnabled && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
-			if errLog := d.SendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Name); errLog != nil {
+			if errLog := d.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Name); errLog != nil {
 				d.log.Error("Failed to send party log message", zap.Error(errLog))
 
 				return
@@ -727,6 +741,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 	}
 }
 
+// ensureRcon makes sure that the rcon client is connected.
 func (d *Detector) ensureRcon(ctx context.Context) error {
 	d.rconMu.RLock()
 	if d.rconConn != nil {
@@ -764,9 +779,10 @@ func (d *Detector) ready(ctx context.Context) bool {
 	return true
 }
 
-func (d *Detector) SendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
+// sendChat is used to send chat messages to the various chat interfaces in game: say|say_team|say_party.
+func (d *Detector) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
 	if !d.ready(ctx) {
-		return ErrInvalidReadyState
+		return errInvalidReadyState
 	}
 
 	var cmd string
@@ -796,9 +812,10 @@ func (d *Detector) SendChat(ctx context.Context, destination ChatDest, format st
 	return nil
 }
 
-func (d *Detector) CallVote(ctx context.Context, userID int, reason KickReason) error {
+// callVote handles sending the vote commands to the game client.
+func (d *Detector) callVote(ctx context.Context, userID int, reason KickReason) error {
 	if !d.ready(ctx) {
-		return ErrInvalidReadyState
+		return errInvalidReadyState
 	}
 
 	d.rconMu.Lock()
@@ -815,6 +832,7 @@ func (d *Detector) CallVote(ctx context.Context, userID int, reason KickReason) 
 	return nil
 }
 
+// processChecker handles checking and updating the running state of the tf2 process.
 func (d *Detector) processChecker(ctx context.Context) {
 	ticker := time.NewTicker(DurationProcessTimeout)
 
@@ -884,6 +902,7 @@ func (d *Detector) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// openApplicationPage launches the http frontend using the platform specific browser launcher function.
 func (d *Detector) openApplicationPage() {
 	appURL := fmt.Sprintf("http://%s", d.settings.HTTPListenAddr)
 	if errOpen := d.platform.OpenURL(appURL); errOpen != nil {
@@ -891,6 +910,8 @@ func (d *Detector) openApplicationPage() {
 	}
 }
 
+// Start handles starting up all the background services, starting the http service, opening the URL and launching the
+// game if configured.
 func (d *Detector) Start(ctx context.Context) {
 	go d.reader.start(ctx)
 	go d.parser.start(ctx)
@@ -935,7 +956,8 @@ func (d *Detector) Start(ctx context.Context) {
 	d.openApplicationPage()
 }
 
-func SteamIDStringList(collection steamid.Collection) string {
+// steamIDStringList transforms a steamid.Collection into a comma separated list of SID64 strings.
+func steamIDStringList(collection steamid.Collection) string {
 	ids := make([]string, len(collection))
 	for index, steamID := range collection {
 		ids[index] = steamID.String()
@@ -976,7 +998,10 @@ func (d *Detector) profileUpdater(ctx context.Context) {
 			for _, player := range d.players.all() {
 				localPlayer := player
 				if errSave := d.dataStore.SavePlayer(ctx, &localPlayer); errSave != nil {
-					d.log.Error("Failed to save updated player state", zap.String("sid", localPlayer.SteamID.String()), zap.Error(errSave))
+					if errSave.Error() != "sql: database is closed" {
+						d.log.Error("Failed to save updated player state",
+							zap.String("sid", localPlayer.SteamID.String()), zap.Error(errSave))
+					}
 				}
 
 				d.players.update(localPlayer)
@@ -1007,6 +1032,7 @@ func (d *Detector) profileUpdater(ctx context.Context) {
 	}
 }
 
+// applyRemoteData updates the current player states with new incoming data.
 func (d *Detector) applyRemoteData(data updatedRemoteData) {
 	players := d.players.all()
 
@@ -1057,6 +1083,16 @@ type updatedRemoteData struct {
 	friends    FriendMap
 }
 
+// fetchProfileUpdates handles fetching and updating new player data from the configured DataSource implementation,
+// it handles fetching the following data points:
+//
+// - Valve Profile Summary
+// - Valve Game/VAC Bans
+// - Valve Friendslist
+// - Scraped sourcebans data via bd-api at https://bd-api.roto.lol
+//
+// If the user does not configure their own steam api key using LocalDataSource, then the
+// default bd-api backed APIDataSource will instead be used as a proxy for fetching the results.
 func (d *Detector) fetchProfileUpdates(ctx context.Context, queued steamid.Collection) updatedRemoteData {
 	localCtx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
@@ -1115,6 +1151,7 @@ func (d *Detector) fetchProfileUpdates(ctx context.Context, queued steamid.Colle
 	return updated
 }
 
+// rconMulti is used for rcon responses that exceed the size of a single rcon packet (g15_dumpplayer).
 func (d *Detector) rconMulti(cmd string) (string, error) {
 	d.rconMu.Lock()
 	defer d.rconMu.Unlock()
@@ -1298,7 +1335,7 @@ func (d *Detector) onUpdateMessage(ctx context.Context, log *zap.Logger, evt mes
 		return
 	}
 
-	if errUm := d.AddUserMessage(ctx, &player, evt.message, evt.dead, evt.teamOnly); errUm != nil {
+	if errUm := d.addUserMessage(ctx, &player, evt.message, evt.dead, evt.teamOnly); errUm != nil {
 		log.Error("Failed to handle user message", zap.Error(errUm))
 	}
 
@@ -1378,7 +1415,7 @@ func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt stat
 
 	if player.Name != evt.name {
 		player.Name = evt.name
-		if errAddName := d.AddUserName(ctx, &player); errAddName != nil {
+		if errAddName := d.addUserName(ctx, &player); errAddName != nil {
 			d.log.Error("Could not save new user name", zap.Error(errAddName))
 		}
 	}
@@ -1500,6 +1537,8 @@ func (d *Detector) incomingLogEventHandler(ctx context.Context) {
 	}
 }
 
+// discordStateUpdater handles updating the discord presence data with the current game state. It uses the
+// discord local IPC socket.
 func (d *Detector) discordStateUpdater(ctx context.Context) {
 	const discordAppID = "1076716221162082364"
 
@@ -1558,6 +1597,9 @@ type kickRequest struct {
 	reason  KickReason
 }
 
+// autoKicker handles making kick votes. It prioritizes manual vote kick requests from the user before trying
+// to kick players that match the auto kickable criteria. Auto kick attempts will cycle through the players with the least
+// amount of kick attempts.
 func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequest) {
 	log := d.log.Named("autoKicker")
 	kickTicker := time.NewTicker(time.Millisecond * 100)
@@ -1627,7 +1669,7 @@ func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequ
 
 			d.players.update(kickedPlayer)
 
-			if errVote := d.CallVote(ctx, kickedPlayer.UserID, reason); errVote != nil {
+			if errVote := d.callVote(ctx, kickedPlayer.UserID, reason); errVote != nil {
 				log.Error("Failed to callvote", zap.Error(errVote))
 			}
 		case <-ctx.Done():

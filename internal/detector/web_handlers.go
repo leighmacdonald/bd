@@ -158,7 +158,7 @@ func callVote(detector *Detector) gin.HandlerFunc {
 
 		reason := KickReason(ctx.Param("reason"))
 
-		if errVote := detector.CallVote(ctx, player.UserID, reason); errVote != nil {
+		if errVote := detector.callVote(ctx, player.UserID, reason); errVote != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			log.Error("Failed to call vote", zap.String("steam_id", sid.String()), zap.Error(errVote))
 
@@ -230,7 +230,7 @@ func deleteMarkedPlayer(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		remaining, errUnmark := detector.UnMark(ctx, sid)
+		remaining, errUnmark := detector.unMark(ctx, sid)
 		if errUnmark != nil {
 			if errors.Is(errUnmark, errNotMarked) {
 				responseOK(ctx, http.StatusNotFound, nil)
@@ -268,7 +268,7 @@ func postMarkPlayer(detector *Detector) gin.HandlerFunc {
 			return
 		}
 
-		if errMark := detector.Mark(ctx, sid, opts.Attrs); errMark != nil {
+		if errMark := detector.mark(ctx, sid, opts.Attrs); errMark != nil {
 			if errors.Is(errMark, rules.ErrDuplicateSteamID) {
 				responseErr(ctx, http.StatusConflict, nil)
 				log.Warn("Tried to mark duplicate steam id", zap.String("steam_id", sid.String()))
@@ -295,7 +295,7 @@ func updateWhitelistPlayer(detector *Detector, enable bool) gin.HandlerFunc {
 			return
 		}
 
-		if errWl := detector.Whitelist(ctx, sid, enable); errWl != nil {
+		if errWl := detector.whitelist(ctx, sid, enable); errWl != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)
 			log.Error("Failed to whitelist steam_id", zap.Error(errWl), zap.String("steam_id", sid.String()))
 
