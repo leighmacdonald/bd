@@ -208,7 +208,7 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 	markedPlayer := app.players.all()[0]
 
 	testAttrs := []string{"cheater"}
-	require.NoError(t, app.Mark(context.Background(), markedPlayer.SteamID, testAttrs))
+	require.NoError(t, app.mark(context.Background(), markedPlayer.SteamID, testAttrs))
 
 	t.Run("Unmark Non-Marked Player", func(t *testing.T) {
 		fetchIntoWithStatus(t, app, http.MethodDelete,
@@ -233,7 +233,7 @@ func TestWhitelistPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	players := app.players.all()
 
-	require.NoError(t, app.Mark(context.TODO(), players[0].SteamID, []string{"test_mark"}))
+	require.NoError(t, app.mark(context.TODO(), players[0].SteamID, []string{"test_mark"}))
 
 	t.Run("Whitelist Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/whitelist/%s", players[0].SteamID), http.StatusNoContent, nil, nil)
@@ -287,7 +287,7 @@ func TestPlayerChatHistory(t *testing.T) {
 	players := app.players.all()
 
 	for i := 0; i < 10; i++ {
-		require.NoError(t, app.AddUserMessage(context.TODO(), &players[0], util.RandomString(i+1*2), false, true))
+		require.NoError(t, app.addUserMessage(context.TODO(), &players[0], util.RandomString(i+1*2), false, true))
 	}
 
 	t.Run("Get Chat History", func(t *testing.T) { //nolint:tparallel
@@ -309,7 +309,7 @@ func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 
 	for i := 0; i < 5; i++ {
 		players[1].Name = util.RandomString(i + 1*2)
-		require.NoError(t, app.AddUserName(context.TODO(), &players[1]))
+		require.NoError(t, app.addUserName(context.TODO(), &players[1]))
 	}
 
 	t.Run("Get Name History", func(t *testing.T) {

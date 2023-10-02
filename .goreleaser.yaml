@@ -2,6 +2,10 @@ project_name: bd
 
 dist: build
 
+before:
+  hooks:
+    - make frontend
+
 builds:
   - id: bd
     env: [CGO_ENABLED=0]

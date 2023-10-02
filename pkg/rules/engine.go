@@ -165,6 +165,7 @@ func (e *Engine) UserRuleList() *RuleSchema {
 	panic("User rules schema doesn't exist")
 }
 
+// Unmark a player from the local player list.
 func (e *Engine) Unmark(steamID steamid.SID64) bool {
 	e.Lock()
 	defer e.Unlock()
@@ -208,6 +209,7 @@ func (e *Engine) Unmark(steamID steamid.SID64) bool {
 	return found
 }
 
+// Mark a player on the local player list.
 func (e *Engine) Mark(opts MarkOpts) error {
 	if len(opts.Attributes) == 0 {
 		return errors.New("Invalid attribute count")

@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	// Build info.
+	// Build info embedded by goreleaser.
 	version = "master" //nolint:gochecknoglobals
 	commit  = "latest" //nolint:gochecknoglobals
 	date    = "n/a"    //nolint:gochecknoglobals

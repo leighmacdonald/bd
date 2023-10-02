@@ -118,7 +118,7 @@ func NewAPIDataSource(url string) (APIDataSource, error) {
 }
 
 func (n APIDataSource) url(path string, collection steamid.Collection) string {
-	return fmt.Sprintf("%s%s?steamids=%s", n.baseURL, path, SteamIDStringList(collection))
+	return fmt.Sprintf("%s%s?steamids=%s", n.baseURL, path, steamIDStringList(collection))
 }
 
 func (n APIDataSource) get(ctx context.Context, path string, results any) error {

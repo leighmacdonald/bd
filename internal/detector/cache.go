@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrCacheExpired = errors.New("cached value expired")
+var errCacheExpired = errors.New("cached value expired")
 
 type Cache interface {
 	Set(ct Type, key string, value io.Reader) error
@@ -42,6 +42,7 @@ const (
 	TypeLists
 )
 
+// NewCache creates a new local storage backed cache for avatars and player lists.
 func NewCache(logger *zap.Logger, rootDir string, maxAge time.Duration) (FsCache, error) {
 	cache := FsCache{rootPath: rootDir, maxAge: maxAge, logger: logger.Named("cache")}
 	if errInit := cache.init(); errInit != nil {
@@ -51,6 +52,7 @@ func NewCache(logger *zap.Logger, rootDir string, maxAge time.Duration) (FsCache
 	return cache, nil
 }
 
+// init creates the directory structure used to store locally cached files.
 func (cache FsCache) init() error {
 	for _, p := range []Type{TypeAvatar, TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0o770); errMkDir != nil {
@@ -104,18 +106,18 @@ func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 func (cache FsCache) Get(ct Type, key string, receiver io.Writer) error {
 	openFile, errOf := os.Open(cache.getPath(ct, key))
 	if errOf != nil {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 
 	defer util.LogClose(cache.logger, openFile)
 
 	stat, errStat := openFile.Stat()
 	if errStat != nil {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 
 	if time.Since(stat.ModTime()) > cache.maxAge {
-		return ErrCacheExpired
+		return errCacheExpired
 	}
 
 	_, errCopy := io.Copy(receiver, openFile)
