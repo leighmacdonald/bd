@@ -15,6 +15,16 @@ type MatchResult struct {
 	MatcherType string `json:"matcher_type"`
 }
 
+func (mr MatchResult) HasAttr(attr string) bool {
+	for _, resultAttr := range mr.Attributes {
+		if strings.EqualFold(resultAttr, attr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type MatchResults []*MatchResult
 
 type TextMatchType string

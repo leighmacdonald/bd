@@ -102,6 +102,18 @@ type Player struct {
 	Matches rules.MatchResults `json:"matches"`
 }
 
+func (ps *Player) MatchAttr(tags []string) bool {
+	for _, match := range ps.Matches {
+		for _, tag := range tags {
+			if match.HasAttr(tag) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 const (
 	playerDisconnect = time.Second * 5
 	playerExpiration = time.Second * 60

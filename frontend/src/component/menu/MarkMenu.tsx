@@ -19,15 +19,18 @@ export const MarkMenu = ({
 }: MarkMenuProps & SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
-    const onMarkAs = useCallback(async (steamId: string, attrs: string[]) => {
-        try {
-            await markUser(steamId, attrs);
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onMarkAs = useCallback(
+        async (steamId: string, attrs: string[]) => {
+            try {
+                await markUser(steamId, attrs);
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose]
+    );
 
     return (
         <NestedMenuItem

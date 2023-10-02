@@ -12,15 +12,18 @@ export const WhitelistMenu = ({
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
-    const onAddWhitelist = useCallback(async (steamId: string) => {
-        try {
-            await addWhitelist(steamId);
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onAddWhitelist = useCallback(
+        async (steamId: string) => {
+            try {
+                await addWhitelist(steamId);
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose]
+    );
 
     return (
         <IconMenuItem

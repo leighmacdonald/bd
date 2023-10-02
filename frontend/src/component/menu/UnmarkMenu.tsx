@@ -9,15 +9,18 @@ export const UnmarkMenu = ({
     steam_id,
     onClose
 }: SteamIDProps & SubMenuProps) => {
-    const onUnmark = useCallback(async (steamId: string) => {
-        try {
-            await unmarkUser(steamId);
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onUnmark = useCallback(
+        async (steamId: string) => {
+            try {
+                await unmarkUser(steamId);
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose]
+    );
 
     return (
         <IconMenuItem

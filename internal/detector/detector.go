@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,6 +68,7 @@ type Detector struct {
 	gameHasStartedOnce atomic.Bool
 	dataSource         DataSource
 	g15                g15.Parser
+	kickRequestChan    chan kickRequest
 }
 
 func New(logger *zap.Logger, settings UserSettings, database store.DataStore, versionInfo Version, cache Cache,
@@ -163,6 +165,7 @@ func New(logger *zap.Logger, settings UserSettings, database store.DataStore, ve
 		profileUpdateQueue: make(chan steamid.SID64),
 		dataSource:         dataSource,
 		g15:                g15.New(),
+		kickRequestChan:    make(chan kickRequest),
 	}
 
 	application.gameProcessActive.Store(isRunning)
@@ -586,8 +589,8 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 	}
 }
 
-func (d *Detector) AddUserName(ctx context.Context, player *store.Player, name string) error {
-	unh, errMessage := store.NewUserNameHistory(player.SteamID, name)
+func (d *Detector) AddUserName(ctx context.Context, player *store.Player) error {
+	unh, errMessage := store.NewUserNameHistory(player.SteamID, player.Name)
 	if errMessage != nil {
 		return errors.Wrap(errMessage, "Failed to load messages")
 	}
@@ -686,6 +689,11 @@ func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) 
 func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, matches []*rules.MatchResult) {
 	announceGeneralLast := player.AnnouncedGeneralLast
 	announcePartyLast := player.AnnouncedPartyLast
+	settings := d.Settings()
+
+	if len(matches) == 0 {
+		return
+	}
 
 	if time.Since(announceGeneralLast) >= DurationAnnounceMatchTimeout {
 		msg := "Matched player"
@@ -694,7 +702,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		}
 
 		for _, match := range matches {
-			d.log.Info(msg, zap.String("match_type", match.MatcherType),
+			d.log.Debug(msg, zap.String("match_type", match.MatcherType),
 				zap.String("steam_id", player.SteamID.String()), zap.String("name", player.Name), zap.String("origin", match.Origin))
 		}
 
@@ -705,7 +713,7 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		return
 	}
 
-	if d.settings.PartyWarningsEnabled && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
+	if settings.PartyWarningsEnabled && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
 			if errLog := d.SendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Name); errLog != nil {
@@ -717,32 +725,6 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 
 		player.AnnouncedPartyLast = time.Now()
 	}
-
-	if d.settings.KickerEnabled { //nolint:nestif
-		kickTag := false
-
-		for _, match := range matches {
-			for _, tag := range match.Attributes {
-				for _, allowedTag := range d.settings.KickTags {
-					if strings.EqualFold(tag, allowedTag) {
-						kickTag = true
-
-						break
-					}
-				}
-			}
-		}
-
-		if kickTag {
-			if errVote := d.CallVote(ctx, player.UserID, KickReasonCheating); errVote != nil {
-				d.log.Error("Error calling vote", zap.Error(errVote))
-			}
-		} else {
-			d.log.Info("Skipping kick on matched player, no acceptable tag found")
-		}
-	}
-
-	go d.updateState(newKickAttemptEvent(player.SteamID))
 }
 
 func (d *Detector) ensureRcon(ctx context.Context) error {
@@ -921,6 +903,7 @@ func (d *Detector) Start(ctx context.Context) {
 	go d.processChecker(ctx)
 	go d.discordStateUpdater(ctx)
 	go d.profileUpdater(ctx)
+	go d.autoKicker(ctx, d.kickRequestChan)
 
 	if _, found := os.LookupEnv("TEST_PLAYERS"); found {
 		go func() {
@@ -1318,6 +1301,8 @@ func (d *Detector) onUpdateMessage(ctx context.Context, log *zap.Logger, evt mes
 	if errUm := d.AddUserMessage(ctx, &player, evt.message, evt.dead, evt.teamOnly); errUm != nil {
 		log.Error("Failed to handle user message", zap.Error(errUm))
 	}
+
+	d.players.update(player)
 }
 
 func (d *Detector) onKill(evt killEvent) {
@@ -1387,10 +1372,16 @@ func (d *Detector) onStatus(ctx context.Context, steamID steamid.SID64, evt stat
 	}
 
 	player.Ping = evt.ping
-	player.UserID = evt.userID
-	player.Name = evt.name
 	player.Connected = evt.connected.Seconds()
 	player.UpdatedOn = time.Now()
+	player.UserID = evt.userID
+
+	if player.Name != evt.name {
+		player.Name = evt.name
+		if errAddName := d.AddUserName(ctx, &player); errAddName != nil {
+			d.log.Error("Could not save new user name", zap.Error(errAddName))
+		}
+	}
 
 	d.players.update(player)
 
@@ -1555,6 +1546,89 @@ func (d *Detector) discordStateUpdater(ctx context.Context) {
 				}
 
 				d.serverMu.RUnlock()
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+type kickRequest struct {
+	steamID steamid.SID64
+	reason  KickReason
+}
+
+func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequest) {
+	log := d.log.Named("autoKicker")
+	kickTicker := time.NewTicker(time.Millisecond * 100)
+
+	var kickRequests []kickRequest
+
+	for {
+		select {
+		case request := <-kickRequestChan:
+			kickRequests = append(kickRequests, request)
+		case <-kickTicker.C:
+			var (
+				kickedPlayer store.Player
+				reason       KickReason
+			)
+
+			settings := d.Settings()
+
+			if !settings.KickerEnabled {
+				continue
+			}
+
+			if len(kickRequests) == 0 { //nolint:nestif
+				kickable := d.players.kickable()
+				if len(kickable) == 0 {
+					continue
+				}
+
+				var valid []store.Player
+
+				for _, player := range kickable {
+					if player.MatchAttr(settings.KickTags) {
+						valid = append(valid, player)
+					}
+				}
+
+				if len(valid) == 0 {
+					continue
+				}
+
+				sort.SliceStable(valid, func(i, j int) bool {
+					return valid[i].KickAttemptCount < valid[j].KickAttemptCount
+				})
+
+				reason = KickReasonCheating
+				kickedPlayer = valid[0]
+			} else {
+				request := kickRequests[0]
+				if len(kickRequests) > 1 {
+					kickRequests = kickRequests[1:]
+				} else {
+					kickRequests = nil
+				}
+
+				player, errPlayer := d.players.bySteamID(request.steamID)
+				if errPlayer != nil {
+					log.Error("Failed to get player to kick", zap.Error(errPlayer))
+
+					continue
+				}
+
+				reason = request.reason
+				kickedPlayer = player
+			}
+
+			kickedPlayer.KickAttemptCount++
+
+			d.players.update(kickedPlayer)
+
+			if errVote := d.CallVote(ctx, kickedPlayer.UserID, reason); errVote != nil {
+				log.Error("Failed to callvote", zap.Error(errVote))
 			}
 		case <-ctx.Done():
 			return

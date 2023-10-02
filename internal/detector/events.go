@@ -140,13 +140,6 @@ type markEvent struct {
 	addMark bool
 }
 
-func newKickAttemptEvent(sid steamid.SID64) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateKickAttempts,
-		source: sid,
-	}
-}
-
 func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEvent {
 	return updateStateEvent{
 		kind:   updateMark,

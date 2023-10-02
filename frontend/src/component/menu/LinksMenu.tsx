@@ -20,15 +20,18 @@ export const LinksMenu = ({
 }: LinksMenuProps & SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
-    const onClickLink = useCallback((steam_id: string, link: Link) => {
-        try {
-            openInNewTab(formatExternalLink(steam_id, link));
-        } catch (e) {
-            logError(e);
-        } finally {
-            onClose();
-        }
-    }, []);
+    const onClickLink = useCallback(
+        (steam_id: string, link: Link) => {
+            try {
+                openInNewTab(formatExternalLink(steam_id, link));
+            } catch (e) {
+                logError(e);
+            } finally {
+                onClose();
+            }
+        },
+        [onClose]
+    );
 
     return (
         <NestedMenuItem
