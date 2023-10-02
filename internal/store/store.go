@@ -260,8 +260,8 @@ type SearchOpts struct {
 }
 
 func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) ([]Player, error) {
-	store.RUnlock()
-	defer store.RUnlock()
+	store.Lock()
+	defer store.Unlock()
 
 	builder := sq.
 		Select("p.steam_id", "p.visibility", "p.real_name", "p.account_created_on", "p.avatar_hash",
@@ -379,8 +379,8 @@ func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, 
 }
 
 func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64) (UserNameHistoryCollection, error) {
-	store.RUnlock()
-	defer store.RUnlock()
+	store.Lock()
+	defer store.Unlock()
 
 	query, args, errSQL := sq.
 		Select("name_id", "name", "created_on").
@@ -423,8 +423,8 @@ func (store *SqliteStore) FetchNames(ctx context.Context, steamID steamid.SID64)
 }
 
 func (store *SqliteStore) FetchMessages(ctx context.Context, steamID steamid.SID64) (UserMessageCollection, error) {
-	store.RUnlock()
-	defer store.RUnlock()
+	store.Lock()
+	defer store.Unlock()
 
 	query, args, errSQL := sq.
 		Select("steam_id", "message_id", "message", "created_on").

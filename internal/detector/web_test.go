@@ -268,7 +268,7 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 		Note: "New Note",
 	}
 
-	t.Run("Set Player", func(t *testing.T) { //nolint:tparallel
+	t.Run("Set Player", func(t *testing.T) {
 		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/notes/%s", players[0].SteamID), http.StatusNoContent, nil, req)
 		player, errPlayer := app.GetPlayerOrCreate(context.TODO(), players[0].SteamID)
 		require.NoError(t, errPlayer)
@@ -276,7 +276,7 @@ func TestPlayerNotes(t *testing.T) { //nolint:tparallel
 	})
 }
 
-func TestPlayerChatHistory(t *testing.T) { //nolint:tparallel
+func TestPlayerChatHistory(t *testing.T) {
 	app, cleanup, errApp := testApp()
 	require.NoError(t, errApp, "Failed to create test app")
 
