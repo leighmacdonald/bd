@@ -13,7 +13,7 @@ import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { ModalSettings } from '../modals';
 import { logError } from '../util';
-import { Team, useCurrentState } from '../api';
+import { getLaunch, Team, useCurrentState } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 
@@ -73,11 +73,10 @@ export const Toolbar = () => {
                 >
                     <Box>
                         <IconButton
-                            disableRipple
-                            color={state.game_running ? 'success' : 'error'}
-                            onClick={() => {}}
+                            color={!state.game_running ? 'success' : 'error'}
+                            onClick={getLaunch}
                         >
-                            {state.game_running ? (
+                            {!state.game_running ? (
                                 <PlayArrowIcon />
                             ) : (
                                 <StopIcon />

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
-import FlagIcon from '@mui/icons-material/Flag';
 import { formatExternalLink, logError, openInNewTab } from '../../util';
 import { Link } from '../../api';
 import { SteamIDProps, SubMenuProps } from './common';
@@ -44,7 +43,6 @@ export const LinksMenu = ({
                 .filter((link) => link.enabled)
                 .map((link) => (
                     <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
                         onClick={() => {
                             onClickLink(steam_id, link);
                         }}

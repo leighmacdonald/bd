@@ -118,6 +118,7 @@ export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
                             value={newLink.name}
                             onChange={onNameChanged}
                         />
+
                         <FormControl fullWidth>
                             <InputLabel id="steam_id_format-select-label">
                                 <Trans

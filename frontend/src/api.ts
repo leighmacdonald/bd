@@ -222,6 +222,8 @@ export const unmarkUser = async (steamId: string) =>
 
 const getState = async () => await callJson<State>('GET', '/state');
 
+export const getLaunch = async () => await callJson('GET', '/launch');
+
 export const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/settings');
 

@@ -359,7 +359,7 @@ export const SettingsEditor = NiceModal.create(() => {
                             {link.enabled ? <AlarmOnIcon /> : <AlarmOffIcon />}
                         </IconButton>
                         <IconButton
-                            color={'primary'}
+                            color={'warning'}
                             onClick={async () => {
                                 await onOpenLink(link, i);
                             }}
@@ -367,7 +367,7 @@ export const SettingsEditor = NiceModal.create(() => {
                             <EditIcon />
                         </IconButton>
                         <IconButton
-                            color={'primary'}
+                            color={'error'}
                             onClick={() => {
                                 deleteLink(i);
                             }}
@@ -605,7 +605,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                                 )}
                                             </IconButton>
                                             <IconButton
-                                                color={'primary'}
+                                                color={'warning'}
                                                 onClick={async () => {
                                                     await onOpenList(l, i);
                                                 }}
@@ -613,7 +613,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                                 <EditIcon />
                                             </IconButton>
                                             <IconButton
-                                                color={'primary'}
+                                                color={'error'}
                                                 onClick={() => {
                                                     deleteList(i);
                                                 }}
@@ -715,6 +715,14 @@ export const SettingsEditor = NiceModal.create(() => {
                                     }}
                                     validator={validatorAddress}
                                 />
+                            </Grid>
+                            <Grid xs={12}>
+                                <Typography
+                                    variant={'caption'}
+                                    textAlign={'center'}
+                                >
+                                    {t('settings.http.http_notice')}
+                                </Typography>
                             </Grid>
                         </Grid>
                     </AccordionDetails>

@@ -32,6 +32,24 @@ func getMessages(detector *Detector) gin.HandlerFunc {
 	}
 }
 
+func postLaunchGame(detector *Detector) gin.HandlerFunc {
+	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
+
+	return func(ctx *gin.Context) {
+		if detector.gameProcessActive.Load() {
+			responseErr(ctx, http.StatusConflict, nil)
+
+			return
+		}
+
+		log.Info("Launch game request")
+
+		go detector.LaunchGameAndWait()
+
+		responseOK(ctx, http.StatusOK, nil)
+	}
+}
+
 func getNames(detector *Detector) gin.HandlerFunc {
 	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
 
