@@ -379,6 +379,17 @@ export const PlayerTable = () => {
         [setEnabledColumns]
     );
 
+    const playerRows = useMemo(() => {
+        return visibleRows.map((player, i) => (
+            <PlayerTableRow
+                enabledColumns={enabledColumns}
+                onWhitelist={onWhitelist}
+                player={player}
+                key={`player-row-${i}-${player.steam_id}`}
+            />
+        ));
+    }, [enabledColumns, onWhitelist, visibleRows]);
+
     return (
         <Paper sx={{ width: '100%', overflow: 'hidden' }}>
             <Stack>
@@ -513,16 +524,7 @@ export const PlayerTable = () => {
                             enabledColumns={enabledColumns}
                         />
 
-                        <TableBody>
-                            {visibleRows.map((player, i) => (
-                                <PlayerTableRow
-                                    enabledColumns={enabledColumns}
-                                    onWhitelist={onWhitelist}
-                                    player={player}
-                                    key={`row-${i}-${player.steam_id}`}
-                                />
-                            ))}
-                        </TableBody>
+                        <TableBody>{playerRows}</TableBody>
                     </Table>
                 </TableContainer>
             </Stack>
