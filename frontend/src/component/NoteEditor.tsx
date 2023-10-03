@@ -1,20 +1,17 @@
 import React, { useCallback, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
-    Button,
     DialogActions,
     DialogContent,
     DialogTitle,
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
-import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
 import { Trans, useTranslation } from 'react-i18next';
-import ClearIcon from '@mui/icons-material/Clear';
 import { saveUserNote } from '../api';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../util';
+import { CancelButton, ClearButton, SaveButton } from './Buttons';
 
 interface NoteEditorProps {
     notes: string;
@@ -57,32 +54,13 @@ export const NoteEditor = NiceModal.create<NoteEditorProps>(
                     </Stack>
                 </DialogContent>
                 <DialogActions>
-                    <Button
-                        startIcon={<ClearIcon />}
-                        color={'warning'}
-                        variant={'contained'}
+                    <ClearButton
                         onClick={() => {
                             setNewNotes('');
                         }}
-                    >
-                        <Trans i18nKey={'button.clear'} />
-                    </Button>
-                    <Button
-                        startIcon={<CloseIcon />}
-                        color={'error'}
-                        variant={'contained'}
-                        onClick={modal.hide}
-                    >
-                        <Trans i18nKey={'button.cancel'} />
-                    </Button>
-                    <Button
-                        startIcon={<SaveIcon />}
-                        color={'success'}
-                        variant={'contained'}
-                        onClick={onSaveNotes}
-                    >
-                        <Trans i18nKey={'button.save'} />
-                    </Button>
+                    />
+                    <CancelButton />
+                    <SaveButton onClick={onSaveNotes} />
                 </DialogActions>
             </Dialog>
         );

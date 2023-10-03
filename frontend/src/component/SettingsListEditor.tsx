@@ -8,7 +8,6 @@ import React, {
 } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
-    Button,
     Checkbox,
     DialogActions,
     DialogContent,
@@ -16,13 +15,11 @@ import {
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
-import CloseIcon from '@mui/icons-material/Close';
-import CheckIcon from '@mui/icons-material/Check';
 import Typography from '@mui/material/Typography';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import cloneDeep from 'lodash/cloneDeep';
+import { CancelButton, ResetButton, SaveButton } from './Buttons';
 
 interface SettingsListProps {
     list: List;
@@ -92,30 +89,9 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
                 </DialogContent>
 
                 <DialogActions>
-                    <Button
-                        onClick={modal.hide}
-                        startIcon={<CloseIcon />}
-                        color={'error'}
-                        variant={'contained'}
-                    >
-                        <Trans i18nKey={'button.cancel'} />
-                    </Button>
-                    <Button
-                        onClick={handleReset}
-                        startIcon={<RestartAltIcon />}
-                        color={'warning'}
-                        variant={'contained'}
-                    >
-                        <Trans i18nKey={'button.reset'} />
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        startIcon={<CheckIcon />}
-                        color={'success'}
-                        variant={'contained'}
-                    >
-                        <Trans i18nKey={'button.save'} />
-                    </Button>
+                    <CancelButton />
+                    <ResetButton onClick={handleReset} />
+                    <SaveButton onClick={handleSave} />
                 </DialogActions>
             </Dialog>
         );
