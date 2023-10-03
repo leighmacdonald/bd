@@ -132,7 +132,9 @@ const resources = {
                     http_listen_addr_label: 'Listen Address (host:port)',
                     http_listen_addr_tooltip:
                         'What address the http service will listen on. (The URL you are connected to right now). You should use localhost ' +
-                        'unless you know what you are doing as there is no authentication system.'
+                        'unless you know what you are doing as there is no authentication system.',
+                    http_notice:
+                        '* Must restart application for changes to take effect.'
                 },
                 steam: {
                     label: 'Steam Config',
@@ -167,7 +169,8 @@ const resources = {
                 },
                 list_editor: {
                     create_title: `Create New List`,
-                    edit_title: `Edit List:`
+                    edit_title: `Edit List:`,
+                    enabled_label: 'Enabled'
                 }
             }
         }

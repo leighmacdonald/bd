@@ -58,7 +58,6 @@ export const MarkMenu = ({
             ].map((attr) => {
                 return (
                     <IconMenuItem
-                        leftIcon={<FlagIcon color={'primary'} />}
                         onClick={async () => {
                             if (attr == 'new...') {
                                 await onMarkAsNew();

@@ -12,6 +12,8 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    FormControlLabel,
+    FormGroup,
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
@@ -62,7 +64,7 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
         };
 
         return (
-            <Dialog {...muiDialog(modal)}>
+            <Dialog fullWidth {...muiDialog(modal)}>
                 <DialogTitle component={Typography} variant={'h1'}>
                     {list.url == ''
                         ? t('settings.list_editor.create_title')
@@ -72,16 +74,26 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
                 </DialogTitle>
                 <DialogContent dividers>
                     <Stack>
-                        <Checkbox
-                            checked={newList.enabled}
-                            onChange={onEnabledChanged}
-                        />
+                        <FormGroup>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={newList.enabled}
+                                        onChange={onEnabledChanged}
+                                    />
+                                }
+                                label={t('settings.list_editor.enabled_label')}
+                            />
+                        </FormGroup>
+
                         <TextField
                             value={newList.name}
                             onChange={onNameChanged}
                         />
+
                         <TextField
                             fullWidth
+                            label={'Update URL'}
                             value={newList.url}
                             onChange={onUrlChanged}
                         />

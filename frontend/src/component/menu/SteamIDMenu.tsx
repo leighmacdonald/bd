@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
-import FlagIcon from '@mui/icons-material/Flag';
 import { logError, writeToClipboard } from '../../util';
 import { SteamIDProps, SubMenuProps } from './common';
 
@@ -30,7 +29,6 @@ export const SteamIDMenu = ({
                 return (
                     <IconMenuItem
                         key={`steam-id-link-${sid}`}
-                        leftIcon={<FlagIcon color={'primary'} />}
                         onClick={async () => {
                             try {
                                 await writeToClipboard(sid);
