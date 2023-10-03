@@ -1,5 +1,5 @@
-import { List } from '../api';
-import React, { ChangeEvent, useState } from 'react';
+import { List, useUserSettings } from '../api';
+import React, { ChangeEvent, useCallback, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     Button,
@@ -12,93 +12,105 @@ import {
 import Stack from '@mui/material/Stack';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
-import { inputValidator } from './SettingsEditor';
 import Typography from '@mui/material/Typography';
 import { Trans, useTranslation } from 'react-i18next';
+import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import cloneDeep from 'lodash/cloneDeep';
 
 interface SettingsListProps {
-    value: List;
-    setValue: (value: List) => void;
-    validator?: inputValidator;
-    open: boolean;
-    setOpen: (open: boolean) => void;
-    isNew: boolean;
+    list: List;
+    rowIndex: number;
 }
 
-export const SettingsListEditor = ({
-    value,
-    setValue,
-    open,
-    setOpen,
-    isNew
-}: SettingsListProps) => {
-    const [list, setList] = useState<List>({ ...value });
-    const { t } = useTranslation();
+export const SettingsListEditor = NiceModal.create<SettingsListProps>(
+    ({ list, rowIndex }) => {
+        const { setNewSettings } = useUserSettings();
+        const [newList, setNewList] = useState<List>({ ...list });
+        const modal = useModal();
+        const { t } = useTranslation();
 
-    const handleClose = () => {
-        setOpen(false);
-    };
+        const handleSave = useCallback(async () => {
+            setNewSettings((prevState) => {
+                prevState.lists[rowIndex] = newList;
+                return prevState;
+            });
+            await modal.hide();
+        }, [modal, newList, rowIndex, setNewSettings]);
 
-    const handleSave = () => {
-        setValue(list);
-        handleClose();
-    };
+        const onEnabledChanged = (
+            _: ChangeEvent<HTMLInputElement>,
+            enabled: boolean
+        ) => {
+            setNewList({ ...newList, enabled });
+        };
 
-    const onEnabledChanged = (
-        _: ChangeEvent<HTMLInputElement>,
-        enabled: boolean
-    ) => {
-        setList({ ...list, enabled });
-    };
+        const handleReset = useCallback(() => {
+            setNewList(cloneDeep(list));
+        }, [list]);
 
-    const onNameChanged = (event: ChangeEvent<HTMLInputElement>) => {
-        setList({ ...list, name: event.target.value });
-    };
+        const onNameChanged = (event: ChangeEvent<HTMLInputElement>) => {
+            setNewList({ ...newList, name: event.target.value });
+        };
 
-    const onUrlChanged = (event: ChangeEvent<HTMLInputElement>) => {
-        setList({ ...list, url: event.target.value });
-    };
+        const onUrlChanged = (event: ChangeEvent<HTMLInputElement>) => {
+            setNewList({ ...newList, url: event.target.value });
+        };
 
-    return (
-        <Dialog open={open}>
-            <DialogTitle component={Typography} variant={'h1'}>
-                {isNew
-                    ? t('settings.list_editor.create_title')
-                    : `${t('settings.list_editor.edit_title')} ${list.name}`}
-            </DialogTitle>
-            <DialogContent dividers>
-                <Stack>
-                    <Checkbox
-                        checked={list.enabled}
-                        onChange={onEnabledChanged}
-                    />
-                    <TextField value={list.name} onChange={onNameChanged} />
-                    <TextField
-                        fullWidth
-                        value={list.url}
-                        onChange={onUrlChanged}
-                    />
-                </Stack>
-            </DialogContent>
+        return (
+            <Dialog {...muiDialog(modal)}>
+                <DialogTitle component={Typography} variant={'h1'}>
+                    {list.url == ''
+                        ? t('settings.list_editor.create_title')
+                        : `${t('settings.list_editor.edit_title')} ${
+                              newList.name
+                          }`}
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Stack>
+                        <Checkbox
+                            checked={newList.enabled}
+                            onChange={onEnabledChanged}
+                        />
+                        <TextField
+                            value={newList.name}
+                            onChange={onNameChanged}
+                        />
+                        <TextField
+                            fullWidth
+                            value={newList.url}
+                            onChange={onUrlChanged}
+                        />
+                    </Stack>
+                </DialogContent>
 
-            <DialogActions>
-                <Button
-                    onClick={handleClose}
-                    startIcon={<CloseIcon />}
-                    color={'error'}
-                    variant={'contained'}
-                >
-                    <Trans i18nKey={'button.cancel'} />
-                </Button>
-                <Button
-                    onClick={handleSave}
-                    startIcon={<CheckIcon />}
-                    color={'success'}
-                    variant={'contained'}
-                >
-                    <Trans i18nKey={'button.save'} />
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+                <DialogActions>
+                    <Button
+                        onClick={modal.hide}
+                        startIcon={<CloseIcon />}
+                        color={'error'}
+                        variant={'contained'}
+                    >
+                        <Trans i18nKey={'button.cancel'} />
+                    </Button>
+                    <Button
+                        onClick={handleReset}
+                        startIcon={<RestartAltIcon />}
+                        color={'warning'}
+                        variant={'contained'}
+                    >
+                        <Trans i18nKey={'button.reset'} />
+                    </Button>
+                    <Button
+                        onClick={handleSave}
+                        startIcon={<CheckIcon />}
+                        color={'success'}
+                        variant={'contained'}
+                    >
+                        <Trans i18nKey={'button.save'} />
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    }
+);

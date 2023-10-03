@@ -26,7 +26,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
 import NiceModal from '@ebay/nice-modal-react';
-import { ModalSettings } from '../App';
+import { ModalSettings } from '../modals';
 
 export interface PlayerTableProps {
     onRequestSort: (
