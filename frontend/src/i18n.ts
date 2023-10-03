@@ -9,6 +9,7 @@ const resources = {
             button: {
                 save: 'Save',
                 cancel: 'Cancel',
+                reset: 'Reset',
                 clear: 'Clear'
             },
             yes: 'yes',
@@ -79,6 +80,7 @@ const resources = {
                 }
             },
             settings: {
+                label: 'Settings',
                 general: {
                     label: 'General',
                     description: 'Kicker, Tags, Chat Warnings',
