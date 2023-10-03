@@ -40,8 +40,7 @@ import {
     useUserSettings
 } from '../api';
 import cloneDeep from 'lodash/cloneDeep';
-import { SettingsContext } from '../context/settings';
-import Grid2 from '@mui/material/Unstable_Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
 import Stack from '@mui/material/Stack';
 import IconButton from '@mui/material/IconButton';
@@ -57,6 +56,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { ModalSettingsLinks, ModalSettingsList } from '../modals';
+import { SettingsContext } from '../context/SettingsContext';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -351,7 +351,7 @@ export const SettingsEditor = NiceModal.create(() => {
     const renderedLinks = useMemo(() => {
         return newSettings.links.map((link: Link, i: number) => {
             return (
-                <Grid2 key={`link-row-${i}`} xs={12}>
+                <Grid key={`link-row-${i}`} xs={12}>
                     <Stack direction={'row'} spacing={1}>
                         <IconButton
                             color={link.enabled ? 'primary' : 'secondary'}
@@ -388,7 +388,7 @@ export const SettingsEditor = NiceModal.create(() => {
                             </Typography>
                         </Box>
                     </Stack>
-                </Grid2>
+                </Grid>
             );
         });
     }, [deleteLink, newSettings.links, onOpenLink, toggleLink]);
@@ -420,8 +420,8 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container spacing={1}>
-                            <Grid2 xs={6}>
+                        <Grid container spacing={1}>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.chat_warnings_label'
@@ -437,8 +437,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.kicker_enabled_label'
@@ -454,8 +454,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={12}>
+                            </Grid>
+                            <Grid xs={12}>
                                 <SettingsMultiSelect
                                     label={t(
                                         'settings.general.kick_tags_label'
@@ -471,8 +471,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.party_warnings_enabled_label'
@@ -488,8 +488,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.discord_presence_enabled_label'
@@ -507,8 +507,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.auto_launch_game_label'
@@ -524,8 +524,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.auto_close_on_game_exit_label'
@@ -543,9 +543,9 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
+                            </Grid>
 
-                            <Grid2 xs={6}>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.general.debug_log_enabled_label'
@@ -561,8 +561,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                        </Grid2>
+                            </Grid>
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
 
@@ -586,10 +586,10 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>
+                        <Grid container>
                             {newSettings.lists.map((l: List, i: number) => {
                                 return (
-                                    <Grid2 key={`list-row-${i}`} xs={12}>
+                                    <Grid key={`list-row-${i}`} xs={12}>
                                         <Stack direction={'row'} spacing={1}>
                                             <IconButton
                                                 color={
@@ -634,10 +634,10 @@ export const SettingsEditor = NiceModal.create(() => {
                                                 </Typography>
                                             </Box>
                                         </Stack>
-                                    </Grid2>
+                                    </Grid>
                                 );
                             })}
-                        </Grid2>
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
 
@@ -661,7 +661,7 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>{renderedLinks}</Grid2>
+                        <Grid container>{renderedLinks}</Grid>
                     </AccordionDetails>
                 </Accordion>
 
@@ -683,8 +683,8 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>
-                            <Grid2 xs={6}>
+                        <Grid container>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.http.http_enabled_label'
@@ -700,8 +700,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsTextBox
                                     label={t(
                                         'settings.http.http_listen_addr_label'
@@ -718,8 +718,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                     }}
                                     validator={validatorAddress}
                                 />
-                            </Grid2>
-                        </Grid2>
+                            </Grid>
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
 
@@ -741,8 +741,8 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>
-                            <Grid2 xs={6}>
+                        <Grid container>
+                            <Grid xs={6}>
                                 <SettingsTextBox
                                     label={t('settings.steam.steam_id_label')}
                                     tooltip={t(
@@ -757,8 +757,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                     }}
                                     validator={validatorSteamID}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsTextBox
                                     label={t('settings.steam.api_key_label')}
                                     tooltip={t(
@@ -774,8 +774,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={12}>
+                            </Grid>
+                            <Grid xs={12}>
                                 <SettingsTextBox
                                     label={t('settings.steam.steam_dir_label')}
                                     tooltip={t(
@@ -789,8 +789,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                        </Grid2>
+                            </Grid>
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
 
@@ -812,8 +812,8 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>
-                            <Grid2 xs={12}>
+                        <Grid container>
+                            <Grid xs={12}>
                                 <SettingsTextBox
                                     label={t('settings.tf2.tf2_dir_label')}
                                     tooltip={t('settings.tf2.tf2_dir_tooltip')}
@@ -825,8 +825,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t('settings.tf2.rcon_static_label')}
                                     tooltip={t(
@@ -840,8 +840,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                            <Grid2 xs={6}>
+                            </Grid>
+                            <Grid xs={6}>
                                 <SettingsCheckBox
                                     label={t(
                                         'settings.tf2.voice_bans_enabled_label'
@@ -857,8 +857,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                         });
                                     }}
                                 />
-                            </Grid2>
-                        </Grid2>
+                            </Grid>
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
             </DialogContent>

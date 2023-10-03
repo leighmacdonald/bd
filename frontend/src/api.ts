@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { defaultUserSettings } from './context/settings';
 import { logError } from './util';
+import { defaultUserSettings } from './context/SettingsContext';
 
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
