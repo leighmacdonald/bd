@@ -30,7 +30,13 @@ import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuItem from '@mui/material/MenuItem';
-import { Link, List, saveUserSettings, UserSettings } from '../api';
+import {
+    Link,
+    List,
+    saveUserSettings,
+    UserSettings,
+    useUserSettings
+} from '../api';
 import _ from 'lodash';
 import { SettingsContext } from '../context/settings';
 import Grid2 from '@mui/material/Unstable_Grid2';
@@ -49,6 +55,7 @@ import { SettingsListEditor } from './SettingsListEditor';
 import { SettingsLinkEditor } from './SettingsLinkEditor';
 import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
+import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -226,31 +233,23 @@ export const SettingsMultiSelect = ({
     );
 };
 
-interface SettingsEditorProps {
-    open: boolean;
-    setOpen: (opeN: boolean) => void;
-    origSettings: UserSettings;
-}
-
-export const SettingsEditor = ({
-    open,
-    setOpen,
-    origSettings
-}: SettingsEditorProps) => {
+export const SettingsEditor = NiceModal.create(() => {
     const [listsOpen, setListsOpen] = useState(false);
     const [linksOpen, setLinksOpen] = useState(false);
     const [currentList, setCurrentList] = useState<List>();
     const [currentLink, setCurrentLink] = useState<Link>();
 
+    const modal = useModal();
+    const { settings, setSettings } = useUserSettings();
     const { t } = useTranslation();
 
-    const [settings, setSettings] = useState<UserSettings>(
-        _.cloneDeep(origSettings)
+    const [newSettings, setNewSettings] = useState<UserSettings>(
+        _.cloneDeep(settings)
     );
 
     const handleReset = useCallback(() => {
-        setSettings(_.cloneDeep(origSettings));
-    }, [origSettings]);
+        setNewSettings(_.cloneDeep(settings));
+    }, [settings, setNewSettings]);
 
     const onOpenList = (list: List) => {
         setCurrentList(list);
@@ -264,51 +263,41 @@ export const SettingsEditor = ({
 
     useEffect(() => {
         handleReset();
-    }, [handleReset, origSettings]);
+    }, [handleReset, settings]);
 
-    const handleSave = useCallback(() => {
-        saveUserSettings(settings)
-            .then(() => {
-                setSettings(settings);
-            })
-            .catch((reason) => {
-                logError(reason);
-            });
-    }, [settings]);
-
-    const handleClose = () => {
-        setOpen(false);
-    };
-
-    // const onUpdateLists = useCallback(
-    //     (lists: List[]) => {
-    //         setSettings({ ...settings, lists });
-    //     },
-    //     [settings]
-    // );
+    const handleSave = useCallback(async () => {
+        try {
+            await saveUserSettings(newSettings);
+            setSettings(newSettings);
+        } catch (reason) {
+            logError(reason);
+        } finally {
+            await modal.hide();
+        }
+    }, [newSettings, modal, setSettings]);
 
     const toggleList = (i: number) => {
-        setSettings((s) => {
+        setNewSettings((s: UserSettings) => {
             s.lists[i].enabled = !s.lists[i].enabled;
             return s;
         });
     };
 
     const toggleLink = (i: number) => {
-        setSettings((s) => {
+        setNewSettings((s: UserSettings) => {
             s.links[i].enabled = !s.links[i].enabled;
             return s;
         });
     };
 
     const deleteLink = (i: number) => {
-        const newLinks = settings.links.filter((_, idx) => idx != i);
-        setSettings({ ...settings, links: newLinks });
+        const newLinks = newSettings.links.filter((_, idx) => idx != i);
+        setNewSettings({ ...newSettings, links: newLinks });
     };
 
     const deleteList = (i: number) => {
-        const newList = settings.lists.filter((_, idx) => idx != i);
-        setSettings({ ...settings, lists: newList });
+        const newList = newSettings.lists.filter((_, idx) => idx != i);
+        setNewSettings({ ...newSettings, lists: newList });
     };
 
     const [expanded, setExpanded] = React.useState<string | false>('panel1');
@@ -321,9 +310,9 @@ export const SettingsEditor = ({
     const theme = useTheme();
 
     return (
-        <Dialog open={open} fullWidth>
+        <Dialog fullWidth {...muiDialog(modal)}>
             <DialogTitle component={Typography} variant={'h1'}>
-                Settings
+                {t('settings.label')}
             </DialogTitle>
             <DialogContent dividers={true} sx={{ padding: 0 }}>
                 <Accordion
@@ -356,10 +345,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.chat_warnings_tooltip'
                                     )}
-                                    enabled={settings.chat_warnings_enabled}
+                                    enabled={newSettings.chat_warnings_enabled}
                                     setEnabled={(chat_warnings_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             chat_warnings_enabled
                                         });
                                     }}
@@ -373,10 +362,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.kicker_enabled_description'
                                     )}
-                                    enabled={settings.kicker_enabled}
+                                    enabled={newSettings.kicker_enabled}
                                     setEnabled={(kicker_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             kicker_enabled
                                         });
                                     }}
@@ -390,9 +379,12 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.kick_tags_description'
                                     )}
-                                    values={settings.kick_tags}
+                                    values={newSettings.kick_tags}
                                     setValues={(kick_tags) => {
-                                        setSettings({ ...settings, kick_tags });
+                                        setNewSettings({
+                                            ...newSettings,
+                                            kick_tags
+                                        });
                                     }}
                                 />
                             </Grid2>
@@ -404,10 +396,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.party_warnings_enabled_description'
                                     )}
-                                    enabled={settings.party_warnings_enabled}
+                                    enabled={newSettings.party_warnings_enabled}
                                     setEnabled={(party_warnings_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             party_warnings_enabled
                                         });
                                     }}
@@ -421,10 +413,12 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.discord_presence_enabled_tooltip'
                                     )}
-                                    enabled={settings.discord_presence_enabled}
+                                    enabled={
+                                        newSettings.discord_presence_enabled
+                                    }
                                     setEnabled={(discord_presence_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             discord_presence_enabled
                                         });
                                     }}
@@ -438,10 +432,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.auto_launch_game_tooltip'
                                     )}
-                                    enabled={settings.auto_launch_game}
+                                    enabled={newSettings.auto_launch_game}
                                     setEnabled={(auto_launch_game) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             auto_launch_game
                                         });
                                     }}
@@ -455,10 +449,12 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.auto_close_on_game_exit_tooltip'
                                     )}
-                                    enabled={settings.auto_close_on_game_exit}
+                                    enabled={
+                                        newSettings.auto_close_on_game_exit
+                                    }
                                     setEnabled={(auto_close_on_game_exit) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             auto_close_on_game_exit
                                         });
                                     }}
@@ -473,10 +469,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.general.debug_log_enabled_tooltip'
                                     )}
-                                    enabled={settings.debug_log_enabled}
+                                    enabled={newSettings.debug_log_enabled}
                                     setEnabled={(debug_log_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             debug_log_enabled
                                         });
                                     }}
@@ -507,7 +503,7 @@ export const SettingsEditor = ({
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
-                            {settings.lists.map((l, i) => {
+                            {newSettings.lists.map((l, i) => {
                                 return (
                                     <Grid2 key={`list-row-${i}`} xs={12}>
                                         <Stack direction={'row'} spacing={1}>
@@ -591,7 +587,7 @@ export const SettingsEditor = ({
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
-                            {settings.links.map((l, i) => {
+                            {newSettings.links.map((l, i) => {
                                 return (
                                     <Grid2 key={`list-row-${i}`} xs={12}>
                                         <Stack direction={'row'} spacing={1}>
@@ -681,10 +677,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.http.http_enabled_tooltip'
                                     )}
-                                    enabled={settings.http_enabled}
+                                    enabled={newSettings.http_enabled}
                                     setEnabled={(http_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             http_enabled
                                         });
                                     }}
@@ -698,10 +694,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.http.http_listen_addr_tooltip'
                                     )}
-                                    value={settings.http_listen_addr}
+                                    value={newSettings.http_listen_addr}
                                     setValue={(http_listen_addr) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             http_listen_addr
                                         });
                                     }}
@@ -737,9 +733,12 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.steam.steam_id_tooltip'
                                     )}
-                                    value={settings.steam_id}
+                                    value={newSettings.steam_id}
                                     setValue={(steam_id) => {
-                                        setSettings({ ...settings, steam_id });
+                                        setNewSettings({
+                                            ...newSettings,
+                                            steam_id
+                                        });
                                     }}
                                     validator={validatorSteamID}
                                 />
@@ -750,11 +749,14 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.steam.api_key_tooltip'
                                     )}
-                                    value={settings.api_key}
+                                    value={newSettings.api_key}
                                     secrets
                                     validator={makeValidatorLength(32)}
                                     setValue={(api_key) => {
-                                        setSettings({ ...settings, api_key });
+                                        setNewSettings({
+                                            ...newSettings,
+                                            api_key
+                                        });
                                     }}
                                 />
                             </Grid2>
@@ -764,9 +766,12 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.steam.steam_dir_tooltip'
                                     )}
-                                    value={settings.steam_dir}
+                                    value={newSettings.steam_dir}
                                     setValue={(steam_dir) => {
-                                        setSettings({ ...settings, steam_dir });
+                                        setNewSettings({
+                                            ...newSettings,
+                                            steam_dir
+                                        });
                                     }}
                                 />
                             </Grid2>
@@ -797,9 +802,12 @@ export const SettingsEditor = ({
                                 <SettingsTextBox
                                     label={t('settings.tf2.tf2_dir_label')}
                                     tooltip={t('settings.tf2.tf2_dir_tooltip')}
-                                    value={settings.tf2_dir}
+                                    value={newSettings.tf2_dir}
                                     setValue={(tf2_dir) => {
-                                        setSettings({ ...settings, tf2_dir });
+                                        setNewSettings({
+                                            ...newSettings,
+                                            tf2_dir
+                                        });
                                     }}
                                 />
                             </Grid2>
@@ -809,10 +817,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.tf2.rcon_static_tooltip'
                                     )}
-                                    enabled={settings.rcon_static}
+                                    enabled={newSettings.rcon_static}
                                     setEnabled={(rcon_static) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             rcon_static
                                         });
                                     }}
@@ -826,10 +834,10 @@ export const SettingsEditor = ({
                                     tooltip={t(
                                         'settings.tf2.voice_bans_enabled_tooltip'
                                     )}
-                                    enabled={settings.voice_bans_enabled}
+                                    enabled={newSettings.voice_bans_enabled}
                                     setEnabled={(voice_bans_enabled) => {
-                                        setSettings({
-                                            ...settings,
+                                        setNewSettings({
+                                            ...newSettings,
                                             voice_bans_enabled
                                         });
                                     }}
@@ -841,12 +849,20 @@ export const SettingsEditor = ({
             </DialogContent>
             <DialogActions>
                 <Button
-                    onClick={handleClose}
+                    onClick={modal.hide}
                     startIcon={<CloseIcon />}
                     color={'error'}
                     variant={'contained'}
                 >
                     <Trans i18nKey={'button.cancel'} />
+                </Button>
+                <Button
+                    onClick={handleReset}
+                    startIcon={<CloseIcon />}
+                    color={'error'}
+                    variant={'contained'}
+                >
+                    <Trans i18nKey={'button.reset'} />
                 </Button>
                 <Button
                     onClick={handleSave}
@@ -859,4 +875,4 @@ export const SettingsEditor = ({
             </DialogActions>
         </Dialog>
     );
-};
+});

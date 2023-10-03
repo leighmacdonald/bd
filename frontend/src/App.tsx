@@ -10,11 +10,13 @@ import { useUserSettings } from './api';
 import { SettingsContext } from './context/settings';
 import NiceModal from '@ebay/nice-modal-react';
 import { NoteEditor } from './component/NoteEditor';
+import { SettingsEditor } from './component/SettingsEditor';
 
 export const ModalNotes = 'modal-notes';
-//export const ModalSettings = 'modal-settings';
+export const ModalSettings = 'modal-settings';
 
 NiceModal.register(ModalNotes, NoteEditor);
+NiceModal.register(ModalSettings, SettingsEditor);
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);

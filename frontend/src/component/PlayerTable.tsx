@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import IconButton from '@mui/material/IconButton';
@@ -22,11 +22,11 @@ import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { addWhitelist, Player, Team, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
-import { SettingsEditor } from './SettingsEditor';
-import { SettingsContext } from '../context/settings';
 import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
+import NiceModal from '@ebay/nice-modal-react';
+import { ModalSettings } from '../App';
 
 export interface PlayerTableProps {
     onRequestSort: (
@@ -341,11 +341,9 @@ export const PlayerTable = () => {
         // Surely strings are the only types
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
         getDefaultColumns()
     );
-    const { settings } = useContext(SettingsContext);
     const state = useCurrentState();
     const { t } = useTranslation();
 
@@ -416,8 +414,12 @@ export const PlayerTable = () => {
                         <Tooltip title={t('toolbar.button.open_settings')}>
                             <Box>
                                 <IconButton
-                                    onClick={() => {
-                                        setSettingsOpen(true);
+                                    onClick={async () => {
+                                        try {
+                                            await NiceModal.show(ModalSettings);
+                                        } catch (e) {
+                                            logError(e);
+                                        }
                                     }}
                                 >
                                     <SettingsOutlinedIcon color={'primary'} />
@@ -523,11 +525,6 @@ export const PlayerTable = () => {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <SettingsEditor
-                    open={settingsOpen}
-                    setOpen={setSettingsOpen}
-                    origSettings={settings}
-                />
             </Stack>
         </Paper>
     );

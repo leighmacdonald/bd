@@ -222,7 +222,7 @@ export const unmarkUser = async (steamId: string) =>
 
 const getState = async () => await callJson<State>('GET', '/state');
 
-const getUserSettings = async () =>
+export const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/settings');
 
 export const saveUserSettings = async (settings: UserSettings) =>
@@ -244,7 +244,7 @@ export const useUserSettings = () => {
             .finally(() => setLoading(false));
     }, []);
 
-    return { settings, error, loading };
+    return { settings, error, loading, setSettings };
 };
 
 export const useCurrentState = () => {
