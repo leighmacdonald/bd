@@ -120,9 +120,9 @@ type UserSettings struct {
 	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
-	LogLevel                string               `yaml:"log_level"`
-	UseBDAPIDataSource      bool                 `yaml:"use_bdapi_data_source"`
-	Rcon                    RCONConfig           `yaml:"-"`
+	LogLevel                string               `yaml:"log_level" json:"log_level"`
+	UseBDAPIDataSource      bool                 `yaml:"use_bdapi_data_source" json:"use_bdapi_data_source"`
+	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
 func NewSettings() (UserSettings, error) {

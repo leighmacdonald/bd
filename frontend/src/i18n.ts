@@ -104,7 +104,7 @@ const resources = {
                     discord_presence_enabled_label: 'Discord Presence Enabled',
                     discord_presence_enabled_tooltip:
                         'Enable game status presence updates to your local discord client.',
-                    auto_launch_game_label: 'Kickable Tag Matches',
+                    auto_launch_game_label: 'Auto Launch Game',
                     auto_launch_game_tooltip:
                         'When enabled, upon launching bd, TF2 will also be launched at the same time',
                     auto_close_on_game_exit_label: 'Auto Close On Game Exit',
