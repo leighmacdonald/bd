@@ -10,7 +10,8 @@ const resources = {
                 save: 'Save',
                 cancel: 'Cancel',
                 reset: 'Reset',
-                clear: 'Clear'
+                clear: 'Clear',
+                ok: 'OK'
             },
             yes: 'yes',
             no: 'no',

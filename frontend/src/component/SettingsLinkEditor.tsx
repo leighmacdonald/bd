@@ -1,5 +1,12 @@
-import { Link, steamIdFormat, useUserSettings } from '../api';
-import React, { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import { Link, steamIdFormat, UserSettings } from '../api';
+import React, {
+    ChangeEvent,
+    Dispatch,
+    SetStateAction,
+    useCallback,
+    useEffect,
+    useState
+} from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     Button,
@@ -25,18 +32,19 @@ import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import cloneDeep from 'lodash/cloneDeep';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { logError } from '../util';
 
 interface SettingsLinkProps {
     link: Link;
     rowIndex: number;
     validator?: inputValidator;
+    setNewSettings: Dispatch<SetStateAction<UserSettings>>;
 }
 
 export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
-    ({ link, rowIndex }) => {
+    ({ link, rowIndex, setNewSettings }) => {
         const modal = useModal();
         const { t } = useTranslation();
-        const { setNewSettings } = useUserSettings();
 
         const [newLink, setNewLink] = useState<Link>(cloneDeep(link));
 
@@ -63,11 +71,16 @@ export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
         );
 
         const handleSave = useCallback(async () => {
-            setNewSettings((prevState) => {
-                prevState.links[rowIndex] = newLink;
-                return prevState;
-            });
-            await modal.hide();
+            try {
+                setNewSettings((prevState) => {
+                    prevState.links[rowIndex] = newLink;
+                    return prevState;
+                });
+            } catch (e) {
+                logError(e);
+            } finally {
+                await modal.hide();
+            }
         }, [modal, newLink, rowIndex, setNewSettings]);
 
         const onUrlChanged = (event: ChangeEvent<HTMLInputElement>) => {

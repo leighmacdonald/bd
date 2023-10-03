@@ -40,16 +40,18 @@ export const LinksMenu = ({
             label={t('player_table.menu.external_label')}
             parentMenuOpen={contextMenuPos !== null}
         >
-            {links.map((link) => (
-                <IconMenuItem
-                    leftIcon={<FlagIcon color={'primary'} />}
-                    onClick={() => {
-                        onClickLink(steam_id, link);
-                    }}
-                    label={link.name}
-                    key={`link-${steam_id}-${link.name}`}
-                />
-            ))}
+            {links
+                .filter((link) => link.enabled)
+                .map((link) => (
+                    <IconMenuItem
+                        leftIcon={<FlagIcon color={'primary'} />}
+                        onClick={() => {
+                            onClickLink(steam_id, link);
+                        }}
+                        label={link.name}
+                        key={`link-${steam_id}-${link.name}`}
+                    />
+                ))}
         </NestedMenuItem>
     );
 };

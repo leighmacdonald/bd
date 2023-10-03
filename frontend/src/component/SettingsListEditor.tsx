@@ -1,5 +1,11 @@
-import { List, useUserSettings } from '../api';
-import React, { ChangeEvent, useCallback, useState } from 'react';
+import { List, UserSettings } from '../api';
+import React, {
+    ChangeEvent,
+    Dispatch,
+    SetStateAction,
+    useCallback,
+    useState
+} from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     Button,
@@ -21,19 +27,20 @@ import cloneDeep from 'lodash/cloneDeep';
 interface SettingsListProps {
     list: List;
     rowIndex: number;
+    setNewSettings: Dispatch<SetStateAction<UserSettings>>;
 }
 
 export const SettingsListEditor = NiceModal.create<SettingsListProps>(
-    ({ list, rowIndex }) => {
-        const { setNewSettings } = useUserSettings();
+    ({ list, rowIndex, setNewSettings }) => {
         const [newList, setNewList] = useState<List>({ ...list });
         const modal = useModal();
         const { t } = useTranslation();
 
         const handleSave = useCallback(async () => {
             setNewSettings((prevState) => {
-                prevState.lists[rowIndex] = newList;
-                return prevState;
+                const s = prevState;
+                s.lists[rowIndex] = newList;
+                return s;
             });
             await modal.hide();
         }, [modal, newList, rowIndex, setNewSettings]);

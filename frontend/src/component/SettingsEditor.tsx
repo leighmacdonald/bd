@@ -3,6 +3,7 @@ import React, {
     useCallback,
     useContext,
     useEffect,
+    useMemo,
     useState
 } from 'react';
 import {
@@ -234,10 +235,14 @@ export const SettingsMultiSelect = ({
 };
 
 export const SettingsEditor = NiceModal.create(() => {
-    const { settings, setSettings, newSettings, setNewSettings } =
-        useUserSettings();
+    const { settings, setSettings } = useUserSettings();
     const modal = useModal();
     const { t } = useTranslation();
+    const theme = useTheme();
+
+    const [newSettings, setNewSettings] = useState<UserSettings>(
+        cloneDeep(settings)
+    );
 
     const handleReset = useCallback(() => {
         setNewSettings(cloneDeep(settings));
@@ -246,27 +251,37 @@ export const SettingsEditor = NiceModal.create(() => {
     const onOpenLink = useCallback(
         async (link: Link, rowIndex: number) => {
             try {
-                await NiceModal.show(ModalSettingsLinks, { link, rowIndex });
+                await NiceModal.show(ModalSettingsLinks, {
+                    link,
+                    rowIndex,
+                    setNewSettings
+                });
             } catch (e) {
                 logError(e);
             } finally {
+                console.log(newSettings.links);
                 await modal.hide();
             }
         },
-        [modal]
+        [modal, newSettings.links]
     );
 
     const onOpenList = useCallback(
         async (list: List, rowIndex: number) => {
             try {
-                await NiceModal.show(ModalSettingsList, { list, rowIndex });
+                await NiceModal.show(ModalSettingsList, {
+                    list,
+                    rowIndex,
+                    setNewSettings
+                });
             } catch (e) {
                 logError(e);
             } finally {
+                console.log(newSettings.lists);
                 await modal.hide();
             }
         },
-        [modal]
+        [modal, newSettings.lists]
     );
 
     useEffect(() => {
@@ -284,29 +299,47 @@ export const SettingsEditor = NiceModal.create(() => {
         }
     }, [newSettings, modal, setSettings]);
 
-    const toggleList = (i: number) => {
-        setNewSettings((s: UserSettings) => {
-            s.lists[i].enabled = !s.lists[i].enabled;
-            return s;
-        });
-    };
+    const toggleList = useCallback(
+        (i: number) => {
+            setNewSettings((us: UserSettings) => {
+                const s = { ...us };
+                s.lists[i].enabled = !s.lists[i].enabled;
+                return s;
+            });
+        },
+        [setNewSettings]
+    );
 
-    const toggleLink = (i: number) => {
-        setNewSettings((s: UserSettings) => {
-            s.links[i].enabled = !s.links[i].enabled;
-            return s;
-        });
-    };
+    const toggleLink = useCallback(
+        (i: number) => {
+            setNewSettings((us: UserSettings) => {
+                const s = { ...us };
+                s.links[i].enabled = !s.links[i].enabled;
+                return s;
+            });
+        },
+        [setNewSettings]
+    );
 
-    const deleteLink = (i: number) => {
-        const newLinks = newSettings.links.filter((_, idx) => idx != i);
-        setNewSettings({ ...newSettings, links: newLinks });
-    };
+    const deleteLink = useCallback(
+        (i: number) => {
+            const newLinks = newSettings.links.filter(
+                (_: Link, idx: number) => idx != i
+            );
+            setNewSettings({ ...newSettings, links: newLinks });
+        },
+        [newSettings, setNewSettings]
+    );
 
-    const deleteList = (i: number) => {
-        const newList = newSettings.lists.filter((_, idx) => idx != i);
-        setNewSettings({ ...newSettings, lists: newList });
-    };
+    const deleteList = useCallback(
+        (i: number) => {
+            const newList = newSettings.lists.filter(
+                (_: List, idx: number) => idx != i
+            );
+            setNewSettings({ ...newSettings, lists: newList });
+        },
+        [newSettings, setNewSettings]
+    );
 
     const [expanded, setExpanded] = React.useState<string | false>('panel1');
 
@@ -315,7 +348,50 @@ export const SettingsEditor = NiceModal.create(() => {
             setExpanded(newExpanded ? panel : false);
         };
 
-    const theme = useTheme();
+    const renderedLinks = useMemo(() => {
+        return newSettings.links.map((link: Link, i: number) => {
+            return (
+                <Grid2 key={`link-row-${i}`} xs={12}>
+                    <Stack direction={'row'} spacing={1}>
+                        <IconButton
+                            color={link.enabled ? 'primary' : 'secondary'}
+                            onClick={() => {
+                                toggleLink(i);
+                            }}
+                        >
+                            {link.enabled ? <AlarmOnIcon /> : <AlarmOffIcon />}
+                        </IconButton>
+                        <IconButton
+                            color={'primary'}
+                            onClick={async () => {
+                                await onOpenLink(link, i);
+                            }}
+                        >
+                            <EditIcon />
+                        </IconButton>
+                        <IconButton
+                            color={'primary'}
+                            onClick={() => {
+                                deleteLink(i);
+                            }}
+                        >
+                            <DeleteIcon />
+                        </IconButton>
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
+                            <Typography variant={'body1'}>
+                                {link.name}
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </Grid2>
+            );
+        });
+    }, [deleteLink, newSettings.links, onOpenLink, toggleLink]);
 
     return (
         <Dialog fullWidth {...muiDialog(modal)}>
@@ -368,7 +444,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                         'settings.general.kicker_enabled_label'
                                     )}
                                     tooltip={t(
-                                        'settings.general.kicker_enabled_description'
+                                        'settings.general.kicker_enabled_tooltip'
                                     )}
                                     enabled={newSettings.kicker_enabled}
                                     setEnabled={(kicker_enabled) => {
@@ -385,7 +461,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                         'settings.general.kick_tags_label'
                                     )}
                                     tooltip={t(
-                                        'settings.general.kick_tags_description'
+                                        'settings.general.kick_tags_tooltip'
                                     )}
                                     values={newSettings.kick_tags}
                                     setValues={(kick_tags) => {
@@ -402,7 +478,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                         'settings.general.party_warnings_enabled_label'
                                     )}
                                     tooltip={t(
-                                        'settings.general.party_warnings_enabled_description'
+                                        'settings.general.party_warnings_enabled_tooltip'
                                     )}
                                     enabled={newSettings.party_warnings_enabled}
                                     setEnabled={(party_warnings_enabled) => {
@@ -511,7 +587,7 @@ export const SettingsEditor = NiceModal.create(() => {
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
-                            {newSettings.lists.map((l, i) => {
+                            {newSettings.lists.map((l: List, i: number) => {
                                 return (
                                     <Grid2 key={`list-row-${i}`} xs={12}>
                                         <Stack direction={'row'} spacing={1}>
@@ -585,58 +661,7 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid2 container>
-                            {newSettings.links.map((link, i) => {
-                                return (
-                                    <Grid2 key={`list-row-${i}`} xs={12}>
-                                        <Stack direction={'row'} spacing={1}>
-                                            <IconButton
-                                                color={
-                                                    link.enabled
-                                                        ? 'primary'
-                                                        : 'secondary'
-                                                }
-                                                onClick={() => {
-                                                    toggleLink(i);
-                                                }}
-                                            >
-                                                {link.enabled ? (
-                                                    <AlarmOnIcon />
-                                                ) : (
-                                                    <AlarmOffIcon />
-                                                )}
-                                            </IconButton>
-                                            <IconButton
-                                                color={'primary'}
-                                                onClick={async () => {
-                                                    await onOpenLink(link, i);
-                                                }}
-                                            >
-                                                <EditIcon />
-                                            </IconButton>
-                                            <IconButton
-                                                color={'primary'}
-                                                onClick={() => {
-                                                    deleteLink(i);
-                                                }}
-                                            >
-                                                <DeleteIcon />
-                                            </IconButton>
-                                            <Box
-                                                sx={{
-                                                    display: 'flex',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                <Typography variant={'body1'}>
-                                                    {link.name}
-                                                </Typography>
-                                            </Box>
-                                        </Stack>
-                                    </Grid2>
-                                );
-                            })}
-                        </Grid2>
+                        <Grid2 container>{renderedLinks}</Grid2>
                     </AccordionDetails>
                 </Accordion>
 
