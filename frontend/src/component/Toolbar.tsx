@@ -1,22 +1,21 @@
 import React, { useContext } from 'react';
+import { useTranslation } from 'react-i18next';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import NiceModal from '@ebay/nice-modal-react';
-import { ModalSettings } from '../modals';
-import { logError } from '../util';
+import Stack from '@mui/material/Stack';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
+import { ModalSettings } from '../modals';
+import { logError } from '../util';
 import { Team, useCurrentState } from '../api';
-import Stack from '@mui/material/Stack';
-
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-import { useTranslation } from 'react-i18next';
 
 export const Toolbar = () => {
     const state = useCurrentState();

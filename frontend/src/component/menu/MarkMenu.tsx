@@ -6,6 +6,8 @@ import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import FlagIcon from '@mui/icons-material/Flag';
 import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
+import NiceModal, { useModal } from '@ebay/nice-modal-react';
+import { ModalMarkNewTag } from '../../modals';
 
 interface MarkMenuProps {
     unique_tags: string[];
@@ -18,11 +20,12 @@ export const MarkMenu = ({
     onClose
 }: MarkMenuProps & SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
+    const modal = useModal(ModalMarkNewTag);
 
     const onMarkAs = useCallback(
-        async (steamId: string, attrs: string[]) => {
+        async (sid: string, attrs: string[]) => {
             try {
-                await markUser(steamId, attrs);
+                await markUser(sid, attrs);
             } catch (e) {
                 logError(e);
             } finally {
@@ -32,6 +35,16 @@ export const MarkMenu = ({
         [onClose]
     );
 
+    const onMarkAsNew = useCallback(async () => {
+        try {
+            await NiceModal.show(ModalMarkNewTag, { steam_id, onMarkAs });
+        } catch (e) {
+            logError(e);
+        } finally {
+            await modal.hide();
+        }
+    }, [modal, onMarkAs, steam_id]);
+
     return (
         <NestedMenuItem
             rightIcon={<ArrowRightOutlinedIcon />}
@@ -40,14 +53,18 @@ export const MarkMenu = ({
             parentMenuOpen={contextMenuPos !== null}
         >
             {[
-                ...unique_tags.filter((tag) => tag.toLowerCase() != 'new'),
-                'new'
+                ...unique_tags.filter((tag) => tag.toLowerCase() != 'new...'),
+                'new...'
             ].map((attr) => {
                 return (
                     <IconMenuItem
                         leftIcon={<FlagIcon color={'primary'} />}
                         onClick={async () => {
-                            await onMarkAs(steam_id, [attr]);
+                            if (attr == 'new...') {
+                                await onMarkAsNew();
+                            } else {
+                                await onMarkAs(steam_id, [attr]);
+                            }
                         }}
                         label={attr}
                         key={`tag-${steam_id}-${attr}`}

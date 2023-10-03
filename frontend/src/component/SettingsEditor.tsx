@@ -10,7 +10,6 @@ import {
     Accordion,
     AccordionDetails,
     AccordionSummary,
-    Button,
     Checkbox,
     DialogActions,
     DialogContent,
@@ -28,9 +27,7 @@ import {
     useTheme
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import Tooltip from '@mui/material/Tooltip';
-import CloseIcon from '@mui/icons-material/Close';
 import MenuItem from '@mui/material/MenuItem';
 import {
     Link,
@@ -51,12 +48,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import SaveIcon from '@mui/icons-material/Save';
 import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { ModalSettingsLinks, ModalSettingsList } from '../modals';
 import { SettingsContext } from '../context/SettingsContext';
+import { CancelButton, ResetButton, SaveButton } from './Buttons';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -863,30 +860,9 @@ export const SettingsEditor = NiceModal.create(() => {
                 </Accordion>
             </DialogContent>
             <DialogActions>
-                <Button
-                    onClick={modal.hide}
-                    startIcon={<CloseIcon />}
-                    color={'error'}
-                    variant={'contained'}
-                >
-                    <Trans i18nKey={'button.cancel'} />
-                </Button>
-                <Button
-                    onClick={handleReset}
-                    startIcon={<RestartAltIcon />}
-                    color={'warning'}
-                    variant={'contained'}
-                >
-                    <Trans i18nKey={'button.reset'} />
-                </Button>
-                <Button
-                    onClick={handleSave}
-                    startIcon={<SaveIcon />}
-                    color={'success'}
-                    variant={'contained'}
-                >
-                    <Trans i18nKey={'button.save'} />
-                </Button>
+                <CancelButton />
+                <ResetButton onClick={handleReset} />
+                <SaveButton onClick={handleSave} />
             </DialogActions>
         </Dialog>
     );

@@ -15,6 +15,10 @@ const resources = {
             },
             yes: 'yes',
             no: 'no',
+            mark_new_tag: {
+                title: 'Mark Player With New Tag',
+                tag: 'New Tag'
+            },
             player_table: {
                 column: {
                     user_id: 'uid',
