@@ -230,6 +230,7 @@ export const saveUserSettings = async (settings: UserSettings) =>
 
 export const useUserSettings = () => {
     const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
+    const [newSettings, setNewSettings] = useState<UserSettings>(settings);
     const [error, setError] = useState<unknown>(null);
     const [loading, setLoading] = useState(false);
 
@@ -237,14 +238,24 @@ export const useUserSettings = () => {
         setLoading(true);
         getUserSettings()
             .then((resp) => resp)
-            .then(setSettings)
+            .then((respSettings) => {
+                setSettings(respSettings);
+                setNewSettings(respSettings);
+            })
             .catch((e) => {
                 setError(e);
             })
             .finally(() => setLoading(false));
     }, []);
 
-    return { settings, error, loading, setSettings };
+    return {
+        settings,
+        error,
+        loading,
+        setSettings,
+        newSettings,
+        setNewSettings
+    };
 };
 
 export const useCurrentState = () => {

@@ -27,6 +27,7 @@ import {
     useTheme
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuItem from '@mui/material/MenuItem';
@@ -37,7 +38,7 @@ import {
     UserSettings,
     useUserSettings
 } from '../api';
-import _ from 'lodash';
+import cloneDeep from 'lodash/cloneDeep';
 import { SettingsContext } from '../context/settings';
 import Grid2 from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
@@ -51,11 +52,10 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SaveIcon from '@mui/icons-material/Save';
-import { SettingsListEditor } from './SettingsListEditor';
-import { SettingsLinkEditor } from './SettingsLinkEditor';
 import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
+import { ModalSettingsLinks, ModalSettingsList } from '../modals';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -234,36 +234,44 @@ export const SettingsMultiSelect = ({
 };
 
 export const SettingsEditor = NiceModal.create(() => {
-    const [listsOpen, setListsOpen] = useState(false);
-    const [linksOpen, setLinksOpen] = useState(false);
-    const [currentList, setCurrentList] = useState<List>();
-    const [currentLink, setCurrentLink] = useState<Link>();
-
+    const { settings, setSettings, newSettings, setNewSettings } =
+        useUserSettings();
     const modal = useModal();
-    const { settings, setSettings } = useUserSettings();
     const { t } = useTranslation();
 
-    const [newSettings, setNewSettings] = useState<UserSettings>(
-        _.cloneDeep(settings)
-    );
-
     const handleReset = useCallback(() => {
-        setNewSettings(_.cloneDeep(settings));
+        setNewSettings(cloneDeep(settings));
     }, [settings, setNewSettings]);
 
-    const onOpenList = (list: List) => {
-        setCurrentList(list);
-        setListsOpen(true);
-    };
+    const onOpenLink = useCallback(
+        async (link: Link, rowIndex: number) => {
+            try {
+                await NiceModal.show(ModalSettingsLinks, { link, rowIndex });
+            } catch (e) {
+                logError(e);
+            } finally {
+                await modal.hide();
+            }
+        },
+        [modal]
+    );
 
-    const onOpenLink = (link: Link) => {
-        setCurrentLink(link);
-        setLinksOpen(true);
-    };
+    const onOpenList = useCallback(
+        async (list: List, rowIndex: number) => {
+            try {
+                await NiceModal.show(ModalSettingsList, { list, rowIndex });
+            } catch (e) {
+                logError(e);
+            } finally {
+                await modal.hide();
+            }
+        },
+        [modal]
+    );
 
     useEffect(() => {
         handleReset();
-    }, [handleReset, settings]);
+    }, [handleReset]);
 
     const handleSave = useCallback(async () => {
         try {
@@ -525,8 +533,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                             </IconButton>
                                             <IconButton
                                                 color={'primary'}
-                                                onClick={() => {
-                                                    onOpenList(l);
+                                                onClick={async () => {
+                                                    await onOpenList(l, i);
                                                 }}
                                             >
                                                 <EditIcon />
@@ -554,15 +562,6 @@ export const SettingsEditor = NiceModal.create(() => {
                                 );
                             })}
                         </Grid2>
-                        {currentList && (
-                            <SettingsListEditor
-                                open={listsOpen}
-                                value={currentList}
-                                setValue={setCurrentList}
-                                setOpen={setListsOpen}
-                                isNew={currentList.name == ''}
-                            />
-                        )}
                     </AccordionDetails>
                 </Accordion>
 
@@ -587,13 +586,13 @@ export const SettingsEditor = NiceModal.create(() => {
                     </AccordionSummary>
                     <AccordionDetails>
                         <Grid2 container>
-                            {newSettings.links.map((l, i) => {
+                            {newSettings.links.map((link, i) => {
                                 return (
                                     <Grid2 key={`list-row-${i}`} xs={12}>
                                         <Stack direction={'row'} spacing={1}>
                                             <IconButton
                                                 color={
-                                                    l.enabled
+                                                    link.enabled
                                                         ? 'primary'
                                                         : 'secondary'
                                                 }
@@ -601,7 +600,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                                     toggleLink(i);
                                                 }}
                                             >
-                                                {l.enabled ? (
+                                                {link.enabled ? (
                                                     <AlarmOnIcon />
                                                 ) : (
                                                     <AlarmOffIcon />
@@ -609,8 +608,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                             </IconButton>
                                             <IconButton
                                                 color={'primary'}
-                                                onClick={() => {
-                                                    onOpenLink(l);
+                                                onClick={async () => {
+                                                    await onOpenLink(link, i);
                                                 }}
                                             >
                                                 <EditIcon />
@@ -630,7 +629,7 @@ export const SettingsEditor = NiceModal.create(() => {
                                                 }}
                                             >
                                                 <Typography variant={'body1'}>
-                                                    {l.name}
+                                                    {link.name}
                                                 </Typography>
                                             </Box>
                                         </Stack>
@@ -638,15 +637,6 @@ export const SettingsEditor = NiceModal.create(() => {
                                 );
                             })}
                         </Grid2>
-                        {currentLink && (
-                            <SettingsLinkEditor
-                                open={linksOpen}
-                                value={currentLink}
-                                setValue={setCurrentLink}
-                                setOpen={setLinksOpen}
-                                isNew={currentLink.name == ''}
-                            />
-                        )}
                     </AccordionDetails>
                 </Accordion>
 
@@ -858,8 +848,8 @@ export const SettingsEditor = NiceModal.create(() => {
                 </Button>
                 <Button
                     onClick={handleReset}
-                    startIcon={<CloseIcon />}
-                    color={'error'}
+                    startIcon={<RestartAltIcon />}
+                    color={'warning'}
                     variant={'contained'}
                 >
                     <Trans i18nKey={'button.reset'} />
