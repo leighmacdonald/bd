@@ -1,6 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo } from 'react';
 import Box from '@mui/material/Box';
-import ButtonGroup from '@mui/material/ButtonGroup';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Popover from '@mui/material/Popover';
@@ -15,30 +14,12 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import StopIcon from '@mui/icons-material/Stop';
-import Typography from '@mui/material/Typography';
-import { addWhitelist, Player, Team, useCurrentState } from '../api';
+import { addWhitelist, Player, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
-import { Trans, useTranslation } from 'react-i18next';
+import { Trans } from 'react-i18next';
 import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
-import NiceModal from '@ebay/nice-modal-react';
-import { ModalSettings } from '../modals';
-
-export interface PlayerTableProps {
-    onRequestSort: (
-        event: React.MouseEvent<unknown>,
-        property: keyof Player
-    ) => void;
-    order: Order;
-    orderBy: string;
-    enabledColumns: validColumns[];
-    readonly players?: Player[];
-    readonly matchesOnly?: boolean;
-}
+import { PlayerTableContext } from '../context/PlayerTableContext';
 
 const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     if (b[orderBy] < a[orderBy]) {
@@ -50,7 +31,7 @@ const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     return 0;
 };
 
-type Order = 'asc' | 'desc';
+export type Order = 'asc' | 'desc';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getComparator = <Key extends keyof any>(
@@ -173,15 +154,9 @@ const headCells: readonly HeadCell[] = [
     }
 ];
 
-interface ColumnConfigButtonProps {
-    enabledColumns: validColumns[];
-    setEnabledColumns: (columns: validColumns[]) => void;
-}
-
-export const ColumnConfigButton = ({
-    setEnabledColumns,
-    enabledColumns
-}: ColumnConfigButtonProps) => {
+export const ColumnConfigButton = () => {
+    const { saveSelectedColumns, enabledColumns } =
+        useContext(PlayerTableContext);
     const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(
         null
     );
@@ -198,7 +173,7 @@ export const ColumnConfigButton = ({
         _: React.MouseEvent<HTMLElement>,
         newFormats: validColumns[]
     ) => {
-        setEnabledColumns(newFormats);
+        saveSelectedColumns(newFormats);
     };
 
     const open = Boolean(anchorEl);
@@ -247,16 +222,12 @@ export const ColumnConfigButton = ({
     );
 };
 
-const PlayerTableHead = ({
-    order,
-    orderBy,
-    onRequestSort,
-    enabledColumns
-}: PlayerTableProps) => {
-    const createSortHandler =
-        (property: keyof Player) => (event: React.MouseEvent<unknown>) => {
-            onRequestSort(event, property);
-        };
+const PlayerTableHead = () => {
+    const { enabledColumns, orderBy, order, saveSortColumn } =
+        useContext(PlayerTableContext);
+    const createSortHandler = (property: keyof Player) => () => {
+        saveSortColumn(property);
+    };
 
     return (
         <TableHead>
@@ -305,7 +276,7 @@ const PlayerTableHead = ({
     );
 };
 
-const getDefaultColumns = (): validColumns[] => {
+export const getDefaultColumns = (): validColumns[] => {
     const defaultCols: validColumns[] = [
         'user_id',
         'name',
@@ -335,18 +306,8 @@ const getDefaultColumns = (): validColumns[] => {
 };
 
 export const PlayerTable = () => {
-    const [order, setOrder] = useState<Order>('desc');
-    const [orderBy, setOrderBy] = useState<keyof Player>('name');
-    const [matchesOnly, setMatchesOnly] = useState(
-        // Surely strings are the only types
-        JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
-    );
-    const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
-        getDefaultColumns()
-    );
     const state = useCurrentState();
-    const { t } = useTranslation();
-
+    const { orderBy, order, matchesOnly } = useContext(PlayerTableContext);
     const onWhitelist = useCallback(async (steamId: string) => {
         try {
             await addWhitelist(steamId);
@@ -355,15 +316,6 @@ export const PlayerTable = () => {
         }
     }, []);
 
-    const handleRequestSort = (
-        _: React.MouseEvent<unknown>,
-        property: keyof Player
-    ) => {
-        const isAsc = orderBy === property && order === 'asc';
-        setOrder(isAsc ? 'desc' : 'asc');
-        setOrderBy(property);
-    };
-
     const visibleRows = useMemo(() => {
         const filteredPlayers = state.players.filter(
             (p) => !matchesOnly || (!p.whitelisted && p.matches?.length)
@@ -371,163 +323,22 @@ export const PlayerTable = () => {
         return stableSort(filteredPlayers, getComparator(order, orderBy));
     }, [order, orderBy, state.players, matchesOnly]);
 
-    const updateSelectedColumns = useCallback(
-        (columns: validColumns[]) => {
-            setEnabledColumns(columns);
-            localStorage.setItem('enabledColumns', JSON.stringify(columns));
-        },
-        [setEnabledColumns]
-    );
-
     const playerRows = useMemo(() => {
         return visibleRows.map((player, i) => (
             <PlayerTableRow
-                enabledColumns={enabledColumns}
                 onWhitelist={onWhitelist}
                 player={player}
                 key={`player-row-${i}-${player.steam_id}`}
             />
         ));
-    }, [enabledColumns, onWhitelist, visibleRows]);
+    }, [onWhitelist, visibleRows]);
 
     return (
-        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-            <Stack>
-                <Stack direction={'row'}>
-                    <ButtonGroup>
-                        <Tooltip title={t('toolbar.button.show_only_negative')}>
-                            <Box>
-                                <IconButton
-                                    onClick={() => {
-                                        setMatchesOnly((prevState) => {
-                                            localStorage.setItem(
-                                                'matchesOnly',
-                                                `${!prevState}`
-                                            );
-                                            return !prevState;
-                                        });
-                                    }}
-                                >
-                                    <FilterListOutlinedIcon color={'primary'} />
-                                </IconButton>
-                            </Box>
-                        </Tooltip>
-
-                        <Tooltip title={t('toolbar.button.shown_columns')}>
-                            <Box>
-                                <ColumnConfigButton
-                                    enabledColumns={enabledColumns}
-                                    setEnabledColumns={updateSelectedColumns}
-                                />
-                            </Box>
-                        </Tooltip>
-
-                        <Tooltip title={t('toolbar.button.open_settings')}>
-                            <Box>
-                                <IconButton
-                                    onClick={async () => {
-                                        try {
-                                            await NiceModal.show(ModalSettings);
-                                        } catch (e) {
-                                            logError(e);
-                                        }
-                                    }}
-                                >
-                                    <SettingsOutlinedIcon color={'primary'} />
-                                </IconButton>
-                            </Box>
-                        </Tooltip>
-
-                        <Tooltip
-                            title={t(
-                                state.game_running
-                                    ? 'toolbar.button.game_state_running'
-                                    : 'toolbar.button.game_state_stopped'
-                            )}
-                        >
-                            <Box>
-                                <IconButton
-                                    disableRipple
-                                    color={
-                                        state.game_running ? 'success' : 'error'
-                                    }
-                                    onClick={() => {}}
-                                >
-                                    {state.game_running ? (
-                                        <PlayArrowIcon />
-                                    ) : (
-                                        <StopIcon />
-                                    )}
-                                </IconButton>
-                            </Box>
-                        </Tooltip>
-                    </ButtonGroup>
-                    <Box
-                        sx={{ display: 'flex', alignItems: 'center' }}
-                        paddingLeft={1}
-                    >
-                        <Typography
-                            variant={'button'}
-                            style={{ color: '#004ec2' }}
-                        >
-                            {
-                                state.players.filter(
-                                    (p) => p.team == Team.BLU && p.is_connected
-                                ).length
-                            }
-                        </Typography>
-                        <Typography
-                            variant={'button'}
-                            style={{ paddingLeft: 3, paddingRight: 3 }}
-                        >
-                            :
-                        </Typography>
-                        <Typography
-                            variant={'button'}
-                            style={{ color: '#b40a2a' }}
-                        >
-                            {
-                                state.players.filter(
-                                    (p) => p.team == Team.RED && p.is_connected
-                                ).length
-                            }
-                        </Typography>
-                    </Box>
-                    <Box
-                        sx={{ display: 'flex', alignItems: 'center' }}
-                        paddingLeft={2}
-                    >
-                        <Typography variant={'h1'}>
-                            {state.server.server_name}
-                        </Typography>
-                    </Box>
-                    <Box
-                        sx={{ display: 'flex', alignItems: 'center' }}
-                        paddingLeft={2}
-                    >
-                        <Typography variant={'subtitle1'} paddingRight={1}>
-                            {state.server.current_map}
-                        </Typography>
-                    </Box>
-                </Stack>
-                <TableContainer sx={{ overflow: 'hidden' }}>
-                    <Table
-                        aria-label="Player table"
-                        size="small"
-                        padding={'none'}
-                    >
-                        <PlayerTableHead
-                            players={state.players}
-                            order={order}
-                            orderBy={orderBy}
-                            onRequestSort={handleRequestSort}
-                            enabledColumns={enabledColumns}
-                        />
-
-                        <TableBody>{playerRows}</TableBody>
-                    </Table>
-                </TableContainer>
-            </Stack>
-        </Paper>
+        <TableContainer sx={{ overflow: 'hidden' }}>
+            <Table aria-label="Player table" size="small" padding={'none'}>
+                <PlayerTableHead />
+                <TableBody>{playerRows}</TableBody>
+            </Table>
+        </TableContainer>
     );
 };

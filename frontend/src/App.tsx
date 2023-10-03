@@ -1,14 +1,14 @@
 import React, { Fragment, useMemo } from 'react';
-import Container from '@mui/material/Container';
-import CssBaseline from '@mui/material/CssBaseline';
-import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import CssBaseline from '@mui/material/CssBaseline';
+import Container from '@mui/material/Container';
+import ThemeProvider from '@mui/material/styles/ThemeProvider';
+import NiceModal from '@ebay/nice-modal-react';
 import { ErrorBoundary } from './component/ErrorBoundary';
 import { createThemeByMode } from './theme';
 import { Home } from './page/Home';
 import { useUserSettings } from './api';
-import { SettingsContext } from './context/settings';
-import NiceModal from '@ebay/nice-modal-react';
+import { SettingsContext } from './context/SettingsContext';
 import './modals';
 
 export const App = (): JSX.Element => {

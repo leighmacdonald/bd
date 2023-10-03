@@ -5,7 +5,6 @@ import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Unstable_Grid2';
-import { validColumns } from './PlayerTable';
 import {
     avatarURL,
     formatSeconds,
@@ -13,7 +12,6 @@ import {
     Team,
     visibilityString
 } from '../api';
-import { SettingsContext } from '../context/settings';
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
 import vac from '../img/vac.png';
@@ -29,9 +27,10 @@ import Table from '@mui/material/Table';
 import { Trans, useTranslation } from 'react-i18next';
 import { PlayerContextMenu } from './menu/PlayerContextMenu';
 import { NullablePosition } from './menu/common';
+import { PlayerTableContext } from '../context/PlayerTableContext';
+import { SettingsContext } from '../context/SettingsContext';
 
 export interface TableRowContextMenuProps {
-    enabledColumns: validColumns[];
     player: Player;
     onWhitelist: (steamId: string) => void;
 }
@@ -91,11 +90,8 @@ export const rowColour = (player: Player): string => {
 };
 
 export const PlayerTableRow = ({
-    player,
-    enabledColumns
+    player
 }: TableRowContextMenuProps): JSX.Element => {
-    //const [anchorEl, setAnchorEl] = useState<HTMLTableRowElement | null>(null);
-    //const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
     const { t } = useTranslation();
 
     const [hoverMenuPos, setHoverMenuPos] =
@@ -105,6 +101,7 @@ export const PlayerTableRow = ({
         React.useState<NullablePosition>(null);
 
     const { settings, loading } = useContext(SettingsContext);
+    const { enabledColumns } = useContext(PlayerTableContext);
 
     const handleMenuClose = () => {
         setContextMenuPos(null);
