@@ -1,5 +1,6 @@
-import { createContext } from 'react';
+import { createContext, Dispatch, SetStateAction } from 'react';
 import { UserSettings } from '../api';
+import noop from 'lodash/noop';
 
 export const defaultUserSettings: UserSettings = {
     steam_id: '',
@@ -37,10 +38,14 @@ export const defaultUserSettings: UserSettings = {
 
 interface SettingsContextProps {
     settings: UserSettings;
+    setSettings: Dispatch<SetStateAction<UserSettings>>;
     loading: boolean;
+    error: string;
 }
 
 export const SettingsContext = createContext<SettingsContextProps>({
     loading: false,
-    settings: defaultUserSettings
+    settings: defaultUserSettings,
+    error: '',
+    setSettings: noop
 });

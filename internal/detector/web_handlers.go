@@ -32,19 +32,30 @@ func getMessages(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func postLaunchGame(detector *Detector) gin.HandlerFunc {
+func getQuitGame(detector *Detector) gin.HandlerFunc {
 	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
 
 	return func(ctx *gin.Context) {
-		if detector.gameProcessActive.Load() {
-			responseErr(ctx, http.StatusConflict, nil)
+		if !detector.gameProcessActive.Load() {
+			responseErr(ctx, http.StatusNotFound, nil)
 
 			return
 		}
 
-		log.Info("Launch game request")
+		log.Info("Close game request")
 
-		go detector.LaunchGameAndWait()
+		if errQuit := detector.quitGame(); errQuit != nil {
+			if errors.Is(errQuit, errGameStopped) {
+				responseOK(ctx, http.StatusOK, nil)
+
+				return
+			}
+
+			log.Error("Failed to close game", zap.Error(errQuit))
+			responseErr(ctx, http.StatusInternalServerError, nil)
+
+			return
+		}
 
 		responseOK(ctx, http.StatusOK, nil)
 	}
@@ -97,7 +108,7 @@ func getState(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func getLaunch(detector *Detector) gin.HandlerFunc {
+func getLaunchGame(detector *Detector) gin.HandlerFunc {
 	log := detector.log.Named(runtime.FuncForPC(make([]uintptr, 10)[0]).Name())
 
 	return func(ctx *gin.Context) {

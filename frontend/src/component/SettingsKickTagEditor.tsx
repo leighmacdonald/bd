@@ -11,33 +11,34 @@ import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../util';
 import { CancelButton, SaveButton } from './Buttons';
-import { useUserSettings } from '../api';
+import { UserSettings } from '../api';
+import { sortedUniq } from 'lodash';
 
-interface MarkNewTagEditorProps {
-    steam_id: string;
-    onMarkAs: (steamId: string, attrs: string[]) => Promise<void>;
+interface KickTagEditorProps {
+    setNewSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
 }
 
-export const MarkNewTagEditor = NiceModal.create<MarkNewTagEditorProps>(
-    ({ steam_id, onMarkAs }) => {
+export const SettingsKickTagEditor = NiceModal.create<KickTagEditorProps>(
+    ({ setNewSettings }) => {
         const [tag, setTag] = useState<string>('');
         const { t } = useTranslation();
         const modal = useModal();
-        const { settings, setSettings } = useUserSettings();
 
-        const onSaveMarkWithNewTag = useCallback(async () => {
+        const onSaveTag = useCallback(async () => {
             try {
-                await onMarkAs(steam_id, [tag]);
-                setSettings({
-                    ...settings,
-                    unique_tags: [...tag, ...settings.unique_tags]
+                setNewSettings((prevState) => {
+                    return {
+                        ...prevState,
+                        kick_tags: sortedUniq([...prevState.kick_tags, tag])
+                    };
                 });
+                setTag('');
             } catch (e) {
                 logError(`Error updating note: ${e}`);
             } finally {
                 await modal.hide();
             }
-        }, [onMarkAs, steam_id, tag, setSettings, settings, modal]);
+        }, [setNewSettings, tag, modal]);
 
         const validTag = useMemo(() => {
             return tag.length > 0 && !tag.match(/\s/);
@@ -64,10 +65,7 @@ export const MarkNewTagEditor = NiceModal.create<MarkNewTagEditorProps>(
                 </DialogContent>
                 <DialogActions>
                     <CancelButton />
-                    <SaveButton
-                        onClick={onSaveMarkWithNewTag}
-                        disabled={!validTag}
-                    />
+                    <SaveButton onClick={onSaveTag} disabled={!validTag} />
                 </DialogActions>
             </Dialog>
         );

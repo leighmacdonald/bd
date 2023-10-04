@@ -4,11 +4,10 @@ import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Unstable_Grid2';
-import { formatSeconds, Player, Team } from '../api';
+import { formatSeconds, Player, Team, useUserSettings } from '../api';
 import { PlayerContextMenu } from './menu/PlayerContextMenu';
 import { NullablePosition } from './menu/common';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-import { SettingsContext } from '../context/SettingsContext';
 import { PlayerHoverInfo } from './PlayerHoverInfo';
 
 import sb from '../img/sb.png';
@@ -88,7 +87,7 @@ export const PlayerTableRow = ({
     const [contextMenuPos, setContextMenuPos] =
         React.useState<NullablePosition>(null);
 
-    const { settings, loading } = useContext(SettingsContext);
+    const { settings, loading } = useUserSettings();
     const { enabledColumns } = useContext(PlayerTableContext);
 
     const handleMenuClose = () => {
@@ -332,12 +331,13 @@ export const PlayerTableRow = ({
                 )}
             </TableRow>
 
-            <PlayerContextMenu
-                contextMenuPos={contextMenuPos}
-                player={player}
-                settings={settings}
-                onClose={handleMenuClose}
-            />
+            {!loading && (
+                <PlayerContextMenu
+                    contextMenuPos={contextMenuPos}
+                    player={player}
+                    onClose={handleMenuClose}
+                />
+            )}
 
             <PlayerHoverInfo player={player} hoverMenuPos={hoverMenuPos} />
         </Fragment>

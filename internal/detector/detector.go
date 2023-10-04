@@ -36,6 +36,7 @@ import (
 var (
 	errInvalidReadyState = errors.New("Invalid ready state")
 	errNotMarked         = errors.New("Mark does not exist")
+	errGameStopped       = errors.New("Game is not running")
 )
 
 const (
@@ -798,16 +799,25 @@ func (d *Detector) sendChat(ctx context.Context, destination ChatDest, format st
 		return errors.Errorf("Invalid destination: %s", destination)
 	}
 
+	return d.execRcon(cmd)
+}
+
+func (d *Detector) quitGame() error {
+	if !d.gameProcessActive.Load() {
+		return errNotMarked
+	}
+
+	return d.execRcon("quit")
+}
+
+func (d *Detector) execRcon(cmd string) error {
 	d.rconMu.Lock()
+	defer d.rconMu.Unlock()
 
 	_, errExec := d.rconConn.Exec(cmd)
 	if errExec != nil {
-		d.rconMu.Unlock()
-
 		return errors.Wrap(errExec, "Failed to send rcon chat message")
 	}
-
-	d.rconMu.Unlock()
 
 	return nil
 }
@@ -818,18 +828,7 @@ func (d *Detector) callVote(ctx context.Context, userID int, reason KickReason) 
 		return errInvalidReadyState
 	}
 
-	d.rconMu.Lock()
-
-	_, errExec := d.rconConn.Exec(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
-	if errExec != nil {
-		d.rconMu.Unlock()
-
-		return errors.Wrap(errExec, "Failed to send rcon callvote")
-	}
-
-	d.rconMu.Unlock()
-
-	return nil
+	return d.execRcon(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
 }
 
 // processChecker handles checking and updating the running state of the tf2 process.

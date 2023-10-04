@@ -13,7 +13,7 @@ import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { ModalSettings } from '../modals';
 import { logError } from '../util';
-import { getLaunch, Team, useCurrentState } from '../api';
+import { getLaunch, getQuit, Team, useCurrentState } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 
@@ -74,7 +74,7 @@ export const Toolbar = () => {
                     <Box>
                         <IconButton
                             color={!state.game_running ? 'success' : 'error'}
-                            onClick={getLaunch}
+                            onClick={!state.game_running ? getLaunch : getQuit}
                         >
                             {!state.game_running ? (
                                 <PlayArrowIcon />

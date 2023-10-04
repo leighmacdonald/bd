@@ -4,21 +4,16 @@ import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
 import { formatExternalLink, logError, openInNewTab } from '../../util';
-import { Link } from '../../api';
+import { Link, useUserSettings } from '../../api';
 import { SteamIDProps, SubMenuProps } from './common';
-
-interface LinksMenuProps {
-    links: Link[];
-}
 
 export const LinksMenu = ({
     contextMenuPos,
-    links,
     steam_id,
     onClose
-}: LinksMenuProps & SteamIDProps & SubMenuProps) => {
+}: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
-
+    const { settings } = useUserSettings();
     const onClickLink = useCallback(
         (steam_id: string, link: Link) => {
             try {
@@ -39,7 +34,7 @@ export const LinksMenu = ({
             label={t('player_table.menu.external_label')}
             parentMenuOpen={contextMenuPos !== null}
         >
-            {links
+            {settings.links
                 .filter((link) => link.enabled)
                 .map((link) => (
                     <IconMenuItem

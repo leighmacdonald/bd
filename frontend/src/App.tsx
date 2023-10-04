@@ -8,12 +8,12 @@ import { ErrorBoundary } from './component/ErrorBoundary';
 import { createThemeByMode } from './theme';
 import { Home } from './page/Home';
 import { useUserSettings } from './api';
-import { SettingsContext } from './context/SettingsContext';
 import './modals';
+import { SettingsContext } from './context/SettingsContext';
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);
-    const userSettings = useUserSettings();
+    const settings = useUserSettings();
 
     return (
         <Router>
@@ -23,10 +23,8 @@ export const App = (): JSX.Element => {
                         <NiceModal.Provider>
                             <CssBaseline />
                             <Container maxWidth={'lg'} disableGutters>
-                                {!userSettings.loading && (
-                                    <SettingsContext.Provider
-                                        value={userSettings}
-                                    >
+                                {!settings.loading && (
+                                    <SettingsContext.Provider value={settings}>
                                         <ErrorBoundary>
                                             <Routes>
                                                 <Route
