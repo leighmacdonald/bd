@@ -3,7 +3,7 @@ import { Order, validColumns } from '../component/PlayerTable';
 import { Player } from '../api';
 import noop from 'lodash/noop';
 
-export const defaultPlayerTableConfig: PlayerTableConfigContextProps = {
+export const defaultPlayerTableConfig: PlayerTableConfigProps = {
     order: 'desc',
     orderBy: 'kills',
     matchesOnly: false,
@@ -15,7 +15,7 @@ export const defaultPlayerTableConfig: PlayerTableConfigContextProps = {
     saveSortColumn: noop
 };
 
-interface PlayerTableConfigContextProps {
+interface PlayerTableConfigProps {
     order: Order;
     setOrder: Dispatch<SetStateAction<Order>>;
     orderBy: keyof Player;
@@ -27,6 +27,6 @@ interface PlayerTableConfigContextProps {
     saveSortColumn: (property: keyof Player) => void;
 }
 
-export const PlayerTableContext = createContext<PlayerTableConfigContextProps>(
+export const PlayerTableContext = createContext<PlayerTableConfigProps>(
     defaultPlayerTableConfig
 );

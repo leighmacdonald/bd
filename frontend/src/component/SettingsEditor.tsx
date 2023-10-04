@@ -1,15 +1,15 @@
 import React, {
     ChangeEvent,
+    SyntheticEvent,
     useCallback,
-    useContext,
     useEffect,
-    useMemo,
     useState
 } from 'react';
 import {
     Accordion,
     AccordionDetails,
     AccordionSummary,
+    Autocomplete,
     Checkbox,
     DialogActions,
     DialogContent,
@@ -18,17 +18,11 @@ import {
     FormControlLabel,
     FormGroup,
     FormHelperText,
-    InputLabel,
-    ListItemText,
-    OutlinedInput,
-    Select,
-    SelectChangeEvent,
     TextField,
     useTheme
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
-import MenuItem from '@mui/material/MenuItem';
 import {
     Link,
     List,
@@ -47,13 +41,18 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Trans, useTranslation } from 'react-i18next';
 import { logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { ModalSettingsLinks, ModalSettingsList } from '../modals';
-import { SettingsContext } from '../context/SettingsContext';
+import {
+    ModalSettingsAddKickTag,
+    ModalSettingsLinks,
+    ModalSettingsList
+} from '../modals';
 import { CancelButton, ResetButton, SaveButton } from './Buttons';
+import { sortedUniq } from 'lodash';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -183,51 +182,72 @@ export const SettingsCheckBox = ({
 
 interface SettingsMultiSelectProps {
     label: string;
-    values: string[];
-    setValues: (values: string[]) => void;
+    newSettings: UserSettings;
+    setNewSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
     tooltip: string;
 }
 
 export const SettingsMultiSelect = ({
-    values,
-    setValues,
+    newSettings,
+    setNewSettings,
     label,
     tooltip
 }: SettingsMultiSelectProps) => {
-    const { settings } = useContext(SettingsContext);
-    const handleChange = (event: SelectChangeEvent<typeof values>) => {
-        const {
-            target: { value }
-        } = event;
-        setValues(typeof value === 'string' ? value.split(',') : value);
+    const modal = useModal();
+
+    const onAddKickTag = useCallback(async () => {
+        try {
+            await NiceModal.show(ModalSettingsAddKickTag, { setNewSettings });
+        } catch (e) {
+            logError(e);
+        } finally {
+            await modal.hide();
+        }
+    }, [modal, setNewSettings]);
+
+    const handleChange = (
+        _: SyntheticEvent<Element, Event>,
+        value: string | string[]
+    ) => {
+        setNewSettings((prevState) => {
+            const tags = sortedUniq([
+                ...(typeof value === 'string' ? value.split(',') : value)
+            ]);
+            return {
+                ...prevState,
+                kick_tags: tags
+            };
+        });
     };
 
     return (
-        <Tooltip title={tooltip} placement="top">
-            <FormControl fullWidth>
-                <InputLabel id={`settings-select-${label}-label`}>
-                    {label}
-                </InputLabel>
-                <Select<string[]>
-                    fullWidth
-                    labelId={`settings-select-${label}-label`}
-                    id={`settings-select-${label}`}
-                    multiple
-                    value={values}
-                    defaultValue={values}
-                    onChange={handleChange}
-                    input={<OutlinedInput label="Tag" />}
-                    renderValue={(selected) => selected.join(', ')}
-                >
-                    {settings.kick_tags.map((name) => (
-                        <MenuItem key={name} value={name}>
-                            <Checkbox checked={values.indexOf(name) > -1} />
-                            <ListItemText primary={name} />
-                        </MenuItem>
-                    ))}
-                </Select>
-            </FormControl>
-        </Tooltip>
+        <Stack direction={'row'} spacing={1}>
+            <Tooltip title={tooltip} placement="top">
+                <FormControl fullWidth>
+                    <Autocomplete
+                        multiple
+                        id="kick_tags-select"
+                        value={newSettings.kick_tags}
+                        onChange={handleChange}
+                        //getOptionLabel={(option) => option.title}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                variant={'outlined'}
+                                label={label}
+                                placeholder="Tags"
+                            />
+                        )}
+                        options={newSettings.kick_tags}
+                    />
+                </FormControl>
+            </Tooltip>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton color={'success'} onClick={onAddKickTag}>
+                    <AddIcon />
+                </IconButton>
+            </Box>
+        </Stack>
     );
 };
 
@@ -338,57 +358,12 @@ export const SettingsEditor = NiceModal.create(() => {
         [newSettings, setNewSettings]
     );
 
-    const [expanded, setExpanded] = React.useState<string | false>('panel1');
+    const [expanded, setExpanded] = React.useState<string | false>('general');
 
     const handleChange =
         (panel: string) => (_: React.SyntheticEvent, newExpanded: boolean) => {
             setExpanded(newExpanded ? panel : false);
         };
-
-    const renderedLinks = useMemo(() => {
-        return newSettings.links.map((link: Link, i: number) => {
-            return (
-                <Grid key={`link-row-${i}`} xs={12}>
-                    <Stack direction={'row'} spacing={1}>
-                        <IconButton
-                            color={link.enabled ? 'primary' : 'secondary'}
-                            onClick={() => {
-                                toggleLink(i);
-                            }}
-                        >
-                            {link.enabled ? <AlarmOnIcon /> : <AlarmOffIcon />}
-                        </IconButton>
-                        <IconButton
-                            color={'warning'}
-                            onClick={async () => {
-                                await onOpenLink(link, i);
-                            }}
-                        >
-                            <EditIcon />
-                        </IconButton>
-                        <IconButton
-                            color={'error'}
-                            onClick={() => {
-                                deleteLink(i);
-                            }}
-                        >
-                            <DeleteIcon />
-                        </IconButton>
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                        >
-                            <Typography variant={'body1'}>
-                                {link.name}
-                            </Typography>
-                        </Box>
-                    </Stack>
-                </Grid>
-            );
-        });
-    }, [deleteLink, newSettings.links, onOpenLink, toggleLink]);
 
     return (
         <Dialog fullWidth {...muiDialog(modal)}>
@@ -460,13 +435,8 @@ export const SettingsEditor = NiceModal.create(() => {
                                     tooltip={t(
                                         'settings.general.kick_tags_tooltip'
                                     )}
-                                    values={newSettings.kick_tags}
-                                    setValues={(kick_tags) => {
-                                        setNewSettings({
-                                            ...newSettings,
-                                            kick_tags
-                                        });
-                                    }}
+                                    newSettings={newSettings}
+                                    setNewSettings={setNewSettings}
                                 />
                             </Grid>
                             <Grid xs={6}>
@@ -658,7 +628,58 @@ export const SettingsEditor = NiceModal.create(() => {
                         </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <Grid container>{renderedLinks}</Grid>
+                        <Grid container>
+                            {newSettings.links.map((link: Link, i: number) => {
+                                return (
+                                    <Grid key={`link-row-${i}`} xs={12}>
+                                        <Stack direction={'row'} spacing={1}>
+                                            <IconButton
+                                                color={
+                                                    link.enabled
+                                                        ? 'primary'
+                                                        : 'secondary'
+                                                }
+                                                onClick={() => {
+                                                    toggleLink(i);
+                                                }}
+                                            >
+                                                {link.enabled ? (
+                                                    <AlarmOnIcon />
+                                                ) : (
+                                                    <AlarmOffIcon />
+                                                )}
+                                            </IconButton>
+                                            <IconButton
+                                                color={'warning'}
+                                                onClick={async () => {
+                                                    await onOpenLink(link, i);
+                                                }}
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                color={'error'}
+                                                onClick={() => {
+                                                    deleteLink(i);
+                                                }}
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <Typography variant={'body1'}>
+                                                    {link.name}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Grid>
+                                );
+                            })}
+                        </Grid>
                     </AccordionDetails>
                 </Accordion>
 
