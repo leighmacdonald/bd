@@ -19,6 +19,10 @@ const resources = {
                 title: 'Mark Player With New Tag',
                 tag: 'New Tag'
             },
+            new_kick_tag: {
+                title: 'Create New Auto Kick Tag',
+                tag: 'Tags'
+            },
             player_table: {
                 column: {
                     user_id: 'uid',
@@ -137,8 +141,9 @@ const resources = {
                         '* Must restart application for changes to take effect.'
                 },
                 steam: {
-                    label: 'Steam Config',
-                    description: 'Configure steam api & client',
+                    label: 'Steam & API Config',
+                    description:
+                        'Configure Steam API, Game & Remote Data Sources',
                     steam_id_label: 'Steam ID',
                     steam_id_tooltip:
                         'You can choose one of the following formats: steam,steam3,steam64',

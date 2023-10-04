@@ -3,6 +3,7 @@ import React, {
     SyntheticEvent,
     useCallback,
     useEffect,
+    useMemo,
     useState
 } from 'react';
 import {
@@ -220,6 +221,13 @@ export const SettingsMultiSelect = ({
         });
     };
 
+    const validTags = useMemo(() => {
+        return sortedUniq([
+            ...newSettings.unique_tags,
+            ...newSettings.kick_tags
+        ]);
+    }, [newSettings.unique_tags, newSettings.kick_tags]);
+
     return (
         <Stack direction={'row'} spacing={1}>
             <Tooltip title={tooltip} placement="top">
@@ -238,7 +246,7 @@ export const SettingsMultiSelect = ({
                                 placeholder="Tags"
                             />
                         )}
-                        options={newSettings.kick_tags}
+                        options={validTags}
                     />
                 </FormControl>
             </Tooltip>

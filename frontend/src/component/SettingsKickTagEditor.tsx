@@ -47,14 +47,14 @@ export const SettingsKickTagEditor = NiceModal.create<KickTagEditorProps>(
         return (
             <Dialog fullWidth {...muiDialog(modal)}>
                 <DialogTitle>
-                    <Trans i18nKey={'mark_new_tag.title'} />
+                    <Trans i18nKey={'new_kick_tag.title'} />
                 </DialogTitle>
                 <DialogContent>
                     <Stack spacing={1} padding={0}>
                         <TextField
                             error={tag.length > 0 && !validTag}
                             id="new-tag-editor-field"
-                            label={t('mark_new_tag.tag')}
+                            label={t('new_kick_tag.tag')}
                             fullWidth
                             value={tag}
                             onChange={(evt) => {
