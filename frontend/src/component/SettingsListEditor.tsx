@@ -35,6 +35,10 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
         const modal = useModal();
         const { t } = useTranslation();
 
+        const handleClose = useCallback(async () => {
+            await modal.hide();
+        }, [modal]);
+
         const handleSave = useCallback(async () => {
             setNewSettings((prevState) => {
                 const s = prevState;
@@ -101,7 +105,7 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
                 </DialogContent>
 
                 <DialogActions>
-                    <CancelButton />
+                    <CancelButton onClick={handleClose} />
                     <ResetButton onClick={handleReset} />
                     <SaveButton onClick={handleSave} />
                 </DialogActions>

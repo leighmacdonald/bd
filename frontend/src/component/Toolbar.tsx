@@ -5,7 +5,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
-import NiceModal from '@ebay/nice-modal-react';
+import { useModal } from '@ebay/nice-modal-react';
 import Stack from '@mui/material/Stack';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -16,11 +16,14 @@ import { logError } from '../util';
 import { getLaunch, getQuit, Team, useCurrentState } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
+import { SettingsEditor } from './SettingsEditor';
 
 export const Toolbar = () => {
     const state = useCurrentState();
     const { t } = useTranslation();
     const { setMatchesOnly } = useContext(PlayerTableContext);
+    const modal = useModal(ModalSettings);
+
     return (
         <Stack direction={'row'}>
             <ButtonGroup>
@@ -53,13 +56,14 @@ export const Toolbar = () => {
                         <IconButton
                             onClick={async () => {
                                 try {
-                                    await NiceModal.show(ModalSettings);
+                                    await modal.show();
                                 } catch (e) {
                                     logError(e);
                                 }
                             }}
                         >
                             <SettingsOutlinedIcon color={'primary'} />
+                            <SettingsEditor id={ModalSettings} />
                         </IconButton>
                     </Box>
                 </Tooltip>

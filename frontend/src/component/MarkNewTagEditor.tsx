@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     DialogActions,
@@ -11,7 +11,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../util';
 import { CancelButton, SaveButton } from './Buttons';
-import { useUserSettings } from '../api';
+import { SettingsContext } from '../context/SettingsContext';
 
 interface MarkNewTagEditorProps {
     steam_id: string;
@@ -23,7 +23,7 @@ export const MarkNewTagEditor = NiceModal.create<MarkNewTagEditorProps>(
         const [tag, setTag] = useState<string>('');
         const { t } = useTranslation();
         const modal = useModal();
-        const { settings, setSettings } = useUserSettings();
+        const { settings, setSettings } = useContext(SettingsContext);
 
         const onSaveMarkWithNewTag = useCallback(async () => {
             try {
@@ -63,7 +63,7 @@ export const MarkNewTagEditor = NiceModal.create<MarkNewTagEditorProps>(
                     </Stack>
                 </DialogContent>
                 <DialogActions>
-                    <CancelButton />
+                    <CancelButton onClick={modal.hide} />
                     <SaveButton
                         onClick={onSaveMarkWithNewTag}
                         disabled={!validTag}

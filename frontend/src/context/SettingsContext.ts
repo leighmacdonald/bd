@@ -41,13 +41,9 @@ export const defaultUserSettings: UserSettings = {
 interface SettingsContextProps {
     settings: UserSettings;
     setSettings: Dispatch<SetStateAction<UserSettings>>;
-    loading: boolean;
-    error: string;
 }
 
 export const SettingsContext = createContext<SettingsContextProps>({
-    loading: false,
     settings: defaultUserSettings,
-    error: '',
     setSettings: noop
 });

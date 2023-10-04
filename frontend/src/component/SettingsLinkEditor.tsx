@@ -156,7 +156,7 @@ export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
                 </DialogContent>
 
                 <DialogActions>
-                    <CancelButton />
+                    <CancelButton onClick={modal.hide} />
                     <ResetButton onClick={handleReset} />
                     <SaveButton onClick={handleSave} />
                 </DialogActions>

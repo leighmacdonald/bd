@@ -1,6 +1,5 @@
 import React from 'react';
 import { Trans } from 'react-i18next';
-import { useModal } from '@ebay/nice-modal-react';
 import { Button } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
@@ -11,20 +10,19 @@ interface onClickProps {
     onClick: () => void;
 }
 
-export const CancelButton = () => {
-    const modal = useModal();
-
+export const CancelButton = ({ onClick }: onClickProps) => {
     return (
         <Button
             startIcon={<CloseIcon />}
             color={'error'}
             variant={'contained'}
-            onClick={modal.hide}
+            onClick={onClick}
         >
             <Trans i18nKey={'button.cancel'} />
         </Button>
     );
 };
+
 export const SaveButton = ({
     onClick,
     disabled = false

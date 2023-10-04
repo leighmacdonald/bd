@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import React, { useCallback } from 'react';
-import { markUser, useUserSettings } from '../../api';
+import React, { useCallback, useContext } from 'react';
+import { markUser } from '../../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import FlagIcon from '@mui/icons-material/Flag';
@@ -8,6 +8,7 @@ import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
 import NiceModal, { useModal } from '@ebay/nice-modal-react';
 import { ModalMarkNewTag } from '../../modals';
+import { SettingsContext } from '../../context/SettingsContext';
 
 export const MarkMenu = ({
     contextMenuPos,
@@ -16,7 +17,7 @@ export const MarkMenu = ({
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
     const modal = useModal(ModalMarkNewTag);
-    const { settings } = useUserSettings();
+    const { settings } = useContext(SettingsContext);
 
     const onMarkAs = useCallback(
         async (sid: string, attrs: string[]) => {

@@ -1,4 +1,4 @@
-import React, { Fragment, useMemo } from 'react';
+import React, { Fragment, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
 import Container from '@mui/material/Container';
@@ -7,13 +7,31 @@ import NiceModal from '@ebay/nice-modal-react';
 import { ErrorBoundary } from './component/ErrorBoundary';
 import { createThemeByMode } from './theme';
 import { Home } from './page/Home';
-import { useUserSettings } from './api';
+import { getUserSettings, UserSettings } from './api';
 import './modals';
-import { SettingsContext } from './context/SettingsContext';
+import {
+    defaultUserSettings,
+    SettingsContext
+} from './context/SettingsContext';
+import { logError } from './util';
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);
-    const settings = useUserSettings();
+    const [loading, setLoading] = useState(false);
+    const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
+
+    useEffect(() => {
+        try {
+            setLoading(true);
+            getUserSettings().then((newSettings) => {
+                setSettings(newSettings);
+            });
+        } catch (e) {
+            logError(e);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     return (
         <Router>
@@ -23,8 +41,10 @@ export const App = (): JSX.Element => {
                         <NiceModal.Provider>
                             <CssBaseline />
                             <Container maxWidth={'lg'} disableGutters>
-                                {!settings.loading && (
-                                    <SettingsContext.Provider value={settings}>
+                                {!loading && (
+                                    <SettingsContext.Provider
+                                        value={{ settings, setSettings }}
+                                    >
                                         <ErrorBoundary>
                                             <Routes>
                                                 <Route

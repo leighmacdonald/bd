@@ -64,7 +64,7 @@ export const SettingsKickTagEditor = NiceModal.create<KickTagEditorProps>(
                     </Stack>
                 </DialogContent>
                 <DialogActions>
-                    <CancelButton />
+                    <CancelButton onClick={modal.hide} />
                     <SaveButton onClick={onSaveTag} disabled={!validTag} />
                 </DialogActions>
             </Dialog>

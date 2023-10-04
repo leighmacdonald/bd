@@ -59,7 +59,7 @@ export const NoteEditor = NiceModal.create<NoteEditorProps>(
                             setNewNotes('');
                         }}
                     />
-                    <CancelButton />
+                    <CancelButton onClick={modal.hide} />
                     <SaveButton onClick={onSaveNotes} />
                 </DialogActions>
             </Dialog>

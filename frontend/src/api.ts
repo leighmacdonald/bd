@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { logError } from './util';
-import { defaultUserSettings } from './context/SettingsContext';
 
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
@@ -232,32 +231,6 @@ export const getUserSettings = async () =>
 
 export const saveUserSettings = async (settings: UserSettings) =>
     await call('PUT', '/settings', settings);
-
-export const useUserSettings = () => {
-    const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
-    const [error, setError] = useState<string>('');
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        setLoading(true);
-        getUserSettings()
-            .then((resp) => resp)
-            .then((respSettings) => {
-                setSettings(respSettings);
-            })
-            .catch((e) => {
-                setError(e);
-            })
-            .finally(() => setLoading(false));
-    }, []);
-
-    return {
-        settings,
-        error,
-        loading,
-        setSettings
-    };
-};
 
 export const useCurrentState = () => {
     const [state, setState] = useState<State>({

@@ -2,6 +2,7 @@ import React, {
     ChangeEvent,
     SyntheticEvent,
     useCallback,
+    useContext,
     useEffect,
     useMemo,
     useState
@@ -24,13 +25,7 @@ import {
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
-import {
-    Link,
-    List,
-    saveUserSettings,
-    UserSettings,
-    useUserSettings
-} from '../api';
+import { Link, List, saveUserSettings, UserSettings } from '../api';
 import cloneDeep from 'lodash/cloneDeep';
 import Grid from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
@@ -48,12 +43,13 @@ import { Trans, useTranslation } from 'react-i18next';
 import { isValidUrl, logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import {
+    ModalSettings,
     ModalSettingsAddKickTag,
-    ModalSettingsLinks,
     ModalSettingsList
 } from '../modals';
 import { CancelButton, ResetButton, SaveButton } from './Buttons';
 import { sortedUniq } from 'lodash';
+import { SettingsContext } from '../context/SettingsContext';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -263,8 +259,8 @@ export const SettingsMultiSelect = ({
 };
 
 export const SettingsEditor = NiceModal.create(() => {
-    const { settings, setSettings } = useUserSettings();
-    const modal = useModal();
+    const { settings, setSettings } = useContext(SettingsContext);
+    const settingsModal = useModal(ModalSettings);
     const { t } = useTranslation();
     const theme = useTheme();
 
@@ -279,7 +275,7 @@ export const SettingsEditor = NiceModal.create(() => {
     const onOpenLink = useCallback(
         async (link: Link, rowIndex: number) => {
             try {
-                await NiceModal.show(ModalSettingsLinks, {
+                await settingsModal.show({
                     link,
                     rowIndex,
                     setNewSettings
@@ -288,10 +284,10 @@ export const SettingsEditor = NiceModal.create(() => {
                 logError(e);
             } finally {
                 console.log(newSettings.links);
-                await modal.hide();
+                await settingsModal.hide();
             }
         },
-        [modal, newSettings.links]
+        [settingsModal, newSettings.links]
     );
 
     const onOpenList = useCallback(
@@ -306,10 +302,10 @@ export const SettingsEditor = NiceModal.create(() => {
                 logError(e);
             } finally {
                 console.log(newSettings.lists);
-                await modal.hide();
+                await settingsModal.hide();
             }
         },
-        [modal, newSettings.lists]
+        [settingsModal, newSettings.lists]
     );
 
     useEffect(() => {
@@ -323,9 +319,9 @@ export const SettingsEditor = NiceModal.create(() => {
         } catch (reason) {
             logError(reason);
         } finally {
-            await modal.hide();
+            await settingsModal.hide();
         }
-    }, [newSettings, modal, setSettings]);
+    }, [newSettings, settingsModal, setSettings]);
 
     const toggleList = useCallback(
         (i: number) => {
@@ -377,7 +373,7 @@ export const SettingsEditor = NiceModal.create(() => {
         };
 
     return (
-        <Dialog fullWidth {...muiDialog(modal)}>
+        <Dialog fullWidth {...muiDialog(settingsModal)}>
             <DialogTitle component={Typography} variant={'h1'}>
                 {t('settings.label')}
             </DialogTitle>
@@ -941,7 +937,7 @@ export const SettingsEditor = NiceModal.create(() => {
                 </Accordion>
             </DialogContent>
             <DialogActions>
-                <CancelButton />
+                <CancelButton onClick={() => {}} />
                 <ResetButton onClick={handleReset} />
                 <SaveButton onClick={handleSave} />
             </DialogActions>
