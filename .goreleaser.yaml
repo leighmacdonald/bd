@@ -7,15 +7,13 @@ before:
     - make frontend
 
 builds:
-  - id: bd
+  - id: linux
     env: [CGO_ENABLED=0]
     goos:
       - linux
-      - windows
     goarch:
       - amd64
-      # There is no 32bit support for sqlite on win
-      # - 386
+      - 386
     mod_timestamp: '{{ .CommitTimestamp }}'
     tags:
       - release
@@ -24,6 +22,20 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate }} -X main.builtBy=releaser
 
+  - id: windows
+    env: [CGO_ENABLED=0]
+    goos:
+      - windows
+    goarch:
+      - amd64
+      # There is no 32bit support for sqlite on win
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    tags:
+      - release
+    flags:
+      - -trimpath
+    ldflags:
+      - -H=windowsgui -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.CommitDate }} -X main.builtBy=releaser
 nfpms:
   - maintainer: Leigh MacDonald <leigh.macdonald@gmail.com>
     description: TF2 Bot Detector & Player Tracker
@@ -35,7 +47,8 @@ nfpms:
 
 archives:
   - builds:
-      - bd
+      - linux
+      - windows
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -61,7 +74,8 @@ release:
     owner: leighmacdonald
     name: bd
   ids:
-    - bd
+    - linux
+    - windows
   draft: true
   replace_existing_draft: true
 
