@@ -83,8 +83,8 @@ func main() {
 		errDS      error
 	)
 
-	if userSettings.UseBDAPIDataSource {
-		dataSource, errDS = detector.NewAPIDataSource("")
+	if userSettings.BdAPIEnabled {
+		dataSource, errDS = detector.NewAPIDataSource(userSettings.BdAPIAddress)
 	} else {
 		dataSource, errDS = detector.NewLocalDataSource(userSettings.APIKey)
 	}

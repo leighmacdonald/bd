@@ -144,6 +144,8 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 		newSettings := app.Settings()
 		newSettings.TF2Dir = "new/dir"
 		newSettings.SteamID = steamid.RandSID64()
+		newSettings.BdAPIEnabled = true
+		newSettings.BdAPIAddress = APIDataSourceDefaultAddress
 
 		require.NoError(t, app.SaveSettings(newSettings))
 		fetchIntoWithStatus(t, app, http.MethodPut, "/settings", http.StatusNoContent, nil, newSettings)

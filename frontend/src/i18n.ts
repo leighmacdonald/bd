@@ -149,6 +149,15 @@ const resources = {
                         'You can choose one of the following formats: steam,steam3,steam64',
                     api_key_label: 'Steam API Key',
                     api_key_tooltip: 'Your personal steam web api key',
+                    bd_api_enabled_label: 'Enable bd-api Integration',
+                    bd_api_enabled_tooltip:
+                        'Enabling bd-api integration will give access to several more data points about players.' +
+                        'This includes information such as sourcebans history and, eventually, competitive history.' +
+                        'Using it will cause all Steam API requests to also be proxied over the bd-api service' +
+                        'automatically. Because of this, using bd-api removes the requirement to have a Steam API key set',
+                    bd_api_address_label: 'Custom bd-api URL',
+                    bd_api_address_tooltip:
+                        'URL to a custom instance of bd-api',
                     steam_dir_label: 'Steam Root Directory',
                     steam_dir_tooltip:
                         'Location of your steam installation directory containing your userdata folder'

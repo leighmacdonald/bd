@@ -6,6 +6,7 @@ import (
 	errjoin "errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,6 +104,8 @@ type UserSettings struct {
 	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
 	AutoLaunchGame          bool                 `yaml:"auto_launch_game" json:"auto_launch_game"`
 	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`
+	BdAPIEnabled            bool                 `yaml:"bd_api_enabled" json:"bd_api_enabled"`
+	BdAPIAddress            string               `yaml:"bd_api_address" json:"bd_api_address"`
 	APIKey                  string               `yaml:"api_key" json:"api_key"`
 	DisconnectedTimeout     string               `yaml:"disconnected_timeout" json:"disconnected_timeout"`
 	DiscordPresenceEnabled  bool                 `yaml:"discord_presence_enabled" json:"discord_presence_enabled"`
@@ -121,7 +124,6 @@ type UserSettings struct {
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level" json:"log_level"`
-	UseBDAPIDataSource      bool                 `yaml:"use_bdapi_data_source" json:"use_bdapi_data_source"`
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
@@ -135,6 +137,8 @@ func NewSettings() (UserSettings, error) {
 		AutoLaunchGame:          false,
 		AutoCloseOnGameExit:     false,
 		APIKey:                  "",
+		BdAPIEnabled:            true,
+		BdAPIAddress:            "",
 		DisconnectedTimeout:     "60s",
 		DiscordPresenceEnabled:  true,
 		KickerEnabled:           false,
@@ -229,11 +233,10 @@ func NewSettings() (UserSettings, error) {
 				IDFormat: "steam64",
 			},
 		},
-		RCONStatic:         false,
-		HTTPEnabled:        true,
-		HTTPListenAddr:     "localhost:8900",
-		UseBDAPIDataSource: true,
-		Rcon:               NewRconConfig(false),
+		RCONStatic:     false,
+		HTTPEnabled:    true,
+		HTTPListenAddr: "localhost:8900",
+		Rcon:           NewRconConfig(false),
 	}
 
 	if !util.Exists(newSettings.ListRoot()) {
@@ -279,13 +282,28 @@ func (s *UserSettings) ReadDefaultOrCreate() error {
 }
 
 func (s *UserSettings) Validate() error {
+	const apiKeyLen = 32
+
 	var err error
 	if s.SteamID != "" && !s.SteamID.Valid() {
 		err = errjoin.Join(err, steamid.ErrInvalidSID)
 	}
 
-	if !s.UseBDAPIDataSource && s.APIKey == "" {
-		err = errjoin.Join(errors.New("Must set steam api key when not using bdapi"))
+	if s.BdAPIEnabled {
+		if s.BdAPIAddress == "" {
+			err = errjoin.Join(errors.New("BD-API Address cannot be empty"))
+		} else {
+			_, errParse := url.Parse(s.BdAPIAddress)
+			if errParse != nil {
+				err = errjoin.Join(errors.New("Invalid address, cannot parse"))
+			}
+		}
+	} else {
+		if s.APIKey == "" {
+			err = errjoin.Join(errors.New("Must set steam api key when not using bdapi"))
+		} else if len(s.APIKey) != apiKeyLen {
+			err = errjoin.Join(errors.New("Invalid Steam API Key"))
+		}
 	}
 
 	return err

@@ -9,6 +9,8 @@ export const defaultUserSettings: UserSettings = {
     auto_launch_game: false,
     auto_close_on_game_exit: false,
     api_key: '',
+    bd_api_address: '',
+    bd_api_enabled: true,
     disconnected_timeout: '',
     discord_presence_enabled: false,
     kicker_enabled: false,

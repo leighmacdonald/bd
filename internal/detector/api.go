@@ -103,6 +103,8 @@ func NewLocalDataSource(key string) (LocalDataSource, error) {
 	return LocalDataSource{}, nil
 }
 
+const APIDataSourceDefaultAddress = "https://bd-api.roto.lol"
+
 // APIDataSource implements a client for the remote bd-api service.
 type APIDataSource struct {
 	baseURL string
@@ -111,7 +113,7 @@ type APIDataSource struct {
 
 func NewAPIDataSource(url string) (APIDataSource, error) {
 	if url == "" {
-		url = "https://bd-api.roto.lol"
+		url = APIDataSourceDefaultAddress
 	}
 
 	return APIDataSource{baseURL: url, client: &http.Client{}}, nil

@@ -121,3 +121,5 @@ linters-settings:
     # If lower than 0, disable the check.
     # Default: 40
     statements: -1
+  nestif:
+    min-complexity: 10

@@ -69,6 +69,7 @@ type Detector struct {
 	platform           platform.Platform
 	gameHasStartedOnce atomic.Bool
 	dataSource         DataSource
+	dataSourceMu       sync.RWMutex
 	g15                g15.Parser
 	kickRequestChan    chan kickRequest
 }
@@ -222,6 +223,25 @@ func (d *Detector) SaveSettings(settings UserSettings) error {
 
 	d.settingsMu.Lock()
 	defer d.settingsMu.Unlock()
+
+	d.dataSourceMu.Lock()
+	defer d.dataSourceMu.Unlock()
+
+	if settings.BdAPIEnabled {
+		ds, errDs := NewAPIDataSource(settings.BdAPIAddress)
+		if errDs != nil {
+			return errors.Wrap(errDs, "Failed to reload data source")
+		}
+
+		d.dataSource = ds
+	} else {
+		ds, errDs := NewLocalDataSource(settings.APIKey)
+		if errDs != nil {
+			return errors.Wrap(errDs, "Failed to reload data source")
+		}
+
+		d.dataSource = ds
+	}
 
 	d.settings = settings
 
@@ -1100,6 +1120,9 @@ func (d *Detector) fetchProfileUpdates(ctx context.Context, queued steamid.Colle
 		updated   updatedRemoteData
 		waitGroup = &sync.WaitGroup{}
 	)
+
+	d.dataSourceMu.RLock()
+	defer d.dataSourceMu.RUnlock()
 
 	waitGroup.Add(1)
 
