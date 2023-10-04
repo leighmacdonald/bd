@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useCallback, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
@@ -16,7 +16,6 @@ import { logError } from '../util';
 import { getLaunch, getQuit, Team, useCurrentState } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-import { SettingsEditor } from './SettingsEditor';
 
 export const Toolbar = () => {
     const state = useCurrentState();
@@ -24,22 +23,19 @@ export const Toolbar = () => {
     const { setMatchesOnly } = useContext(PlayerTableContext);
     const modal = useModal(ModalSettings);
 
+    const onSetMatches = useCallback(() => {
+        setMatchesOnly((prevState) => {
+            localStorage.setItem('matchesOnly', `${!prevState}`);
+            return !prevState;
+        });
+    }, []);
+
     return (
         <Stack direction={'row'}>
             <ButtonGroup>
                 <Tooltip title={t('toolbar.button.show_only_negative')}>
                     <Box>
-                        <IconButton
-                            onClick={() => {
-                                setMatchesOnly((prevState) => {
-                                    localStorage.setItem(
-                                        'matchesOnly',
-                                        `${!prevState}`
-                                    );
-                                    return !prevState;
-                                });
-                            }}
-                        >
+                        <IconButton onClick={onSetMatches}>
                             <FilterListOutlinedIcon color={'primary'} />
                         </IconButton>
                     </Box>
@@ -63,7 +59,6 @@ export const Toolbar = () => {
                             }}
                         >
                             <SettingsOutlinedIcon color={'primary'} />
-                            <SettingsEditor id={ModalSettings} />
                         </IconButton>
                     </Box>
                 </Tooltip>
