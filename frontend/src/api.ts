@@ -170,6 +170,8 @@ export interface UserSettings {
     auto_launch_game: boolean;
     auto_close_on_game_exit: boolean;
     api_key: string;
+    bd_api_enabled: boolean;
+    bd_api_address: string;
     disconnected_timeout: string;
     discord_presence_enabled: boolean;
     kicker_enabled: boolean;

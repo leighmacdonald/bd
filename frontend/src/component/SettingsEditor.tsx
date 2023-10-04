@@ -45,7 +45,7 @@ import Box from '@mui/material/Box';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Trans, useTranslation } from 'react-i18next';
-import { logError } from '../util';
+import { isValidUrl, logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import {
     ModalSettingsAddKickTag,
@@ -64,6 +64,7 @@ interface SettingsTextBoxProps {
     tooltip: string;
     secrets?: boolean;
     validator?: inputValidator;
+    disabled?: boolean;
 }
 
 export const SettingsTextBox = ({
@@ -72,7 +73,8 @@ export const SettingsTextBox = ({
     setValue,
     tooltip,
     secrets,
-    validator
+    validator,
+    disabled
 }: SettingsTextBoxProps) => {
     const [error, setError] = useState<string | null>(null);
     const handleChange = useCallback(
@@ -89,6 +91,7 @@ export const SettingsTextBox = ({
         <Tooltip title={tooltip} placement={'top'}>
             <FormControl fullWidth>
                 <TextField
+                    disabled={disabled}
                     hiddenLabel
                     type={secrets ? 'password' : 'text'}
                     error={Boolean(error)}
@@ -820,6 +823,47 @@ export const SettingsEditor = NiceModal.create(() => {
                                         setNewSettings({
                                             ...newSettings,
                                             steam_dir
+                                        });
+                                    }}
+                                />
+                            </Grid>
+                            <Grid xs={6}>
+                                <SettingsCheckBox
+                                    label={t(
+                                        'settings.steam.bd_api_enabled_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.steam.bd_api_enabled_tooltip'
+                                    )}
+                                    enabled={newSettings.bd_api_enabled}
+                                    setEnabled={(bd_api_enabled) => {
+                                        setNewSettings({
+                                            ...newSettings,
+                                            bd_api_enabled
+                                        });
+                                    }}
+                                />
+                            </Grid>
+                            <Grid xs={6}>
+                                <SettingsTextBox
+                                    disabled={!newSettings.bd_api_enabled}
+                                    label={t(
+                                        'settings.steam.bd_api_address_label'
+                                    )}
+                                    tooltip={t(
+                                        'settings.steam.bd_api_address_tooltip'
+                                    )}
+                                    value={newSettings.bd_api_address}
+                                    validator={(value) => {
+                                        if (!isValidUrl(value)) {
+                                            return 'Invalid URL';
+                                        }
+                                        return null;
+                                    }}
+                                    setValue={(bd_api_address: string) => {
+                                        setNewSettings({
+                                            ...newSettings,
+                                            bd_api_address
                                         });
                                     }}
                                 />
