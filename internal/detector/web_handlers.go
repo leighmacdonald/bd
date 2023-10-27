@@ -227,7 +227,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 
 		player.Notes = opts.Note
 
-		player.Touch()
+		player.Dirty = true
 
 		if errSave := detector.dataStore.SavePlayer(ctx, &player); errSave != nil {
 			responseErr(ctx, http.StatusInternalServerError, nil)

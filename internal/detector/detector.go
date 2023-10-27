@@ -404,7 +404,7 @@ func (d *Detector) whitelist(ctx context.Context, sid64 steamid.SID64, enabled b
 	}
 
 	player.Whitelisted = enabled
-	player.Touch()
+	player.Dirty = true
 
 	if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
 		return errors.Wrap(errSave, "Failed to save player")
@@ -629,10 +629,6 @@ func (d *Detector) addUserName(ctx context.Context, player *store.Player) error 
 		return errors.Wrap(errSave, "Failed to save username history")
 	}
 
-	if match := d.rules.MatchName(unh.Name); match != nil {
-		d.triggerMatch(ctx, player, match)
-	}
-
 	return nil
 }
 
@@ -646,10 +642,6 @@ func (d *Detector) addUserMessage(ctx context.Context, player *store.Player, mes
 
 	if errSave := d.dataStore.SaveMessage(ctx, userMessage); errSave != nil {
 		return errors.Wrap(errSave, "Failed to save user message")
-	}
-
-	if match := d.rules.MatchMessage(userMessage.Message); match != nil {
-		d.triggerMatch(ctx, player, match)
 	}
 
 	return nil
@@ -683,10 +675,11 @@ func (d *Detector) refreshLists(ctx context.Context) {
 
 // checkPlayerStates will run a check against the current player state for matches.
 func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) {
-	for _, curPlayer := range d.players.all() {
+	currentPlayers := d.players.all()
+	for _, curPlayer := range currentPlayers {
 		player := curPlayer
 
-		if player.IsDisconnected() {
+		if player.IsDisconnected() || len(player.Matches) > 0 {
 			continue
 		}
 
@@ -694,14 +687,16 @@ func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) 
 			player.Matches = matchSteam
 
 			if validTeam == player.Team {
-				d.triggerMatch(ctx, &player, matchSteam)
+				d.announceMatch(ctx, player, matchSteam)
+				d.players.update(player)
 			}
 		} else if player.Name != "" {
 			if matchName := d.rules.MatchName(player.Name); matchName != nil && validTeam == player.Team {
 				player.Matches = matchName
 
 				if validTeam == player.Team {
-					d.triggerMatch(ctx, &player, matchSteam)
+					d.announceMatch(ctx, player, matchName)
+					d.players.update(player)
 				}
 			}
 		}
@@ -714,23 +709,19 @@ func (d *Detector) checkPlayerStates(ctx context.Context, validTeam store.Team) 
 			}
 
 			player.Dirty = false
-
-			d.players.update(player)
 		}
 	}
 }
 
-// triggerMatch handles announcing after a match is triggered against a player.
-func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, matches []*rules.MatchResult) {
-	announceGeneralLast := player.AnnouncedGeneralLast
-	announcePartyLast := player.AnnouncedPartyLast
+// announceMatch handles announcing after a match is triggered against a player.
+func (d *Detector) announceMatch(ctx context.Context, player store.Player, matches []*rules.MatchResult) {
 	settings := d.Settings()
 
 	if len(matches) == 0 {
 		return
 	}
 
-	if time.Since(announceGeneralLast) >= DurationAnnounceMatchTimeout {
+	if time.Since(player.AnnouncedGeneralLast) >= DurationAnnounceMatchTimeout {
 		msg := "Matched player"
 		if player.Whitelisted {
 			msg = "Matched whitelisted player"
@@ -742,13 +733,15 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		}
 
 		player.AnnouncedGeneralLast = time.Now()
+
+		d.players.update(player)
 	}
 
 	if player.Whitelisted {
 		return
 	}
 
-	if settings.PartyWarningsEnabled && time.Since(announcePartyLast) >= DurationAnnounceMatchTimeout {
+	if settings.PartyWarningsEnabled && time.Since(player.AnnouncedPartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
 			if errLog := d.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Name); errLog != nil {
@@ -759,6 +752,8 @@ func (d *Detector) triggerMatch(ctx context.Context, player *store.Player, match
 		}
 
 		player.AnnouncedPartyLast = time.Now()
+
+		d.players.update(player)
 	}
 }
 

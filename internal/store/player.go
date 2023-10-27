@@ -99,10 +99,10 @@ type Player struct {
 	// Dirty indicates that state which has database backed fields has been changed and need to be saved
 	Dirty bool `json:"-"`
 
-	Matches rules.MatchResults `json:"matches"`
+	Matches []*rules.MatchResult `json:"matches"`
 }
 
-func (ps *Player) MatchAttr(tags []string) bool {
+func (ps Player) MatchAttr(tags []string) bool {
 	for _, match := range ps.Matches {
 		for _, tag := range tags {
 			if match.HasAttr(tag) {
@@ -119,17 +119,12 @@ const (
 	playerExpiration = time.Second * 60
 )
 
-func (ps *Player) IsDisconnected() bool {
+func (ps Player) IsDisconnected() bool {
 	return time.Since(ps.UpdatedOn) > playerDisconnect
 }
 
-func (ps *Player) IsExpired() bool {
+func (ps Player) IsExpired() bool {
 	return time.Since(ps.UpdatedOn) > playerExpiration
-}
-
-func (ps *Player) Touch() {
-	ps.UpdatedOn = time.Now()
-	ps.Dirty = true
 }
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"

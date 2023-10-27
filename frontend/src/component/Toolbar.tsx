@@ -28,7 +28,7 @@ export const Toolbar = () => {
             localStorage.setItem('matchesOnly', `${!prevState}`);
             return !prevState;
         });
-    }, []);
+    }, [setMatchesOnly]);
 
     return (
         <Stack direction={'row'}>
