@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/leighmacdonald/bd/rules"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+	"github.com/leighmacdonald/bd/rules"
 )
 
 // FixSteamIDFormat converts raw unquoted steamids to quoted ones
@@ -29,12 +30,12 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 
 		req, reqErr := http.NewRequestWithContext(timeout, http.MethodGet, url, nil)
 		if reqErr != nil {
-			return nil, errors.Wrap(reqErr, "failed to create request")
+			return nil, errors.Join(reqErr, errCreateRequest)
 		}
 
 		resp, errResp := client.Do(req)
 		if errResp != nil {
-			return nil, errors.Wrapf(errResp, "failed to download urlLocation: %s", url)
+			return nil, errors.Join(errResp, errPerformRequest)
 		}
 
 		defer func() {
@@ -43,7 +44,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 
 		body, errBody := io.ReadAll(resp.Body)
 		if errBody != nil {
-			return nil, errors.Wrapf(errBody, "failed to read body: %s", url)
+			return nil, errors.Join(errBody, errReadResponse)
 		}
 
 		return body, nil
@@ -61,7 +62,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 
 		body, errFetch := fetchURL(ctx, client, listConfig.URL)
 		if errFetch != nil {
-			return errors.Wrapf(errFetch, "failed to fetch player list: %s", listConfig.URL)
+			return fmt.Errorf("%v: %s", errFetchPlayerList, listConfig.URL)
 		}
 
 		body = FixSteamIDFormat(body)
@@ -71,7 +72,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 		case ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
-				return errors.Wrap(errParse, "failed to parse request")
+				return errors.Join(errParse, errDecodeResponse)
 			}
 
 			mutex.Lock()
@@ -82,7 +83,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 		case ListTypeTF2BDRules:
 			var result rules.RuleSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
-				return errors.Wrap(errParse, "failed to parse request")
+				return errors.Join(errParse, errDecodeResponse)
 			}
 
 			mutex.Lock()

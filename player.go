@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/leighmacdonald/bd/rules"
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
@@ -156,7 +156,7 @@ type UserNameHistoryCollection []UserNameHistory
 
 func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, error) {
 	if name == "" {
-		return nil, ErrEmptyValue
+		return nil, errEmptyValue
 	}
 
 	return &UserNameHistory{

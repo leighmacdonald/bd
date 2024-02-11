@@ -5,10 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	gerrors "errors"
+	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/discord/client"
-	"github.com/leighmacdonald/bd/rules"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -22,17 +20,12 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/addons"
+	"github.com/leighmacdonald/bd/discord/client"
 	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/rcon/rcon"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
-	"github.com/pkg/errors"
-)
-
-var (
-	errInvalidReadyState = errors.New("Invalid ready state")
-	errNotMarked         = errors.New("Mark does not exist")
-	errGameStopped       = errors.New("Game is not running")
 )
 
 const (
@@ -224,14 +217,14 @@ func (d *Detector) SaveSettings(settings UserSettings) error {
 	if settings.BdAPIEnabled {
 		ds, errDs := NewAPIDataSource(settings.BdAPIAddress)
 		if errDs != nil {
-			return errors.Wrap(errDs, "Failed to reload data source")
+			return errors.Join(errDs, errDataSourceAPI)
 		}
 
 		d.dataSource = ds
 	} else {
 		ds, errDs := NewLocalDataSource(settings.APIKey)
 		if errDs != nil {
-			return errors.Wrap(errDs, "Failed to reload data source")
+			return errors.Join(errDs, errDataSourceLocal)
 		}
 
 		d.dataSource = ds
@@ -263,11 +256,11 @@ func (d *Detector) exportVoiceBans() error {
 
 	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, voiceBansPerms)
 	if errOpen != nil {
-		return errors.Wrap(errOpen, "Failed to open voicebans file")
+		return errors.Join(errOpen, errVoiceBanOpen)
 	}
 
 	if errWrite := VoiceBanWrite(vbFile, bannedIds); errWrite != nil {
-		return errors.Wrap(errWrite, "Failed to write voicebans file")
+		return errors.Join(errWrite, errVoiceBanWrite)
 	}
 
 	slog.Info("Generated voice_ban.dt successfully")
@@ -369,14 +362,14 @@ func (d *Detector) mark(ctx context.Context, sid64 steamid.SID64, attrs []string
 		Name:       name,
 		Proof:      []string{},
 	}); errMark != nil {
-		return errors.Wrap(errMark, "Failed to add mark")
+		return errors.Join(errMark, errMark)
 	}
 
 	settings := d.Settings()
 
 	outputFile, errOf := os.OpenFile(settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if errOf != nil {
-		return errors.Wrap(errOf, "Failed to open player list for updating")
+		return errors.Join(errOf, errPlayerListOpen)
 	}
 
 	defer LogClose(outputFile)
@@ -401,7 +394,7 @@ func (d *Detector) whitelist(ctx context.Context, sid64 steamid.SID64, enabled b
 	player.Dirty = true
 
 	if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
-		return errors.Wrap(errSave, "Failed to save player")
+		return errors.Join(errSave, errSavePlayer)
 	}
 
 	d.players.update(player)
@@ -430,17 +423,17 @@ func (d *Detector) updatePlayerState(ctx context.Context) error {
 	// Sent to client, response via log output
 	_, errStatus := d.rconMulti("status")
 	if errStatus != nil {
-		return errors.Wrap(errStatus, "Failed to get status results")
+		return errors.Join(errStatus, errRCONStatus)
 	}
 
 	dumpPlayer, errDumpPlayer := d.rconMulti("g15_dumpplayer")
 	if errDumpPlayer != nil {
-		return errors.Wrap(errDumpPlayer, "Failed to get g15_dumpplayer results")
+		return errors.Join(errDumpPlayer, errRCONG15)
 	}
 
 	var dump DumpPlayer
 	if errG15 := d.g15.Parse(bytes.NewBufferString(dumpPlayer), &dump); errG15 != nil {
-		return errors.Wrap(errG15, "Failed to parse g15_dumpplayer results")
+		return errors.Join(errG15, errG15Parse)
 	}
 
 	for index, sid := range dump.SteamID {
@@ -511,7 +504,7 @@ func (d *Detector) GetPlayerOrCreate(ctx context.Context, sid64 steamid.SID64) (
 
 	if errGet := d.dataStore.GetPlayer(ctx, sid64, true, &player); errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {
-			return player, errors.Wrap(errGet, "Failed to fetch player record")
+			return player, errors.Join(errGet, errGetPlayer)
 		}
 
 		player.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
@@ -615,11 +608,11 @@ func (d *Detector) cleanupHandler(ctx context.Context) {
 func (d *Detector) addUserName(ctx context.Context, player *Player) error {
 	unh, errMessage := NewUserNameHistory(player.SteamID, player.Name)
 	if errMessage != nil {
-		return errors.Wrap(errMessage, "Failed to load messages")
+		return errors.Join(errMessage, errGetNames)
 	}
 
 	if errSave := d.dataStore.SaveUserNameHistory(ctx, unh); errSave != nil {
-		return errors.Wrap(errSave, "Failed to save username history")
+		return errors.Join(errSave, errSaveNames)
 	}
 
 	return nil
@@ -630,11 +623,11 @@ func (d *Detector) addUserName(ctx context.Context, player *Player) error {
 func (d *Detector) addUserMessage(ctx context.Context, player *Player, message string, dead bool, teamOnly bool) error {
 	userMessage, errMessage := NewUserMessage(player.SteamID, message, dead, teamOnly)
 	if errMessage != nil {
-		return errors.Wrap(errMessage, "Failed to create new message")
+		return errors.Join(errMessage, errCreateMessage)
 	}
 
 	if errSave := d.dataStore.SaveMessage(ctx, userMessage); errSave != nil {
-		return errors.Wrap(errSave, "Failed to save user message")
+		return errors.Join(errSave, errSaveMessage)
 	}
 
 	return nil
@@ -764,7 +757,7 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 
 	conn, errConn := rcon.Dial(ctx, settings.Rcon.String(), settings.Rcon.Password, DurationRCONRequestTimeout)
 	if errConn != nil {
-		return errors.Wrapf(errConn, "failed to connect to client: %v", errConn)
+		return errors.Join(errConn, fmt.Errorf("%v: %s", errRCONConnect, settings.Rcon.String()))
 	}
 
 	d.rconMu.Lock()
@@ -804,7 +797,7 @@ func (d *Detector) sendChat(ctx context.Context, destination ChatDest, format st
 	case ChatDestParty:
 		cmd = fmt.Sprintf("say_party %s", fmt.Sprintf(format, args...))
 	default:
-		return errors.Errorf("Invalid destination: %s", destination)
+		return fmt.Errorf("%v: %s", errInvalidChatType, destination)
 	}
 
 	return d.execRcon(cmd)
@@ -824,7 +817,7 @@ func (d *Detector) execRcon(cmd string) error {
 
 	_, errExec := d.rconConn.Exec(cmd)
 	if errExec != nil {
-		return errors.Wrap(errExec, "Failed to send rcon chat message")
+		return fmt.Errorf("%v: %s", errRCONExec, cmd)
 	}
 
 	return nil
@@ -892,14 +885,14 @@ func (d *Detector) Shutdown(ctx context.Context) error {
 	d.rconMu.Unlock()
 
 	if errCloseDB := d.dataStore.Close(); errCloseDB != nil {
-		err = gerrors.Join(errCloseDB)
+		err = errors.Join(errCloseDB, errCloseDatabase)
 	}
 
 	lCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	if errWeb := d.Web.Shutdown(lCtx); errWeb != nil {
-		err = gerrors.Join(errWeb)
+		err = errors.Join(errWeb, errCloseWeb)
 	}
 
 	return err
@@ -1164,7 +1157,7 @@ func (d *Detector) rconMulti(cmd string) (string, error) {
 
 	cmdID, errWrite := d.rconConn.Write(cmd)
 	if errWrite != nil {
-		return "", errors.Wrap(errWrite, "Failed to send rcon command")
+		return "", errors.Join(errWrite, errRCONExec)
 	}
 
 	var response string
@@ -1172,7 +1165,7 @@ func (d *Detector) rconMulti(cmd string) (string, error) {
 	for {
 		resp, respID, errRead := d.rconConn.Read()
 		if errRead != nil {
-			return "", errors.Wrap(errRead, "Failed to read rcon response")
+			return "", errors.Join(errRead, errRCONRead)
 		}
 
 		if cmdID == respID {

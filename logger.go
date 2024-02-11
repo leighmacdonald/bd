@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/dotse/slug"
 	"log/slog"
 	"os"
+
+	"github.com/dotse/slug"
 )
 
 func MustCreateLogger(settings UserSettings) func() {
 	var logHandler slog.Handler
+
 	closer := func() {}
 
 	opts := slug.HandlerOptions{

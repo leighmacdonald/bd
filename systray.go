@@ -48,6 +48,7 @@ func (s *Systray) OnReady(cancel context.CancelFunc) func() {
 				select {
 				case <-launchGame.ClickedCh:
 					slog.Debug("launchGame clicked")
+
 					go s.onLaunch()
 				case <-openWeb.ClickedCh:
 					slog.Debug("openWeb Clicked")

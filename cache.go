@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 var errCacheExpired = errors.New("cached value expired")
@@ -55,7 +55,7 @@ func NewCache(rootDir string, maxAge time.Duration) (FsCache, error) {
 func (cache FsCache) init() error {
 	for _, p := range []Type{TypeAvatar, TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0o770); errMkDir != nil {
-			return errors.Wrap(errMkDir, "Failed to setup cache dirs")
+			return errors.Join(errMkDir, errCacheSetup)
 		}
 	}
 
@@ -85,18 +85,18 @@ func (cache FsCache) getPath(cacheType Type, key string) string {
 func (cache FsCache) Set(ct Type, key string, value io.Reader) error {
 	fullPath := cache.getPath(ct, key)
 	if errMkdir := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); errMkdir != nil {
-		return errors.Wrap(errMkdir, "Failed to make output path")
+		return errors.Join(errMkdir, errCreateCacheDir)
 	}
 
 	openFile, errOf := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE, 0o660)
 	if errOf != nil {
-		return errors.Wrap(errOf, "Failed to open output file")
+		return errors.Join(errOf, errOpenCacheFile)
 	}
 
 	defer LogClose(openFile)
 
 	if _, errWrite := io.Copy(openFile, value); errWrite != nil {
-		return errors.Wrap(errWrite, "Failed to write output file")
+		return errors.Join(errWrite, errWriteCacheFile)
 	}
 
 	return nil
@@ -121,7 +121,7 @@ func (cache FsCache) Get(ct Type, key string, receiver io.Writer) error {
 
 	_, errCopy := io.Copy(receiver, openFile)
 	if errCopy != nil {
-		return errors.Wrap(errCopy, "Failed to copy to output file")
+		return errors.Join(errCopy, errReadCacheFile)
 	}
 
 	return nil

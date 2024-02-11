@@ -9,7 +9,6 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/andygrunwald/vdf v1.1.0
 	github.com/dotse/slug v0.1.0
-	github.com/gin-contrib/zap v0.2.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
@@ -21,9 +20,7 @@ require (
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nxadm/tail v1.4.11
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.4.0
 	golang.org/x/sys v0.13.0
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
@@ -64,6 +61,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect

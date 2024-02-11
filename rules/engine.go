@@ -4,17 +4,26 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
-var ErrDuplicateSteamID = errors.New("duplicate steam id")
+var (
+	ErrParseSteamID      = errors.New("failed to parse steam id")
+	ErrDuplicateSteamID  = errors.New("duplicate steam id")
+	ErrEncodePlayers     = errors.New("failed to encode player list")
+	ErrUnknownPlayerList = errors.New("unknown player list")
+	ErrEncodeRules       = errors.New("failed to encode rules")
+	ErrUnknownRuleList   = errors.New("unknown rules list")
+	ErrInvalidRegex      = errors.New("invalid regex pattern")
+)
 
 type Engine struct {
 	rulesLists  []*RuleSchema
@@ -302,14 +311,14 @@ func (e *Engine) ExportPlayers(listName string, writer io.Writer) error {
 	for _, pl := range e.playerLists {
 		if listName == pl.FileInfo.Title {
 			if errEncode := newJSONPrettyEncoder(writer).Encode(pl); errEncode != nil {
-				return errors.Wrap(errEncode, "Failed to encode player list")
+				return errors.Join(errEncode, ErrEncodePlayers)
 			}
 
 			return nil
 		}
 	}
 
-	return errors.Errorf("Unknown player list: %s", listName)
+	return fmt.Errorf("%v: %s", ErrUnknownPlayerList, listName)
 }
 
 // ExportRules writes the json encoded rules list matching the listName provided to the io.Writer.
@@ -320,14 +329,14 @@ func (e *Engine) ExportRules(listName string, writer io.Writer) error {
 	for _, pl := range e.rulesLists {
 		if listName == pl.FileInfo.Title {
 			if errEncode := newJSONPrettyEncoder(writer).Encode(pl); errEncode != nil {
-				return errors.Wrap(errEncode, "Failed to encode rules")
+				return errors.Join(errEncode, ErrEncodeRules)
 			}
 
 			return nil
 		}
 	}
 
-	return errors.Errorf("Unknown rule list: %s", listName)
+	return fmt.Errorf("%v: %s", ErrUnknownRuleList, listName)
 }
 
 // ImportRules loads the provided ruleset for use.
@@ -400,7 +409,7 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) (int, error) {
 
 	for _, player := range list.Players {
 		if !player.SteamID.Valid() {
-			return 0, errors.Wrap(steamid.ErrInvalidSID, "Failed to parse steamid")
+			return 0, errors.Join(steamid.ErrInvalidSID, ErrParseSteamID)
 		}
 
 		list.RegisterSteamIDMatcher(NewSteamIDMatcher(list.FileInfo.Title, player.SteamID, player.Attributes))

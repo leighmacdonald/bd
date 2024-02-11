@@ -7,14 +7,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // OpenSocket opens the discord-ipc-0 unix socket.
 func (ipc *DiscordIPC) OpenSocket() error {
 	sock, errDial := net.DialTimeout("unix", GetIpcPath()+"/discord-ipc-0", time.Second*2)
 	if errDial != nil {
-		return errors.Wrap(errDial, "Failed to connect to discord socket")
+		return errors.Wrap(errDial, ErrConnIPC)
 	}
 
 	ipc.socket = sock

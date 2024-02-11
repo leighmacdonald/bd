@@ -8,17 +8,19 @@ import (
 	"io/fs"
 	"net/http"
 
+	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 )
 
 //go:embed dist/*
 var embedFS embed.FS
 
+var ErrEmbedFS = errors.New("failed to load embed.fs path")
+
 func StaticRoutes(engine *gin.Engine, _ bool) error {
 	subFs, errSubFS := fs.Sub(embedFS, "dist")
 	if errSubFS != nil {
-		return errors.Wrap(errSubFS, "Could not setup embedfs")
+		return errors.Join(errSubFS, ErrEmbedFS)
 	}
 
 	engine.SetHTMLTemplate(template.

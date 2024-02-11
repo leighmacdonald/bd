@@ -13,16 +13,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"errors"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
 func testApp() (*Detector, func(), error) {
 	tempDir, errTemp := os.MkdirTemp("", "bd-test")
 	if errTemp != nil {
-		return nil, func() {}, errors.Wrap(errTemp, "Failed to create temp dir")
+		return nil, func() {}, errors.Join(errTemp, errTempDir)
 	}
 
 	userSettings, _ := NewSettings()
@@ -46,14 +46,14 @@ func testApp() (*Detector, func(), error) {
 	}
 
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		return nil, cleanup, errors.Wrap(errMigrate, "Failed to create test app")
+		return nil, cleanup, errMigrate
 	}
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := NewLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
+	logReader, errLogReader := newLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan, false)
 	if errLogReader != nil {
-		return nil, cleanup, errors.Wrap(errLogReader, "Failed to create test app")
+		return nil, cleanup, errLogReader
 	}
 
 	versionInfo := Version{Version: "", Commit: "", Date: "", BuiltBy: ""}

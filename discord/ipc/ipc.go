@@ -6,7 +6,15 @@ import (
 	"net"
 	"os"
 
-	"github.com/pkg/errors"
+	"errors"
+)
+
+var (
+	ErrReadIPC      = errors.New("failed to read from discord ipc socket")
+	ErrWriteOp      = errors.New("failed to write opcode")
+	ErrWritePayload = errors.New("failed to write payload")
+	ErrSendBuffer   = errors.New("failed to send payload buffer")
+	ErrConnIPC      = errors.New("failed to connect to discord ipc socket/pipe")
 )
 
 type DiscordIPC struct {
@@ -47,7 +55,7 @@ func (ipc *DiscordIPC) Read() (string, error) {
 	payloadLen, errRead := ipc.socket.Read(buf)
 
 	if errRead != nil {
-		return "", errors.Wrap(errRead, "Failed to read from discord ipc socket")
+		return "", errors.Join(errRead, ErrReadIPC)
 	}
 
 	buffer := new(bytes.Buffer)
@@ -63,18 +71,18 @@ func (ipc *DiscordIPC) Send(opcode int, payload string) (string, error) {
 	buf := new(bytes.Buffer)
 
 	if errOpCode := binary.Write(buf, binary.LittleEndian, int32(opcode)); errOpCode != nil {
-		return "", errors.Wrap(errOpCode, "Failed to write opcode")
+		return "", errors.Join(errOpCode, ErrWriteOp)
 	}
 
 	if errPayload := binary.Write(buf, binary.LittleEndian, int32(len(payload))); errPayload != nil {
-		return "", errors.Wrap(errPayload, "Failed to write payload")
+		return "", errors.Join(errPayload, ErrWritePayload)
 	}
 
 	buf.Write([]byte(payload))
 
 	_, errWrite := ipc.socket.Write(buf.Bytes())
 	if errWrite != nil {
-		return "", errors.Wrap(errWrite, "Failed to send payload buffer")
+		return "", errors.Join(errWrite, ErrSendBuffer)
 	}
 
 	return ipc.Read()

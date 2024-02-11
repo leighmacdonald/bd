@@ -3,11 +3,11 @@ package rules_test
 import (
 	"bufio"
 	"bytes"
-	"github.com/leighmacdonald/bd/rules"
 	"image"
 	"image/jpeg"
 	"testing"
 
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
 )

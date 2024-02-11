@@ -1,11 +1,12 @@
 package rules
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 type MatchResult struct {
@@ -137,7 +138,7 @@ func NewRegexTextMatcher(origin string, matcherType TextMatchType, attributes []
 	for index, inputPattern := range patterns {
 		compiledRx, compErr := regexp.Compile(inputPattern)
 		if compErr != nil {
-			return RegexTextMatcher{}, errors.Wrapf(compErr, "Invalid regex pattern: %s", inputPattern)
+			return RegexTextMatcher{}, errors.Join(compErr, fmt.Errorf("%v: %s", ErrInvalidRegex, inputPattern))
 		}
 
 		compiled[index] = compiledRx

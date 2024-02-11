@@ -8,11 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 //go:embed *
 var addonFS embed.FS
+
+var (
+	ErrRemoveWrappers  = errors.New("failed to remove tf2bd chat wrappers")
+	ErrInstallVoteFail = errors.New("Failed to install votefail eraser addon")
+	ErrCreateOutput    = errors.New("Failed to make output dir")
+	ErrReadEmbed       = errors.New("Failed to read embed file path")
+	ErrOpenOutput      = errors.New("Failed to open output dir")
+	ErrWriteOutput     = errors.New("Failed to write output file")
+	ErrInstall         = errors.New("failed to install addon")
+)
 
 const (
 	chatWrapperName = "aaaaaaaaaa_loadfirst_tf2_bot_detector"
@@ -23,13 +33,13 @@ func Install(tf2dir string) error {
 	wrapperPath := filepath.Join(tf2dir, "custom", chatWrapperName)
 	if exists(wrapperPath) {
 		if errDelete := os.RemoveAll(wrapperPath); errDelete != nil {
-			return errors.Wrapf(errDelete, "Failed to remove tf2bd chat wrappers")
+			return errors.Join(errDelete, ErrRemoveWrappers)
 		}
 	}
 
 	for _, addonName := range []string{addonNameEraser} {
 		if errCopy := cpEmbedDir(addonFS, fmt.Sprintf("addons/%s", addonName), tf2dir); errCopy != nil {
-			return errors.Wrap(errCopy, "Failed to install votefail eraser addon")
+			return errors.Join(errCopy, ErrInstallVoteFail)
 		}
 	}
 
@@ -40,7 +50,7 @@ func cpEmbedDir(src embed.FS, srcPath string, dst string) error {
 	if errWalk := fs.WalkDir(src, srcPath, func(path string, fsDir fs.DirEntry, err error) error {
 		if fsDir.IsDir() {
 			if errMkdir := os.MkdirAll(filepath.Join(dst, path), 0o775); errMkdir != nil {
-				return errors.Wrap(errMkdir, "Failed to make output dir")
+				return errors.Join(errMkdir, ErrCreateOutput)
 			}
 
 			return nil
@@ -53,21 +63,21 @@ func cpEmbedDir(src embed.FS, srcPath string, dst string) error {
 
 		data, errData := fs.ReadFile(src, path)
 		if errData != nil {
-			return errors.Wrap(errData, "Failed to read embed file path")
+			return errors.Join(errData, ErrReadEmbed)
 		}
 
 		outputFile, outputFileErr := os.Create(filepath.Join(dst, path))
 		if outputFileErr != nil {
-			return errors.Wrap(outputFileErr, "Failed to open output dir")
+			return errors.Join(outputFileErr, ErrOpenOutput)
 		}
 
 		if _, errCopy := outputFile.Write(data); errCopy != nil {
-			return errors.Wrap(errCopy, "")
+			return errors.Join(errCopy, ErrWriteOutput)
 		}
 
 		return nil
 	}); errWalk != nil {
-		return errors.Wrap(errWalk, "Failed to install addon")
+		return errors.Join(errWalk, ErrInstall)
 	}
 
 	return nil

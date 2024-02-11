@@ -3,13 +3,14 @@
 package platform
 
 import (
+	"fmt"
 	"os/exec"
 
-	"github.com/leighmacdonald/bd/internal/assets"
+	"errors"
+	"github.com/leighmacdonald/bd/assets"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
-	"github.com/pkg/errors"
 )
 
 type LinuxPlatform struct {
@@ -49,7 +50,7 @@ func (l LinuxPlatform) LaunchTF2(_ string, args []string) error {
 	cmd := exec.Command("steam", fa...)
 
 	if errLaunch := cmd.Run(); errLaunch != nil {
-		return errors.Wrap(errLaunch, "Could not launch binary")
+		return errors.Join(errLaunch, ErrLaunchBinary)
 	}
 
 	return nil
@@ -57,7 +58,7 @@ func (l LinuxPlatform) LaunchTF2(_ string, args []string) error {
 
 func (l LinuxPlatform) OpenFolder(dir string) error {
 	if errRun := exec.Command("xdg-open", dir).Start(); errRun != nil {
-		return errors.Wrap(errRun, "Failed to start process")
+		return errors.Join(errRun, ErrStartProcess)
 	}
 
 	return nil
@@ -66,7 +67,7 @@ func (l LinuxPlatform) OpenFolder(dir string) error {
 func (l LinuxPlatform) IsGameRunning() (bool, error) {
 	processes, errPs := ps.Processes()
 	if errPs != nil {
-		return false, errors.Wrap(errPs, "Failed to read processes")
+		return false, errors.Join(errPs, ErrReadProcess)
 	}
 
 	for _, process := range processes {
@@ -84,7 +85,7 @@ func (l LinuxPlatform) Icon() []byte {
 
 func (l LinuxPlatform) OpenURL(url string) error {
 	if errOpen := browser.OpenURL(url); errOpen != nil {
-		return errors.Wrap(errOpen, "Failed to open url")
+		return errors.Join(errOpen, fmt.Errorf("%v: %s", ErrOpenURL, url))
 	}
 
 	return nil

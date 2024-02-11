@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/rules"
-	"github.com/pkg/errors"
 	"log/slog"
 	"net/http"
+
+	"errors"
+	"github.com/gin-gonic/gin"
+	"github.com/leighmacdonald/bd/rules"
 )
 
 func getMessages(detector *Detector) gin.HandlerFunc {

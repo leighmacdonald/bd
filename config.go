@@ -2,14 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/leighmacdonald/bd/platform"
-	"github.com/pkg/errors"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 
+	"errors"
 	"github.com/andygrunwald/vdf"
+	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
@@ -19,7 +19,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 		// Attempt to use the id found in the userdata if only one exists
 		entries, err := os.ReadDir(userDataRoot)
 		if err != nil {
-			return "", errors.Wrap(err, "Failed to read userdata root")
+			return "", errors.Join(err, errSteamUserData)
 		}
 
 		dirCount := 0
@@ -40,7 +40,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 
 				dirCount++
 				if dirCount == 2 {
-					return "", errors.Wrap(err, "Failed to guess userdata root, too many choices")
+					return "", errors.Join(err, errSteamUserDataGuess)
 				}
 			}
 		}
@@ -48,7 +48,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 
 	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.SID32()), "config", "localconfig.vdf")
 	if !platform.Exists(configPath) {
-		return "", errors.New("Path does not exist")
+		return "", errPathNotExist
 	}
 
 	return configPath, nil
@@ -57,19 +57,19 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
 	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamID)
 	if errConfigPath != nil {
-		return nil, errors.Wrap(errConfigPath, "Failed to locate localconfig.vdf")
+		return nil, errors.Join(errConfigPath, errSteamLocalConfig)
 	}
 
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
-		return nil, errors.Wrap(errOpen, "failed to open vdf")
+		return nil, errors.Join(errOpen, errVDFOpen)
 	}
 
 	newParser := vdf.NewParser(openVDF)
 
 	result, errParse := newParser.Parse()
 	if errParse != nil {
-		return nil, errors.Wrap(errOpen, "failed to parse vdf")
+		return nil, errors.Join(errOpen, errVDFParse)
 	}
 
 	var (
@@ -93,13 +93,13 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 
 		result, castOk = result[csKey].(map[string]any)
 		if !castOk {
-			return nil, errors.Wrapf(errOpen, "failed to find child key %s", key)
+			return nil, errors.Join(errOpen, fmt.Errorf("%v: %s", errVDFKey, key))
 		}
 
 		if index == len(pathKeys)-1 {
 			launchStr, launchStrOk := result["LaunchOptions"].(string)
 			if !launchStrOk {
-				return nil, errors.New("Failed to cast LaunchOptions")
+				return nil, fmt.Errorf("%v: %s", errVDFValue, "LaunchOptions")
 			}
 
 			launchOpts = strings.Split(launchStr, " ")
@@ -117,7 +117,7 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64) ([]string, error) {
 	userArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
-		return nil, errors.Wrap(errUserArgs, "Failed to get existing launch options")
+		return nil, errors.Join(errUserArgs, errSteamLaunchArgs)
 	}
 
 	bdArgs := []string{

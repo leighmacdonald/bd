@@ -4,8 +4,8 @@ import (
 	"net"
 	"time"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 const logTimestampFormat = "01/02/2006 - 15:04:05"
@@ -14,7 +14,7 @@ const logTimestampFormat = "01/02/2006 - 15:04:05"
 func parseTimestamp(timestamp string) (time.Time, error) {
 	parsedTime, errParse := time.Parse(logTimestampFormat, timestamp)
 	if errParse != nil {
-		return time.Time{}, errors.Wrap(errParse, "Failed to parse timestamp")
+		return time.Time{}, errors.Join(errParse, errParseTimestamp)
 	}
 
 	return parsedTime, nil

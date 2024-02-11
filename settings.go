@@ -3,19 +3,18 @@ package main
 import (
 	"crypto/rand"
 	"encoding/binary"
-	errjoin "errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/rules"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"errors"
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -240,7 +239,7 @@ func NewSettings() (UserSettings, error) {
 
 	if !platform.Exists(newSettings.ListRoot()) {
 		if err := os.MkdirAll(newSettings.ListRoot(), 0o755); err != nil {
-			return newSettings, errors.Wrap(err, "Failed to initialize UserSettings directory")
+			return newSettings, errors.Join(err, errSettingDirectoryCreate)
 		}
 	}
 
@@ -267,7 +266,7 @@ func (s *UserSettings) AddList(config *ListConfig) error {
 func (s *UserSettings) ReadDefaultOrCreate() error {
 	configPath := configdir.LocalConfig(configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
-		return errors.Wrap(err, "Failed to make config dir")
+		return errors.Join(err, errSettingDirectoryCreate)
 	}
 
 	errRead := s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
@@ -285,23 +284,23 @@ func (s *UserSettings) Validate() error {
 
 	var err error
 	if s.SteamID != "" && !s.SteamID.Valid() {
-		err = errjoin.Join(err, steamid.ErrInvalidSID)
+		err = errors.Join(err, steamid.ErrInvalidSID)
 	}
 
 	if s.BdAPIEnabled {
 		if s.BdAPIAddress == "" {
-			err = errjoin.Join(errors.New("BD-API Address cannot be empty"))
+			err = errors.Join(errors.New("BD-API Address cannot be empty"))
 		} else {
 			_, errParse := url.Parse(s.BdAPIAddress)
 			if errParse != nil {
-				err = errjoin.Join(errors.New("Invalid address, cannot parse"))
+				err = errors.Join(errParse, errSettingAddress)
 			}
 		}
 	} else {
 		if s.APIKey == "" {
-			err = errjoin.Join(errors.New("Must set steam api key when not using bdapi"))
+			err = errors.Join(errSettingsAPIKeyMissing)
 		} else if len(s.APIKey) != apiKeyLen {
-			err = errjoin.Join(errors.New("Invalid Steam API Key"))
+			err = errors.Join(errSettingAPIKeyInvalid)
 		}
 	}
 
@@ -343,7 +342,7 @@ func (s *UserSettings) ReadFilePath(filePath string) error {
 
 	settingsFile, errOpen := os.Open(filePath)
 	if errOpen != nil {
-		return errors.Wrap(errOpen, "Failed to open settings file")
+		return errors.Join(errOpen, errSettingsOpen)
 	}
 
 	defer IgnoreClose(settingsFile)
@@ -359,7 +358,7 @@ func (s *UserSettings) ReadFilePath(filePath string) error {
 
 func (s *UserSettings) Read(inputFile io.Reader) error {
 	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
-		return errors.Wrap(errDecode, "Failed to decode settings")
+		return errors.Join(errDecode, errSettingsDecode)
 	}
 
 	s.reload()
@@ -380,7 +379,7 @@ func (s *UserSettings) reload() {
 func (s *UserSettings) WriteFilePath(filePath string) error {
 	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
 	if errOpen != nil {
-		return errors.Wrapf(errOpen, "Failed to open UserSettings file for writing")
+		return errors.Join(errOpen, errSettingsOpenOutput)
 	}
 
 	defer IgnoreClose(settingsFile)
@@ -390,7 +389,7 @@ func (s *UserSettings) WriteFilePath(filePath string) error {
 
 func (s *UserSettings) Write(outputFile io.Writer) error {
 	if errEncode := yaml.NewEncoder(outputFile).Encode(s); errEncode != nil {
-		return errors.Wrap(errEncode, "Failed to encode settings")
+		return errors.Join(errEncode, errSettingsEncode)
 	}
 
 	return nil

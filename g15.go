@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 const maxDataSize = 102
@@ -39,7 +39,7 @@ func NewG15Parser() Parser {
 func (p Parser) Parse(reader io.Reader, data *DumpPlayer) error {
 	body, errRead := io.ReadAll(reader)
 	if errRead != nil {
-		return errors.Wrap(errRead, "Failed to read dump data from reader")
+		return errors.Join(errRead, errReaderG15)
 	}
 
 	intVal := func(s string, def int) int {

@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/leighmacdonald/bd/discord/client"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+	"github.com/leighmacdonald/bd/discord/client"
 )
 
 type mapConfig struct {
@@ -182,7 +182,7 @@ func discordUpdateActivity(discordClient *client.Client, cnt int, server *Server
 		},
 		Buttons: buttons,
 	}); errSetActivity != nil {
-		return errors.Wrap(errSetActivity, "Failed to set discord activity")
+		return errors.Join(errSetActivity, errDiscordActivity)
 	}
 
 	return nil

@@ -4,12 +4,21 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"github.com/leighmacdonald/bd/discord/ipc"
 	"os"
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+	"github.com/leighmacdonald/bd/discord/ipc"
+)
+
+var (
+	ErrMarshalHandshake = errors.New("failed to marshal login")
+	ErrOpenIPC          = errors.New("failed to open ipc socket")
+	ErrSendIPC          = errors.New("failed to send login to ipc socket")
+	ErrCloseIPC         = errors.New("failed to close ipc socket")
+	ErrMarshalActivity  = errors.New("failed to marshal discord activity")
+	ErrCreateNonce      = errors.New("failed to read rand for nonce")
 )
 
 type Client struct {
@@ -28,16 +37,16 @@ func (d *Client) Login(clientID string) error {
 	if !d.ipcOpened.Load() {
 		payload, errMarshal := json.Marshal(Handshake{"1", clientID})
 		if errMarshal != nil {
-			return errors.Wrap(errMarshal, "Failed to marshal login")
+			return errors.Join(errMarshal, ErrMarshalHandshake)
 		}
 
 		errOpen := d.ipc.OpenSocket()
 		if errOpen != nil {
-			return errors.Wrap(errOpen, "Failed to open ipc socket")
+			return errors.Join(errOpen, ErrOpenIPC)
 		}
 
 		if _, errSend := d.ipc.Send(0, string(payload)); errSend != nil {
-			return errors.Wrap(errSend, "Failed to send login to ipc socket")
+			return errors.Join(errSend, ErrSendIPC)
 		}
 	}
 
@@ -50,7 +59,7 @@ func (d *Client) Logout() error {
 	d.ipcOpened.Store(false)
 
 	if errClose := d.ipc.Close(); errClose != nil {
-		return errors.Wrap(errClose, "Failed to close ipc socket")
+		return errors.Join(errClose, ErrCloseIPC)
 	}
 
 	return nil
@@ -68,7 +77,7 @@ func (d *Client) SetActivity(activity Activity) error {
 
 	payload, errMarshal := json.Marshal(Frame{"SET_ACTIVITY", Args{os.Getpid(), mapActivity(&activity)}, nonce})
 	if errMarshal != nil {
-		return errors.Wrap(errMarshal, "Failed to marshal discord activity")
+		return errors.Join(errMarshal, ErrMarshalActivity)
 	}
 
 	resp, errSend := d.ipc.Send(1, string(payload))
@@ -84,7 +93,7 @@ func getNonce() (string, error) {
 
 	_, err := rand.Read(buf)
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to read buffer")
+		return "", ErrCreateNonce
 	}
 
 	buf[6] = (buf[6] & 0x0f) | 0x40

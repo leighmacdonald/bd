@@ -3,16 +3,17 @@
 package platform
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"errors"
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/bd/assets"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -60,7 +61,7 @@ func openSteamRegistry() (registry.Key, error) {
 
 	regKey, errRegKey := registry.OpenKey(registry.CURRENT_USER, "Software\\\\Valve\\\\Steam\\\\ActiveProcess", access)
 	if errRegKey != nil {
-		return regKey, errors.Wrap(errRegKey, "failed to get steam install path")
+		return regKey, errors.Join(errRegKey, ErrInstallPath)
 	}
 
 	return regKey, nil
@@ -74,7 +75,7 @@ func getSteamRoot() (string, error) {
 
 	installPath, _, err := regKey.GetStringValue("SteamClientDll")
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to read SteamClientDll value")
+		return "", errors.Join(err, ErrRootPath)
 	}
 
 	return filepath.Dir(installPath), nil
@@ -88,47 +89,47 @@ func getTF2Folder() (string, error) {
 
 	libPath := filepath.Join(steamRoot, "steamapps", "libraryfolders.vdf")
 	if !Exists(libPath) {
-		return "", errors.New("Could not find libraryfolders.vdf")
+		return "", ErrSteamLibraryFolders
 	}
 
 	openVDF, errOpen := os.Open(libPath)
 	if errOpen != nil {
-		return "", errors.Wrap(errOpen, "failed to open vdf")
+		return "", errors.Join(errOpen, ErrVDFOpen)
 	}
 
 	parser := vdf.NewParser(openVDF)
 
 	result, errParse := parser.Parse()
 	if errParse != nil {
-		return "", errors.Wrap(errOpen, "failed to parse vdf")
+		return "", errors.Join(errOpen, ErrVDFParse)
 	}
 
 	libs, libsOk := result["libraryfolders"].(map[string]any)
 	if !libsOk {
-		return "", errors.New("Failed to cast libs")
+		return "", fmt.Errorf("%v: %s", ErrVDFValue, "libraryfolders")
 	}
 
 	for _, library := range libs {
 		currentLibraryPath, currentLibraryPathOk := library.(map[string]any)["path"]
 		if !currentLibraryPathOk {
-			return "", errors.New("Failed to cast currentLibraryPath")
+			return "", fmt.Errorf("%v: %s", ErrVDFValue, "currentLibraryPath")
 		}
 
 		apps, appsOk := library.(map[string]any)["apps"]
 		if !appsOk {
-			return "", errors.New("Failed to cast apps")
+			return "", fmt.Errorf("%v: %s", ErrVDFValue, "apps")
 		}
 
 		sm, smOk := apps.(map[string]any)
 		if !smOk {
-			return "", errors.New("Failed to cast sm")
+			return "", fmt.Errorf("%v: %s", ErrVDFValue, "sm")
 		}
 
 		for key := range sm {
 			if key == "440" {
 				gameLibPath, gameLibPathOk := currentLibraryPath.(string)
 				if !gameLibPathOk {
-					return "", errors.New("Failed to cast libPath")
+					return "", fmt.Errorf("%v: %s", ErrVDFValue, "libPath")
 				}
 
 				return filepath.Join(gameLibPath, "steamapps", "common", "Team Fortress 2", "tf"), nil
@@ -136,7 +137,7 @@ func getTF2Folder() (string, error) {
 		}
 	}
 
-	return "", errors.New("TF2 install path could not be found")
+	return "", ErrGameInstallPath
 }
 
 func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
@@ -149,12 +150,12 @@ func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 
 	process, errStart := os.StartProcess(hl2Path, append([]string{hl2Path}, args...), &procAttr)
 	if errStart != nil {
-		return errors.Wrap(errStart, "failed to launch TF2")
+		return errors.Join(errStart, ErrLaunchBinary)
 	}
 
 	_, errWait := process.Wait()
 	if errWait != nil {
-		return errors.Wrap(errWait, "error waiting for game process")
+		return errors.Join(errWait, ErrLaunchWait)
 	}
 
 	return nil
@@ -162,7 +163,7 @@ func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 
 func (l WindowsPlatform) OpenFolder(dir string) error {
 	if errRun := exec.Command("explorer", strings.ReplaceAll(dir, "/", "\\")).Start(); errRun != nil { //nolint:gosec
-		return errors.Wrap(errRun, "failed to start process")
+		return errors.Join(errRun, ErrStartProcess)
 	}
 
 	return nil
@@ -171,7 +172,7 @@ func (l WindowsPlatform) OpenFolder(dir string) error {
 func (l WindowsPlatform) IsGameRunning() (bool, error) {
 	processes, errPs := ps.Processes()
 	if errPs != nil {
-		return false, errors.Wrap(errPs, "Failed to get process list")
+		return false, errors.Join(errPs, ErrReadProcess)
 	}
 
 	for _, process := range processes {
@@ -189,7 +190,7 @@ func (l WindowsPlatform) Icon() []byte {
 
 func (l WindowsPlatform) OpenURL(url string) error {
 	if errOpen := browser.OpenURL(url); errOpen != nil {
-		return errors.Wrap(errOpen, "Failed to open url")
+		return errors.Join(errOpen, ErrStartProcess)
 	}
 
 	return nil

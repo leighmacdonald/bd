@@ -6,7 +6,7 @@ package ipc
 import (
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 	"gopkg.in/natefinch/npipe.v2"
 )
 
@@ -17,7 +17,7 @@ func (ipc *DiscordIPC) OpenSocket() error {
 	// if the pipe is not available (Discord not running)
 	sock, err := npipe.DialTimeout(`\\.\pipe\discord-ipc-0`, time.Second*2)
 	if err != nil {
-		return errors.Wrap(err, "Failed to dial IPC pipe")
+		return errors.Join(err, ErrConnIPC)
 	}
 
 	ipc.socket = sock

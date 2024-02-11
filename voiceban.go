@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"io"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -21,11 +21,11 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 
 	errVersion := binary.Read(reader, binary.BigEndian, &vbVersion)
 	if errVersion != nil {
-		return nil, errors.Wrap(errVersion, "Failed to read binary version")
+		return nil, errors.Join(errVersion, errVoiceBanReadVersion)
 	}
 
 	if vbVersion != banMgrVersion {
-		return nil, errors.New("Invalid version")
+		return nil, errVoiceBanVersion
 	}
 
 	for {
@@ -49,7 +49,7 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 
 		parsedSid := steamid.New(string(trimID))
 		if !parsedSid.Valid() {
-			return nil, errors.New("Malformed steamid")
+			return nil, errInvalidSid
 		}
 
 		ids = append(ids, parsedSid)
@@ -61,7 +61,7 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 func VoiceBanWrite(output io.Writer, steamIds steamid.Collection) error {
 	var version int32 = banMgrVersion
 	if errWrite := binary.Write(output, binary.BigEndian, version); errWrite != nil {
-		return errors.Wrap(errWrite, "Failed to write binary version data")
+		return errors.Join(errWrite, errVoiceBanWriteVersion)
 	}
 
 	for _, sid := range steamIds {
@@ -78,7 +78,7 @@ func VoiceBanWrite(output io.Writer, steamIds steamid.Collection) error {
 		}
 
 		if errWrite := binary.Write(output, binary.BigEndian, sidBytes); errWrite != nil {
-			return errors.Wrap(errWrite, "Failed to write binary steamid data")
+			return errors.Join(errWrite, errVoiceBanWriteSteamID)
 		}
 	}
 

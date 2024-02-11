@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/nxadm/tail"
-	"github.com/pkg/errors"
 )
 
 type LogReader struct {
@@ -42,7 +42,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*LogReader, erro
 	//goland:noinspection ALL
 	tailFile, errTail := tail.TailFile(path, tailConfig)
 	if errTail != nil {
-		return nil, errors.Wrap(errTail, "Failed to configure tail")
+		return nil, errors.Join(errTail, errLogTailCreate)
 	}
 
 	logReader := LogReader{
@@ -202,7 +202,7 @@ func parseConnected(d string) (time.Duration, error) {
 	}
 
 	if parseErr != nil {
-		return 0, errors.Wrap(parseErr, "Failed to parse connected duration")
+		return 0, errors.Join(parseErr, errDuration)
 	}
 
 	return dur, nil

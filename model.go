@@ -53,11 +53,11 @@ type UserMessage struct {
 
 func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly bool) (*UserMessage, error) {
 	if !sid64.Valid() {
-		return nil, ErrInvalidSid
+		return nil, errInvalidSid
 	}
 
 	if message == "" {
-		return nil, ErrEmptyValue
+		return nil, errEmptyValue
 	}
 
 	return &UserMessage{

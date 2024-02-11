@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 	"sync"
 
+	"errors"
 	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
-	"github.com/pkg/errors"
 )
 
 type FriendMap map[steamid.SID64][]steamweb.Friend
@@ -32,7 +32,7 @@ type LocalDataSource struct{}
 func (n LocalDataSource) Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error) {
 	summaries, errSummaries := steamweb.PlayerSummaries(ctx, steamIDs)
 	if errSummaries != nil {
-		return nil, errors.Wrap(errSummaries, "Failed to fetch summaries")
+		return nil, errors.Join(errSummaries, errFetchSummaries)
 	}
 
 	return summaries, nil
@@ -41,7 +41,7 @@ func (n LocalDataSource) Summaries(ctx context.Context, steamIDs steamid.Collect
 func (n LocalDataSource) Bans(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerBanState, error) {
 	bans, errBans := steamweb.GetPlayerBans(ctx, steamIDs)
 	if errBans != nil {
-		return nil, errors.Wrap(errBans, "Failed to fetch bans")
+		return nil, errors.Join(errBans, errFetchBans)
 	}
 
 	return bans, nil
@@ -97,7 +97,7 @@ func (n LocalDataSource) Sourcebans(_ context.Context, steamIDs steamid.Collecti
 
 func NewLocalDataSource(key string) (LocalDataSource, error) {
 	if errKey := steamweb.SetKey(key); errKey != nil {
-		return LocalDataSource{}, errors.Wrap(errKey, "Failed to set steam api key")
+		return LocalDataSource{}, errors.Join(errKey, errAPIKey)
 	}
 
 	return LocalDataSource{}, nil
@@ -111,12 +111,17 @@ type APIDataSource struct {
 	client  *http.Client
 }
 
-func NewAPIDataSource(url string) (APIDataSource, error) {
-	if url == "" {
-		url = APIDataSourceDefaultAddress
+func NewAPIDataSource(sourceURL string) (APIDataSource, error) {
+	if sourceURL == "" {
+		sourceURL = APIDataSourceDefaultAddress
 	}
 
-	return APIDataSource{baseURL: url, client: &http.Client{}}, nil
+	_, errParse := url.Parse(sourceURL)
+	if errParse != nil {
+		return APIDataSource{}, errParse
+	}
+
+	return APIDataSource{baseURL: sourceURL, client: &http.Client{}}, nil
 }
 
 func (n APIDataSource) url(path string, collection steamid.Collection) string {
@@ -126,25 +131,20 @@ func (n APIDataSource) url(path string, collection steamid.Collection) string {
 func (n APIDataSource) get(ctx context.Context, path string, results any) error {
 	req, errReq := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
 	if errReq != nil {
-		return errors.Wrap(errReq, "Failed to create request")
+		return errors.Join(errReq, errCreateRequest)
 	}
 
 	resp, errResp := n.client.Do(req)
 	if errResp != nil {
-		return errors.Wrap(errResp, "Failed to perform request")
-	}
-
-	body, errBody := io.ReadAll(resp.Body)
-	if errBody != nil {
-		return errors.Wrap(errBody, "Failed to read response body")
+		return errors.Join(errResp, errPerformRequest)
 	}
 
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	if errJSON := json.Unmarshal(body, &results); errJSON != nil {
-		return errors.Wrap(errJSON, "Failed to unmarshal json response")
+	if errJSON := json.NewDecoder(resp.Body).Decode(&results); errJSON != nil {
+		return errors.Join(errJSON, errDecodeResponse)
 	}
 
 	return nil

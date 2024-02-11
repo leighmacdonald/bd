@@ -3,8 +3,8 @@ package main
 import (
 	"sync"
 
+	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 var errPlayerNotFound = errors.New("player not found")

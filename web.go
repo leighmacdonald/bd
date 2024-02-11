@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/assets"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/pkg/errors"
 )
 
 type Web struct {
@@ -43,7 +43,7 @@ func (w *Web) startWeb(ctx context.Context) error {
 	}
 
 	if errServe := w.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
-		return errors.Wrap(errServe, "HTTP server returned error")
+		return errors.Join(errServe, errHTTPListen)
 	}
 
 	return nil
@@ -97,7 +97,7 @@ func createRouter(mode RunModes) *gin.Engine {
 // in the binary.
 func setupRoutes(engine *gin.Engine, detector *Detector) error {
 	if errStatic := assets.StaticRoutes(engine, detector.Settings().RunMode == ModeTest); errStatic != nil {
-		return errors.Wrap(errStatic, "Failed to setup static routes")
+		return errors.Join(errStatic, errHTTPRoutes)
 	}
 
 	engine.GET("/state", getState(detector))
@@ -153,7 +153,7 @@ func (w *Web) Stop(ctx context.Context) error {
 	defer cancel()
 
 	if errShutdown := w.Server.Shutdown(timeout); errShutdown != nil {
-		return errors.Wrap(errShutdown, "Failed to shutdown http service")
+		return errors.Join(errShutdown, errHTTPShutdown)
 	}
 
 	return nil
