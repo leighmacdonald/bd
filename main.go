@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -12,10 +14,6 @@ import (
 
 	"fyne.io/systray"
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/leighmacdonald/bd/internal/detector"
-	"github.com/leighmacdonald/bd/internal/store"
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	_ "modernc.org/sqlite"
 )
@@ -32,9 +30,9 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	versionInfo := detector.Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 
-	userSettings, errSettings := detector.NewSettings()
+	userSettings, errSettings := NewSettings()
 	if errSettings != nil {
 		panic(fmt.Sprintf("Failed to initialize settings: %v\n", errSettings))
 	}
@@ -47,60 +45,65 @@ func main() {
 		panic(fmt.Sprintf("Failed to validate settings: %v", errValidate))
 	}
 
-	logger := detector.MustCreateLogger(userSettings)
+	logCloser := MustCreateLogger(userSettings)
+	defer logCloser()
 
-	logger.Info("Starting BD",
-		zap.String("version", versionInfo.Version),
-		zap.String("date", versionInfo.Date),
-		zap.String("commit", versionInfo.Commit),
-		zap.String("via", versionInfo.BuiltBy))
+	logger := slog.Default()
 
-	dataStore := store.New(userSettings.DBPath(), logger)
+	slog.Info("Starting BD",
+		slog.String("version", versionInfo.Version),
+		slog.String("date", versionInfo.Date),
+		slog.String("commit", versionInfo.Commit),
+		slog.String("via", versionInfo.BuiltBy))
+
+	dataStore := NewStore(userSettings.DBPath())
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		logger.Error("Failed to migrate database", zap.Error(errMigrate))
+		slog.Error("Failed to migrate database", errAttr(errMigrate))
 
 		return
 	}
 
-	fsCache, cacheErr := detector.NewCache(logger, userSettings.ConfigRoot(), detector.DurationCacheTimeout)
+	fsCache, cacheErr := NewCache(userSettings.ConfigRoot(), DurationCacheTimeout)
 	if cacheErr != nil {
-		logger.Error("Failed to setup cache", zap.Error(cacheErr))
+		slog.Error("Failed to setup cache", errAttr(cacheErr))
 
 		return
 	}
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := detector.NewLogReader(logger, filepath.Join(userSettings.TF2Dir, "console.log"), logChan)
+	logReader, errLogReader := newLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan, true)
 	if errLogReader != nil {
-		logger.Error("Failed to create logreader", zap.Error(errLogReader))
+		logger.Error("Failed to create logreader", errAttr(errLogReader))
 
 		return
 	}
 
 	var (
-		dataSource detector.DataSource
+		dataSource DataSource
 		errDS      error
 	)
 
 	if userSettings.BdAPIEnabled {
-		dataSource, errDS = detector.NewAPIDataSource(userSettings.BdAPIAddress)
+		dataSource, errDS = NewAPIDataSource(userSettings.BdAPIAddress)
 	} else {
-		dataSource, errDS = detector.NewLocalDataSource(userSettings.APIKey)
+		dataSource, errDS = NewLocalDataSource(userSettings.APIKey)
 	}
 
 	if errDS != nil {
-		logger.Fatal("Failed to initialize data source", zap.Error(errDS))
+		logger.Error("Failed to initialize data source", errAttr(errDS))
+		os.Exit(1)
 	}
 
-	application := detector.New(logger, userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
+	application := NewDetector(userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
 
 	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
 
 	if isTest {
 		body, errRead := os.ReadFile(testLogPath)
 		if errRead != nil {
-			logger.Fatal("Failed to load TEST_CONSOLE_LOG", zap.String("path", testLogPath), zap.Error(errRead))
+			logger.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
+			os.Exit(2)
 		}
 
 		lines := strings.Split(string(body), "\n")
@@ -143,7 +146,7 @@ func main() {
 		<-serviceCtx.Done()
 
 		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil { //nolint:contextcheck
-			logger.Error("Failed to gracefully shutdown", zap.Error(errShutdown))
+			logger.Error("Failed to gracefully shutdown", errAttr(errShutdown))
 		}
 
 		systray.Quit()
@@ -152,7 +155,7 @@ func main() {
 	})
 
 	if err := serviceGroup.Wait(); err != nil {
-		logger.Error("Sad Goodbye", zap.Error(err))
+		logger.Error("Sad Goodbye", errAttr(err))
 
 		return
 	}

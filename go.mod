@@ -1,11 +1,14 @@
 module github.com/leighmacdonald/bd
 
-go 1.20
+go 1.21
+
+toolchain go1.21.5
 
 require (
 	fyne.io/systray v1.10.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/andygrunwald/vdf v1.1.0
+	github.com/dotse/slug v0.1.0
 	github.com/gin-contrib/zap v0.2.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/golang-migrate/migrate/v4 v4.16.2
@@ -52,6 +55,8 @@ require (
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
+	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
+	github.com/logrusorgru/aurora/v4 v4.0.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect

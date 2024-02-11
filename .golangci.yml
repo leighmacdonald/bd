@@ -13,7 +13,7 @@ linters:
     - contextcheck
     - cyclop
     - decorder
-    #- depguard
+    - depguard
     - dogsled
     - dupl
     - dupword
@@ -121,5 +121,13 @@ linters-settings:
     # If lower than 0, disable the check.
     # Default: 40
     statements: -1
+  depguard:
+    rules:
+      errors:
+        deny:
+          - pkg: "github.com/pkg/errors"
+            desc: Should be replaced by standard lib errors package
+          - pkg: "go.uber.org/zap"
+            desc: Should be replaced by standard lib slog package
   nestif:
     min-complexity: 10
