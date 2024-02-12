@@ -85,7 +85,7 @@ func (l LinuxPlatform) Icon() []byte {
 
 func (l LinuxPlatform) OpenURL(url string) error {
 	if errOpen := browser.OpenURL(url); errOpen != nil {
-		return errors.Join(errOpen, fmt.Errorf("%v: %s", ErrOpenURL, url))
+		return errors.Join(errOpen, fmt.Errorf("%w: %s", ErrOpenURL, url))
 	}
 
 	return nil
