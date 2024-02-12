@@ -63,13 +63,11 @@ type Detector struct {
 }
 
 // NewDetector allocates and configures the root detector application.
-func NewDetector(settings UserSettings, database DataStore, versionInfo Version, cache Cache,
+func NewDetector(settings UserSettings, database DataStore, _ Version, cache Cache,
 	reader *LogReader, logChan chan string, dataSource DataSource,
 ) *Detector {
 	plat := platform.New()
 	isRunning, _ := plat.IsGameRunning()
-
-	slog.Info("bd starting", slog.String("version", versionInfo.Version))
 
 	if settings.APIKey != "" {
 		if errAPIKey := steamweb.SetKey(settings.APIKey); errAPIKey != nil {

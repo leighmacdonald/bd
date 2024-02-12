@@ -24,9 +24,8 @@ export const Home = () => {
     const [matchesOnly, setMatchesOnly] = useState(
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
     );
-    const [enabledColumns, setEnabledColumns] = useState<validColumns[]>(
-        getDefaultColumns()
-    );
+    const [enabledColumns, setEnabledColumns] =
+        useState<validColumns[]>(getDefaultColumns());
 
     const saveSelectedColumns = useCallback(
         (columns: validColumns[]) => {

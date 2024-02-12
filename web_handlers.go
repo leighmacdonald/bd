@@ -10,10 +10,6 @@ import (
 
 func getMessages(detector *Detector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodGet) {
-			return
-		}
-
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
@@ -32,11 +28,7 @@ func getMessages(detector *Detector) http.HandlerFunc {
 }
 
 func getQuitGame(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	return func(w http.ResponseWriter, _ *http.Request) {
 		if !detector.gameProcessActive.Load() {
 			responseErr(w, http.StatusNotFound, nil)
 
@@ -64,10 +56,6 @@ func getQuitGame(detector *Detector) http.HandlerFunc {
 
 func getNames(detector *Detector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodGet) {
-			return
-		}
-
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
@@ -93,11 +81,7 @@ type CurrentState struct {
 }
 
 func getState(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	return func(w http.ResponseWriter, _ *http.Request) {
 		detector.serverMu.RLock()
 		defer detector.serverMu.RUnlock()
 
@@ -116,11 +100,7 @@ func getState(detector *Detector) http.HandlerFunc {
 }
 
 func getLaunchGame(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	return func(w http.ResponseWriter, _ *http.Request) {
 		if detector.gameProcessActive.Load() {
 			responseErr(w, http.StatusConflict, "Game process active")
 			slog.Warn("Failed to launch game, process active already")
@@ -139,50 +119,37 @@ type WebUserSettings struct {
 	UniqueTags []string `json:"unique_tags"`
 }
 
-func settings(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			getSettings(detector, w)
-		case http.MethodPut:
-			putSettings(detector, w, r)
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
+func getSettings(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		wus := WebUserSettings{
+			UserSettings: detector.Settings(),
+			UniqueTags:   detector.rules.UniqueTags(),
 		}
+
+		responseOK(w, http.StatusOK, wus)
 	}
 }
 
-func getSettings(detector *Detector, w http.ResponseWriter) {
-	wus := WebUserSettings{
-		UserSettings: detector.Settings(),
-		UniqueTags:   detector.rules.UniqueTags(),
+func putSettings(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var wus WebUserSettings
+		if !bind(w, r, &wus) {
+			return
+		}
+
+		if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
+			responseErr(w, http.StatusBadRequest, errSave.Error())
+			slog.Error("Failed to save settings", errAttr(errSave))
+
+			return
+		}
+
+		responseOK(w, http.StatusNoContent, nil)
 	}
-
-	responseOK(w, http.StatusOK, wus)
-}
-
-func putSettings(detector *Detector, w http.ResponseWriter, r *http.Request) {
-	var wus WebUserSettings
-	if !bind(w, r, &wus) {
-		return
-	}
-
-	if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
-		responseErr(w, http.StatusBadRequest, errSave.Error())
-		slog.Error("Failed to save settings", errAttr(errSave))
-
-		return
-	}
-
-	responseOK(w, http.StatusNoContent, nil)
 }
 
 func callVote(detector *Detector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodPost) {
-			return
-		}
-
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
@@ -222,10 +189,6 @@ type PostNotesOpts struct {
 
 func postNotes(detector *Detector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !ensureMethod(w, r, http.MethodPost) {
-			return
-		}
-
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
@@ -270,101 +233,81 @@ type UnmarkResponse struct {
 	Remaining int `json:"remaining"`
 }
 
-func deleteMarkedPlayer(detector *Detector, w http.ResponseWriter, r *http.Request) {
-	sid, sidOk := steamIDParam(w, r)
-	if !sidOk {
-		return
-	}
+func deleteMarkedPlayer(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sid, sidOk := steamIDParam(w, r)
+		if !sidOk {
+			return
+		}
 
-	remaining, errUnmark := detector.unMark(r.Context(), sid)
-	if errUnmark != nil {
-		if errors.Is(errUnmark, errNotMarked) {
-			responseOK(w, http.StatusNotFound, nil)
+		remaining, errUnmark := detector.unMark(r.Context(), sid)
+		if errUnmark != nil {
+			if errors.Is(errUnmark, errNotMarked) {
+				responseOK(w, http.StatusNotFound, nil)
+
+				return
+			}
+
+			responseErr(w, http.StatusInternalServerError, "Failed to unmark player")
+
+			slog.Error("Failed to unmark player", errAttr(errUnmark))
+		}
+
+		responseOK(w, http.StatusOK, UnmarkResponse{Remaining: remaining})
+	}
+}
+
+func markPlayerPost(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sid, sidOk := steamIDParam(w, r)
+		if !sidOk {
+			return
+		}
+
+		var opts PostMarkPlayerOpts
+		if !bind(w, r, &opts) {
+			return
+		}
+
+		if len(opts.Attrs) == 0 {
+			responseErr(w, http.StatusBadRequest, nil)
+			slog.Error("Received no mark attributes")
 
 			return
 		}
 
-		responseErr(w, http.StatusInternalServerError, "Failed to unmark player")
+		if errCreateMark := detector.mark(r.Context(), sid, opts.Attrs); errCreateMark != nil {
+			if errors.Is(errCreateMark, rules.ErrDuplicateSteamID) {
+				responseErr(w, http.StatusConflict, nil)
+				slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))
 
-		slog.Error("Failed to unmark player", errAttr(errUnmark))
-	}
+				return
+			}
 
-	responseOK(w, http.StatusOK, UnmarkResponse{Remaining: remaining})
-}
-
-func markPlayerPost(detector *Detector, w http.ResponseWriter, r *http.Request) {
-	sid, sidOk := steamIDParam(w, r)
-	if !sidOk {
-		return
-	}
-
-	var opts PostMarkPlayerOpts
-	if !bind(w, r, &opts) {
-		return
-	}
-
-	if len(opts.Attrs) == 0 {
-		responseErr(w, http.StatusBadRequest, nil)
-		slog.Error("Received no mark attributes")
-
-		return
-	}
-
-	if errCreateMark := detector.mark(r.Context(), sid, opts.Attrs); errCreateMark != nil {
-		if errors.Is(errCreateMark, rules.ErrDuplicateSteamID) {
-			responseErr(w, http.StatusConflict, nil)
-			slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))
+			responseErr(w, http.StatusInternalServerError, nil)
+			slog.Error("Failed to mark steam id", errAttr(errCreateMark))
 
 			return
 		}
 
-		responseErr(w, http.StatusInternalServerError, nil)
-		slog.Error("Failed to mark steam id", errAttr(errCreateMark))
-
-		return
+		responseOK(w, http.StatusNoContent, nil)
 	}
-
-	responseOK(w, http.StatusNoContent, nil)
 }
 
-func markPlayer(detector *Detector) http.HandlerFunc {
+func updateWhitelistPlayer(detector *Detector, enable bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			markPlayerPost(detector, w, r)
-		case http.MethodDelete:
-			deleteMarkedPlayer(detector, w, r)
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
+		sid, sidOk := steamIDParam(w, r)
+		if !sidOk {
+			return
 		}
-	}
-}
 
-func whitelist(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			updateWhitelistPlayer(w, r, detector, true)
-		case http.MethodDelete:
-			updateWhitelistPlayer(w, r, detector, false)
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
+		if errWl := detector.whitelist(r.Context(), sid, enable); errWl != nil {
+			responseErr(w, http.StatusInternalServerError, nil)
+			slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
+
+			return
 		}
+
+		responseOK(w, http.StatusNoContent, nil)
 	}
-}
-
-func updateWhitelistPlayer(w http.ResponseWriter, r *http.Request, detector *Detector, enable bool) {
-	sid, sidOk := steamIDParam(w, r)
-	if !sidOk {
-		return
-	}
-
-	if errWl := detector.whitelist(r.Context(), sid, enable); errWl != nil {
-		responseErr(w, http.StatusInternalServerError, nil)
-		slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
-
-		return
-	}
-
-	responseOK(w, http.StatusNoContent, nil)
 }

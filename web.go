@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -89,49 +88,28 @@ func responseOK(w http.ResponseWriter, status int, data any) {
 func createMux(detector *Detector) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/state", getState(detector))
-	mux.HandleFunc("/messages/:steam_id", getMessages(detector))
-	mux.HandleFunc("/names/:steam_id", getNames(detector))
-	mux.HandleFunc("/mark/:steam_id", markPlayer(detector))
-	mux.HandleFunc("/settings", settings(detector))
-	mux.HandleFunc("/launch", getLaunchGame(detector))
-	mux.HandleFunc("/quit", getQuitGame(detector))
-	mux.HandleFunc("/whitelist/:steam_id", whitelist(detector))
-	mux.HandleFunc("/notes/:steam_id", postNotes(detector))
-	mux.HandleFunc("/callvote/:steam_id/:reason", callVote(detector))
+	mux.HandleFunc("GET /state", getState(detector))
+	mux.HandleFunc("GET /messages/{steam_id}", getMessages(detector))
+	mux.HandleFunc("GET /names/{steam_id}", getNames(detector))
+	mux.HandleFunc("POST /mark/{steam_id}", markPlayerPost(detector))
+	mux.HandleFunc("DELETE /mark/{steam_id}", deleteMarkedPlayer(detector))
+	mux.HandleFunc("GET /settings", getSettings(detector))
+	mux.HandleFunc("PUT /settings", putSettings(detector))
+	mux.HandleFunc("GET /launch", getLaunchGame(detector))
+	mux.HandleFunc("GET /quit", getQuitGame(detector))
+	mux.HandleFunc("POST /whitelist/{steam_id}", updateWhitelistPlayer(detector, true))
+	mux.HandleFunc("DELETE /whitelist/{steam_id}", updateWhitelistPlayer(detector, false))
+	mux.HandleFunc("POST /notes/{steam_id}", postNotes(detector))
+	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", callVote(detector))
 
 	defaultHandler, errStatic := frontend.AddRoutes(mux)
 	if errStatic != nil {
 		return nil, errors.Join(errStatic, errHTTPRoutes)
 	}
 
-	mux.Handle("/", defaultHandler)
+	mux.Handle("GET /{$}", defaultHandler)
 
 	return mux, nil
-}
-
-func ensureMethod(w http.ResponseWriter, r *http.Request, allowedMethods ...string) bool {
-	valid := false
-
-	for _, method := range allowedMethods {
-		if method == r.Method {
-			valid = true
-
-			break
-		}
-	}
-
-	if !valid {
-		if _, err := io.WriteString(w, "Unsupported method"); err != nil {
-			slog.Error("Failed to write error message", errAttr(err))
-		}
-
-		w.WriteHeader(http.StatusMethodNotAllowed)
-
-		return false
-	}
-
-	return true
 }
 
 func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SID64, bool) {

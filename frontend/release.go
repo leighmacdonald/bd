@@ -26,13 +26,9 @@ func AddRoutes(mux *http.ServeMux) (http.HandlerFunc, error) {
 		Delims("{{", "}}").
 		ParseFS(subFs, "index.html"))
 
-	mux.Handle("/dist", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
+	mux.Handle("GET /dist", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			return
-		}
-
+	return func(w http.ResponseWriter, _ *http.Request) {
 		if err := indexTmpl.Execute(w, jsConfig{SiteName: "bd"}); err != nil {
 			slog.Error("Failed to exec template", slog.String("error", err.Error()))
 			w.WriteHeader(http.StatusInternalServerError)

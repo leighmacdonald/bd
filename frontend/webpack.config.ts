@@ -28,7 +28,7 @@ const config: Configuration = {
         filename: '[name].bundle.js',
         clean: false
     },
-    devtool: devMode ? 'inline-source-map' : false,
+    devtool: devMode ? 'source-map' : false,
     devServer,
     performance: {
         maxAssetSize: 1000000,
