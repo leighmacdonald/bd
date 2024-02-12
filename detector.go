@@ -116,8 +116,10 @@ func NewDetector(settings UserSettings, database DataStore, versionInfo Version,
 					if errRulesImport != nil {
 						slog.Error("Failed to import local rules list", errAttr(errRulesImport))
 					}
+
 					slog.Debug("Loaded local rules list", slog.Int("count", count))
 				}
+
 				LogClose(input)
 			}
 		}
@@ -166,7 +168,7 @@ func NewDetector(settings UserSettings, database DataStore, versionInfo Version,
 
 	application.Systray = tray
 
-	web, errWeb := NewWeb(application)
+	web, errWeb := newWebServer(application)
 	if errWeb != nil {
 		panic(errWeb)
 	}
@@ -247,8 +249,8 @@ const (
 // exportVoiceBans will write the most recent 200 bans to the `voice_ban.dt`. This must be done while the game is not
 // currently running.
 func (d *Detector) exportVoiceBans() error {
-	bannedIds := d.rules.FindNewestEntries(maxVoiceBans, d.Settings().KickTags)
-	if len(bannedIds) == 0 {
+	bannedIDs := d.rules.FindNewestEntries(maxVoiceBans, d.Settings().KickTags)
+	if len(bannedIDs) == 0 {
 		return nil
 	}
 
@@ -259,7 +261,7 @@ func (d *Detector) exportVoiceBans() error {
 		return errors.Join(errOpen, errVoiceBanOpen)
 	}
 
-	if errWrite := VoiceBanWrite(vbFile, bannedIds); errWrite != nil {
+	if errWrite := VoiceBanWrite(vbFile, bannedIDs); errWrite != nil {
 		return errors.Join(errWrite, errVoiceBanWrite)
 	}
 
@@ -757,7 +759,7 @@ func (d *Detector) ensureRcon(ctx context.Context) error {
 
 	conn, errConn := rcon.Dial(ctx, settings.Rcon.String(), settings.Rcon.Password, DurationRCONRequestTimeout)
 	if errConn != nil {
-		return errors.Join(errConn, fmt.Errorf("%v: %s", errRCONConnect, settings.Rcon.String()))
+		return errors.Join(errConn, fmt.Errorf("%w: %s", errRCONConnect, settings.Rcon.String()))
 	}
 
 	d.rconMu.Lock()
@@ -797,7 +799,7 @@ func (d *Detector) sendChat(ctx context.Context, destination ChatDest, format st
 	case ChatDestParty:
 		cmd = fmt.Sprintf("say_party %s", fmt.Sprintf(format, args...))
 	default:
-		return fmt.Errorf("%v: %s", errInvalidChatType, destination)
+		return fmt.Errorf("%w: %s", errInvalidChatType, destination)
 	}
 
 	return d.execRcon(cmd)
@@ -817,7 +819,7 @@ func (d *Detector) execRcon(cmd string) error {
 
 	_, errExec := d.rconConn.Exec(cmd)
 	if errExec != nil {
-		return fmt.Errorf("%v: %s", errRCONExec, cmd)
+		return fmt.Errorf("%w: %s", errRCONExec, cmd)
 	}
 
 	return nil
@@ -1185,7 +1187,7 @@ func (d *Detector) rconMulti(cmd string) (string, error) {
 // nolint:gosec
 func CreateTestPlayers(detector *Detector, count int) {
 	idIdx := 0
-	knownIds := steamid.Collection{
+	knownIDs := steamid.Collection{
 		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
 		"76561197989961569", "76561198183927541", "76561198005026984", "76561197997861796", "76561198377596915",
 		"76561198336028289", "76561198066637626", "76561198818013048", "76561198196411029", "76561198079544034",
@@ -1201,7 +1203,7 @@ func CreateTestPlayers(detector *Detector, count int) {
 			team = Red
 		}
 
-		player, errPlayer := detector.GetPlayerOrCreate(context.Background(), knownIds[idIdx])
+		player, errPlayer := detector.GetPlayerOrCreate(context.Background(), knownIDs[idIdx])
 		if errPlayer != nil {
 			panic(errPlayer)
 		}
@@ -1608,9 +1610,9 @@ func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequ
 				reason       KickReason
 			)
 
-			settings := d.Settings()
+			curSettings := d.Settings()
 
-			if !settings.KickerEnabled {
+			if !curSettings.KickerEnabled {
 				continue
 			}
 
@@ -1623,7 +1625,7 @@ func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequ
 				var valid []Player
 
 				for _, player := range kickable {
-					if player.MatchAttr(settings.KickTags) {
+					if player.MatchAttr(curSettings.KickTags) {
 						valid = append(valid, player)
 					}
 				}
@@ -1640,6 +1642,7 @@ func (d *Detector) autoKicker(ctx context.Context, kickRequestChan chan kickRequ
 				kickedPlayer = valid[0]
 			} else {
 				request := kickRequests[0]
+
 				if len(kickRequests) > 1 {
 					kickRequests = kickRequests[1:]
 				} else {

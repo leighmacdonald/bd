@@ -3,15 +3,15 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"errors"
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/assets"
+	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
 	"golang.org/x/sys/windows/registry"
@@ -106,30 +106,30 @@ func getTF2Folder() (string, error) {
 
 	libs, libsOk := result["libraryfolders"].(map[string]any)
 	if !libsOk {
-		return "", fmt.Errorf("%v: %s", ErrVDFValue, "libraryfolders")
+		return "", fmt.Errorf("%w: %s", ErrVDFValue, "libraryfolders")
 	}
 
 	for _, library := range libs {
 		currentLibraryPath, currentLibraryPathOk := library.(map[string]any)["path"]
 		if !currentLibraryPathOk {
-			return "", fmt.Errorf("%v: %s", ErrVDFValue, "currentLibraryPath")
+			return "", fmt.Errorf("%w: %s", ErrVDFValue, "currentLibraryPath")
 		}
 
 		apps, appsOk := library.(map[string]any)["apps"]
 		if !appsOk {
-			return "", fmt.Errorf("%v: %s", ErrVDFValue, "apps")
+			return "", fmt.Errorf("%w: %s", ErrVDFValue, "apps")
 		}
 
 		sm, smOk := apps.(map[string]any)
 		if !smOk {
-			return "", fmt.Errorf("%v: %s", ErrVDFValue, "sm")
+			return "", fmt.Errorf("%w: %s", ErrVDFValue, "sm")
 		}
 
 		for key := range sm {
 			if key == "440" {
 				gameLibPath, gameLibPathOk := currentLibraryPath.(string)
 				if !gameLibPathOk {
-					return "", fmt.Errorf("%v: %s", ErrVDFValue, "libPath")
+					return "", fmt.Errorf("%w: %s", ErrVDFValue, "libPath")
 				}
 
 				return filepath.Join(gameLibPath, "steamapps", "common", "Team Fortress 2", "tf"), nil
@@ -185,7 +185,7 @@ func (l WindowsPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l WindowsPlatform) Icon() []byte {
-	return assets.Read(assets.IconWindows)
+	return frontend.Read(frontend.IconWindows)
 }
 
 func (l WindowsPlatform) OpenURL(url string) error {

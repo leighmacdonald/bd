@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/bd/rules"
 )
 
@@ -62,7 +62,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 
 		body, errFetch := fetchURL(ctx, client, listConfig.URL)
 		if errFetch != nil {
-			return fmt.Errorf("%v: %s", errFetchPlayerList, listConfig.URL)
+			return fmt.Errorf("%w: %s", errFetchPlayerList, listConfig.URL)
 		}
 
 		body = FixSteamIDFormat(body)

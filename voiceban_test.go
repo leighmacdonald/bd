@@ -16,15 +16,15 @@ func TestVoiceBans(t *testing.T) {
 		_ = vbTestFile.Close()
 	}()
 
-	testIds := steamid.Collection{"76561198369477018", "76561197970669109", "76561197961279983"}
+	testIDs := steamid.Collection{"76561198369477018", "76561197970669109", "76561197961279983"}
 
-	require.NoError(t, VoiceBanWrite(vbTestFile, testIds))
+	require.NoError(t, VoiceBanWrite(vbTestFile, testIDs))
 	_ = vbTestFile.Sync()
 	_, _ = vbTestFile.Seek(0, 0)
 	bans, errRead := VoiceBanRead(vbTestFile)
 	require.NoError(t, errRead)
 
 	for idx, foundID := range bans {
-		require.Equal(t, testIds[idx], foundID)
+		require.Equal(t, testIDs[idx], foundID)
 	}
 }

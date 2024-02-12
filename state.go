@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"sync"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 

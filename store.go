@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"errors"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
@@ -66,7 +66,7 @@ func (store *SqliteStore) Connect() error {
 	for _, pragma := range []string{"PRAGMA encoding = 'UTF-8'", "PRAGMA foreign_keys = ON"} {
 		_, errPragma := database.Exec(pragma)
 		if errPragma != nil {
-			return fmt.Errorf("%v: %s", errStorePragma, pragma)
+			return fmt.Errorf("%w: %s", errStorePragma, pragma)
 		}
 	}
 
@@ -243,7 +243,7 @@ func (store *SqliteStore) updatePlayer(ctx context.Context, state *Player) error
 
 func (store *SqliteStore) SavePlayer(ctx context.Context, state *Player) error {
 	if !state.SteamID.Valid() {
-		return errors.New("Invalid steam id")
+		return errInvalidSid
 	}
 
 	return store.updatePlayer(ctx, state)
@@ -321,7 +321,7 @@ func (store *SqliteStore) SearchPlayers(ctx context.Context, opts SearchOpts) ([
 
 func (store *SqliteStore) GetPlayer(ctx context.Context, steamID steamid.SID64, create bool, player *Player) error {
 	if !steamID.Valid() {
-		return errors.New("Invalid steam id")
+		return errInvalidSid
 	}
 
 	query, args, errSQL := sq.

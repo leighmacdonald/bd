@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -11,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
@@ -23,6 +23,7 @@ var (
 	ErrEncodeRules       = errors.New("failed to encode rules")
 	ErrUnknownRuleList   = errors.New("unknown rules list")
 	ErrInvalidRegex      = errors.New("invalid regex pattern")
+	ErrInvalidAttributes = errors.New("invalid attribute count")
 )
 
 type Engine struct {
@@ -221,7 +222,7 @@ func (e *Engine) Unmark(steamID steamid.SID64) bool {
 // Mark a player on the local player list.
 func (e *Engine) Mark(opts MarkOpts) error {
 	if len(opts.Attributes) == 0 {
-		return errors.New("Invalid attribute count")
+		return ErrInvalidAttributes
 	}
 
 	e.Lock()
@@ -318,7 +319,7 @@ func (e *Engine) ExportPlayers(listName string, writer io.Writer) error {
 		}
 	}
 
-	return fmt.Errorf("%v: %s", ErrUnknownPlayerList, listName)
+	return fmt.Errorf("%w: %s", ErrUnknownPlayerList, listName)
 }
 
 // ExportRules writes the json encoded rules list matching the listName provided to the io.Writer.
@@ -336,7 +337,7 @@ func (e *Engine) ExportRules(listName string, writer io.Writer) error {
 		}
 	}
 
-	return fmt.Errorf("%v: %s", ErrUnknownRuleList, listName)
+	return fmt.Errorf("%w: %s", ErrUnknownRuleList, listName)
 }
 
 // ImportRules loads the provided ruleset for use.
@@ -357,6 +358,7 @@ func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
 				rule.Triggers.UsernameTextMatch.CaseSensitive,
 				attrs,
 				rule.Triggers.UsernameTextMatch.Patterns...))
+
 			count++
 		}
 
@@ -373,6 +375,7 @@ func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
 				rule.Triggers.ChatMsgTextMatch.CaseSensitive,
 				attrs,
 				rule.Triggers.ChatMsgTextMatch.Patterns...))
+
 			count++
 		}
 
@@ -391,6 +394,7 @@ func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
 				list.FileInfo.Title,
 				AvatarMatchExact,
 				hashes...))
+
 			count++
 		}
 	}

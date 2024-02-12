@@ -3,22 +3,23 @@ package client
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/bd/discord/ipc"
 )
 
 var (
 	ErrMarshalHandshake = errors.New("failed to marshal login")
 	ErrOpenIPC          = errors.New("failed to open ipc socket")
-	ErrSendIPC          = errors.New("failed to send login to ipc socket")
+	ErrSendIPCLogin     = errors.New("failed to send login to ipc socket")
 	ErrCloseIPC         = errors.New("failed to close ipc socket")
 	ErrMarshalActivity  = errors.New("failed to marshal discord activity")
 	ErrCreateNonce      = errors.New("failed to read rand for nonce")
+	ErrSendIPC          = errors.New("failed to send payload over ipc")
 )
 
 type Client struct {
@@ -46,7 +47,7 @@ func (d *Client) Login(clientID string) error {
 		}
 
 		if _, errSend := d.ipc.Send(0, string(payload)); errSend != nil {
-			return errors.Join(errSend, ErrSendIPC)
+			return errors.Join(errSend, ErrSendIPCLogin)
 		}
 	}
 
@@ -82,7 +83,7 @@ func (d *Client) SetActivity(activity Activity) error {
 
 	resp, errSend := d.ipc.Send(1, string(payload))
 	if errSend != nil {
-		return errors.New(resp)
+		return fmt.Errorf("%w: %s", ErrSendIPC, resp)
 	}
 
 	return nil

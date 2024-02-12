@@ -3,10 +3,9 @@ package ipc
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"net"
 	"os"
-
-	"errors"
 )
 
 var (

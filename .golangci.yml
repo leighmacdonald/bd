@@ -93,7 +93,7 @@ linters:
     - unparam
     - unused
     - usestdlibvars
-    - varnamelen
+    #- varnamelen
     - wastedassign
     - whitespace
     - wrapcheck

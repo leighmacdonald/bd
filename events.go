@@ -1,10 +1,10 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 

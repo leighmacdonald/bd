@@ -2,13 +2,12 @@ package addons
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"errors"
 )
 
 //go:embed *
@@ -16,11 +15,11 @@ var addonFS embed.FS
 
 var (
 	ErrRemoveWrappers  = errors.New("failed to remove tf2bd chat wrappers")
-	ErrInstallVoteFail = errors.New("Failed to install votefail eraser addon")
-	ErrCreateOutput    = errors.New("Failed to make output dir")
-	ErrReadEmbed       = errors.New("Failed to read embed file path")
-	ErrOpenOutput      = errors.New("Failed to open output dir")
-	ErrWriteOutput     = errors.New("Failed to write output file")
+	ErrInstallVoteFail = errors.New("failed to install votefail eraser addon")
+	ErrCreateOutput    = errors.New("failed to make output dir")
+	ErrReadEmbed       = errors.New("failed to read embed file path")
+	ErrOpenOutput      = errors.New("failed to open output dir")
+	ErrWriteOutput     = errors.New("failed to write output file")
 	ErrInstall         = errors.New("failed to install addon")
 )
 
@@ -47,7 +46,7 @@ func Install(tf2dir string) error {
 }
 
 func cpEmbedDir(src embed.FS, srcPath string, dst string) error {
-	if errWalk := fs.WalkDir(src, srcPath, func(path string, fsDir fs.DirEntry, err error) error {
+	if errWalk := fs.WalkDir(src, srcPath, func(path string, fsDir fs.DirEntry, _ error) error {
 		if fsDir.IsDir() {
 			if errMkdir := os.MkdirAll(filepath.Join(dst, path), 0o775); errMkdir != nil {
 				return errors.Join(errMkdir, ErrCreateOutput)

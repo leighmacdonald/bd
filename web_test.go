@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"errors"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func testApp() (*Detector, func(), error) {
 	}
 
 	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		return nil, cleanup, errMigrate
+		return nil, cleanup, errors.Join(errMigrate, errPerformMigration)
 	}
 
 	logChan := make(chan string)
@@ -78,7 +78,7 @@ func fetchIntoWithStatus(t *testing.T, app *Detector, method string, path string
 	req, _ := http.NewRequestWithContext(context.Background(), method, path, bodyReader)
 	recorder := httptest.NewRecorder()
 
-	app.Web.Engine.ServeHTTP(recorder, req)
+	app.Web.Handler.ServeHTTP(recorder, req)
 
 	if out != nil {
 		responseData, errBody := io.ReadAll(recorder.Body)
@@ -112,28 +112,29 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 
 	t.Run("Get Settings", func(t *testing.T) { //nolint:tparallel
 		var wus WebUserSettings
+
 		fetchIntoWithStatus(t, app, "GET", "/settings", http.StatusOK, &wus, nil)
-		settings := WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
-		require.Equal(t, settings.SteamID, wus.SteamID)
-		require.Equal(t, settings.SteamDir, wus.SteamDir)
-		require.Equal(t, settings.AutoLaunchGame, wus.AutoLaunchGame)
-		require.Equal(t, settings.AutoCloseOnGameExit, wus.AutoCloseOnGameExit)
-		require.Equal(t, settings.APIKey, wus.APIKey)
-		require.Equal(t, settings.DisconnectedTimeout, wus.DisconnectedTimeout)
-		require.Equal(t, settings.DiscordPresenceEnabled, wus.DiscordPresenceEnabled)
-		require.Equal(t, settings.KickerEnabled, wus.KickerEnabled)
-		require.Equal(t, settings.ChatWarningsEnabled, wus.ChatWarningsEnabled)
-		require.Equal(t, settings.PartyWarningsEnabled, wus.PartyWarningsEnabled)
-		require.Equal(t, settings.KickTags, wus.KickTags)
-		require.Equal(t, settings.VoiceBansEnabled, wus.VoiceBansEnabled)
-		require.Equal(t, settings.DebugLogEnabled, wus.DebugLogEnabled)
-		require.Equal(t, settings.Lists, wus.Lists)
-		require.Equal(t, settings.Links, wus.Links)
-		require.Equal(t, settings.RCONStatic, wus.RCONStatic)
-		require.Equal(t, settings.HTTPEnabled, wus.HTTPEnabled)
-		require.Equal(t, settings.HTTPListenAddr, wus.HTTPListenAddr)
-		require.Equal(t, settings.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
-		require.Equal(t, settings.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
+		userSettings := WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
+		require.Equal(t, userSettings.SteamID, wus.SteamID)
+		require.Equal(t, userSettings.SteamDir, wus.SteamDir)
+		require.Equal(t, userSettings.AutoLaunchGame, wus.AutoLaunchGame)
+		require.Equal(t, userSettings.AutoCloseOnGameExit, wus.AutoCloseOnGameExit)
+		require.Equal(t, userSettings.APIKey, wus.APIKey)
+		require.Equal(t, userSettings.DisconnectedTimeout, wus.DisconnectedTimeout)
+		require.Equal(t, userSettings.DiscordPresenceEnabled, wus.DiscordPresenceEnabled)
+		require.Equal(t, userSettings.KickerEnabled, wus.KickerEnabled)
+		require.Equal(t, userSettings.ChatWarningsEnabled, wus.ChatWarningsEnabled)
+		require.Equal(t, userSettings.PartyWarningsEnabled, wus.PartyWarningsEnabled)
+		require.Equal(t, userSettings.KickTags, wus.KickTags)
+		require.Equal(t, userSettings.VoiceBansEnabled, wus.VoiceBansEnabled)
+		require.Equal(t, userSettings.DebugLogEnabled, wus.DebugLogEnabled)
+		require.Equal(t, userSettings.Lists, wus.Lists)
+		require.Equal(t, userSettings.Links, wus.Links)
+		require.Equal(t, userSettings.RCONStatic, wus.RCONStatic)
+		require.Equal(t, userSettings.HTTPEnabled, wus.HTTPEnabled)
+		require.Equal(t, userSettings.HTTPListenAddr, wus.HTTPListenAddr)
+		require.Equal(t, userSettings.PlayerExpiredTimeout, wus.PlayerExpiredTimeout)
+		require.Equal(t, userSettings.PlayerDisconnectTimeout, wus.PlayerDisconnectTimeout)
 	})
 
 	t.Run("Save Settings", func(t *testing.T) { //nolint:tparallel
@@ -168,13 +169,17 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 
 	t.Run("Mark Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusNoContent, nil, req)
+
 		matches := app.Rules().MatchSteam(players[0].SteamID)
+
 		require.True(t, len(matches) > 0)
 	})
 
 	t.Run("Mark Duplicate Player", func(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusConflict, nil, req)
+
 		matches := app.Rules().MatchSteam(players[0].SteamID)
+
 		require.True(t, len(matches) > 0)
 	})
 
@@ -182,7 +187,9 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, app, "POST", fmt.Sprintf("/mark/%s", players[0].SteamID), http.StatusBadRequest, nil, PostMarkPlayerOpts{
 			Attrs: []string{},
 		})
+
 		matches := app.Rules().MatchSteam(players[0].SteamID)
+
 		require.True(t, len(matches) > 0)
 	})
 
@@ -190,7 +197,9 @@ func TestPostMarkPlayerHandler(t *testing.T) { //nolint:tparallel
 		fetchIntoWithStatus(t, app, "POST", "/mark/blah", http.StatusBadRequest, nil, PostMarkPlayerOpts{
 			Attrs: []string{"cheater", "test"},
 		})
+
 		matches := app.Rules().MatchSteam(players[0].SteamID)
+
 		require.True(t, len(matches) > 0)
 	})
 }
@@ -215,6 +224,7 @@ func TestUnmarkPlayerHandler(t *testing.T) {
 
 	t.Run("Unmark Marked Player", func(t *testing.T) {
 		var resp UnmarkResponse
+
 		fetchIntoWithStatus(t, app, http.MethodDelete,
 			fmt.Sprintf("/mark/%d", markedPlayer.SteamID.Int64()), http.StatusOK, &resp, nil)
 		require.Equal(t, 0, resp.Remaining)
@@ -290,6 +300,7 @@ func TestPlayerChatHistory(t *testing.T) {
 
 	t.Run("Get Chat History", func(t *testing.T) { //nolint:tparallel
 		var messages []*UserMessage
+
 		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/messages/%s", players[0].SteamID), http.StatusOK, &messages, nil)
 		require.Equal(t, 10, len(messages))
 	})
@@ -312,7 +323,9 @@ func TestPlayerNameHistory(t *testing.T) { //nolint:tparallel
 
 	t.Run("Get Name History", func(t *testing.T) {
 		var names UserMessageCollection
+
 		fetchIntoWithStatus(t, app, "GET", fmt.Sprintf("/names/%s", players[1].SteamID), http.StatusOK, &names, nil)
+
 		require.Equal(t, 5, len(names))
 	})
 }

@@ -1,13 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 
-	"errors"
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/steamid/v3/steamid"
@@ -62,14 +62,14 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 
 	openVDF, errOpen := os.Open(localConfigPath)
 	if errOpen != nil {
-		return nil, errors.Join(errOpen, errVDFOpen)
+		return nil, errors.Join(errOpen, platform.ErrVDFOpen)
 	}
 
 	newParser := vdf.NewParser(openVDF)
 
 	result, errParse := newParser.Parse()
 	if errParse != nil {
-		return nil, errors.Join(errOpen, errVDFParse)
+		return nil, errors.Join(errOpen, platform.ErrVDFParse)
 	}
 
 	var (
@@ -93,13 +93,13 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 
 		result, castOk = result[csKey].(map[string]any)
 		if !castOk {
-			return nil, errors.Join(errOpen, fmt.Errorf("%v: %s", errVDFKey, key))
+			return nil, errors.Join(errOpen, fmt.Errorf("%w: %s", platform.ErrVDFKey, key))
 		}
 
 		if index == len(pathKeys)-1 {
 			launchStr, launchStrOk := result["LaunchOptions"].(string)
 			if !launchStrOk {
-				return nil, fmt.Errorf("%v: %s", errVDFValue, "LaunchOptions")
+				return nil, fmt.Errorf("%w: %s", platform.ErrVDFValue, "LaunchOptions")
 			}
 
 			launchOpts = strings.Split(launchStr, " ")
@@ -108,7 +108,7 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 	}
 
 	if !found {
-		return nil, errors.New("Failed to read LaunchOptions key")
+		return nil, errGetLaunchOptions
 	}
 
 	return launchOpts, nil

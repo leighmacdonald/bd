@@ -59,26 +59,30 @@ func TestPlayer(t *testing.T) {
 	})
 
 	t.Run("Search Players", func(t *testing.T) {
-		knownIds := steamid.Collection{
+		knownIDs := steamid.Collection{
 			"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
 		}
 		knownNames := []string{"test name 1", "test name 2", "Blah Blax", "bob", "sally"}
-		for idx, sid := range knownIds {
+
+		for idx, sid := range knownIDs {
 			player := NewPlayer(sid, knownNames[idx])
 			require.NoError(t, database.GetPlayer(context.TODO(), player.SteamID, true, &player), "Failed to create player")
 		}
+
 		t.Run("By SteamID", func(t *testing.T) {
-			sid3Matches, errSid3Matches := database.SearchPlayers(context.TODO(), SearchOpts{Query: string(steamid.SID64ToSID3(knownIds[0]))})
+			sid3Matches, errSid3Matches := database.SearchPlayers(context.TODO(), SearchOpts{Query: string(steamid.SID64ToSID3(knownIDs[0]))})
 			require.NoError(t, errSid3Matches)
 			require.Equal(t, 1, len(sid3Matches))
-			require.Equal(t, knownIds[0], sid3Matches[0].SteamID)
+			require.Equal(t, knownIDs[0], sid3Matches[0].SteamID)
 		})
+
 		t.Run("By Name", func(t *testing.T) {
 			nameMatches, errMatches := database.SearchPlayers(context.TODO(), SearchOpts{Query: "test name"})
 			require.NoError(t, errMatches)
 			require.Equal(t, 2, len(nameMatches))
+
 			for _, found := range nameMatches {
-				require.Contains(t, knownIds, found.SteamID)
+				require.Contains(t, knownIDs, found.SteamID)
 			}
 		})
 	})

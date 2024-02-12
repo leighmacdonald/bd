@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/nxadm/tail"
 )

@@ -1,12 +1,15 @@
-package assets
+package frontend
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 )
 
 //go:embed *.ico *.png
 var content embed.FS
+
+var ErrStaticPath = errors.New("failed to setup static paths")
 
 type Name string
 
@@ -14,6 +17,10 @@ const (
 	IconWindows Name = "icon.ico"
 	IconOther   Name = "icon.png"
 )
+
+type jsConfig struct {
+	SiteName string `json:"site_name"`
+}
 
 func Read(name Name) []byte {
 	data, errRead := content.ReadFile(string(name))

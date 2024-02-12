@@ -4,9 +4,9 @@
 package ipc
 
 import (
+	"errors"
 	"time"
 
-	"errors"
 	"gopkg.in/natefinch/npipe.v2"
 )
 

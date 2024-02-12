@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
@@ -58,13 +58,13 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 	return ids, nil
 }
 
-func VoiceBanWrite(output io.Writer, steamIds steamid.Collection) error {
-	var version int32 = banMgrVersion
-	if errWrite := binary.Write(output, binary.BigEndian, version); errWrite != nil {
+func VoiceBanWrite(output io.Writer, steamIDs steamid.Collection) error {
+	var vbVersion int32 = banMgrVersion
+	if errWrite := binary.Write(output, binary.BigEndian, vbVersion); errWrite != nil {
 		return errors.Join(errWrite, errVoiceBanWriteVersion)
 	}
 
-	for _, sid := range steamIds {
+	for _, sid := range steamIDs {
 		var (
 			raw      = []byte(steamid.SID64ToSID3(sid))
 			sidBytes []byte

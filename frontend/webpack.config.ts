@@ -3,7 +3,7 @@ import HtmlWebpackPlugin from 'html-webpack-plugin';
 import type { Configuration as DevServerConfiguration } from 'webpack-dev-server';
 import type { Configuration } from 'webpack';
 
-const outPath = path.resolve('../assets/dist');
+const outPath = path.resolve('dist');
 
 const devMode = process.env.NODE_ENV !== 'production';
 

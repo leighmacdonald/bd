@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
 
-	"errors"
 	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
@@ -95,12 +95,12 @@ func (n LocalDataSource) Sourcebans(_ context.Context, steamIDs steamid.Collecti
 	return dummy, nil
 }
 
-func NewLocalDataSource(key string) (LocalDataSource, error) {
+func NewLocalDataSource(key string) (*LocalDataSource, error) {
 	if errKey := steamweb.SetKey(key); errKey != nil {
-		return LocalDataSource{}, errors.Join(errKey, errAPIKey)
+		return nil, errors.Join(errKey, errAPIKey)
 	}
 
-	return LocalDataSource{}, nil
+	return &LocalDataSource{}, nil
 }
 
 const APIDataSourceDefaultAddress = "https://bd-api.roto.lol"
@@ -111,17 +111,17 @@ type APIDataSource struct {
 	client  *http.Client
 }
 
-func NewAPIDataSource(sourceURL string) (APIDataSource, error) {
+func NewAPIDataSource(sourceURL string) (*APIDataSource, error) {
 	if sourceURL == "" {
 		sourceURL = APIDataSourceDefaultAddress
 	}
 
 	_, errParse := url.Parse(sourceURL)
 	if errParse != nil {
-		return APIDataSource{}, errParse
+		return nil, errors.Join(errParse, errDataSourceAPIAddr)
 	}
 
-	return APIDataSource{baseURL: sourceURL, client: &http.Client{}}, nil
+	return &APIDataSource{baseURL: sourceURL, client: &http.Client{}}, nil
 }
 
 func (n APIDataSource) url(path string, collection steamid.Collection) string {

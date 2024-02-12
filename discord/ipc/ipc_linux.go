@@ -4,10 +4,9 @@
 package ipc
 
 import (
+	"errors"
 	"net"
 	"time"
-
-	"errors"
 )
 
 // OpenSocket opens the discord-ipc-0 unix socket.

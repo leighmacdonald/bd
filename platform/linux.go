@@ -3,11 +3,11 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 
-	"errors"
-	"github.com/leighmacdonald/bd/assets"
+	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
@@ -80,7 +80,7 @@ func (l LinuxPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l LinuxPlatform) Icon() []byte {
-	return assets.Read(assets.IconOther)
+	return frontend.Read(frontend.IconOther)
 }
 
 func (l LinuxPlatform) OpenURL(url string) error {

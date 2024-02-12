@@ -92,18 +92,18 @@ func main() {
 
 	if errDS != nil {
 		logger.Error("Failed to initialize data source", errAttr(errDS))
-		os.Exit(1)
+
+		return
 	}
 
 	application := NewDetector(userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
 
-	testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG")
-
-	if isTest {
+	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
 		body, errRead := os.ReadFile(testLogPath)
 		if errRead != nil {
 			logger.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
-			os.Exit(2)
+
+			return
 		}
 
 		lines := strings.Split(string(body), "\n")
@@ -115,7 +115,9 @@ func main() {
 
 			for {
 				<-updateTicker.C
+
 				logChan <- strings.Trim(lines[curLine], "\r")
+
 				curLine++
 
 				if curLine >= lineCount {

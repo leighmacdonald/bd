@@ -1,10 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
-	"errors"
 	"github.com/leighmacdonald/bd/discord/client"
 )
 

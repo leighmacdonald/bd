@@ -1,12 +1,12 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"errors"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 

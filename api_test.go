@@ -19,7 +19,7 @@ func TestDataSource(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	testIds := steamid.Collection{testIDb4nny, testIDCamper}
+	testIDs := steamid.Collection{testIDb4nny, testIDCamper}
 
 	testableDS := map[string]DataSource{}
 
@@ -48,33 +48,33 @@ func TestDataSource(t *testing.T) {
 		t.Run(fmt.Sprintf("%s_summary", name), func(t *testing.T) {
 			t.Parallel()
 
-			summaries, errSum := dataSource.Summaries(ctx, testIds)
+			summaries, errSum := dataSource.Summaries(ctx, testIDs)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(summaries))
+			require.Equal(t, len(testIDs), len(summaries))
 		})
 
 		t.Run(fmt.Sprintf("%s_friends", name), func(t *testing.T) {
 			t.Parallel()
 
-			friends, errSum := dataSource.Friends(ctx, testIds)
+			friends, errSum := dataSource.Friends(ctx, testIDs)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(friends))
+			require.Equal(t, len(testIDs), len(friends))
 		})
 
 		t.Run(fmt.Sprintf("%s_bans", name), func(t *testing.T) {
 			t.Parallel()
 
-			vacBans, errSum := dataSource.Bans(ctx, testIds)
+			vacBans, errSum := dataSource.Bans(ctx, testIDs)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(vacBans))
+			require.Equal(t, len(testIDs), len(vacBans))
 		})
 
 		t.Run(fmt.Sprintf("%s_sourcebans", name), func(t *testing.T) {
 			t.Parallel()
 
-			sourcebans, errSum := dataSource.Sourcebans(ctx, testIds)
+			sourcebans, errSum := dataSource.Sourcebans(ctx, testIDs)
 			require.NoError(t, errSum)
-			require.Equal(t, len(testIds), len(sourcebans))
+			require.Equal(t, len(testIDs), len(sourcebans))
 		})
 	}
 }

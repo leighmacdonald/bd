@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	errGetLaunchOptions       = errors.New("failed to load users launch options")
 	errFetchSummaries         = errors.New("failed to fetch summaries")
 	errFetchBans              = errors.New("failed to fetch bans")
 	errAPIKey                 = errors.New("failed to set steam api key")
@@ -25,10 +26,10 @@ var (
 	errLogTailCreate          = errors.New("could not create tail reader")
 	errDuration               = errors.New("failed to parse connected duration")
 	errDataSourceAPI          = errors.New("failed to load api data source")
+	errDataSourceAPIAddr      = errors.New("api data source url invalid")
 	errDataSourceLocal        = errors.New("failed to load local data source")
 	errVoiceBanOpen           = errors.New("failed to open voice_ban.dt")
 	errVoiceBanWrite          = errors.New("failed to write voice_ban.dt")
-	errMark                   = errors.New("failed to mark player")
 	errPlayerListOpen         = errors.New("failed to open player list")
 	errPathNotExist           = errors.New("path does not exist")
 	errCreateMessage          = errors.New("failed to create user message")
@@ -82,7 +83,7 @@ var (
 	errHTTPRoutes             = errors.New("failed to setup static routes")
 	errHTTPShutdown           = errors.New("failed to shutdown http service")
 	errTempDir                = errors.New("failed to create temp dir")
-	errTestApp                = errors.New("failed to create test app")
+	errSettingsBDAPIAddr      = errors.New("bd-api address invalid")
 )
 
 const (

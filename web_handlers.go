@@ -1,37 +1,44 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
-	"errors"
-	"github.com/gin-gonic/gin"
 	"github.com/leighmacdonald/bd/rules"
 )
 
-func getMessages(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
+func getMessages(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodGet) {
+			return
+		}
+
+		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		messages, errMsgs := detector.dataStore.FetchMessages(ctx, sid)
+		messages, errMsgs := detector.dataStore.FetchMessages(r.Context(), sid)
 		if errMsgs != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
+			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to fetch messages", errAttr(errMsgs))
 
 			return
 		}
 
-		responseOK(ctx, http.StatusOK, messages)
+		responseOK(w, http.StatusOK, messages)
 	}
 }
 
-func getQuitGame(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
+func getQuitGame(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodGet) {
+			return
+		}
+
 		if !detector.gameProcessActive.Load() {
-			responseErr(ctx, http.StatusNotFound, nil)
+			responseErr(w, http.StatusNotFound, nil)
 
 			return
 		}
@@ -40,37 +47,41 @@ func getQuitGame(detector *Detector) gin.HandlerFunc {
 
 		if errQuit := detector.quitGame(); errQuit != nil {
 			if errors.Is(errQuit, errGameStopped) {
-				responseOK(ctx, http.StatusOK, nil)
+				responseOK(w, http.StatusOK, nil)
 
 				return
 			}
 
 			slog.Error("Failed to close game", errAttr(errQuit))
-			responseErr(ctx, http.StatusInternalServerError, nil)
+			responseErr(w, http.StatusInternalServerError, nil)
 
 			return
 		}
 
-		responseOK(ctx, http.StatusOK, nil)
+		responseOK(w, http.StatusOK, nil)
 	}
 }
 
-func getNames(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
+func getNames(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodGet) {
+			return
+		}
+
+		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		messages, errMsgs := detector.dataStore.FetchNames(ctx, sid)
+		messages, errMsgs := detector.dataStore.FetchNames(r.Context(), sid)
 		if errMsgs != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
+			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to fetch names", errAttr(errMsgs))
 
 			return
 		}
 
-		responseOK(ctx, http.StatusOK, messages)
+		responseOK(w, http.StatusOK, messages)
 	}
 }
 
@@ -81,8 +92,12 @@ type CurrentState struct {
 	Players     []Player `json:"players"`
 }
 
-func getState(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
+func getState(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodGet) {
+			return
+		}
+
 		detector.serverMu.RLock()
 		defer detector.serverMu.RUnlock()
 
@@ -91,7 +106,7 @@ func getState(detector *Detector) gin.HandlerFunc {
 			players = []Player{}
 		}
 
-		responseOK(ctx, http.StatusOK, CurrentState{
+		responseOK(w, http.StatusOK, CurrentState{
 			Tags:        []string{},
 			Server:      detector.server,
 			Players:     players,
@@ -100,10 +115,14 @@ func getState(detector *Detector) gin.HandlerFunc {
 	}
 }
 
-func getLaunchGame(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
+func getLaunchGame(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodGet) {
+			return
+		}
+
 		if detector.gameProcessActive.Load() {
-			responseErr(ctx, http.StatusConflict, "Game process active")
+			responseErr(w, http.StatusConflict, "Game process active")
 			slog.Warn("Failed to launch game, process active already")
 
 			return
@@ -111,7 +130,7 @@ func getLaunchGame(detector *Detector) gin.HandlerFunc {
 
 		go detector.LaunchGameAndWait()
 
-		responseOK(ctx, http.StatusNoContent, gin.H{})
+		responseOK(w, http.StatusNoContent, map[string]string{})
 	}
 }
 
@@ -120,67 +139,80 @@ type WebUserSettings struct {
 	UniqueTags []string `json:"unique_tags"`
 }
 
-func getSettings(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		wus := WebUserSettings{
-			UserSettings: detector.Settings(),
-			UniqueTags:   detector.rules.UniqueTags(),
+func settings(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getSettings(detector, w)
+		case http.MethodPut:
+			putSettings(detector, w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-
-		responseOK(ctx, http.StatusOK, wus)
 	}
 }
 
-func putSettings(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		var wus WebUserSettings
-		if !bind(ctx, &wus) {
-			return
-		}
-
-		if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
-			responseErr(ctx, http.StatusBadRequest, errSave.Error())
-			slog.Error("Failed to save settings", errAttr(errSave))
-
-			return
-		}
-
-		responseOK(ctx, http.StatusNoContent, nil)
+func getSettings(detector *Detector, w http.ResponseWriter) {
+	wus := WebUserSettings{
+		UserSettings: detector.Settings(),
+		UniqueTags:   detector.rules.UniqueTags(),
 	}
+
+	responseOK(w, http.StatusOK, wus)
 }
 
-func callVote(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
+func putSettings(detector *Detector, w http.ResponseWriter, r *http.Request) {
+	var wus WebUserSettings
+	if !bind(w, r, &wus) {
+		return
+	}
+
+	if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
+		responseErr(w, http.StatusBadRequest, errSave.Error())
+		slog.Error("Failed to save settings", errAttr(errSave))
+
+		return
+	}
+
+	responseOK(w, http.StatusNoContent, nil)
+}
+
+func callVote(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodPost) {
+			return
+		}
+
+		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
 		player, errPlayer := detector.players.bySteamID(sid)
 		if errPlayer != nil {
-			responseErr(ctx, http.StatusNotFound, nil)
+			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player state", errAttr(errPlayer), slog.String("steam_id", sid.String()))
 
 			return
 		}
 
 		if player.UserID <= 0 {
-			responseErr(ctx, http.StatusNotFound, nil)
+			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player user id", slog.String("steam_id", sid.String()))
 
 			return
 		}
 
-		reason := KickReason(ctx.Param("reason"))
+		reason := KickReason(r.PathValue("reason"))
 
-		if errVote := detector.callVote(ctx, player.UserID, reason); errVote != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
+		if errVote := detector.callVote(r.Context(), player.UserID, reason); errVote != nil {
+			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to call vote", slog.String("steam_id", sid.String()), errAttr(errVote))
 
 			return
 		}
 
-		responseOK(ctx, http.StatusNoContent, nil)
+		responseOK(w, http.StatusNoContent, nil)
 	}
 }
 
@@ -188,22 +220,26 @@ type PostNotesOpts struct {
 	Note string `json:"note"`
 }
 
-func postNotes(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
+func postNotes(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !ensureMethod(w, r, http.MethodPost) {
+			return
+		}
+
+		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
 		var opts PostNotesOpts
-		if !bind(ctx, &opts) {
+		if !bind(w, r, &opts) {
 			return
 		}
 
-		player, errPlayer := detector.GetPlayerOrCreate(ctx, sid)
+		player, errPlayer := detector.GetPlayerOrCreate(r.Context(), sid)
 
 		if errPlayer != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
+			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to get or create player", errAttr(errPlayer))
 
 			return
@@ -213,8 +249,8 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 
 		player.Dirty = true
 
-		if errSave := detector.dataStore.SavePlayer(ctx, &player); errSave != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
+		if errSave := detector.dataStore.SavePlayer(r.Context(), &player); errSave != nil {
+			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to save player notes", errAttr(errSave))
 
 			return
@@ -222,7 +258,7 @@ func postNotes(detector *Detector) gin.HandlerFunc {
 
 		detector.players.update(player)
 
-		responseOK(ctx, http.StatusNoContent, nil)
+		responseOK(w, http.StatusNoContent, nil)
 	}
 }
 
@@ -234,81 +270,101 @@ type UnmarkResponse struct {
 	Remaining int `json:"remaining"`
 }
 
-func deleteMarkedPlayer(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
-		if !sidOk {
+func deleteMarkedPlayer(detector *Detector, w http.ResponseWriter, r *http.Request) {
+	sid, sidOk := steamIDParam(w, r)
+	if !sidOk {
+		return
+	}
+
+	remaining, errUnmark := detector.unMark(r.Context(), sid)
+	if errUnmark != nil {
+		if errors.Is(errUnmark, errNotMarked) {
+			responseOK(w, http.StatusNotFound, nil)
+
 			return
 		}
 
-		remaining, errUnmark := detector.unMark(ctx, sid)
-		if errUnmark != nil {
-			if errors.Is(errUnmark, errNotMarked) {
-				responseOK(ctx, http.StatusNotFound, nil)
+		responseErr(w, http.StatusInternalServerError, "Failed to unmark player")
 
-				return
-			}
+		slog.Error("Failed to unmark player", errAttr(errUnmark))
+	}
 
-			responseErr(ctx, http.StatusInternalServerError, "Failed to unmark player")
+	responseOK(w, http.StatusOK, UnmarkResponse{Remaining: remaining})
+}
 
-			slog.Error("Failed to unmark player", errAttr(errUnmark))
+func markPlayerPost(detector *Detector, w http.ResponseWriter, r *http.Request) {
+	sid, sidOk := steamIDParam(w, r)
+	if !sidOk {
+		return
+	}
+
+	var opts PostMarkPlayerOpts
+	if !bind(w, r, &opts) {
+		return
+	}
+
+	if len(opts.Attrs) == 0 {
+		responseErr(w, http.StatusBadRequest, nil)
+		slog.Error("Received no mark attributes")
+
+		return
+	}
+
+	if errCreateMark := detector.mark(r.Context(), sid, opts.Attrs); errCreateMark != nil {
+		if errors.Is(errCreateMark, rules.ErrDuplicateSteamID) {
+			responseErr(w, http.StatusConflict, nil)
+			slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))
+
+			return
 		}
 
-		ctx.JSON(http.StatusOK, UnmarkResponse{Remaining: remaining})
+		responseErr(w, http.StatusInternalServerError, nil)
+		slog.Error("Failed to mark steam id", errAttr(errCreateMark))
+
+		return
+	}
+
+	responseOK(w, http.StatusNoContent, nil)
+}
+
+func markPlayer(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			markPlayerPost(detector, w, r)
+		case http.MethodDelete:
+			deleteMarkedPlayer(detector, w, r)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
 	}
 }
 
-func postMarkPlayer(detector *Detector) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
-		if !sidOk {
-			return
+func whitelist(detector *Detector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			updateWhitelistPlayer(w, r, detector, true)
+		case http.MethodDelete:
+			updateWhitelistPlayer(w, r, detector, false)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-
-		var opts PostMarkPlayerOpts
-		if !bind(ctx, &opts) {
-			return
-		}
-
-		if len(opts.Attrs) == 0 {
-			responseErr(ctx, http.StatusBadRequest, nil)
-			slog.Error("Received no mark attributes")
-
-			return
-		}
-
-		if errMark := detector.mark(ctx, sid, opts.Attrs); errMark != nil {
-			if errors.Is(errMark, rules.ErrDuplicateSteamID) {
-				responseErr(ctx, http.StatusConflict, nil)
-				slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))
-
-				return
-			}
-
-			responseErr(ctx, http.StatusInternalServerError, nil)
-			slog.Error("Failed to mark steam id", errAttr(errMark))
-
-			return
-		}
-
-		responseOK(ctx, http.StatusNoContent, nil)
 	}
 }
 
-func updateWhitelistPlayer(detector *Detector, enable bool) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		sid, sidOk := steamIDParam(ctx)
-		if !sidOk {
-			return
-		}
-
-		if errWl := detector.whitelist(ctx, sid, enable); errWl != nil {
-			responseErr(ctx, http.StatusInternalServerError, nil)
-			slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
-
-			return
-		}
-
-		responseOK(ctx, http.StatusNoContent, nil)
+func updateWhitelistPlayer(w http.ResponseWriter, r *http.Request, detector *Detector, enable bool) {
+	sid, sidOk := steamIDParam(w, r)
+	if !sidOk {
+		return
 	}
+
+	if errWl := detector.whitelist(r.Context(), sid, enable); errWl != nil {
+		responseErr(w, http.StatusInternalServerError, nil)
+		slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
+
+		return
+	}
+
+	responseOK(w, http.StatusNoContent, nil)
 }

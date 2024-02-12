@@ -2,38 +2,37 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
 
-	"errors"
-	"github.com/gin-gonic/gin"
-	"github.com/leighmacdonald/bd/assets"
+	"github.com/leighmacdonald/bd/frontend"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 type Web struct {
 	*http.Server
-	Engine *gin.Engine
 }
 
-func NewWeb(detector *Detector) (*Web, error) {
-	engine := createRouter(detector.Settings().RunMode)
-	if errRoutes := setupRoutes(engine, detector); errRoutes != nil {
+func newWebServer(detector *Detector) (*Web, error) {
+	mux, errRoutes := createMux(detector)
+	if errRoutes != nil {
 		return nil, errRoutes
 	}
 
 	httpServer := &http.Server{
 		Addr:         detector.Settings().HTTPListenAddr,
-		Handler:      engine,
+		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
 	return &Web{
 		Server: httpServer,
-		Engine: engine,
 	}, nil
 }
 
@@ -49,13 +48,11 @@ func (w *Web) startWeb(ctx context.Context) error {
 	return nil
 }
 
-func bind(ctx *gin.Context, receiver any) bool {
-	if errBind := ctx.BindJSON(&receiver); errBind != nil {
-		responseErr(ctx, http.StatusBadRequest, gin.H{
-			"error": "Invalid request parameters",
-		})
+func bind(w http.ResponseWriter, r *http.Request, receiver any) bool {
+	if errDecode := json.NewDecoder(r.Body).Decode(receiver); errDecode != nil {
+		responseErr(w, http.StatusBadRequest, nil)
 
-		slog.Error("Received malformed request", errAttr(errBind))
+		slog.Error("Received malformed request", errAttr(errDecode))
 
 		return false
 	}
@@ -63,80 +60,87 @@ func bind(ctx *gin.Context, receiver any) bool {
 	return true
 }
 
-func responseErr(ctx *gin.Context, status int, data any) {
-	ctx.JSON(status, data)
+func responseErr(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if data != nil {
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			slog.Error("Could not encode error payload", errAttr(err))
+		}
+	}
 }
 
-func responseOK(ctx *gin.Context, status int, data any) {
+func responseOK(w http.ResponseWriter, status int, data any) {
 	if data == nil {
 		data = []string{}
 	}
 
-	ctx.JSON(status, data)
-}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 
-func createRouter(mode RunModes) *gin.Engine {
-	switch mode {
-	case ModeRelease:
-		gin.SetMode(gin.ReleaseMode)
-	case ModeTest:
-		gin.SetMode(gin.TestMode)
-	case ModeDebug:
-		gin.SetMode(gin.DebugMode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Error("Failed to encode response", errAttr(err))
 	}
-
-	engine := gin.New()
-	engine.Use(gin.Recovery())
-
-	_ = engine.SetTrustedProxies(nil)
-
-	return engine
 }
 
-// setupRoutes configures the routes. If the `release` tag is enabled, serves files from the embedded assets
+// createMux configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
-func setupRoutes(engine *gin.Engine, detector *Detector) error {
-	if errStatic := assets.StaticRoutes(engine, detector.Settings().RunMode == ModeTest); errStatic != nil {
-		return errors.Join(errStatic, errHTTPRoutes)
+func createMux(detector *Detector) (*http.ServeMux, error) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/state", getState(detector))
+	mux.HandleFunc("/messages/:steam_id", getMessages(detector))
+	mux.HandleFunc("/names/:steam_id", getNames(detector))
+	mux.HandleFunc("/mark/:steam_id", markPlayer(detector))
+	mux.HandleFunc("/settings", settings(detector))
+	mux.HandleFunc("/launch", getLaunchGame(detector))
+	mux.HandleFunc("/quit", getQuitGame(detector))
+	mux.HandleFunc("/whitelist/:steam_id", whitelist(detector))
+	mux.HandleFunc("/notes/:steam_id", postNotes(detector))
+	mux.HandleFunc("/callvote/:steam_id/:reason", callVote(detector))
+
+	defaultHandler, errStatic := frontend.AddRoutes(mux)
+	if errStatic != nil {
+		return nil, errors.Join(errStatic, errHTTPRoutes)
 	}
 
-	engine.GET("/state", getState(detector))
-	engine.GET("/messages/:steam_id", getMessages(detector))
-	engine.GET("/names/:steam_id", getNames(detector))
-	engine.POST("/mark/:steam_id", postMarkPlayer(detector))
-	engine.DELETE("/mark/:steam_id", deleteMarkedPlayer(detector))
-	engine.GET("/settings", getSettings(detector))
-	engine.GET("/launch", getLaunchGame(detector))
-	engine.GET("/quit", getQuitGame(detector))
-	engine.PUT("/settings", putSettings(detector))
-	engine.POST("/whitelist/:steam_id", updateWhitelistPlayer(detector, true))
-	engine.DELETE("/whitelist/:steam_id", updateWhitelistPlayer(detector, false))
-	engine.POST("/notes/:steam_id", postNotes(detector))
-	engine.POST("/callvote/:steam_id/:reason", callVote(detector))
+	mux.Handle("/", defaultHandler)
 
-	// These should match any routes defined in the frontend. This allows us to use the browser
-	// based routing
-	jsRoutes := []string{"/"}
-	for _, rt := range jsRoutes {
-		engine.GET(rt, func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", jsConfig{
-				SiteName: "bd",
-			})
-		})
+	return mux, nil
+}
+
+func ensureMethod(w http.ResponseWriter, r *http.Request, allowedMethods ...string) bool {
+	valid := false
+
+	for _, method := range allowedMethods {
+		if method == r.Method {
+			valid = true
+
+			break
+		}
 	}
 
-	return nil
+	if !valid {
+		if _, err := io.WriteString(w, "Unsupported method"); err != nil {
+			slog.Error("Failed to write error message", errAttr(err))
+		}
+
+		w.WriteHeader(http.StatusMethodNotAllowed)
+
+		return false
+	}
+
+	return true
 }
 
-type jsConfig struct {
-	SiteName string `json:"site_name"`
-}
+func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SID64, bool) {
+	sidValue := r.PathValue("steam_id")
+	steamID := steamid.New(sidValue)
 
-func steamIDParam(ctx *gin.Context) (steamid.SID64, bool) {
-	steamID := steamid.New(ctx.Param("steam_id"))
 	if !steamID.Valid() {
-		responseErr(ctx, http.StatusBadRequest, nil)
-		slog.Error("Failed to parse steam id param", slog.String("steam_id", ctx.Param("steam_id")))
+		responseErr(w, http.StatusBadRequest, nil)
+		slog.Error("Failed to parse steam id param", slog.String("steam_id", sidValue))
 
 		return "", false
 	}

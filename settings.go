@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"errors"
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
@@ -289,7 +289,7 @@ func (s *UserSettings) Validate() error {
 
 	if s.BdAPIEnabled {
 		if s.BdAPIAddress == "" {
-			err = errors.Join(errors.New("BD-API Address cannot be empty"))
+			err = errors.Join(errSettingsBDAPIAddr)
 		} else {
 			_, errParse := url.Parse(s.BdAPIAddress)
 			if errParse != nil {
