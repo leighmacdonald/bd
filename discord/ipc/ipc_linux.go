@@ -13,7 +13,7 @@ import (
 func (ipc *DiscordIPC) OpenSocket() error {
 	sock, errDial := net.DialTimeout("unix", GetIpcPath()+"/discord-ipc-0", time.Second*2)
 	if errDial != nil {
-		return errors.Wrap(errDial, ErrConnIPC)
+		return errors.Join(errDial, ErrConnIPC)
 	}
 
 	ipc.socket = sock
