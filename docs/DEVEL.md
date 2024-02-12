@@ -3,6 +3,10 @@
 To build, you'll need to install the prerequisite libraries first.
 Node/yarn are both required on all platforms.
 
+## Go Version
+
+The *minimum* supported version is go 1.22.
+
 ## Install OS Dependencies
 
 - Linux (debian/ubuntu)
