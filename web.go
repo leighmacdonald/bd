@@ -102,6 +102,11 @@ func createMux(detector *Detector) (*http.ServeMux, error) {
 	mux.HandleFunc("POST /notes/{steam_id}", postNotes(detector))
 	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", callVote(detector))
 
+	if detector.Settings().RunMode == ModeTest {
+		// Don't rely on assets when testing api endpoints
+		return mux, nil
+	}
+
 	defaultHandler, errStatic := frontend.AddRoutes(mux)
 	if errStatic != nil {
 		return nil, errors.Join(errStatic, errHTTPRoutes)
