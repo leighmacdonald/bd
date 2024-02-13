@@ -112,7 +112,7 @@ func createMux(detector *Detector) (*http.ServeMux, error) {
 		return nil, errors.Join(errStatic, errHTTPRoutes)
 	}
 
-	mux.Handle("GET /{$}", defaultHandler)
+	mux.HandleFunc("GET /{$}", defaultHandler)
 
 	return mux, nil
 }

@@ -26,7 +26,7 @@ func AddRoutes(mux *http.ServeMux) (http.HandlerFunc, error) {
 		Delims("{{", "}}").
 		ParseFS(subFs, "index.html"))
 
-	mux.Handle("GET /dist", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
+	mux.Handle("GET /dist/", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
 
 	return func(w http.ResponseWriter, _ *http.Request) {
 		if err := indexTmpl.Execute(w, jsConfig{SiteName: "bd"}); err != nil {
