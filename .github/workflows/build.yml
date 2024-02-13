@@ -13,31 +13,29 @@ permissions: write-all
 jobs:
   lint-ts:
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        node-version: [ 20 ]
+    defaults:
+      run:
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v3
         with:
           version: 8
-      - name: Use Node.js ${{ matrix.node-version }}
+
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install modules
-        working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
       - name: Prettier
-        working-directory: ./frontend
         run: pnpm run prettier:check
 
       - name: ESLint
-        working-directory: ./frontend
         run: pnpm run eslint:check
 
   lint-golangci:
