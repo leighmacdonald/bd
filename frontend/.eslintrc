@@ -6,16 +6,18 @@
       "jsx": true
     }
   },
+  "ignorePatterns": ["dist", ".eslintrc"],
   "settings": {
     "react": {
       "version": "18"
     }
   },
   "env": {
-    "browser": true
+    "browser": true, "es2020": true
   },
   "plugins": [
     "prettier",
+    "react-refresh",
     "@typescript-eslint",
     "no-loops",
     "jest",
@@ -36,6 +38,10 @@
     "@typescript-eslint/no-explicit-any": "error",
     //"no-console": 2,
     "no-loops/no-loops": "error",
+    "react-refresh/only-export-components": [
+      "warn",
+      { "allowConstantExport": true }
+    ],
     "react/prop-types": [
       2,
       {

@@ -50,7 +50,7 @@ const createUserTheme = (): userTheme => {
 
 const curTheme = createUserTheme();
 
-export const rowColour = (player: Player): string => {
+const rowColour = (player: Player): string => {
     if (!player.is_connected) {
         return curTheme.disconnected;
     } else if (player.matches && player.matches.length) {

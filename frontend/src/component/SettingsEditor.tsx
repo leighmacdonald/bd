@@ -40,7 +40,7 @@ import Box from '@mui/material/Box';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Trans, useTranslation } from 'react-i18next';
-import { isValidUrl, logError } from '../util';
+import { isStringIp, isValidUrl, logError } from '../util';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import {
     ModalSettings,
@@ -122,12 +122,6 @@ const makeValidatorLength = (length: number): inputValidator => {
         }
         return '';
     };
-};
-
-export const isStringIp = (value: string): boolean => {
-    return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(
-        value
-    );
 };
 
 const validatorAddress = (value: string): string => {

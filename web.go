@@ -107,12 +107,9 @@ func createMux(detector *Detector) (*http.ServeMux, error) {
 		return mux, nil
 	}
 
-	defaultHandler, errStatic := frontend.AddRoutes(mux)
-	if errStatic != nil {
+	if errStatic := frontend.AddRoutes(mux, "./frontend/dist"); errStatic != nil {
 		return nil, errors.Join(errStatic, errHTTPRoutes)
 	}
-
-	mux.HandleFunc("GET /{$}", defaultHandler)
 
 	return mux, nil
 }

@@ -949,7 +949,9 @@ func (d *Detector) Start(ctx context.Context) {
 		}
 	}
 
-	d.openApplicationPage()
+	if d.settings.RunMode == ModeRelease {
+		d.openApplicationPage()
+	}
 }
 
 // steamIDStringList transforms a steamid.Collection into a comma separated list of SID64 strings.

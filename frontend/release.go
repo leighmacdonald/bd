@@ -5,7 +5,6 @@ package frontend
 import (
 	"embed"
 	"errors"
-	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -16,26 +15,28 @@ var embedFS embed.FS
 
 var ErrEmbedFS = errors.New("failed to load embed.fs path")
 
-func AddRoutes(mux *http.ServeMux) (http.HandlerFunc, error) {
+func AddRoutes(mux *http.ServeMux, _ string) error {
 	subFs, errSubFS := fs.Sub(embedFS, "dist")
 	if errSubFS != nil {
-		return nil, errors.Join(errSubFS, ErrEmbedFS)
+		return errors.Join(errSubFS, ErrEmbedFS)
 	}
 
-	indexTmpl := template.Must(template.New("index.html").
-		Delims("{{", "}}").
-		ParseFS(subFs, "index.html"))
+	mux.Handle("GET /", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
+	mux.HandleFunc("GET /index.html", func(writer http.ResponseWriter, _ *http.Request) {
+		index, errIndex := embedFS.ReadFile("index.html")
+		if errIndex != nil {
+			slog.Error("failed to open index.html", slog.String("error", errIndex.Error()))
 
-	mux.Handle("GET /dist/", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
-
-	return func(w http.ResponseWriter, _ *http.Request) {
-		if err := indexTmpl.Execute(w, jsConfig{SiteName: "bd"}); err != nil {
-			slog.Error("Failed to exec template", slog.String("error", err.Error()))
-			w.WriteHeader(http.StatusInternalServerError)
+			http.Error(writer, "", http.StatusInternalServerError)
 
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
-	}, nil
+		_, err := writer.Write(index)
+		if err != nil {
+			slog.Error("Failed to write index response", slog.String("error", errIndex.Error()))
+		}
+	})
+
+	return nil
 }
