@@ -51,7 +51,7 @@ export const MarkMenu = ({
         >
             {[
                 ...settings.unique_tags.filter(
-                    (tag) => tag.toLowerCase() != 'new...'
+                    (tag: string) => tag.toLowerCase() != 'new...'
                 ),
                 'new...'
             ].map((attr) => {

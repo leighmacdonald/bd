@@ -102,7 +102,6 @@ package.json      text eol=lf
 package-lock.json text eol=lf -diff
 pnpm-lock.yaml    text eol=lf -diff
 .prettierrc       text
-yarn.lock         text -diff
 *.toml            text
 *.yaml            text
 *.yml             text eol=lf
@@ -190,9 +189,6 @@ Procfile          text
 # Executables
 *.exe             binary
 *.pyc             binary
-# Prevents massive diffs caused by vendored, minified files
-**/.yarn/releases/**   binary
-**/.yarn/plugins/**    binary
 
 # RC files (like .babelrc or .eslintrc)
 *.*rc             text

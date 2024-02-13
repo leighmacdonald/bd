@@ -92,5 +92,9 @@
     "webpack": "^5.90.1",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.0"
+  },
+  "packageManager": "pnpm@8.15.2+sha256.90bb5d6382cb2cb8b8d4959a076b3953d84d1d94121717097bcd41c71344fa14",
+  "dependencies": {
+    "@types/react": "^18.2.55"
   }
 }
