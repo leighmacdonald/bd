@@ -3,37 +3,57 @@
 package frontend
 
 import (
-	"errors"
-	"html/template"
 	"log/slog"
 	"net/http"
+	"path"
 	"path/filepath"
 )
 
-func AddRoutes(mux *http.ServeMux) (http.HandlerFunc, error) {
-	absStaticPath, errPathInvalid := filepath.Abs("./frontend/dist")
-	if errPathInvalid != nil {
-		return nil, errors.Join(errPathInvalid, ErrStaticPath)
+func AddRoutes(mux *http.ServeMux, root string) error {
+	if root == "" {
+		root = "frontend/dist"
 	}
 
-	indexTmpl := template.Must(template.New("index.html").
-		Delims("{{", "}}").
-		ParseFiles(filepath.Join(absStaticPath, "index.html")))
+	absRoot, _ := filepath.Abs(root)
 
-	mux.Handle("GET /dist/", http.StripPrefix("/dist", http.FileServer(http.Dir("./frontend/dist"))))
+	mux.HandleFunc("GET /", serveTrustedRoot(absRoot))
 
-	return func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/" {
-			http.NotFound(w, req)
+	return nil
+}
+
+// serveTrustedRoot acts as a secure local file server. While most users will only serve the app over localhost or LAN at most,
+// This provides an extra security precaution to prevent path traversals if for some reason it was exposed to the internet by
+// ensuring files are only served from the provided root folder.
+func serveTrustedRoot(root string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filePath := "." + r.URL.Path
+		if filePath == "./" {
+			filePath = path.Join(root, "index.html")
+		} else {
+			filePath = path.Join(root, filePath)
+		}
+
+		filePath = path.Clean(filePath)
+
+		if !inRoot(filePath, root) {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+
+			slog.Error("User request file outside of trusted root", slog.String("path", filePath))
 
 			return
 		}
 
-		if err := indexTmpl.Execute(w, jsConfig{SiteName: "bd"}); err != nil {
-			slog.Error("Failed to exec template", slog.String("error", err.Error()))
-			w.WriteHeader(http.StatusInternalServerError)
+		http.ServeFile(w, r, filePath)
+	}
+}
 
-			return
+func inRoot(path string, root string) bool {
+	for path != root {
+		path = filepath.Dir(path)
+		if path == root {
+			return true
 		}
-	}, nil
+	}
+
+	return false
 }

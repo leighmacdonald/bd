@@ -7,6 +7,7 @@ import {
     validColumns
 } from '../component/PlayerTable';
 import Paper from '@mui/material/Paper';
+
 import Stack from '@mui/material/Stack';
 import { Toolbar } from '../component/Toolbar';
 import { Player } from '../api';

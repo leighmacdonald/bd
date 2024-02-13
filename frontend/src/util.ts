@@ -14,6 +14,12 @@ export const writeToClipboard = async (rawData: string) => {
     }
 };
 
+export const isStringIp = (value: string): boolean => {
+    return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(
+        value
+    );
+};
+
 export const openInNewTab = (url: string) => {
     window.open(url, '_blank');
 };

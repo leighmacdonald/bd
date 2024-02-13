@@ -27,6 +27,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*LogReader, erro
 	if !echo {
 		log = tail.DiscardingLogger
 	}
+
 	//goland:noinspection GoBoolExpressions
 	tailConfig := tail.Config{
 		Location: &tail.SeekInfo{

@@ -21,7 +21,7 @@ frontend:
 	cd frontend && pnpm run build
 
 static:
-	@staticcheck -go 1.20 ./...
+	@staticcheck -go 1.22 ./...
 
 build_deps:
 	go install github.com/daixiang0/gci@latest
@@ -38,8 +38,12 @@ fmt:
 	gofumpt -l -w .
 	cd frontend && pnpm prettier src/ --write
 
-watch:
-	cd frontend && pnpm run watch
+watch-go:
+	@go install github.com/cosmtrek/air@latest
+	@air
+
+watch-ts:
+	cd frontend && pnpm watch
 
 deps:
 	cd frontend && pnpm install --frozen-lockfile
