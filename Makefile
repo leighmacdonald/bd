@@ -7,7 +7,7 @@ deps_release:
 
 bump_deps:
 	go get -u ./...
-	cd frontend && yarn upgrade-interactive --latest
+	cd frontend && pnpm up --latest --interactive
 
 check: lint_golangci static lint_ts
 
@@ -15,10 +15,10 @@ lint_golangci:
 	@golangci-lint run --timeout 3m
 
 lint_ts:
-	cd frontend && yarn run eslint:check && yarn prettier src/ --check
+	cd frontend && pnpm run eslint:check && pnpm prettier src/ --check
 
 frontend:
-	cd frontend && yarn run build
+	cd frontend && pnpm run build
 
 static:
 	@staticcheck -go 1.20 ./...
@@ -36,13 +36,13 @@ test:
 fmt:
 	gci write . --skip-generated -s standard -s default
 	gofumpt -l -w .
-	cd frontend && yarn prettier src/ --write
+	cd frontend && pnpm prettier src/ --write
 
 watch:
-	cd frontend && yarn run watch
+	cd frontend && pnpm run watch
 
 deps:
-	cd frontend && yarn install
+	cd frontend && pnpm install --frozen-lockfile
 	go mod download
 
 snapshot:

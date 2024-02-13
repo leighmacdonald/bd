@@ -1,7 +1,7 @@
 # Development
 
 To build, you'll need to install the prerequisite libraries first.
-Node/yarn are both required on all platforms.
+nodejs/pnpm are both required on all platforms.
 
 ## Go Version
 
@@ -10,14 +10,13 @@ The *minimum* supported version is go 1.22.
 ## Install OS Dependencies
 
 - Linux (debian/ubuntu)
-    - `sudo apt-get install gcc libgtk-3-dev libayatana-appindicator3-dev make nodejs yarnpkg git`
+    - `sudo apt-get install gcc libgtk-3-dev libayatana-appindicator3-dev make nodejs git`
   
 Note that some distros may require the `libxapp-dev` package to be installed as well. If you do not have a 
 supported systray, or none at all, you will need to open the url manually.
 
 - Windows (via [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/))
   - `winget install -e --id OpenJS.NodeJS`
-  - `winget install -e --id Yarn.Yarn`
   - `winget install -e --id Git.Git`
   - `winget install -e --id GnuWin32.Make`
 
