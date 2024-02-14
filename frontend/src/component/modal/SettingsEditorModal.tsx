@@ -26,7 +26,6 @@ import {
 import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
 import { Link, List, saveUserSettings, UserSettings } from '../../api.ts';
-import cloneDeep from 'lodash/cloneDeep';
 import Grid from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
 import Stack from '@mui/material/Stack';
@@ -40,10 +39,9 @@ import Box from '@mui/material/Box';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Trans, useTranslation } from 'react-i18next';
-import { isStringIp, isValidUrl, logError } from '../../util.ts';
+import { isStringIp, isValidUrl, logError, uniqCI } from '../../util.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
-import { sortedUniq } from 'lodash';
 import { SettingsContext } from '../../context/SettingsContext.ts';
 import {
     ModalSettings,
@@ -204,9 +202,9 @@ export const SettingsMultiSelect = ({
         value: string | string[]
     ) => {
         setNewSettings((prevState) => {
-            const tags = sortedUniq([
+            const tags = uniqCI([
                 ...(typeof value === 'string' ? value.split(',') : value)
-            ]);
+            ]).sort();
             return {
                 ...prevState,
                 kick_tags: tags
@@ -215,10 +213,10 @@ export const SettingsMultiSelect = ({
     };
 
     const validTags = useMemo(() => {
-        return sortedUniq([
+        return uniqCI([
             ...newSettings.unique_tags,
             ...newSettings.kick_tags
-        ]);
+        ]).sort();
     }, [newSettings.unique_tags, newSettings.kick_tags]);
 
     return (
@@ -258,12 +256,13 @@ export const SettingsEditorModal = NiceModal.create(() => {
     const { t } = useTranslation();
     const theme = useTheme();
 
-    const [newSettings, setNewSettings] = useState<UserSettings>(
-        cloneDeep(settings)
-    );
+    // structuredClone not supported on steam CEF version 85...
+    const [newSettings, setNewSettings] = useState<UserSettings>({
+        ...settings
+    });
 
     const handleReset = useCallback(() => {
-        setNewSettings(cloneDeep(settings));
+        setNewSettings({ ...settings });
     }, [settings, setNewSettings]);
 
     const onOpenLink = useCallback(

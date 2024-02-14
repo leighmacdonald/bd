@@ -1,7 +1,7 @@
 import { createContext, Dispatch, SetStateAction } from 'react';
 import { Order, validColumns } from '../component/PlayerTable';
 import { Player } from '../api';
-import noop from 'lodash/noop';
+import { noop } from '../util';
 
 export const defaultPlayerTableConfig: PlayerTableConfigProps = {
     order: 'desc',

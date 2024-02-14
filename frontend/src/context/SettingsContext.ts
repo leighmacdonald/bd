@@ -1,6 +1,6 @@
 import { createContext, Dispatch, SetStateAction } from 'react';
 import { UserSettings } from '../api';
-import noop from 'lodash/noop';
+import { noop } from '../util.ts';
 
 export const defaultUserSettings: UserSettings = {
     steam_id: '',

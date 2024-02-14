@@ -9,10 +9,9 @@ import {
 import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { logError } from '../../util.ts';
+import { logError, uniqCI } from '../../util.ts';
 import { CancelButton, SaveButton } from '../Buttons.tsx';
 import { UserSettings } from '../../api.ts';
-import { sortedUniq } from 'lodash';
 
 interface KickTagEditorProps {
     setNewSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
@@ -29,7 +28,7 @@ export const SettingsKickTagEditorModal = NiceModal.create<KickTagEditorProps>(
                 setNewSettings((prevState) => {
                     return {
                         ...prevState,
-                        kick_tags: sortedUniq([...prevState.kick_tags, tag])
+                        kick_tags: uniqCI([...prevState.kick_tags, tag]).sort()
                     };
                 });
                 setTag('');

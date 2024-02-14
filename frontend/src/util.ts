@@ -55,3 +55,13 @@ export const isValidUrl = (urlString: string): boolean => {
         return false;
     }
 };
+
+export const noop = (): void => {};
+
+/**
+ * Get case insensitive unique string values
+ * @param values
+ */
+export const uniqCI = (values: string[]): string[] => [
+    ...new Map(values.map((s) => [s.toLowerCase(), s])).values()
+];

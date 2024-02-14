@@ -20,7 +20,6 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import cloneDeep from 'lodash/cloneDeep';
 import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
 
 interface SettingsListProps {
@@ -56,7 +55,7 @@ export const SettingsListEditorModal = NiceModal.create<SettingsListProps>(
         };
 
         const handleReset = useCallback(() => {
-            setNewList(cloneDeep(list));
+            setNewList({ ...list });
         }, [list]);
 
         const onNameChanged = (event: ChangeEvent<HTMLInputElement>) => {

@@ -27,7 +27,6 @@ import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import cloneDeep from 'lodash/cloneDeep';
 import { logError } from '../../util.ts';
 import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
 
@@ -43,10 +42,10 @@ export const SettingsLinkEditorModal = NiceModal.create<SettingsLinkProps>(
         const modal = useModal();
         const { t } = useTranslation();
 
-        const [newLink, setNewLink] = useState<Link>(cloneDeep(link));
+        const [newLink, setNewLink] = useState<Link>({ ...link });
 
         const handleReset = useCallback(() => {
-            setNewLink(cloneDeep(link));
+            setNewLink({ ...link });
         }, [link]);
 
         useEffect(() => {
