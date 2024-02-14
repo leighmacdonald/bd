@@ -7,8 +7,8 @@ import FlagIcon from '@mui/icons-material/Flag';
 import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
 import NiceModal, { useModal } from '@ebay/nice-modal-react';
-import { ModalMarkNewTag } from '../../modals';
 import { SettingsContext } from '../../context/SettingsContext';
+import { ModalMarkNewTag } from '../modal';
 
 export const MarkMenu = ({
     contextMenuPos,

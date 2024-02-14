@@ -6,14 +6,16 @@ import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import NiceModal from '@ebay/nice-modal-react';
 import { ErrorBoundary } from './component/ErrorBoundary';
 import { createThemeByMode } from './theme';
-import { Home } from './page/Home';
 import { getUserSettings, UserSettings } from './api';
-import './modals';
+import './component/modal';
 import {
     defaultUserSettings,
     SettingsContext
 } from './context/SettingsContext';
 import { logError } from './util';
+import loadable from '@loadable/component';
+
+const Home = loadable(() => import('./page/Home'));
 
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);

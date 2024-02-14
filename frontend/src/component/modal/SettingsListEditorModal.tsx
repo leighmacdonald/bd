@@ -1,4 +1,4 @@
-import { List, UserSettings } from '../api';
+import { List, UserSettings } from '../../api.ts';
 import {
     ChangeEvent,
     Dispatch,
@@ -21,7 +21,7 @@ import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import cloneDeep from 'lodash/cloneDeep';
-import { CancelButton, ResetButton, SaveButton } from './Buttons';
+import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
 
 interface SettingsListProps {
     list: List;
@@ -29,7 +29,7 @@ interface SettingsListProps {
     setNewSettings: Dispatch<SetStateAction<UserSettings>>;
 }
 
-export const SettingsListEditor = NiceModal.create<SettingsListProps>(
+export const SettingsListEditorModal = NiceModal.create<SettingsListProps>(
     ({ list, rowIndex, setNewSettings }) => {
         const [newList, setNewList] = useState<List>({ ...list });
         const modal = useModal();
@@ -113,3 +113,4 @@ export const SettingsListEditor = NiceModal.create<SettingsListProps>(
         );
     }
 );
+export default SettingsListEditorModal;

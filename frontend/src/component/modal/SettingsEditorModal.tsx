@@ -25,7 +25,7 @@ import {
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
 import Tooltip from '@mui/material/Tooltip';
-import { Link, List, saveUserSettings, UserSettings } from '../api';
+import { Link, List, saveUserSettings, UserSettings } from '../../api.ts';
 import cloneDeep from 'lodash/cloneDeep';
 import Grid from '@mui/material/Unstable_Grid2';
 import SteamID from 'steamid';
@@ -40,16 +40,16 @@ import Box from '@mui/material/Box';
 import AddIcon from '@mui/icons-material/Add';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Trans, useTranslation } from 'react-i18next';
-import { isStringIp, isValidUrl, logError } from '../util';
+import { isStringIp, isValidUrl, logError } from '../../util.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
+import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
+import { sortedUniq } from 'lodash';
+import { SettingsContext } from '../../context/SettingsContext.ts';
 import {
     ModalSettings,
     ModalSettingsAddKickTag,
     ModalSettingsList
-} from '../modals';
-import { CancelButton, ResetButton, SaveButton } from './Buttons';
-import { sortedUniq } from 'lodash';
-import { SettingsContext } from '../context/SettingsContext';
+} from './index.ts';
 
 export type inputValidator = (value: string) => string | null;
 
@@ -252,7 +252,7 @@ export const SettingsMultiSelect = ({
     );
 };
 
-export const SettingsEditor = NiceModal.create(() => {
+export const SettingsEditorModal = NiceModal.create(() => {
     const { settings, setSettings } = useContext(SettingsContext);
     const settingsModal = useModal(ModalSettings);
     const { t } = useTranslation();
@@ -938,3 +938,5 @@ export const SettingsEditor = NiceModal.create(() => {
         </Dialog>
     );
 });
+
+export default SettingsEditorModal;
