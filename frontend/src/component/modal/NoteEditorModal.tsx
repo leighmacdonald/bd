@@ -8,17 +8,17 @@ import {
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
-import { saveUserNote } from '../api';
+import { saveUserNote } from '../../api.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { logError } from '../util';
-import { CancelButton, ClearButton, SaveButton } from './Buttons';
+import { logError } from '../../util.ts';
+import { CancelButton, ClearButton, SaveButton } from '../Buttons.tsx';
 
 interface NoteEditorProps {
     notes: string;
     steamId: string;
 }
 
-export const NoteEditor = NiceModal.create<NoteEditorProps>(
+export const NoteEditorModal = NiceModal.create<NoteEditorProps>(
     ({ steamId, notes }) => {
         const [newNotes, setNewNotes] = useState<string>(notes);
         const { t } = useTranslation();
@@ -66,3 +66,5 @@ export const NoteEditor = NiceModal.create<NoteEditorProps>(
         );
     }
 );
+
+export default NoteEditorModal;

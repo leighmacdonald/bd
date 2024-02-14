@@ -3,7 +3,7 @@ import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
 import NiceModal from '@ebay/nice-modal-react';
 import { SteamIDProps } from './common';
 import { logError } from '../../util';
-import { ModalNotes } from '../../modals';
+import { ModalNotes } from '../modal';
 
 interface NotesMenuProps {
     notes: string;

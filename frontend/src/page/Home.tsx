@@ -7,9 +7,9 @@ import Stack from '@mui/material/Stack';
 import { Toolbar } from '../component/Toolbar';
 import { Player } from '../api';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-import { ModalSettings } from '../modals';
-import { SettingsEditor } from '../component/SettingsEditor';
+import { SettingsEditorModal } from '../component/modal/SettingsEditorModal.tsx';
 import { getDefaultColumns } from '../table.ts';
+import { ModalSettings } from '../component/modal';
 
 export const Home = () => {
     const [order, setOrder] = useState<Order>(
@@ -47,7 +47,7 @@ export const Home = () => {
     return (
         <Grid container>
             <Grid xs={12}>
-                <SettingsEditor id={ModalSettings} />
+                <SettingsEditorModal id={ModalSettings} />
                 <Paper sx={{ width: '100%', overflow: 'hidden' }}>
                     <PlayerTableContext.Provider
                         value={{
@@ -72,3 +72,5 @@ export const Home = () => {
         </Grid>
     );
 };
+
+export default Home;

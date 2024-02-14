@@ -1,4 +1,4 @@
-import { Link, steamIdFormat, UserSettings } from '../api';
+import { Link, steamIdFormat, UserSettings } from '../../api.ts';
 import {
     ChangeEvent,
     Dispatch,
@@ -22,14 +22,14 @@ import {
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
-import { inputValidator } from './SettingsEditor';
+import { inputValidator } from './SettingsEditorModal.tsx';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import cloneDeep from 'lodash/cloneDeep';
-import { logError } from '../util';
-import { CancelButton, ResetButton, SaveButton } from './Buttons';
+import { logError } from '../../util.ts';
+import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
 
 interface SettingsLinkProps {
     link: Link;
@@ -38,7 +38,7 @@ interface SettingsLinkProps {
     setNewSettings: Dispatch<SetStateAction<UserSettings>>;
 }
 
-export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
+export const SettingsLinkEditorModal = NiceModal.create<SettingsLinkProps>(
     ({ link, rowIndex, setNewSettings }) => {
         const modal = useModal();
         const { t } = useTranslation();
@@ -164,3 +164,5 @@ export const SettingsLinkEditor = NiceModal.create<SettingsLinkProps>(
         );
     }
 );
+
+export default SettingsLinkEditorModal;

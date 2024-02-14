@@ -11,11 +11,11 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
-import { ModalSettings } from '../modals';
 import { logError } from '../util';
 import { getLaunch, getQuit, Team, useCurrentState } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
+import { ModalSettings } from './modal';
 
 export const Toolbar = () => {
     const state = useCurrentState();
