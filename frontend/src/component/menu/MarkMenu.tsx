@@ -1,5 +1,5 @@
+import { useCallback, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import React, { useCallback, useContext } from 'react';
 import { markUser } from '../../api';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';

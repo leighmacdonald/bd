@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { deleteWhitelist } from '../../api';
 import { IconMenuItem } from 'mui-nested-menu';
 import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';

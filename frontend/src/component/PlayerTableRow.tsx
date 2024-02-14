@@ -1,4 +1,4 @@
-import React, { Fragment, useContext } from 'react';
+import { Fragment, useContext, useState, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
@@ -9,7 +9,6 @@ import { PlayerContextMenu } from './menu/PlayerContextMenu';
 import { NullablePosition } from './menu/common';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { PlayerHoverInfo } from './PlayerHoverInfo';
-
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
 import vac from '../img/vac.png';
@@ -81,11 +80,10 @@ export const PlayerTableRow = ({
 }: TableRowContextMenuProps): JSX.Element => {
     const { t } = useTranslation();
 
-    const [hoverMenuPos, setHoverMenuPos] =
-        React.useState<NullablePosition>(null);
+    const [hoverMenuPos, setHoverMenuPos] = useState<NullablePosition>(null);
 
     const [contextMenuPos, setContextMenuPos] =
-        React.useState<NullablePosition>(null);
+        useState<NullablePosition>(null);
 
     const { enabledColumns } = useContext(PlayerTableContext);
 
@@ -93,7 +91,7 @@ export const PlayerTableRow = ({
         setContextMenuPos(null);
     };
 
-    const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>) => {
+    const handleRowClick = (event: MouseEvent<HTMLTableRowElement>) => {
         setContextMenuPos(
             contextMenuPos === null
                 ? {

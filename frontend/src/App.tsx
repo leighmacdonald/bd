@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Fragment, StrictMode } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
 import Container from '@mui/material/Container';
@@ -35,9 +35,9 @@ export const App = (): JSX.Element => {
 
     return (
         <Router>
-            <React.Fragment>
+            <Fragment>
                 <ThemeProvider theme={theme}>
-                    <React.StrictMode>
+                    <StrictMode>
                         <NiceModal.Provider>
                             <CssBaseline />
                             <Container maxWidth={'lg'} disableGutters>
@@ -71,9 +71,9 @@ export const App = (): JSX.Element => {
                                 )}
                             </Container>
                         </NiceModal.Provider>
-                    </React.StrictMode>
+                    </StrictMode>
                 </ThemeProvider>
-            </React.Fragment>
+            </Fragment>
         </Router>
     );
 };

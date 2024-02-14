@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo } from 'react';
+import { useCallback, useContext, useMemo, useState, MouseEvent } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
@@ -157,11 +157,9 @@ const headCells: readonly HeadCell[] = [
 export const ColumnConfigButton = () => {
     const { saveSelectedColumns, enabledColumns } =
         useContext(PlayerTableContext);
-    const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(
-        null
-    );
+    const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
-    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
         setAnchorEl(event.currentTarget);
     };
 
@@ -170,7 +168,7 @@ export const ColumnConfigButton = () => {
     };
 
     const handleColumnsChange = (
-        _: React.MouseEvent<HTMLElement>,
+        _: MouseEvent<HTMLElement>,
         newFormats: validColumns[]
     ) => {
         saveSelectedColumns(newFormats);

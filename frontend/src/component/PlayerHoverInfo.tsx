@@ -12,7 +12,6 @@ import TableCell from '@mui/material/TableCell';
 import TableBody from '@mui/material/TableBody';
 import Typography from '@mui/material/Typography';
 import { format, parseJSON } from 'date-fns';
-import React from 'react';
 import { NullablePosition } from './menu/common';
 
 interface PlayerHoverInfoProps {
