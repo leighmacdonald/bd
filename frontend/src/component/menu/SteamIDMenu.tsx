@@ -1,10 +1,10 @@
-import SteamID from 'steamid';
 import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import { logError, writeToClipboard } from '../../util';
 import { SteamIDProps, SubMenuProps } from './common';
+import * as SteamID from 'steamid';
 
 export const SteamIDMenu = ({
     contextMenuPos,

@@ -9,9 +9,9 @@ import {
 import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { logError } from '../../util.ts';
-import { CancelButton, SaveButton } from '../Buttons.tsx';
-import { SettingsContext } from '../../context/SettingsContext.ts';
+import { logError } from '../../util';
+import { CancelButton, SaveButton } from '../Buttons';
+import { SettingsContext } from '../../context/SettingsContext';
 
 interface MarkNewTagEditorProps {
     steam_id: string;
@@ -30,7 +30,7 @@ export const MarkNewTagEditorModal = NiceModal.create<MarkNewTagEditorProps>(
                 await onMarkAs(steam_id, [tag]);
                 setSettings({
                     ...settings,
-                    unique_tags: [...tag, ...settings.unique_tags]
+                    unique_tags: [tag, ...settings.unique_tags]
                 });
             } catch (e) {
                 logError(`Error updating note: ${e}`);
