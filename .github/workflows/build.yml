@@ -13,9 +13,6 @@ permissions: write-all
 jobs:
   lint-ts:
     runs-on: ubuntu-20.04
-    defaults:
-      run:
-        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -31,12 +28,15 @@ jobs:
           cache: 'pnpm'
 
       - name: Install modules
+        working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
       - name: Prettier
+        working-directory: ./frontend
         run: pnpm run prettier:check
 
       - name: ESLint
+        working-directory: ./frontend
         run: pnpm run eslint:check
 
   lint-golangci:
