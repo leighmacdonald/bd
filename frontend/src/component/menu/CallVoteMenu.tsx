@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';

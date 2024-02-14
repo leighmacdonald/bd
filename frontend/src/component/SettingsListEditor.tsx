@@ -1,5 +1,5 @@
 import { List, UserSettings } from '../api';
-import React, {
+import {
     ChangeEvent,
     Dispatch,
     SetStateAction,

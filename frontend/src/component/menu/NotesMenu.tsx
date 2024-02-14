@@ -1,7 +1,6 @@
 import { IconMenuItem } from 'mui-nested-menu';
 import NoteAltOutlinedIcon from '@mui/icons-material/NoteAltOutlined';
 import NiceModal from '@ebay/nice-modal-react';
-import React from 'react';
 import { SteamIDProps } from './common';
 import { logError } from '../../util';
 import { ModalNotes } from '../../modals';

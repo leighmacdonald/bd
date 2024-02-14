@@ -1,4 +1,3 @@
-import React from 'react';
 import SteamID from 'steamid';
 import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';

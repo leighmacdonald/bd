@@ -1,5 +1,5 @@
 import { Link, steamIdFormat, UserSettings } from '../api';
-import React, {
+import {
     ChangeEvent,
     Dispatch,
     SetStateAction,

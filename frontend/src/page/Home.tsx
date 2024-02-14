@@ -1,11 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Grid from '@mui/material/Unstable_Grid2';
-import {
-    getDefaultColumns,
-    Order,
-    PlayerTable,
-    validColumns
-} from '../component/PlayerTable';
+import { Order, PlayerTable, validColumns } from '../component/PlayerTable';
 import Paper from '@mui/material/Paper';
 
 import Stack from '@mui/material/Stack';
@@ -14,6 +9,7 @@ import { Player } from '../api';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { ModalSettings } from '../modals';
 import { SettingsEditor } from '../component/SettingsEditor';
+import { getDefaultColumns } from '../table.ts';
 
 export const Home = () => {
     const [order, setOrder] = useState<Order>(

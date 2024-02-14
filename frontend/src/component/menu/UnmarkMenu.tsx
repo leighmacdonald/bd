@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { unmarkUser } from '../../api';
 import { IconMenuItem } from 'mui-nested-menu';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';

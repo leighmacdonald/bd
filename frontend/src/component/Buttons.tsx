@@ -1,4 +1,3 @@
-import React from 'react';
 import { Trans } from 'react-i18next';
 import { Button } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';

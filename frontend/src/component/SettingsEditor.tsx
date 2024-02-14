@@ -1,4 +1,4 @@
-import React, {
+import {
     ChangeEvent,
     SyntheticEvent,
     useCallback,
@@ -359,7 +359,7 @@ export const SettingsEditor = NiceModal.create(() => {
         [newSettings, setNewSettings]
     );
 
-    const [expanded, setExpanded] = React.useState<string | false>('general');
+    const [expanded, setExpanded] = useState<string | false>('general');
 
     const handleChange =
         (panel: string) => (_: React.SyntheticEvent, newExpanded: boolean) => {
