@@ -6,7 +6,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -36,13 +35,12 @@ type DataStore interface {
 
 type SqliteStore struct {
 	sync.RWMutex
-	db     *sql.DB
-	dsn    string
-	logger *slog.Logger
+	db  *sql.DB
+	dsn string
 }
 
 func NewStore(dsn string) *SqliteStore {
-	return &SqliteStore{dsn: dsn + "?cache=shared&mode=rwc", logger: slog.Default().WithGroup("sqlite")}
+	return &SqliteStore{dsn: dsn + "?cache=shared&mode=rwc"}
 }
 
 func (store *SqliteStore) Close() error {

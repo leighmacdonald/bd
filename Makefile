@@ -24,6 +24,7 @@ static:
 	@staticcheck -go 1.22 ./...
 
 build_deps:
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/daixiang0/gci@latest
 	go install mvdan.cc/gofumpt@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.1
@@ -51,3 +52,6 @@ deps:
 
 snapshot:
 	goreleaser build --snapshot --clean
+
+generate:
+	sqlc generate
