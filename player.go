@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"github.com/leighmacdonald/bd/store"
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
@@ -10,51 +14,11 @@ import (
 )
 
 type Player struct {
-	// - Permanent storage backed
-	BaseSID
+	store.Player
 
-	// Name is the current in-game name of the player. This can be different from their name via steam api when
-	// using changer/stealers
-	Name string `json:"name"`
+	NamePrevious string `json:"name_previous"`
 
-	// CreatedOn is the first time we have seen the player
-	CreatedOn time.Time `json:"created_on"`
-
-	// UpdatedOn is the last time we have received a status update from rcon
-	// This is used to calculate when we consider the player disconnected and also when
-	// they are expired and should be removed from the player pool entirely.
-	UpdatedOn        time.Time `json:"updated_on"`
-	ProfileUpdatedOn time.Time `json:"profile_updated_on"`
-
-	// The users kill count vs this player
-	KillsOn   int `json:"kills_on"`
-	RageQuits int `json:"rage_quits"`
-	DeathsBy  int `json:"deaths_by"`
-
-	Notes       string `json:"notes"`
-	Whitelisted bool   `json:"whitelisted"`
-
-	// PlayerSummary
-	RealName         string    `json:"real_name"`
-	NamePrevious     string    `json:"name_previous"`
-	AccountCreatedOn time.Time `json:"account_created_on"`
-
-	// ProfileVisibility represents whether the profile is visible or not, and if it is visible, why you are allowed to see it.
-	// Note that because this WebAPI does not use authentication, there are only two possible values returned:
-	// 1 - the profile is not visible to you (Private, Friends Only, etc.),
-	// 3 - the profile is "Public", and the data is visible.
-	// Mike Blaszczak's post on Steam forums says, "The community visibility state this API returns is different
-	// from the privacy state. It's the effective visibility state from the account making the request to the account
-	// being viewed given the requesting account's relationship to the viewed account.".
-	Visibility steamweb.VisibilityState `json:"visibility"`
-	AvatarHash string                   `json:"avatar_hash"`
-
-	// PlayerBanState
-	CommunityBanned  bool                  `json:"community_banned"`
-	NumberOfVACBans  int                   `json:"number_of_vac_bans"`
-	LastVACBanOn     *time.Time            `json:"last_vac_ban_on"`
-	NumberOfGameBans int                   `json:"number_of_game_bans"`
-	EconomyBan       steamweb.EconBanState `json:"economy_ban"`
+	EconomyBan steamweb.EconBanState `json:"economy_ban"`
 
 	// - Parsed Ephemeral data
 
@@ -102,6 +66,27 @@ type Player struct {
 	Matches []*rules.MatchResult `json:"matches"`
 }
 
+func (ps Player) toUpdateParams() store.PlayerUpdateParams {
+	return store.PlayerUpdateParams{
+		Visibility:       ps.Visibility,
+		RealName:         ps.RealName,
+		AccountCreatedOn: time.Time{},
+		AvatarHash:       ps.AvatarHash,
+		CommunityBanned:  ps.CommunityBanned,
+		GameBans:         ps.GameBans,
+		VacBans:          ps.VacBans,
+		LastVacBanOn:     sql.NullTime{},
+		KillsOn:          ps.KillsOn,
+		DeathsBy:         ps.DeathsBy,
+		RageQuits:        ps.RageQuits,
+		Notes:            ps.Notes,
+		Whitelist:        ps.Whitelist,
+		UpdatedOn:        time.Now(),
+		ProfileUpdatedOn: ps.ProfileUpdatedOn,
+		SteamID:          ps.SteamID,
+	}
+}
+
 func (ps Player) MatchAttr(tags []string) bool {
 	for _, match := range ps.Matches {
 		for _, tag := range tags {
@@ -119,7 +104,11 @@ const (
 	playerExpiration = time.Second * 60
 )
 
-func (ps Player) IsDisconnected() bool {
+func (ps Player) isProfileExpired() bool {
+	return time.Since(ps.ProfileUpdatedOn) < profileAgeLimit || ps.Personaname != ""
+}
+
+func (ps Player) isDisconnected() bool {
 	return time.Since(ps.UpdatedOn) > playerDisconnect
 }
 
@@ -129,20 +118,77 @@ func (ps Player) IsExpired() bool {
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-func NewPlayer(sid64 steamid.SID64, name string) Player {
+func newPlayer(sid64 steamid.SID64, name string) Player {
 	curTIme := time.Now()
 
 	return Player{
-		BaseSID:          BaseSID{sid64},
-		Name:             name,
-		Matches:          rules.MatchResults{},
-		AvatarHash:       defaultAvatarHash,
-		AccountCreatedOn: time.Time{},
-		Visibility:       steamweb.VisibilityPublic,
-		CreatedOn:        curTIme,
-		UpdatedOn:        curTIme,
-		ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),
+		Player: store.Player{
+			SteamID:          sid64.Int64(),
+			Personaname:      name,
+			AvatarHash:       defaultAvatarHash,
+			AccountCreatedOn: time.Time{},
+			Visibility:       int64(steamweb.VisibilityPublic),
+			CreatedOn:        curTIme,
+			UpdatedOn:        curTIme,
+			ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),
+		},
+		Matches: rules.MatchResults{},
 	}
+}
+
+func playerRowToPlayer(row store.PlayerRow) Player {
+	player := store.Player{
+		SteamID:          row.SteamID,
+		Personaname:      row.Name.String,
+		Visibility:       row.Visibility,
+		RealName:         row.RealName,
+		AccountCreatedOn: row.AccountCreatedOn,
+		AvatarHash:       row.AvatarHash,
+		CommunityBanned:  row.CommunityBanned,
+		GameBans:         row.GameBans,
+		VacBans:          row.VacBans,
+		LastVacBanOn:     sql.NullTime{},
+		KillsOn:          row.KillsOn,
+		DeathsBy:         row.DeathsBy,
+		RageQuits:        row.RageQuits,
+		Notes:            row.Notes,
+		Whitelist:        row.Whitelist,
+		ProfileUpdatedOn: row.ProfileUpdatedOn,
+		CreatedOn:        row.CreatedOn,
+		UpdatedOn:        row.UpdatedOn,
+	}
+
+	player.LastVacBanOn.Scan(row.LastVacBanOn)
+
+	return Player{Player: player}
+}
+
+// getPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
+// inserted into the database and returned. If you only want players actively in the game, use the playerState functions
+// instead.
+func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerState, sid64 steamid.SID64) (Player, error) {
+	activePlayer, errPlayer := players.bySteamID(sid64)
+	if errPlayer == nil {
+		return activePlayer, nil
+	}
+
+	playerRow, errGet := db.Player(ctx, sid64.Int64())
+	if errGet != nil {
+		if !errors.Is(errGet, sql.ErrNoRows) {
+			return Player{}, errors.Join(errGet, errGetPlayer)
+		}
+
+		// use date in past to trigger update.
+		playerRow.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
+	}
+
+	player := playerRowToPlayer(playerRow)
+
+	player.MapTimeStart = time.Now()
+
+	defer players.update(player)
+
+	return player, nil
 }
 
 type UserNameHistory struct {

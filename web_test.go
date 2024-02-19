@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/leighmacdonald/bd/store"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,19 +26,19 @@ func testApp() (*Detector, func(), error) {
 		return nil, func() {}, errors.Join(errTemp, errTempDir)
 	}
 
-	userSettings, _ := NewSettings()
+	userSettings, _ := newSettings()
 	userSettings.RunMode = ModeTest
 	userSettings.SteamID = steamid.RandSID64()
 	userSettings.ConfigPath = path.Join(tempDir, "bd.yaml")
 
-	var dataStore DataStore
+	var dataStore store.DataStore
 
 	if os.Getenv("WRITE_TEST_DB") != "" {
 		// Toggle if you want to inspect the database
 		localDBPath := filepath.Join(tempDir, "db.sqlite?cache=shared")
-		dataStore = NewStore(localDBPath)
+		dataStore = store.NewStore(localDBPath)
 	} else {
-		dataStore = NewStore(":memory:")
+		dataStore = store.NewStore(":memory:")
 	}
 
 	cleanup := func() {
@@ -57,7 +58,7 @@ func testApp() (*Detector, func(), error) {
 	}
 
 	versionInfo := Version{Version: "", Commit: "", Date: "", BuiltBy: ""}
-	ds, _ := NewAPIDataSource("")
+	ds, _ := createAPIDataSource("")
 	application := NewDetector(userSettings, dataStore, versionInfo, &NopCache{}, logReader, logChan, ds)
 
 	return application, cleanup, nil

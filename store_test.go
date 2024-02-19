@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/leighmacdonald/bd/store"
 	"testing"
 
 	"github.com/leighmacdonald/steamid/v3/steamid"
@@ -11,7 +12,7 @@ import (
 func TestPlayer(t *testing.T) {
 	const msgCount = 10
 
-	database := NewStore(":memory:")
+	database := store.NewStore(":memory:")
 	if errInit := database.Init(); errInit != nil {
 		t.Fatalf("failed to setup database: %v", errInit)
 	}
@@ -20,7 +21,7 @@ func TestPlayer(t *testing.T) {
 		_ = database.Close()
 	})
 
-	player1 := NewPlayer(steamid.New(76561197961279983), RandomString(10))
+	player1 := newPlayer(steamid.New(76561197961279983), RandomString(10))
 
 	t.Run("Create New Player", func(t *testing.T) {
 		require.NoError(t, database.GetPlayer(context.TODO(), player1.SteamID, true, &player1), "Failed to create player")
@@ -65,7 +66,7 @@ func TestPlayer(t *testing.T) {
 		knownNames := []string{"test name 1", "test name 2", "Blah Blax", "bob", "sally"}
 
 		for idx, sid := range knownIDs {
-			player := NewPlayer(sid, knownNames[idx])
+			player := newPlayer(sid, knownNames[idx])
 			require.NoError(t, database.GetPlayer(context.TODO(), player.SteamID, true, &player), "Failed to create player")
 		}
 

@@ -118,3 +118,29 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 
 	return playerLists, rulesLists
 }
+
+// refreshLists updates the 3rd party player lists using their update url.
+func refreshLists(ctx context.Context) {
+	playerLists, ruleLists := downloadLists(ctx, d.settings.Lists)
+	for _, list := range playerLists {
+		boundList := list
+
+		count, errImport := d.rules.ImportPlayers(&boundList)
+		if errImport != nil {
+			slog.Error("Failed to import player list", slog.String("name", boundList.FileInfo.Title), errAttr(errImport))
+		} else {
+			slog.Info("Imported player list", slog.String("name", boundList.FileInfo.Title), slog.Int("count", count))
+		}
+	}
+
+	for _, list := range ruleLists {
+		boundList := list
+
+		count, errImport := d.rules.ImportRules(&boundList)
+		if errImport != nil {
+			slog.Error("Failed to import rules list (%s): %v\n", slog.String("name", boundList.FileInfo.Title), errAttr(errImport))
+		} else {
+			slog.Info("Imported rules list", slog.String("name", boundList.FileInfo.Title), slog.Int("count", count))
+		}
+	}
+}

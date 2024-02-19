@@ -18,7 +18,7 @@ type Web struct {
 }
 
 func newWebServer(detector *Detector) (*Web, error) {
-	mux, errRoutes := createMux(detector)
+	mux, errRoutes := createHandlers(detector)
 	if errRoutes != nil {
 		return nil, errRoutes
 	}
@@ -83,12 +83,12 @@ func responseOK(w http.ResponseWriter, status int, data any) {
 	}
 }
 
-// createMux configures the routes. If the `release` tag is enabled, serves files from the embedded assets
+// createHandlers configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
-func createMux(detector *Detector) (*http.ServeMux, error) {
+func createHandlers(state *gameState, process *processState) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /state", getState(detector))
+	mux.HandleFunc("GET /state", getState(state, process))
 	mux.HandleFunc("GET /messages/{steam_id}", getMessages(detector))
 	mux.HandleFunc("GET /names/{steam_id}", getNames(detector))
 	mux.HandleFunc("POST /mark/{steam_id}", markPlayerPost(detector))
@@ -100,7 +100,7 @@ func createMux(detector *Detector) (*http.ServeMux, error) {
 	mux.HandleFunc("POST /whitelist/{steam_id}", updateWhitelistPlayer(detector, true))
 	mux.HandleFunc("DELETE /whitelist/{steam_id}", updateWhitelistPlayer(detector, false))
 	mux.HandleFunc("POST /notes/{steam_id}", postNotes(detector))
-	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", callVote(detector))
+	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", callVote())
 
 	if detector.Settings().RunMode == ModeTest {
 		// Don't rely on assets when testing api endpoints

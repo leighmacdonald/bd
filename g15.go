@@ -26,17 +26,17 @@ type DumpPlayer struct {
 	UserID    [maxDataSize]int
 }
 
-type Parser struct {
+type g15Parser struct {
 	rx *regexp.Regexp
 }
 
-func NewG15Parser() Parser {
-	return Parser{
+func newG15Parser() g15Parser {
+	return g15Parser{
 		rx: regexp.MustCompile(`^(m_szName|m_iPing|m_iScore|m_iDeaths|m_bConnected|m_iTeam|m_bAlive|m_iHealth|m_iAccountID|m_bValid|m_iUserID)\[(\d+)]\s(integer|bool|string)\s\((.+?)?\)$`),
 	}
 }
 
-func (p Parser) Parse(reader io.Reader, data *DumpPlayer) error {
+func (p g15Parser) Parse(reader io.Reader, data *DumpPlayer) error {
 	body, errRead := io.ReadAll(reader)
 	if errRead != nil {
 		return errors.Join(errRead, errReaderG15)

@@ -1,9 +1,10 @@
-package main
+package rules
 
 import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
@@ -11,6 +12,15 @@ import (
 const (
 	banMgrVersion = 1
 	idSize        = 32
+)
+
+var (
+	ErrVoiceBanVersion      = errors.New("invalid version")
+	ErrVoiceBanReadVersion  = errors.New("failed to read binary version")
+	ErrVoiceBanWriteVersion = errors.New("failed to write binary version")
+	ErrVoiceBanWriteSteamID = errors.New("failed to write binary steamid data")
+	ErrVoiceBanOpen         = errors.New("failed to open voice_ban.dt")
+	ErrVoiceBanWrite        = errors.New("failed to write voice_ban.dt")
 )
 
 func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
@@ -21,11 +31,11 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 
 	errVersion := binary.Read(reader, binary.BigEndian, &vbVersion)
 	if errVersion != nil {
-		return nil, errors.Join(errVersion, errVoiceBanReadVersion)
+		return nil, errors.Join(errVersion, ErrVoiceBanReadVersion)
 	}
 
 	if vbVersion != banMgrVersion {
-		return nil, errVoiceBanVersion
+		return nil, ErrVoiceBanVersion
 	}
 
 	for {
@@ -49,7 +59,8 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 
 		parsedSid := steamid.New(string(trimID))
 		if !parsedSid.Valid() {
-			return nil, errInvalidSid
+			slog.Warn("Found invalid steam id", slog.String("steam_id", string(trimID)))
+			continue
 		}
 
 		ids = append(ids, parsedSid)
@@ -61,7 +72,7 @@ func VoiceBanRead(reader io.Reader) (steamid.Collection, error) {
 func VoiceBanWrite(output io.Writer, steamIDs steamid.Collection) error {
 	var vbVersion int32 = banMgrVersion
 	if errWrite := binary.Write(output, binary.BigEndian, vbVersion); errWrite != nil {
-		return errors.Join(errWrite, errVoiceBanWriteVersion)
+		return errors.Join(errWrite, ErrVoiceBanWriteVersion)
 	}
 
 	for _, sid := range steamIDs {
@@ -78,7 +89,7 @@ func VoiceBanWrite(output io.Writer, steamIDs steamid.Collection) error {
 		}
 
 		if errWrite := binary.Write(output, binary.BigEndian, sidBytes); errWrite != nil {
-			return errors.Join(errWrite, errVoiceBanWriteSteamID)
+			return errors.Join(errWrite, ErrVoiceBanWriteSteamID)
 		}
 	}
 

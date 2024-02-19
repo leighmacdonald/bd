@@ -3,7 +3,7 @@
 //   sqlc v1.25.0
 // source: queries.sql
 
-package queries
+package store
 
 import (
 	"context"
@@ -12,22 +12,24 @@ import (
 )
 
 const messageSave = `-- name: MessageSave :exec
-INSERT INTO player_messages (message_id, steam_id, message, created_on)
-VALUES (?, ?, ?, ?)
+INSERT INTO player_messages (message_id, steam_id, message, team, created_on)
+VALUES (?, ?, ?, ?, ?)
 `
 
 type MessageSaveParams struct {
-	MessageID int64
-	SteamID   int64
-	Message   string
-	CreatedOn time.Time
+	MessageID int64     `json:"message_id"`
+	SteamID   int64     `json:"steam_id"`
+	Message   string    `json:"message"`
+	Team      bool      `json:"team"`
+	CreatedOn time.Time `json:"created_on"`
 }
 
 func (q *Queries) MessageSave(ctx context.Context, arg MessageSaveParams) error {
-	_, err := q.db.ExecContext(ctx, messageSave,
+	_, err := q.exec(ctx, q.messageSaveStmt, messageSave,
 		arg.MessageID,
 		arg.SteamID,
 		arg.Message,
+		arg.Team,
 		arg.CreatedOn,
 	)
 	return err
@@ -39,15 +41,22 @@ SELECT message_id, steam_id, message, created_on
 WHERE steam_id = ?1
 `
 
-func (q *Queries) Messages(ctx context.Context, steamID int64) ([]PlayerMessage, error) {
-	rows, err := q.db.QueryContext(ctx, messages, steamID)
+type MessagesRow struct {
+	MessageID int64     `json:"message_id"`
+	SteamID   int64     `json:"steam_id"`
+	Message   string    `json:"message"`
+	CreatedOn time.Time `json:"created_on"`
+}
+
+func (q *Queries) Messages(ctx context.Context, steamID int64) ([]MessagesRow, error) {
+	rows, err := q.query(ctx, q.messagesStmt, messages, steamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PlayerMessage
+	var items []MessagesRow
 	for rows.Next() {
-		var i PlayerMessage
+		var i MessagesRow
 		if err := rows.Scan(
 			&i.MessageID,
 			&i.SteamID,
@@ -68,7 +77,8 @@ func (q *Queries) Messages(ctx context.Context, steamID int64) ([]PlayerMessage,
 }
 
 const player = `-- name: Player :one
-SELECT p.visibility,
+SELECT p.steam_id,
+       p.visibility,
        p.real_name,
        p.account_created_on,
        p.avatar_hash,
@@ -86,36 +96,38 @@ SELECT p.visibility,
        p.profile_updated_on,
        pn.name
 FROm player p
-         LEFT JOIN player_names pn on p.steam_id = pn.steam_id
+LEFT JOIN player_names pn on p.steam_id = pn.steam_id
 WHERE p.steam_id = ?1
 ORDER BY pn.created_on DESC
 LIMIT 1
 `
 
 type PlayerRow struct {
-	Visibility       int64
-	RealName         string
-	AccountCreatedOn time.Time
-	AvatarHash       string
-	CommunityBanned  int64
-	GameBans         int64
-	VacBans          int64
-	LastVacBanOn     sql.NullTime
-	KillsOn          int64
-	DeathsBy         int64
-	RageQuits        int64
-	Notes            string
-	Whitelist        bool
-	CreatedOn        time.Time
-	UpdatedOn        time.Time
-	ProfileUpdatedOn time.Time
-	Name             sql.NullString
+	SteamID          int64          `json:"steam_id"`
+	Visibility       int64          `json:"visibility"`
+	RealName         string         `json:"real_name"`
+	AccountCreatedOn time.Time      `json:"account_created_on"`
+	AvatarHash       string         `json:"avatar_hash"`
+	CommunityBanned  bool           `json:"community_banned"`
+	GameBans         int64          `json:"game_bans"`
+	VacBans          int64          `json:"vac_bans"`
+	LastVacBanOn     sql.NullTime   `json:"last_vac_ban_on"`
+	KillsOn          int64          `json:"kills_on"`
+	DeathsBy         int64          `json:"deaths_by"`
+	RageQuits        int64          `json:"rage_quits"`
+	Notes            string         `json:"notes"`
+	Whitelist        bool           `json:"whitelist"`
+	CreatedOn        time.Time      `json:"created_on"`
+	UpdatedOn        time.Time      `json:"updated_on"`
+	ProfileUpdatedOn time.Time      `json:"profile_updated_on"`
+	Name             sql.NullString `json:"name"`
 }
 
-func (q *Queries) Player(ctx context.Context, steamID sql.NullInt64) (PlayerRow, error) {
-	row := q.db.QueryRowContext(ctx, player, steamID)
+func (q *Queries) Player(ctx context.Context, steamID int64) (PlayerRow, error) {
+	row := q.queryRow(ctx, q.playerStmt, player, steamID)
 	var i PlayerRow
 	err := row.Scan(
+		&i.SteamID,
 		&i.Visibility,
 		&i.RealName,
 		&i.AccountCreatedOn,
@@ -143,31 +155,31 @@ INSERT INTO player (steam_id, visibility, real_name, account_created_on,
                     kills_on, deaths_by, rage_quits, notes, whitelist, profile_updated_on,
                     created_on, updated_on)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING steam_id, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, last_vac_ban_on, kills_on, deaths_by, rage_quits, notes, whitelist, profile_updated_on, created_on, updated_on
+RETURNING steam_id, personaname, visibility, real_name, account_created_on, avatar_hash, community_banned, game_bans, vac_bans, last_vac_ban_on, kills_on, deaths_by, rage_quits, notes, whitelist, profile_updated_on, created_on, updated_on
 `
 
 type PlayerInsertParams struct {
-	SteamID          sql.NullInt64
-	Visibility       int64
-	RealName         string
-	AccountCreatedOn time.Time
-	AvatarHash       string
-	CommunityBanned  int64
-	GameBans         int64
-	VacBans          int64
-	LastVacBanOn     sql.NullTime
-	KillsOn          int64
-	DeathsBy         int64
-	RageQuits        int64
-	Notes            string
-	Whitelist        bool
-	ProfileUpdatedOn time.Time
-	CreatedOn        time.Time
-	UpdatedOn        time.Time
+	SteamID          int64        `json:"steam_id"`
+	Visibility       int64        `json:"visibility"`
+	RealName         string       `json:"real_name"`
+	AccountCreatedOn time.Time    `json:"account_created_on"`
+	AvatarHash       string       `json:"avatar_hash"`
+	CommunityBanned  bool         `json:"community_banned"`
+	GameBans         int64        `json:"game_bans"`
+	VacBans          int64        `json:"vac_bans"`
+	LastVacBanOn     sql.NullTime `json:"last_vac_ban_on"`
+	KillsOn          int64        `json:"kills_on"`
+	DeathsBy         int64        `json:"deaths_by"`
+	RageQuits        int64        `json:"rage_quits"`
+	Notes            string       `json:"notes"`
+	Whitelist        bool         `json:"whitelist"`
+	ProfileUpdatedOn time.Time    `json:"profile_updated_on"`
+	CreatedOn        time.Time    `json:"created_on"`
+	UpdatedOn        time.Time    `json:"updated_on"`
 }
 
 func (q *Queries) PlayerInsert(ctx context.Context, arg PlayerInsertParams) (Player, error) {
-	row := q.db.QueryRowContext(ctx, playerInsert,
+	row := q.queryRow(ctx, q.playerInsertStmt, playerInsert,
 		arg.SteamID,
 		arg.Visibility,
 		arg.RealName,
@@ -189,6 +201,7 @@ func (q *Queries) PlayerInsert(ctx context.Context, arg PlayerInsertParams) (Pla
 	var i Player
 	err := row.Scan(
 		&i.SteamID,
+		&i.Personaname,
 		&i.Visibility,
 		&i.RealName,
 		&i.AccountCreatedOn,
@@ -237,33 +250,33 @@ LIMIT 1000
 `
 
 type PlayerSearchParams struct {
-	SteamID interface{}
-	Name    interface{}
+	SteamID interface{} `json:"steam_id"`
+	Name    interface{} `json:"name"`
 }
 
 type PlayerSearchRow struct {
-	SteamID          sql.NullInt64
-	Visibility       int64
-	RealName         string
-	AccountCreatedOn time.Time
-	AvatarHash       string
-	CommunityBanned  int64
-	GameBans         int64
-	VacBans          int64
-	LastVacBanOn     sql.NullTime
-	KillsOn          int64
-	DeathsBy         int64
-	RageQuits        int64
-	Notes            string
-	Whitelist        bool
-	ProfileUpdatedOn time.Time
-	CreatedOn        time.Time
-	UpdatedOn        time.Time
-	Name             sql.NullString
+	SteamID          int64          `json:"steam_id"`
+	Visibility       int64          `json:"visibility"`
+	RealName         string         `json:"real_name"`
+	AccountCreatedOn time.Time      `json:"account_created_on"`
+	AvatarHash       string         `json:"avatar_hash"`
+	CommunityBanned  bool           `json:"community_banned"`
+	GameBans         int64          `json:"game_bans"`
+	VacBans          int64          `json:"vac_bans"`
+	LastVacBanOn     sql.NullTime   `json:"last_vac_ban_on"`
+	KillsOn          int64          `json:"kills_on"`
+	DeathsBy         int64          `json:"deaths_by"`
+	RageQuits        int64          `json:"rage_quits"`
+	Notes            string         `json:"notes"`
+	Whitelist        bool           `json:"whitelist"`
+	ProfileUpdatedOn time.Time      `json:"profile_updated_on"`
+	CreatedOn        time.Time      `json:"created_on"`
+	UpdatedOn        time.Time      `json:"updated_on"`
+	Name             sql.NullString `json:"name"`
 }
 
 func (q *Queries) PlayerSearch(ctx context.Context, arg PlayerSearchParams) ([]PlayerSearchRow, error) {
-	rows, err := q.db.QueryContext(ctx, playerSearch, arg.SteamID, arg.Name)
+	rows, err := q.query(ctx, q.playerSearchStmt, playerSearch, arg.SteamID, arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -325,26 +338,26 @@ WHERE steam_id = ?16
 `
 
 type PlayerUpdateParams struct {
-	Visibility       int64
-	RealName         string
-	AccountCreatedOn time.Time
-	AvatarHash       string
-	CommunityBanned  int64
-	GameBans         int64
-	VacBans          int64
-	LastVacBanOn     sql.NullTime
-	KillsOn          int64
-	DeathsBy         int64
-	RageQuits        int64
-	Notes            string
-	Whitelist        bool
-	UpdatedOn        time.Time
-	ProfileUpdatedOn time.Time
-	SteamID          sql.NullInt64
+	Visibility       int64        `json:"visibility"`
+	RealName         string       `json:"real_name"`
+	AccountCreatedOn time.Time    `json:"account_created_on"`
+	AvatarHash       string       `json:"avatar_hash"`
+	CommunityBanned  bool         `json:"community_banned"`
+	GameBans         int64        `json:"game_bans"`
+	VacBans          int64        `json:"vac_bans"`
+	LastVacBanOn     sql.NullTime `json:"last_vac_ban_on"`
+	KillsOn          int64        `json:"kills_on"`
+	DeathsBy         int64        `json:"deaths_by"`
+	RageQuits        int64        `json:"rage_quits"`
+	Notes            string       `json:"notes"`
+	Whitelist        bool         `json:"whitelist"`
+	UpdatedOn        time.Time    `json:"updated_on"`
+	ProfileUpdatedOn time.Time    `json:"profile_updated_on"`
+	SteamID          int64        `json:"steam_id"`
 }
 
 func (q *Queries) PlayerUpdate(ctx context.Context, arg PlayerUpdateParams) error {
-	_, err := q.db.ExecContext(ctx, playerUpdate,
+	_, err := q.exec(ctx, q.playerUpdateStmt, playerUpdate,
 		arg.Visibility,
 		arg.RealName,
 		arg.AccountCreatedOn,
@@ -371,14 +384,14 @@ VALUES (?, ?, ?, ?)
 `
 
 type UserNameSaveParams struct {
-	NameID    int64
-	SteamID   int64
-	Name      string
-	CreatedOn time.Time
+	NameID    int64     `json:"name_id"`
+	SteamID   int64     `json:"steam_id"`
+	Name      string    `json:"name"`
+	CreatedOn time.Time `json:"created_on"`
 }
 
 func (q *Queries) UserNameSave(ctx context.Context, arg UserNameSaveParams) error {
-	_, err := q.db.ExecContext(ctx, userNameSave,
+	_, err := q.exec(ctx, q.userNameSaveStmt, userNameSave,
 		arg.NameID,
 		arg.SteamID,
 		arg.Name,
@@ -394,7 +407,7 @@ WHERE steam_id = ?1
 `
 
 func (q *Queries) UserNames(ctx context.Context, steamID int64) ([]PlayerName, error) {
-	rows, err := q.db.QueryContext(ctx, userNames, steamID)
+	rows, err := q.query(ctx, q.userNamesStmt, userNames, steamID)
 	if err != nil {
 		return nil, err
 	}

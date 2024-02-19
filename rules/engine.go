@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -563,6 +566,35 @@ func (e *Engine) MatchAvatar(avatar []byte) []*MatchResult {
 	}
 
 	return matches
+}
+
+const (
+	maxVoiceBans   = 200
+	voiceBansPerms = 0o755
+)
+
+// ExportVoiceBans will write the most recent 200 bans to the `voice_ban.dt`. This must be done while the game is not
+// currently running.
+func (e *Engine) ExportVoiceBans(tf2Dir string, kickTags []string) error {
+	bannedIDs := e.FindNewestEntries(maxVoiceBans, kickTags)
+	if len(bannedIDs) == 0 {
+		return nil
+	}
+
+	vbPath := filepath.Join(tf2Dir, "voice_ban.dt")
+
+	vbFile, errOpen := os.OpenFile(vbPath, os.O_RDWR|os.O_TRUNC, voiceBansPerms)
+	if errOpen != nil {
+		return errors.Join(errOpen, ErrVoiceBanOpen)
+	}
+
+	if errWrite := VoiceBanWrite(vbFile, bannedIDs); errWrite != nil {
+		return errors.Join(errWrite, ErrVoiceBanWrite)
+	}
+
+	slog.Info("Generated voice_ban.dt successfully", slog.String("path", vbPath))
+
+	return nil
 }
 
 func HashBytes(b []byte) string {

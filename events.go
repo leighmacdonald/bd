@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/leighmacdonald/steamid/v3/steamid"
@@ -51,15 +55,6 @@ func (e *LogEvent) ApplyTimestamp(tsString string) error {
 type Event struct {
 	Name  EventType
 	Value any
-}
-
-type Server struct {
-	ServerName string    `json:"server_name"`
-	Addr       net.IP    `json:"-"`
-	Port       uint16    `json:"-"`
-	CurrentMap string    `json:"current_map"`
-	Tags       []string  `json:"-"`
-	LastUpdate time.Time `json:"last_update"`
 }
 
 type updateType int
@@ -183,4 +178,67 @@ type mapEvent struct {
 
 type tagsEvent struct {
 	tags []string
+}
+
+type eventHandler struct {
+	stateHandler *gameState
+	eventChan    chan LogEvent
+}
+
+// handles mapping incoming LogEvent payloads into the more generalized
+// updateStateEvent used for all state updates.
+func (e eventHandler) start(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt := <-e.eventChan:
+			switch evt.Type { //nolint:exhaustive
+			case EvtMap:
+				// update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
+			case EvtHostname:
+				e.stateHandler.onHostname(hostnameEvent{hostname: evt.MetaData})
+			case EvtTags:
+				e.stateHandler.onTags(tagsEvent{tags: strings.Split(evt.MetaData, ",")})
+			case EvtAddress:
+				pcs := strings.Split(evt.MetaData, ":")
+
+				_, errPort := strconv.ParseUint(pcs[1], 10, 16)
+				if errPort != nil {
+					slog.Error("Failed to parse port: %v", errAttr(errPort), slog.String("port", pcs[1]))
+
+					continue
+				}
+
+				parsedIP := net.ParseIP(pcs[0])
+				if parsedIP == nil {
+					slog.Error("Failed to parse ip", slog.String("ip", pcs[0]))
+
+					continue
+				}
+			case EvtStatusID:
+				e.stateHandler.onStatus(ctx, evt.PlayerSID, statusEvent{
+					ping:      evt.PlayerPing,
+					userID:    evt.UserID,
+					name:      evt.Player,
+					connected: evt.PlayerConnected,
+				})
+			case EvtDisconnect:
+				e.stateHandler.onMapChange()
+			case EvtKill:
+				e.stateHandler.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player})
+			case EvtMsg:
+				e.stateHandler.onUpdateMessage(ctx, messageEvent{
+					steamID:   evt.PlayerSID,
+					name:      evt.Player,
+					createdAt: evt.Timestamp,
+					message:   evt.Message,
+					teamOnly:  evt.TeamOnly,
+					dead:      evt.Dead,
+				})
+			case EvtConnect:
+			case EvtLobby:
+			}
+		}
+	}
 }

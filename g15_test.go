@@ -14,7 +14,7 @@ func TestParser_Parse(t *testing.T) {
 
 	require.NoError(t, errOpen)
 
-	parser := NewG15Parser()
+	parser := newG15Parser()
 
 	var dumpData DumpPlayer
 
