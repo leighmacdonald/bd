@@ -1,5 +1,6 @@
 -- name: Player :one
-SELECT p.visibility,
+SELECT p.steam_id,
+       p.visibility,
        p.real_name,
        p.account_created_on,
        p.avatar_hash,
@@ -17,7 +18,7 @@ SELECT p.visibility,
        p.profile_updated_on,
        pn.name
 FROm player p
-         LEFT JOIN player_names pn on p.steam_id = pn.steam_id
+LEFT JOIN player_names pn on p.steam_id = pn.steam_id
 WHERE p.steam_id = @steam_id
 ORDER BY pn.created_on DESC
 LIMIT 1;
@@ -85,8 +86,8 @@ FROM player_names
 WHERE steam_id = @steam_id;
 
 -- name: MessageSave :exec
-INSERT INTO player_messages (message_id, steam_id, message, created_on)
-VALUES (?, ?, ?, ?);
+INSERT INTO player_messages (message_id, steam_id, message, team, created_on)
+VALUES (?, ?, ?, ?, ?);
 
 -- name: Messages :many
 SELECT message_id, steam_id, message, created_on

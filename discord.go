@@ -132,7 +132,7 @@ func discordAssetNameMap(mapName string) string {
 	return mapName
 }
 
-func discordUpdateActivity(discordClient *client.Client, cnt int, server *Server, inGame bool, startupTime time.Time) error {
+func discordUpdateActivity(discordClient *client.Client, cnt int, server serverState, inGame bool, startupTime time.Time) error {
 	buttons := []*client.Button{
 		{
 			Label: "GitHub",

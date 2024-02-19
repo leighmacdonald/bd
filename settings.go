@@ -5,7 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/leighmacdonald/steamweb/v2"
 	"io"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -125,7 +127,30 @@ type UserSettings struct {
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
-func NewSettings() (UserSettings, error) {
+func loadAndValidateSettings() (UserSettings, error) {
+	userSettings, errSettings := newSettings()
+	if errSettings != nil {
+		return UserSettings{}, errSettings
+	}
+
+	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
+		return UserSettings{}, errReadSettings
+	}
+
+	if errValidate := userSettings.Validate(); errValidate != nil {
+		return UserSettings{}, errValidate
+	}
+
+	if userSettings.APIKey != "" {
+		if errSetSteamKey := steamweb.SetKey(userSettings.APIKey); errSetSteamKey != nil {
+			slog.Error("Failed to set steam api key", errAttr(errSetSteamKey))
+		}
+	}
+
+	return userSettings, nil
+}
+
+func newSettings() (UserSettings, error) {
 	plat := platform.New()
 	newSettings := UserSettings{
 		ConfigPath:              ".",
@@ -367,6 +392,10 @@ func (s *UserSettings) Read(inputFile io.Reader) error {
 }
 
 func (s *UserSettings) Save() error {
+	if errValidate := s.Validate(); errValidate != nil {
+		return errValidate
+	}
+
 	return s.WriteFilePath(s.ConfigPath)
 }
 

@@ -1,9 +1,13 @@
 version: 2
 sql:
   - engine: "sqlite"
-    queries: "queries/queries.sql"
-    schema: "queries/schema.sql"
+    queries: "store/queries.sql"
+    schema: "store/migrations"
     gen:
       go:
-        package: "queries"
-        out: "queries"
+        package: "store"
+        out: "store"
+        emit_json_tags: true
+        json_tags_case_style: "snake"
+        emit_prepared_queries: true
+        emit_interface: true

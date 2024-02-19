@@ -25,7 +25,7 @@ func TestDataSource(t *testing.T) {
 
 	key, found := os.LookupEnv("BD_API_KEY")
 	if found {
-		lds, errLDS := NewLocalDataSource(key)
+		lds, errLDS := createLocalDataSource(key)
 		require.NoError(t, errLDS)
 
 		testableDS["local"] = lds
@@ -36,7 +36,7 @@ func TestDataSource(t *testing.T) {
 		baseURL = apiURL
 	}
 
-	apiDataSource, errAPI := NewAPIDataSource(baseURL)
+	apiDataSource, errAPI := createAPIDataSource(baseURL)
 
 	require.NoError(t, errAPI)
 

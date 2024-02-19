@@ -2,28 +2,26 @@
 
 all: fmt check test
 
-deps_release:
-	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
-
 bump_deps:
 	go get -u ./...
 	cd frontend && pnpm up --latest --interactive
 
-check: lint_golangci static lint_ts
+check: lint_golangci static
+	make -C frontend check
 
 lint_golangci:
 	@golangci-lint run --timeout 3m
 
-lint_ts:
-	cd frontend && pnpm run eslint:check && pnpm prettier src/ --check
-
-frontend:
-	cd frontend && pnpm run build
-
 static:
 	@staticcheck -go 1.22 ./...
 
-build_deps:
+deps: deps-go
+	make -C frontend deps
+
+deps-go:
+	go install github.com/cosmtrek/air@latest
+	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
+	go install github.com/golang-migrate/migrate/v4
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/daixiang0/gci@latest
 	go install mvdan.cc/gofumpt@latest
@@ -40,15 +38,10 @@ fmt:
 	cd frontend && pnpm prettier src/ --write
 
 watch-go:
-	@go install github.com/cosmtrek/air@latest
 	@air
 
-watch-ts:
-	cd frontend && pnpm watch
-
-deps:
-	cd frontend && pnpm install --frozen-lockfile
-	go mod download
+serve-ts:
+	makefile -C
 
 snapshot:
 	goreleaser build --snapshot --clean

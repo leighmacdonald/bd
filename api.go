@@ -95,12 +95,20 @@ func (n LocalDataSource) Sourcebans(_ context.Context, steamIDs steamid.Collecti
 	return dummy, nil
 }
 
-func NewLocalDataSource(key string) (*LocalDataSource, error) {
+func createLocalDataSource(key string) (*LocalDataSource, error) {
 	if errKey := steamweb.SetKey(key); errKey != nil {
 		return nil, errors.Join(errKey, errAPIKey)
 	}
 
 	return &LocalDataSource{}, nil
+}
+
+func NewDataSource(userSettings UserSettings) (DataSource, error) {
+	if userSettings.BdAPIEnabled {
+		return createAPIDataSource(userSettings.BdAPIAddress)
+	} else {
+		return createLocalDataSource(userSettings.APIKey)
+	}
 }
 
 const APIDataSourceDefaultAddress = "https://bd-api.roto.lol"
@@ -111,7 +119,7 @@ type APIDataSource struct {
 	client  *http.Client
 }
 
-func NewAPIDataSource(sourceURL string) (*APIDataSource, error) {
+func createAPIDataSource(sourceURL string) (*APIDataSource, error) {
 	if sourceURL == "" {
 		sourceURL = APIDataSourceDefaultAddress
 	}

@@ -2,20 +2,21 @@ package main
 
 import (
 	"errors"
+	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net/http"
 
 	"github.com/leighmacdonald/bd/rules"
 )
 
-func getMessages(detector *Detector) http.HandlerFunc {
+func getMessages(store store.Querier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		messages, errMsgs := detector.dataStore.FetchMessages(r.Context(), sid)
+		messages, errMsgs := store.Messages(r.Context(), sid.Int64())
 		if errMsgs != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to fetch messages", errAttr(errMsgs))
@@ -27,17 +28,17 @@ func getMessages(detector *Detector) http.HandlerFunc {
 	}
 }
 
-func getQuitGame(detector *Detector) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		if !detector.gameProcessActive.Load() {
+func getQuitGame(process *processState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !process.gameProcessActive.Load() {
 			responseErr(w, http.StatusNotFound, nil)
 
 			return
 		}
 
-		slog.Info("Close game request")
+		slog.Debug("Close game request")
 
-		if errQuit := detector.quitGame(); errQuit != nil {
+		if errQuit := process.Quit(r.Context()); errQuit != nil {
 			if errors.Is(errQuit, errGameStopped) {
 				responseOK(w, http.StatusOK, nil)
 
@@ -54,14 +55,14 @@ func getQuitGame(detector *Detector) http.HandlerFunc {
 	}
 }
 
-func getNames(detector *Detector) http.HandlerFunc {
+func getNames(store store.Querier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		messages, errMsgs := detector.dataStore.FetchNames(r.Context(), sid)
+		messages, errMsgs := store.UserNames(r.Context(), sid.Int64())
 		if errMsgs != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to fetch names", errAttr(errMsgs))
@@ -74,41 +75,38 @@ func getNames(detector *Detector) http.HandlerFunc {
 }
 
 type CurrentState struct {
-	Tags        []string `json:"tags"`
-	GameRunning bool     `json:"game_running"`
-	Server      *Server  `json:"server"`
-	Players     []Player `json:"players"`
+	Tags        []string    `json:"tags"`
+	GameRunning bool        `json:"game_running"`
+	Server      serverState `json:"server"`
+	Players     []Player    `json:"players"`
 }
 
-func getState(detector *Detector) http.HandlerFunc {
+func getState(state *gameState, process *processState) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		detector.serverMu.RLock()
-		defer detector.serverMu.RUnlock()
-
-		players := detector.players.all()
+		players := state.players.all()
 		if players == nil {
 			players = []Player{}
 		}
 
 		responseOK(w, http.StatusOK, CurrentState{
 			Tags:        []string{},
-			Server:      detector.server,
+			Server:      state.server,
 			Players:     players,
-			GameRunning: detector.gameProcessActive.Load(),
+			GameRunning: process.gameProcessActive.Load(),
 		})
 	}
 }
 
-func getLaunchGame(detector *Detector) http.HandlerFunc {
+func getLaunchGame(process *processState) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		if detector.gameProcessActive.Load() {
+		if process.gameProcessActive.Load() {
 			responseErr(w, http.StatusConflict, "Game process active")
 			slog.Warn("Failed to launch game, process active already")
 
 			return
 		}
 
-		go detector.LaunchGameAndWait()
+		go process.LaunchGameAndWait()
 
 		responseOK(w, http.StatusNoContent, map[string]string{})
 	}

@@ -2,20 +2,21 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"fyne.io/systray"
+	"github.com/leighmacdonald/bd/discord/client"
+	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/store"
+	"github.com/leighmacdonald/steamid/v3/steamid"
+	"golang.org/x/sync/errgroup"
 	"log/slog"
+	_ "modernc.org/sqlite"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
-
-	"fyne.io/systray"
-	"github.com/golang-migrate/migrate/v4"
-	"golang.org/x/sync/errgroup"
-	_ "modernc.org/sqlite"
 )
 
 var (
@@ -26,82 +27,11 @@ var (
 	builtBy = "src"    //nolint:gochecknoglobals
 )
 
-func main() {
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
-
-	userSettings, errSettings := NewSettings()
-	if errSettings != nil {
-		panic(fmt.Sprintf("Failed to initialize settings: %v\n", errSettings))
-	}
-
-	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
-		panic(fmt.Sprintf("Failed to read settings: %v", errReadSettings))
-	}
-
-	if errValidate := userSettings.Validate(); errValidate != nil {
-		panic(fmt.Sprintf("Failed to validate settings: %v", errValidate))
-	}
-
-	logCloser := MustCreateLogger(userSettings)
-	defer logCloser()
-
-	logger := slog.Default()
-
-	slog.Info("Starting BD",
-		slog.String("version", versionInfo.Version),
-		slog.String("date", versionInfo.Date),
-		slog.String("commit", versionInfo.Commit),
-		slog.String("via", versionInfo.BuiltBy))
-
-	dataStore := NewStore(userSettings.DBPath())
-	if errMigrate := dataStore.Init(); errMigrate != nil && !errors.Is(errMigrate, migrate.ErrNoChange) {
-		slog.Error("Failed to migrate database", errAttr(errMigrate))
-
-		return
-	}
-
-	fsCache, cacheErr := NewCache(userSettings.ConfigRoot(), DurationCacheTimeout)
-	if cacheErr != nil {
-		slog.Error("Failed to setup cache", errAttr(cacheErr))
-
-		return
-	}
-
-	logChan := make(chan string)
-
-	logReader, errLogReader := newLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan, true)
-	if errLogReader != nil {
-		logger.Error("Failed to create logreader", errAttr(errLogReader))
-
-		return
-	}
-
-	var (
-		dataSource DataSource
-		errDS      error
-	)
-
-	if userSettings.BdAPIEnabled {
-		dataSource, errDS = NewAPIDataSource(userSettings.BdAPIAddress)
-	} else {
-		dataSource, errDS = NewLocalDataSource(userSettings.APIKey)
-	}
-
-	if errDS != nil {
-		logger.Error("Failed to initialize data source", errAttr(errDS))
-
-		return
-	}
-
-	application := NewDetector(userSettings, dataStore, versionInfo, fsCache, logReader, logChan, dataSource)
-
+func testLogFeeder(logChan chan string) {
 	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
 		body, errRead := os.ReadFile(testLogPath)
 		if errRead != nil {
-			logger.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
+			slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
 
 			return
 		}
@@ -126,21 +56,102 @@ func main() {
 			}
 		}()
 	}
+}
+
+func run() int {
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	startupTime := time.Now()
+
+	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+	plat := platform.New()
+
+	userSettings, errSettings := loadAndValidateSettings()
+	if errSettings != nil {
+		slog.Error("Failed to load settings", errAttr(errSettings))
+
+		return 1
+	}
+
+	logCloser := MustCreateLogger(userSettings)
+	defer logCloser()
+
+	slog.Info("Starting BD",
+		slog.String("version", versionInfo.Version),
+		slog.String("date", versionInfo.Date),
+		slog.String("commit", versionInfo.Commit),
+		slog.String("via", versionInfo.BuiltBy))
+
+	db, dbCloser, errDb := store.CreateDb(userSettings.DBPath())
+	if errDb != nil {
+		slog.Error("failed to create database", errAttr(errDb))
+		return 1
+	}
+	defer dbCloser()
+
+	fsCache, cacheErr := NewCache(userSettings.ConfigRoot(), DurationCacheTimeout)
+	if cacheErr != nil {
+		slog.Error("Failed to setup cache", errAttr(cacheErr))
+		return 1
+	}
+
+	logChan := make(chan string)
+
+	logReader, errLogReader := newLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan, true)
+	if errLogReader != nil {
+		slog.Error("Failed to create logreader", errAttr(errLogReader))
+		return 1
+	}
+
+	dataSource, errDataSource := NewDataSource(userSettings)
+	if errDataSource != nil {
+		slog.Error("failed to create data source", errAttr(errDataSource))
+		return 1
+	}
+
+	profileUpdateQueue := make(chan steamid.SID64)
+	kickRequestChan := make(chan kickRequest)
+	g15 := newG15Parser()
+	discordPresence := client.New()
+
+	playerStates := newPlayerState()
+	state := newStateHandler(userSettings, playerStates)
+
+	rules := createRulesEngine(userSettings)
+	eventChan := make(chan LogEvent)
+	parser := NewLogParser(logChan, eventChan)
+	web, errWeb := newWebServer(application)
+
+	if errWeb != nil {
+		panic(errWeb)
+	}
+
+	go testLogFeeder(logChan)
+
+	tray := NewSystray(
+		plat.Icon(),
+		func() {
+			if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
+				slog.Error("Failed to open browser", errAttr(errOpen))
+			}
+		}, func() {
+			go application.LaunchGameAndWait()
+		},
+	)
 
 	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
 	serviceGroup.Go(func() error {
 		application.Start(serviceCtx)
-
 		return nil
 	})
 
 	serviceGroup.Go(func() error {
-		systray.Run(application.Systray.OnReady(stop), func() {
+		systray.Run(tray.OnReady(stop), func() {
 			if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
-				logger.Error("Failed to shutdown cleanly")
+				slog.Error("Failed to shutdown cleanly")
 			}
 		})
-
 		return nil
 	})
 
@@ -148,7 +159,7 @@ func main() {
 		<-serviceCtx.Done()
 
 		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil { //nolint:contextcheck
-			logger.Error("Failed to gracefully shutdown", errAttr(errShutdown))
+			slog.Error("Failed to gracefully shutdown", errAttr(errShutdown))
 		}
 
 		systray.Quit()
@@ -157,10 +168,14 @@ func main() {
 	})
 
 	if err := serviceGroup.Wait(); err != nil {
-		logger.Error("Sad Goodbye", errAttr(err))
+		slog.Error("Sad Goodbye", errAttr(err))
 
-		return
+		return 1
 	}
 
-	logger.Info("Happy Goodbye")
+	return 0
+}
+
+func main() {
+	os.Exit(run())
 }
