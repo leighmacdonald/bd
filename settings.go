@@ -150,20 +150,35 @@ func (sm *settingsManager) LogFilePath() string {
 	return filepath.Join(configdir.LocalConfig(sm.configRoot), "bd.log")
 }
 
-func (sm *settingsManager) readDefaultOrCreate() error {
+func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
+	var settings userSettings
 	configPath := configdir.LocalConfig(sm.configRoot)
 	if err := configdir.MakePath(configPath); err != nil {
-		return errors.Join(err, errSettingDirectoryCreate)
+		return settings, errors.Join(err, errSettingDirectoryCreate)
 	}
 
-	errRead := sm.readFilePath(filepath.Join(configPath, defaultConfigFileName))
-	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
-		return sm.save()
+	settingsFilePath := filepath.Join(configPath, defaultConfigFileName)
+
+	errRead := sm.readFilePath(settingsFilePath, &settings)
+	if errRead != nil {
+		if errors.Is(errRead, errConfigNotFound) {
+			slog.Info("Creating default config")
+			defaultSettings, errNew := newSettings(sm.platform)
+			if errNew != nil {
+				return userSettings{}, errNew
+			}
+
+			if errSave := sm.save(); errSave != nil {
+				return settings, errSave
+			}
+
+			return defaultSettings, nil
+		} else {
+			return userSettings{}, errRead
+		}
 	}
 
-	sm.reload()
-
-	return errRead
+	return settings, nil
 }
 
 func (sm *settingsManager) Settings() userSettings {
@@ -174,12 +189,8 @@ func (sm *settingsManager) Settings() userSettings {
 }
 
 func (sm *settingsManager) validateAndLoad() error {
-	settings, errSettings := newSettings(sm.platform)
-	if errSettings != nil {
-		return errSettings
-	}
-
-	if errReadSettings := sm.readDefaultOrCreate(); errReadSettings != nil {
+	settings, errReadSettings := sm.readDefaultOrCreate()
+	if errReadSettings != nil {
 		return errReadSettings
 	}
 
@@ -193,10 +204,16 @@ func (sm *settingsManager) validateAndLoad() error {
 		}
 	}
 
+	sm.settingsMu.Lock()
+	sm.settings = settings
+	sm.settingsMu.Unlock()
+
+	sm.reload()
+
 	return nil
 }
 
-func (sm *settingsManager) readFilePath(filePath string) error {
+func (sm *settingsManager) readFilePath(filePath string, settings *userSettings) error {
 	if !platform.Exists(filePath) {
 		return errConfigNotFound
 	}
@@ -208,28 +225,19 @@ func (sm *settingsManager) readFilePath(filePath string) error {
 
 	defer IgnoreClose(settingsFile)
 
-	if errRead := sm.read(settingsFile); errRead != nil {
+	if errRead := sm.read(settingsFile, settings); errRead != nil {
 		return errRead
 	}
-
-	sm.settingsMu.Lock()
-	sm.configPath = filePath
-	sm.settingsMu.Unlock()
 
 	return nil
 }
 
-func (sm *settingsManager) read(inputFile io.Reader) error {
-	settings := userSettings{}
+func (sm *settingsManager) read(inputFile io.Reader, settings *userSettings) error {
 	if errDecode := yaml.NewDecoder(inputFile).Decode(&settings); errDecode != nil {
 		return errors.Join(errDecode, errSettingsDecode)
 	}
 
 	settings.Rcon = newRconConfig(settings.RCONStatic)
-
-	sm.settingsMu.Lock()
-	sm.settings = settings
-	sm.settingsMu.Unlock()
 
 	return nil
 }
@@ -313,6 +321,7 @@ type userSettings struct {
 	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level" json:"log_level"`
+	SystrayEnabled          bool                 `yaml:"systray_enabled" json:"systray_enabled"`
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
@@ -336,6 +345,7 @@ func newSettings(plat platform.Platform) (userSettings, error) {
 		DebugLogEnabled:         false,
 		RunMode:                 ModeRelease,
 		LogLevel:                "info",
+		SystrayEnabled:          true,
 		PlayerExpiredTimeout:    6,
 		PlayerDisconnectTimeout: 20,
 		Lists: []*ListConfig{

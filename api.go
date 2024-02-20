@@ -275,7 +275,7 @@ func (p profileUpdater) start(ctx context.Context) {
 						if actualPlayer, errPlayer := p.state.players.bySteamID(steamID); errPlayer == nil {
 							actualPlayer.OurFriend = true
 
-							d.players.update(actualPlayer)
+							p.state.players.update(actualPlayer)
 
 							break
 						}

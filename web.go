@@ -15,16 +15,11 @@ import (
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
-func newHTTPServer(ctx context.Context, listenAddr string, store store.Querier, state *gameState, process *processState,
-	settingsMgr *settingsManager, re *rules.Engine) (*http.Server, error) {
-	mux, errRoutes := createHandlers(store, state, process, settingsMgr, re)
-	if errRoutes != nil {
-		return nil, errRoutes
-	}
+func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) (*http.Server, error) {
 
 	httpServer := &http.Server{
 		Addr:         listenAddr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		BaseContext: func(_ net.Listener) context.Context {
@@ -73,22 +68,22 @@ func responseOK(w http.ResponseWriter, status int, data any) {
 
 // createHandlers configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
-func createHandlers(store store.Querier, state *gameState, process *processState, settings *settingsManager, re *rules.Engine) (*http.ServeMux, error) {
+func createHandlers(store store.Querier, state *gameState, process *processState, settings *settingsManager, re *rules.Engine, rcon rconConnection) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /state", onGetState(state, process))
-	mux.HandleFunc("GET /messages/{steam_id}", onGetMessages(store))
-	mux.HandleFunc("GET /names/{steam_id}", onGetNames(store))
-	mux.HandleFunc("POST /mark/{steam_id}", onMarkPlayerPost(store, state, re))
-	mux.HandleFunc("DELETE /mark/{steam_id}", onDeleteMarkedPlayer(store, state, re))
-	mux.HandleFunc("GET /settings", onGetSettings(settings, re))
-	mux.HandleFunc("PUT /settings", onPutSettings(settings))
-	mux.HandleFunc("GET /launch", onGGetLaunchGame(process, settings))
-	mux.HandleFunc("GET /quit", onGetQuitGame(process))
-	mux.HandleFunc("POST /whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state.players, re, true))
-	mux.HandleFunc("DELETE /whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state.players, re, false))
-	mux.HandleFunc("POST /notes/{steam_id}", onPostNotes(store, state))
-	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", onCallVote(state))
+	mux.HandleFunc("GET /api/state", onGetState(state, process))
+	mux.HandleFunc("GET /api/messages/{steam_id}", onGetMessages(store))
+	mux.HandleFunc("GET /api/names/{steam_id}", onGetNames(store))
+	mux.HandleFunc("POST /api/mark/{steam_id}", onMarkPlayerPost(settings, store, state, re))
+	mux.HandleFunc("DELETE /api/mark/{steam_id}", onDeleteMarkedPlayer(store, state, re))
+	mux.HandleFunc("GET /api/settings", onGetSettings(settings, re))
+	mux.HandleFunc("PUT /api/settings", onPutSettings(settings))
+	mux.HandleFunc("GET /api/launch", onGGetLaunchGame(process, settings))
+	mux.HandleFunc("GET /api/quit", onGetQuitGame(process))
+	mux.HandleFunc("POST /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, re, true))
+	mux.HandleFunc("DELETE /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, re, false))
+	mux.HandleFunc("POST /api/notes/{steam_id}", onPostNotes(store, state))
+	mux.HandleFunc("POST /api/callvote/{steam_id}/{reason}", onCallVote(state, rcon))
 
 	if settings.Settings().RunMode == ModeTest {
 		// Don't rely on assets when testing api endpoints

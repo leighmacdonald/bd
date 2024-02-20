@@ -11,7 +11,7 @@ export default defineConfig({
         port: 8901,
         cors: true,
         proxy: {
-            '/': {
+            '/api': {
                 target: 'http://localhost:8900',
                 changeOrigin: true,
                 secure: false
@@ -32,3 +32,4 @@ export default defineConfig({
         })
     ]
 });
+

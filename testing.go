@@ -37,14 +37,14 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 			panic(errPlayer)
 		}
 
-		if player.Name == "" {
-			player.Name = fmt.Sprintf("%d - %s", userId, player.SteamID.String())
+		if player.Personaname == "" {
+			player.Personaname = fmt.Sprintf("%d - %d", userId, player.SteamID)
 		}
 
-		player.Visibility = steamweb.VisibilityPublic
-		player.KillsOn = rand.Intn(20)
-		player.RageQuits = rand.Intn(10)
-		player.DeathsBy = rand.Intn(20)
+		player.Visibility = int64(steamweb.VisibilityPublic)
+		player.KillsOn = int64(rand.Intn(20))
+		player.RageQuits = int64(rand.Intn(10))
+		player.DeathsBy = int64(rand.Intn(20))
 		player.Team = team
 		player.Connected = float64(rand.Intn(3600))
 		player.UserID = userId
@@ -64,10 +64,10 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 
 		switch i {
 		case 1:
-			player.NumberOfVACBans = 2
+			player.VacBans = 2
 			player.Notes = "User notes \ngo here"
 			last := time.Now().AddDate(-1, 0, 0)
-			player.LastVACBanOn = &last
+			player.LastVacBanOn.Time = last
 		case 4:
 			player.Matches = append(player.Matches, &rules.MatchResult{
 				Origin:      "Test Rules List",

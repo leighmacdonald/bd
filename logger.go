@@ -9,12 +9,28 @@ import (
 )
 
 func MustCreateLogger(sm *settingsManager) func() {
-	var logHandler slog.Handler
+	var (
+		logHandler slog.Handler
+		level      slog.Level
+	)
+
+	switch sm.Settings().LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	default:
+		level = slog.LevelError
+	}
 
 	closer := func() {}
 
 	opts := slug.HandlerOptions{
-		HandlerOptions: slog.HandlerOptions{},
+		HandlerOptions: slog.HandlerOptions{
+			Level: level,
+		},
 	}
 
 	settings := sm.Settings()

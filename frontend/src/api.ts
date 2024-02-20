@@ -200,37 +200,37 @@ export const callVote = async (
     steamID: string,
     reason: kickReasons = 'cheating'
 ) => {
-    await call('POST', `/callvote/${steamID}/${reason}`);
+    await call('POST', `/api/callvote/${steamID}/${reason}`);
 };
 
 export const addWhitelist = async (steamId: string) =>
-    await call('POST', `/whitelist/${steamId}`);
+    await call('POST', `/api/whitelist/${steamId}`);
 
 export const deleteWhitelist = async (steamId: string) =>
-    await call('DELETE', `/whitelist/${steamId}`);
+    await call('DELETE', `/api/whitelist/${steamId}`);
 
 export const saveUserNote = async (steamId: string, notes: string) =>
-    await call<UserNote>('POST', `/notes/${steamId}`, { note: notes });
+    await call<UserNote>('POST', `/api/notes/${steamId}`, { note: notes });
 
 export const deleteUserNote = async (steamId: string) =>
-    await call<UserNote>('DELETE', `/notes/${steamId}`);
+    await call<UserNote>('DELETE', `/api/notes/${steamId}`);
 
 export const markUser = async (steamId: string, attrs: string[]) =>
-    await call('POST', `/mark/${steamId}`, { attrs });
+    await call('POST', `/api/mark/${steamId}`, { attrs });
 
 export const unmarkUser = async (steamId: string) =>
-    await call('DELETE', `/mark/${steamId}`);
+    await call('DELETE', `/api/mark/${steamId}`);
 
-const getState = async () => await callJson<State>('GET', '/state');
+const getState = async () => await callJson<State>('GET', '/api/state');
 
-export const getLaunch = async () => await callJson('GET', '/launch');
-export const getQuit = async () => await callJson('GET', '/quit');
+export const getLaunch = async () => await callJson('GET', '/api/launch');
+export const getQuit = async () => await callJson('GET', '/api/quit');
 
 export const getUserSettings = async () =>
-    await callJson<UserSettings>('GET', '/settings');
+    await callJson<UserSettings>('GET', '/api/settings');
 
 export const saveUserSettings = async (settings: UserSettings) =>
-    await call('PUT', '/settings', settings);
+    await call('PUT', '/api/settings', settings);
 
 export const useCurrentState = () => {
     const [state, setState] = useState<State>({

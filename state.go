@@ -136,7 +136,7 @@ func (state *playerState) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier, re *rules.Engine, player *Player, validTeam Team, announcer announceHandler) {
+func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier, re *rules.Engine, player Player, validTeam Team, announcer announceHandler) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
@@ -146,7 +146,7 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 
 		if validTeam == player.Team {
 			announcer.announceMatch(ctx, player, matchSteam)
-			state.update(*player)
+			//state.update(*player)
 		}
 	} else if player.Personaname != "" {
 		if matchName := re.MatchName(player.Personaname); matchName != nil && validTeam == player.Team {
@@ -154,13 +154,13 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 
 			if validTeam == player.Team {
 				announcer.announceMatch(ctx, player, matchName)
-				state.update(*player)
+				//state.update(*player)
 			}
 		}
 	}
 
 	if player.Dirty {
-		if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(*player)); errSave != nil {
+		if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(player)); errSave != nil {
 			slog.Error("Failed to save dirty player state", errAttr(errSave))
 
 			return
@@ -365,7 +365,9 @@ func (s *gameState) onBans(evt steamweb.PlayerBanState) {
 
 	if evt.DaysSinceLastBan > 0 {
 		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
-		player.LastVacBanOn.Scan(subTime)
+		if err := player.LastVacBanOn.Scan(subTime); err != nil {
+			slog.Error("failed to scan last ban", errAttr(err))
+		}
 	}
 
 	s.players.update(player)
