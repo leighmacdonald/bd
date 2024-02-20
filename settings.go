@@ -225,7 +225,7 @@ func (sm *settingsManager) read(inputFile io.Reader) error {
 		return errors.Join(errDecode, errSettingsDecode)
 	}
 
-	settings.Rcon = NewRconConfig(settings.RCONStatic)
+	settings.Rcon = newRconConfig(settings.RCONStatic)
 
 	sm.settingsMu.Lock()
 	sm.settings = settings
@@ -251,7 +251,7 @@ func (sm *settingsManager) reload() {
 	sm.settingsMu.Lock()
 	defer sm.settingsMu.Unlock()
 
-	sm.settings.Rcon = NewRconConfig(sm.settings.RCONStatic)
+	sm.settings.Rcon = newRconConfig(sm.settings.RCONStatic)
 }
 
 func (sm *settingsManager) writeFilePath(filePath string) error {
@@ -423,7 +423,7 @@ func newSettings(plat platform.Platform) (userSettings, error) {
 		RCONStatic:     false,
 		HTTPEnabled:    true,
 		HTTPListenAddr: "localhost:8900",
-		Rcon:           NewRconConfig(false),
+		Rcon:           newRconConfig(false),
 	}
 
 	return settings, nil
@@ -497,7 +497,7 @@ func randPort() uint16 {
 	return uint16(binary.LittleEndian.Uint64(b[:]))
 }
 
-func NewRconConfig(static bool) RCONConfig {
+func newRconConfig(static bool) RCONConfig {
 	if static {
 		return RCONConfig{
 			Address:  rconDefaultListenAddr,

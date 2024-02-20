@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/leighmacdonald/bd/discord/client"
@@ -132,13 +134,77 @@ func discordAssetNameMap(mapName string) string {
 	return mapName
 }
 
-func discordUpdateActivity(discordClient *client.Client, cnt int, server serverState, inGame bool, startupTime time.Time) error {
+type discordState struct {
+	client   *client.Client
+	state    *gameState
+	settings *settingsManager
+}
+
+func newDiscordState(state *gameState, settings *settingsManager) *discordState {
+	return &discordState{
+		settings: settings,
+		state:    state,
+		client:   client.New(),
+	}
+}
+
+// discordStateUpdater handles updating the discord presence data with the current game state. It uses the
+// discord local IPC socket.
+func (d discordState) start(ctx context.Context) {
+	const discordAppID = "1076716221162082364"
+
+	timer := time.NewTicker(time.Second * 10)
+	isRunning := false
+
+	for {
+		select {
+		case <-timer.C:
+			settings := d.settings.Settings()
+
+			if !settings.DiscordPresenceEnabled {
+				if isRunning {
+					// Logout of existing connection on settings change
+					if errLogout := d.client.Logout(); errLogout != nil {
+						slog.Error("Failed to logout of discord client", errAttr(errLogout))
+					}
+
+					isRunning = false
+				}
+
+				continue
+			}
+
+			if !isRunning {
+				if errLogin := d.client.Login(discordAppID); errLogin != nil {
+					slog.Debug("Failed to login to discord", errAttr(errLogin))
+
+					continue
+				}
+
+				isRunning = true
+			}
+
+			if isRunning {
+				if errUpdate := d.discordUpdateActivity(); errUpdate != nil {
+					slog.Error("Failed to update discord activity", errAttr(errUpdate))
+
+					isRunning = false
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (d discordState) discordUpdateActivity() error {
 	buttons := []*client.Button{
 		{
 			Label: "GitHub",
 			URL:   "https://github.com/leighmacdonald/bd",
 		},
 	}
+	server := d.state.CurrentServerState()
 
 	if !server.Addr.IsLinkLocalUnicast() /*SDR*/ && !server.Addr.IsPrivate() && server.Addr != nil && server.Port > 0 {
 		u := fmt.Sprintf("steam://connect/%s:%d", server.Addr.String(), server.Port)
@@ -151,25 +217,28 @@ func discordUpdateActivity(discordClient *client.Client, cnt int, server serverS
 	currentMap := discordAssetNameMap(server.CurrentMap)
 	state := "Offline"
 
-	if inGame {
-		state = "In-Game"
-	}
+	// TODO
+	//if inGame {
+	//	state = "In-Game"
+	//}
 
 	details := "Idle"
 	if server.ServerName != "" {
 		details = server.ServerName
 	}
 
+	playerCount := len(d.state.players.current())
+
 	var party *client.Party
-	if cnt > 0 {
+	if playerCount > 0 {
 		// discord requires >=1
 		party = &client.Party{
-			Players:    cnt,
+			Players:    playerCount,
 			MaxPlayers: 24,
 		}
 	}
 
-	if errSetActivity := discordClient.SetActivity(client.Activity{
+	if errSetActivity := d.client.SetActivity(client.Activity{
 		State:      state,
 		Details:    details,
 		LargeImage: fmt.Sprintf("map_%s", currentMap),
@@ -177,9 +246,9 @@ func discordUpdateActivity(discordClient *client.Client, cnt int, server serverS
 		SmallImage: "logo_cd",
 		SmallText:  "",
 		Party:      party,
-		Timestamps: &client.Timestamps{
-			Start: &startupTime,
-		},
+		//Timestamps: &client.Timestamps{
+		//	Start: &startupTime,
+		//},
 		Buttons: buttons,
 	}); errSetActivity != nil {
 		return errors.Join(errSetActivity, errDiscordActivity)

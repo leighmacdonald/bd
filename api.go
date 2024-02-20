@@ -5,24 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/leighmacdonald/bd/store"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type FriendMap map[steamid.SID64][]steamweb.Friend
+type FriendMap map[int64][]steamweb.Friend
 
-type SourcebansMap map[steamid.SID64][]models.SbBanRecord
+type SourcebansMap map[int64][]models.SbBanRecord
 
 type DataSource interface {
 	Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
 	Bans(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerBanState, error)
-	Friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error)
-	Sourcebans(ctx context.Context, steamIDs steamid.Collection) (SourcebansMap, error)
+	friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error)
+	sourceBans(ctx context.Context, steamIDs steamid.Collection) (SourcebansMap, error)
 }
 
 // LocalDataSource implements a local only data source that can be used for people who do not want to use the bd-api
@@ -47,7 +51,7 @@ func (n LocalDataSource) Bans(ctx context.Context, steamIDs steamid.Collection) 
 	return bans, nil
 }
 
-func (n LocalDataSource) Friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error) {
+func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error) {
 	var (
 		resp      = FriendMap{}
 		waitGroup = &sync.WaitGroup{}
@@ -74,9 +78,9 @@ func (n LocalDataSource) Friends(ctx context.Context, steamIDs steamid.Collectio
 			defer mutex.Unlock()
 
 			if friends == nil {
-				resp[sid] = []steamweb.Friend{}
+				resp[sid.Int64()] = []steamweb.Friend{}
 			} else {
-				resp[sid] = friends
+				resp[sid.Int64()] = friends
 			}
 		}(steamID)
 	}
@@ -86,10 +90,10 @@ func (n LocalDataSource) Friends(ctx context.Context, steamIDs steamid.Collectio
 	return resp, nil
 }
 
-func (n LocalDataSource) Sourcebans(_ context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
+func (n LocalDataSource) sourceBans(_ context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
 	dummy := SourcebansMap{}
 	for _, sid := range steamIDs {
-		dummy[sid] = []models.SbBanRecord{}
+		dummy[sid.Int64()] = []models.SbBanRecord{}
 	}
 
 	return dummy, nil
@@ -103,12 +107,22 @@ func createLocalDataSource(key string) (*LocalDataSource, error) {
 	return &LocalDataSource{}, nil
 }
 
-func NewDataSource(userSettings userSettings) (DataSource, error) {
+func newDataSource(userSettings userSettings) (DataSource, error) {
 	if userSettings.BdAPIEnabled {
 		return createAPIDataSource(userSettings.BdAPIAddress)
 	} else {
 		return createLocalDataSource(userSettings.APIKey)
 	}
+}
+
+// steamIDStringList transforms a steamid.Collection into a comma separated list of SID64 strings.
+func steamIDStringList(collection steamid.Collection) string {
+	ids := make([]string, len(collection))
+	for index, steamID := range collection {
+		ids[index] = steamID.String()
+	}
+
+	return strings.Join(ids, ",")
 }
 
 const APIDataSourceDefaultAddress = "https://bd-api.roto.lol"
@@ -176,7 +190,7 @@ func (n APIDataSource) Bans(ctx context.Context, steamIDs steamid.Collection) ([
 	return out, nil
 }
 
-func (n APIDataSource) Friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error) {
+func (n APIDataSource) friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error) {
 	var out FriendMap
 	if errGet := n.get(ctx, n.url("/friends", steamIDs), &out); errGet != nil {
 		return nil, errGet
@@ -185,11 +199,214 @@ func (n APIDataSource) Friends(ctx context.Context, steamIDs steamid.Collection)
 	return out, nil
 }
 
-func (n APIDataSource) Sourcebans(ctx context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
+func (n APIDataSource) sourceBans(ctx context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
 	var out SourcebansMap
 	if errGet := n.get(ctx, n.url("/sourcebans", steamIDs), &out); errGet != nil {
 		return nil, errGet
 	}
 
 	return out, nil
+}
+
+type profileUpdater struct {
+	profileUpdateQueue chan steamid.SID64
+	datasource         DataSource
+	state              *gameState
+	db                 store.Querier
+	settings           *settingsManager
+}
+
+func newProfileUpdater(db store.Querier, ds DataSource, state *gameState, settings *settingsManager) *profileUpdater {
+	return &profileUpdater{
+		db:                 db,
+		datasource:         ds,
+		state:              state,
+		settings:           settings,
+		profileUpdateQueue: make(chan steamid.SID64),
+	}
+}
+
+// profileUpdater will update the 3rd party data from remote APIs.
+// It will wait a short amount of time between updates to attempt to batch send the requests
+// as much as possible.
+func (p profileUpdater) start(ctx context.Context) {
+	var (
+		queue       steamid.Collection
+		update      = make(chan any)
+		updateTimer = time.NewTicker(DurationUpdateTimer)
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-updateTimer.C:
+			go func() { update <- true }()
+		case steamID := <-p.profileUpdateQueue:
+			queue = append(queue, steamID)
+			if len(queue) == 100 {
+				go func() { update <- true }()
+			}
+		case <-update:
+			if len(queue) == 0 {
+				continue
+			}
+
+			updateData := p.fetchProfileUpdates(ctx, queue)
+			p.applyRemoteData(updateData)
+
+			for _, player := range p.state.players.all() {
+				localPlayer := player
+				if errSave := p.db.PlayerUpdate(ctx, playerToPlayerUpdateParams(localPlayer)); errSave != nil {
+					if errSave.Error() != "sql: database is closed" {
+						slog.Error("Failed to save updated player state",
+							slog.String("sid", localPlayer.SID64().String()), errAttr(errSave))
+					}
+				}
+
+				p.state.players.update(localPlayer)
+			}
+
+			ourSteamID := p.settings.Settings().SteamID
+
+			for steamID, friends := range updateData.friends {
+				for _, friend := range friends {
+					if friend.SteamID == ourSteamID {
+						if actualPlayer, errPlayer := p.state.players.bySteamID(steamID); errPlayer == nil {
+							actualPlayer.OurFriend = true
+
+							d.players.update(actualPlayer)
+
+							break
+						}
+					}
+				}
+			}
+
+			slog.Info("Updated",
+				slog.Int("sums", len(updateData.summaries)), slog.Int("bans", len(updateData.bans)),
+				slog.Int("sourcebans", len(updateData.sourcebans)), slog.Int("fiends", len(updateData.friends)))
+
+			queue = nil
+		}
+	}
+}
+
+// applyRemoteData updates the current player states with new incoming data.
+func (p profileUpdater) applyRemoteData(data updatedRemoteData) {
+	players := p.state.players.all()
+
+	for _, curPlayer := range players {
+		player := curPlayer
+		for _, sum := range data.summaries {
+			if sum.SteamID.Int64() == player.SteamID {
+				player.AvatarHash = sum.AvatarHash
+				player.AccountCreatedOn = time.Unix(int64(sum.TimeCreated), 0)
+				player.Visibility = int64(sum.CommunityVisibilityState)
+
+				break
+			}
+		}
+
+		for _, ban := range data.bans {
+			if ban.SteamID.Int64() == player.SteamID {
+				player.CommunityBanned = ban.CommunityBanned
+				player.CommunityBanned = ban.VACBanned
+				player.GameBans = int64(ban.NumberOfGameBans)
+				player.VacBans = int64(ban.NumberOfVACBans)
+				player.EconomyBan = ban.EconomyBan
+
+				if ban.VACBanned {
+					since := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
+					player.LastVacBanOn.Scan(since)
+				}
+
+				break
+			}
+		}
+
+		if sb, ok := data.sourcebans[player.SteamID]; ok {
+			player.Sourcebans = sb
+		}
+
+		player.UpdatedOn = time.Now()
+		player.ProfileUpdatedOn = player.UpdatedOn
+
+		p.state.players.update(player)
+	}
+}
+
+type updatedRemoteData struct {
+	summaries  []steamweb.PlayerSummary
+	bans       []steamweb.PlayerBanState
+	sourcebans SourcebansMap
+	friends    FriendMap
+}
+
+// fetchProfileUpdates handles fetching and updating new player data from the configured DataSource implementation,
+// it handles fetching the following data points:
+//
+// - Valve Profile Summary
+// - Valve Game/VAC Bans
+// - Valve Friendslist
+// - Scraped sourcebans data via bd-api at https://bd-api.roto.lol
+//
+// If the user does not configure their own steam api key using LocalDataSource, then the
+// default bd-api backed APIDataSource will instead be used as a proxy for fetching the results.
+func (p profileUpdater) fetchProfileUpdates(ctx context.Context, queued steamid.Collection) updatedRemoteData {
+	localCtx, cancel := context.WithTimeout(ctx, time.Second*15)
+	defer cancel()
+
+	var (
+		updated   updatedRemoteData
+		waitGroup = &sync.WaitGroup{}
+	)
+
+	waitGroup.Add(1)
+
+	go func(c steamid.Collection) {
+		defer waitGroup.Done()
+
+		newSummaries, errSum := p.datasource.Summaries(localCtx, c)
+		if errSum == nil {
+			updated.summaries = newSummaries
+		}
+	}(queued)
+
+	waitGroup.Add(1)
+
+	go func(c steamid.Collection) {
+		defer waitGroup.Done()
+
+		newBans, errSum := p.datasource.Bans(localCtx, c)
+		if errSum == nil {
+			updated.bans = newBans
+		}
+	}(queued)
+
+	waitGroup.Add(1)
+
+	go func(c steamid.Collection) {
+		defer waitGroup.Done()
+
+		newSourceBans, errSum := p.datasource.sourceBans(localCtx, c)
+		if errSum == nil {
+			updated.sourcebans = newSourceBans
+		}
+	}(queued)
+
+	waitGroup.Add(1)
+
+	go func(c steamid.Collection) {
+		defer waitGroup.Done()
+
+		newFriends, errSum := p.datasource.friends(localCtx, c)
+		if errSum == nil {
+			updated.friends = newFriends
+		}
+	}(queued)
+
+	waitGroup.Wait()
+
+	return updated
 }

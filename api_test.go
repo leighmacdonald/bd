@@ -56,7 +56,7 @@ func TestDataSource(t *testing.T) {
 		t.Run(fmt.Sprintf("%s_friends", name), func(t *testing.T) {
 			t.Parallel()
 
-			friends, errSum := dataSource.Friends(ctx, testIDs)
+			friends, errSum := dataSource.friends(ctx, testIDs)
 			require.NoError(t, errSum)
 			require.Equal(t, len(testIDs), len(friends))
 		})
@@ -72,7 +72,7 @@ func TestDataSource(t *testing.T) {
 		t.Run(fmt.Sprintf("%s_sourcebans", name), func(t *testing.T) {
 			t.Parallel()
 
-			sourcebans, errSum := dataSource.Sourcebans(ctx, testIDs)
+			sourcebans, errSum := dataSource.sourceBans(ctx, testIDs)
 			require.NoError(t, errSum)
 			require.Equal(t, len(testIDs), len(sourcebans))
 		})

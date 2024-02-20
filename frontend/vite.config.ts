@@ -6,6 +6,18 @@ import { createHtmlPlugin } from 'vite-plugin-html';
 
 export default defineConfig({
     //base: '/',
+    server: {
+        open: true,
+        port: 8901,
+        cors: true,
+        proxy: {
+            '/': {
+                target: 'http://localhost:8900',
+                changeOrigin: true,
+                secure: false
+            }
+        }
+    },
     plugins: [
         react(),
         createHtmlPlugin({

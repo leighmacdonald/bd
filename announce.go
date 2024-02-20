@@ -4,16 +4,24 @@ import (
 	"context"
 	"fmt"
 	"github.com/leighmacdonald/bd/rules"
+	"log/slog"
 	"strings"
 	"time"
 )
 
-type announcer struct {
+type announceHandler struct {
+	state    *gameState
+	rcon     rconConnection
+	settings *settingsManager
+}
+
+func newAnnounceHandler(settings *settingsManager, rcon rconConnection, state *gameState) announceHandler {
+	return announceHandler{settings: settings, rcon: rcon, state: state}
 }
 
 // announceMatch handles announcing after a match is triggered against a player.
-func announceMatch(ctx context.Context, player Player, matches []*rules.MatchResult) {
-	settings := d.Settings()
+func (a announceHandler) announceMatch(ctx context.Context, player *Player, matches []*rules.MatchResult) {
+	settings := a.settings.Settings()
 
 	if len(matches) == 0 {
 		return
@@ -21,28 +29,31 @@ func announceMatch(ctx context.Context, player Player, matches []*rules.MatchRes
 
 	if time.Since(player.AnnouncedGeneralLast) >= DurationAnnounceMatchTimeout {
 		msg := "Matched player"
-		if player.Whitelisted {
+		if player.Whitelist {
 			msg = "Matched whitelisted player"
 		}
 
 		for _, match := range matches {
-			slog.Debug(msg, slog.String("match_type", match.MatcherType),
-				slog.String("steam_id", player.SteamID.String()), slog.String("name", player.Name), slog.String("origin", match.Origin))
+			slog.Debug(msg,
+				slog.String("match_type", match.MatcherType),
+				slog.String("sid", player.SID64().String()),
+				slog.String("name", player.Personaname),
+				slog.String("origin", match.Origin))
 		}
 
 		player.AnnouncedGeneralLast = time.Now()
 
-		d.players.update(player)
+		a.state.players.update(*player)
 	}
 
-	if player.Whitelisted {
+	if player.Whitelist {
 		return
 	}
 
 	if settings.PartyWarningsEnabled && time.Since(player.AnnouncedPartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
-			if errLog := d.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Name); errLog != nil {
+			if errLog := a.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Personaname); errLog != nil {
 				slog.Error("Failed to send party log message", errAttr(errLog))
 
 				return
@@ -51,16 +62,12 @@ func announceMatch(ctx context.Context, player Player, matches []*rules.MatchRes
 
 		player.AnnouncedPartyLast = time.Now()
 
-		d.players.update(player)
+		a.state.players.update(player)
 	}
 }
 
 // sendChat is used to send chat messages to the various chat interfaces in game: say|say_team|say_party.
-func sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
-	if !d.ready(ctx) {
-		return errInvalidReadyState
-	}
-
+func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
 	var cmd string
 
 	switch destination {
@@ -74,5 +81,12 @@ func sendChat(ctx context.Context, destination ChatDest, format string, args ...
 		return fmt.Errorf("%w: %s", errInvalidChatType, destination)
 	}
 
-	return d.execRcon(cmd)
+	resp, errExec := a.rcon.exec(ctx, cmd, false)
+	if errExec != nil {
+		return errExec
+	}
+
+	slog.Debug(resp, slog.String("cmd", cmd))
+
+	return nil
 }
