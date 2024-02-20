@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"log/slog"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -107,28 +109,107 @@ func whitelist(ctx context.Context, db store.Querier, state *gameState, rules *r
 	return nil
 }
 
-// addUserName will add an entry into the players username history table and check the username
-// against the rules sets.
-func addUserName(ctx context.Context, db store.Querier, player Player) error {
-	if errSave := db.UserNameSave(ctx, store.UserNameSaveParams{
-		SteamID:   player.SteamID,
-		Name:      player.Personaname,
-		CreatedOn: time.Now(),
-	}); errSave != nil {
-		return errors.Join(errSave, errSaveNames)
-	}
-
-	return nil
+type kickRequest struct {
+	steamID steamid.SID64
+	reason  KickReason
 }
 
-// addUserMessage will add an entry into the players message history table and check the message
-// against the rules sets.
-func addUserMessage(ctx context.Context, db store.Querier, player Player, message string, dead bool, teamOnly bool) error {
-	return db.MessageSave(ctx, store.MessageSaveParams{
-		SteamID:   player.SteamID,
-		Message:   message,
-		Team:      teamOnly,
-		Dead:      dead,
-		CreatedOn: time.Time{},
-	})
+type kickHandler struct {
+	settings *settingsManager
+	rcon     rconConnection
+}
+
+func newKickHandler(settings *settingsManager, rcon rconConnection) kickHandler {
+	return kickHandler{
+		settings: settings,
+		rcon:     rcon,
+	}
+}
+
+// autoKicker handles making kick votes. It prioritizes manual vote kick requests from the user before trying
+// to kick players that match the auto kickable criteria. Auto kick attempts will cycle through the players with the least
+// amount of kick attempts.
+func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kickRequestChan chan kickRequest) {
+	kickTicker := time.NewTicker(time.Millisecond * 100)
+
+	var kickRequests []kickRequest
+
+	for {
+		select {
+		case request := <-kickRequestChan:
+			kickRequests = append(kickRequests, request)
+		case <-kickTicker.C:
+			var (
+				kickTarget Player
+				reason     KickReason
+			)
+
+			curSettings := kh.settings.Settings()
+
+			if !curSettings.KickerEnabled {
+				continue
+			}
+
+			if len(kickRequests) == 0 { //nolint:nestif
+				kickable := players.kickable()
+				if len(kickable) == 0 {
+					continue
+				}
+
+				var valid []Player
+
+				for _, player := range kickable {
+					if player.MatchAttr(curSettings.KickTags) {
+						valid = append(valid, player)
+					}
+				}
+
+				if len(valid) == 0 {
+					continue
+				}
+
+				sort.SliceStable(valid, func(i, j int) bool {
+					return valid[i].KickAttemptCount < valid[j].KickAttemptCount
+				})
+
+				reason = KickReasonCheating
+				kickTarget = valid[0]
+			} else {
+				request := kickRequests[0]
+
+				if len(kickRequests) > 1 {
+					kickRequests = kickRequests[1:]
+				} else {
+					kickRequests = nil
+				}
+
+				player, errPlayer := players.bySteamID(request.steamID)
+				if errPlayer != nil {
+					slog.Error("Failed to get player to kick", errAttr(errPlayer))
+
+					continue
+				}
+
+				reason = request.reason
+				kickTarget = player
+			}
+
+			kickTarget.KickAttemptCount++
+
+			players.update(kickTarget)
+
+			cmd := fmt.Sprintf("callvote kick \"%d %s\"", kickTarget.UserID, reason)
+
+			resp, errCallVote := kh.rcon.exec(ctx, cmd, false)
+			if errCallVote != nil {
+				slog.Error("Failed to call vote", slog.String("steam_id", kickTarget.SID64().String()), errAttr(errCallVote))
+
+				return
+			}
+
+			slog.Debug(resp, slog.String("cmd", cmd))
+		case <-ctx.Done():
+			return
+		}
+	}
 }

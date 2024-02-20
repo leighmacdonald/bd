@@ -37,6 +37,13 @@ func newPlayerState() *playerState {
 	return &playerState{}
 }
 
+func (state *playerState) current() []Player {
+	state.RLock()
+	defer state.RUnlock()
+
+	return state.activePlayers
+}
+
 func (state *playerState) byName(name string) (Player, error) {
 	state.RLock()
 	defer state.RUnlock()
@@ -50,12 +57,12 @@ func (state *playerState) byName(name string) (Player, error) {
 	return Player{}, errPlayerNotFound
 }
 
-func (state *playerState) bySteamID(sid64 steamid.SID64) (Player, error) {
+func (state *playerState) bySteamID(sid64 int64) (Player, error) {
 	state.RLock()
 	defer state.RUnlock()
 
 	for _, knownPlayer := range state.activePlayers {
-		if knownPlayer.SteamID == sid64.Int64() {
+		if knownPlayer.SteamID == sid64 {
 			return knownPlayer, nil
 		}
 	}
@@ -129,34 +136,34 @@ func (state *playerState) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerState) checkPlayerState(ctx context.Context, re *rules.Engine, player *Player, validTeam Team) {
+func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier, re *rules.Engine, player *Player, validTeam Team, announcer announceHandler) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
 
-	if matchSteam := re.MatchSteam(player.SID64()); matchSteam != nil { //nolint:nestif
+	if matchSteam := re.MatchSteam(player.SID64()); matchSteam != nil {
 		player.Matches = matchSteam
 
 		if validTeam == player.Team {
-			d.announceMatch(ctx, player, matchSteam)
-			d.players.update(player)
+			announcer.announceMatch(ctx, player, matchSteam)
+			state.update(*player)
 		}
 	} else if player.Personaname != "" {
-		if matchName := d.rules.MatchName(player.Name); matchName != nil && validTeam == player.Team {
+		if matchName := re.MatchName(player.Personaname); matchName != nil && validTeam == player.Team {
 			player.Matches = matchName
 
 			if validTeam == player.Team {
-				d.announceMatch(ctx, player, matchName)
-				d.players.update(player)
+				announcer.announceMatch(ctx, player, matchName)
+				state.update(*player)
 			}
 		}
 	}
 
 	if player.Dirty {
-		if errSave := d.dataStore.SavePlayer(ctx, &player); errSave != nil {
+		if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(*player)); errSave != nil {
 			slog.Error("Failed to save dirty player state", errAttr(errSave))
 
-			continue
+			return
 		}
 
 		player.Dirty = false
@@ -164,57 +171,10 @@ func (state *playerState) checkPlayerState(ctx context.Context, re *rules.Engine
 
 }
 
-// cleanupHandler is used to track of players and their expiration times. It will remove and reset expired players
-// and server from the current known state once they have been disconnected for the timeout periods.
-func (state *playerState) cleanupHandler(ctx context.Context) {
-	const disconnectMsg = "Disconnected"
-
-	defer slog.Debug("cleanupHandler exited")
-
-	deleteTimer := time.NewTicker(time.Second * time.Duration(d.Settings().PlayerExpiredTimeout))
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-deleteTimer.C:
-			settings := d.Settings()
-
-			slog.Debug("Delete update input received", slog.String("state", "start"))
-			d.serverMu.Lock()
-			if time.Since(d.server.LastUpdate) > time.Second*time.Duration(settings.PlayerDisconnectTimeout) {
-				name := d.server.ServerName
-				if !strings.HasPrefix(name, disconnectMsg) {
-					name = fmt.Sprintf("%s %s", disconnectMsg, name)
-				}
-
-				d.server = &Server{ServerName: name}
-			}
-
-			d.serverMu.Unlock()
-
-			for _, player := range d.players.all() {
-				if player.IsDisconnected() {
-					player.IsConnected = false
-					d.players.update(player)
-				}
-
-				if player.IsExpired() {
-					d.players.remove(player.SteamID)
-					slog.Debug("Flushing expired player", slog.Int64("steam_id", player.SteamID.Int64()))
-				}
-			}
-
-			slog.Debug("Delete update input received", slog.String("state", "end"))
-
-			deleteTimer.Reset(time.Second * time.Duration(settings.PlayerExpiredTimeout))
-		}
-	}
-}
-
 type gameState struct {
+	mu         *sync.RWMutex
 	updateChan chan updateStateEvent
-	settings   userSettings
+	settings   *settingsManager
 	players    *playerState
 	server     serverState
 	store      store.Querier
@@ -222,13 +182,15 @@ type gameState struct {
 	g15        g15Parser
 }
 
-func newGameState(store store.Querier, settings userSettings, playerState *playerState, rcon rconConnection) *gameState {
+func newGameState(store store.Querier, settings *settingsManager, playerState *playerState, rcon rconConnection) *gameState {
 	return &gameState{
+		mu:         &sync.RWMutex{},
 		store:      store,
 		settings:   settings,
 		players:    playerState,
 		rcon:       rcon,
 		server:     serverState{},
+		g15:        newG15Parser(),
 		updateChan: make(chan updateStateEvent),
 	}
 }
@@ -306,8 +268,64 @@ func (s *gameState) start(ctx context.Context) {
 	}
 }
 
+// cleanupHandler is used to track of players and their expiration times. It will remove and reset expired players
+// and server from the current known state once they have been disconnected for the timeout periods.
+func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settingsManager) {
+	const disconnectMsg = "Disconnected"
+
+	defer slog.Debug("cleanupHandler exited")
+
+	deleteTimer := time.NewTicker(time.Second * time.Duration(settingsMgr.Settings().PlayerExpiredTimeout))
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deleteTimer.C:
+			settings := settingsMgr.Settings()
+
+			slog.Debug("Delete update input received", slog.String("state", "start"))
+
+			s.mu.Lock()
+			if time.Since(s.server.LastUpdate) > time.Second*time.Duration(settings.PlayerDisconnectTimeout) {
+				name := s.server.ServerName
+				if !strings.HasPrefix(name, disconnectMsg) {
+					name = fmt.Sprintf("%s %s", disconnectMsg, name)
+				}
+
+				s.server = serverState{ServerName: name}
+			}
+
+			s.mu.Unlock()
+
+			for _, player := range s.players.all() {
+				if player.isDisconnected() {
+					player.IsConnected = false
+					s.players.update(player)
+				}
+
+				if player.IsExpired() {
+					s.players.remove(player.SID64())
+					slog.Debug("Flushing expired player", slog.String("steam_id", player.SID64().String()))
+				}
+			}
+
+			slog.Debug("Delete update input received", slog.String("state", "end"))
+
+			deleteTimer.Reset(time.Second * time.Duration(settings.PlayerExpiredTimeout))
+		}
+	}
+}
+
+func (s *gameState) CurrentServerState() serverState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.server
+}
+
 func (s *gameState) onKill(evt killEvent) {
-	ourSid := s.settings.SteamID
+	ourSid := s.settings.Settings().SteamID
 
 	src, srcErr := s.players.byName(evt.sourceName)
 	if srcErr != nil {
@@ -335,7 +353,7 @@ func (s *gameState) onKill(evt killEvent) {
 }
 
 func (s *gameState) onBans(evt steamweb.PlayerBanState) {
-	player, errPlayer := s.players.bySteamID(evt.SteamID)
+	player, errPlayer := s.players.bySteamID(evt.SteamID.Int64())
 	if errPlayer != nil {
 		return
 	}
@@ -354,7 +372,7 @@ func (s *gameState) onBans(evt steamweb.PlayerBanState) {
 }
 
 func (s *gameState) onKickAttempt(steamID steamid.SID64) {
-	player, errPlayer := s.players.bySteamID(steamID)
+	player, errPlayer := s.players.bySteamID(steamID.Int64())
 	if errPlayer != nil {
 		return
 	}
@@ -477,7 +495,7 @@ func (s *gameState) updatePlayerState(ctx context.Context) error {
 			continue
 		}
 
-		player, errPlayer := s.players.bySteamID(sid)
+		player, errPlayer := s.players.bySteamID(sid.Int64())
 		if errPlayer != nil {
 			// status command is what we use to add players to the active game.
 			continue

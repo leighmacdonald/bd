@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"fyne.io/systray"
-	"github.com/leighmacdonald/bd/discord/client"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 	"golang.org/x/sync/errgroup"
 	"log/slog"
 	_ "modernc.org/sqlite"
@@ -116,13 +114,20 @@ func createRulesEngine(sm *settingsManager) *rules.Engine {
 	return rulesEngine
 }
 
+// openApplicationPage launches the http frontend using the platform specific browser launcher function.
+func openApplicationPage(plat platform.Platform, addr string) {
+	appURL := fmt.Sprintf("http://%s", addr)
+	if errOpen := plat.OpenURL(appURL); errOpen != nil {
+		slog.Error("Failed to open URL", slog.String("url", appURL), errAttr(errOpen))
+	}
+}
+
 func run() int {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	plat := platform.New()
-
 	settingsMgr := newSettingsManager(plat)
 
 	if errSetup := settingsMgr.setup(); errSetup != nil {
@@ -139,7 +144,7 @@ func run() int {
 
 	settings := settingsMgr.Settings()
 
-	logCloser := MustCreateLogger(settings)
+	logCloser := MustCreateLogger(settingsMgr)
 	defer logCloser()
 
 	slog.Info("Starting BD",
@@ -155,11 +160,11 @@ func run() int {
 	}
 	defer dbCloser()
 
-	fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
-	if cacheErr != nil {
-		slog.Error("Failed to setup cache", errAttr(cacheErr))
-		return 1
-	}
+	//fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
+	//if cacheErr != nil {
+	//	slog.Error("Failed to setup cache", errAttr(cacheErr))
+	//	return 1
+	//}
 
 	logChan := make(chan string)
 
@@ -168,27 +173,35 @@ func run() int {
 		slog.Error("Failed to create logreader", errAttr(errLogReader))
 		return 1
 	}
+	defer logReader.tail.Cleanup()
 
 	go logReader.start(rootCtx)
 
-	dataSource, errDataSource := NewDataSource(settings)
+	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
+
+	playerStates := newPlayerState()
+	state := newGameState(db, settingsMgr, playerStates, rcon)
+
+	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
 		slog.Error("failed to create data source", errAttr(errDataSource))
 		return 1
 	}
 
-	profileUpdateQueue := make(chan steamid.SID64)
+	updater := newProfileUpdater(db, dataSource, state)
+	go updater.start(rootCtx)
+
+	announcer := newAnnounceHandler(settingsMgr, rcon, state)
+
 	kickRequestChan := make(chan kickRequest)
-	g15 := newG15Parser()
-	discordPresence := client.New()
 
-	playerStates := newPlayerState()
-	state := newGameState(userSettings, playerStates)
+	discordPresence := newDiscordState(state, settingsMgr)
+	go discordPresence.start(rootCtx)
 
-	re := createRulesEngine(userSettings)
+	re := createRulesEngine(settingsMgr)
 	eventChan := make(chan LogEvent)
 	parser := NewLogParser(logChan, eventChan)
-	process := newProcessState(plat)
+	process := newProcessState(plat, rcon)
 
 	httpServer, errWeb := newHTTPServer(rootCtx, settings.HTTPListenAddr, db, state, process, settingsMgr, re)
 
@@ -219,6 +232,14 @@ func run() int {
 			slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
 		}
 	}
+
+	go func() {
+		time.Sleep(time.Second * 1)
+
+		if settings.RunMode == ModeRelease {
+			openApplicationPage()
+		}
+	}()
 
 	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
 	serviceGroup.Go(func() error {
