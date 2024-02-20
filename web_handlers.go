@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 )
 
-func getMessages(store store.Querier) http.HandlerFunc {
+func onGetMessages(store store.Querier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
@@ -28,7 +29,7 @@ func getMessages(store store.Querier) http.HandlerFunc {
 	}
 }
 
-func getQuitGame(process *processState) http.HandlerFunc {
+func onGetQuitGame(process *processState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !process.gameProcessActive.Load() {
 			responseErr(w, http.StatusNotFound, nil)
@@ -55,7 +56,7 @@ func getQuitGame(process *processState) http.HandlerFunc {
 	}
 }
 
-func getNames(store store.Querier) http.HandlerFunc {
+func onGetNames(store store.Querier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
@@ -81,7 +82,7 @@ type CurrentState struct {
 	Players     []Player    `json:"players"`
 }
 
-func getState(state *gameState, process *processState) http.HandlerFunc {
+func onGetState(state *gameState, process *processState) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		players := state.players.all()
 		if players == nil {
@@ -97,7 +98,7 @@ func getState(state *gameState, process *processState) http.HandlerFunc {
 	}
 }
 
-func getLaunchGame(process *processState) http.HandlerFunc {
+func onGGetLaunchGame(process *processState, settingsMgr *settingsManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		if process.gameProcessActive.Load() {
 			responseErr(w, http.StatusConflict, "Game process active")
@@ -106,54 +107,57 @@ func getLaunchGame(process *processState) http.HandlerFunc {
 			return
 		}
 
-		go process.LaunchGameAndWait()
+		go process.LaunchGameAndWait(settingsMgr.Settings())
 
 		responseOK(w, http.StatusNoContent, map[string]string{})
 	}
 }
 
 type WebUserSettings struct {
-	UserSettings
+	userSettings
 	UniqueTags []string `json:"unique_tags"`
 }
 
-func getSettings(detector *Detector) http.HandlerFunc {
+func onGetSettings(settings *settingsManager, rules *rules.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		wus := WebUserSettings{
-			UserSettings: detector.Settings(),
-			UniqueTags:   detector.rules.UniqueTags(),
+			userSettings: settings.Settings(),
+			UniqueTags:   rules.UniqueTags(),
 		}
 
 		responseOK(w, http.StatusOK, wus)
 	}
 }
 
-func putSettings(detector *Detector) http.HandlerFunc {
+func onPutSettings(settings *settingsManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var wus WebUserSettings
 		if !bind(w, r, &wus) {
 			return
 		}
 
-		if errSave := detector.SaveSettings(wus.UserSettings); errSave != nil {
-			responseErr(w, http.StatusBadRequest, errSave.Error())
-			slog.Error("Failed to save settings", errAttr(errSave))
-
+		if errValidate := wus.userSettings.Validate(); errValidate != nil {
+			responseErr(w, http.StatusBadRequest, errValidate)
 			return
 		}
 
-		responseOK(w, http.StatusNoContent, nil)
+		if errSave := settings.replace(wus.userSettings); errSave != nil {
+			responseErr(w, http.StatusInternalServerError, errSave)
+			return
+		}
+
+		responseOK(w, http.StatusOK, settings.Settings())
 	}
 }
 
-func callVote(detector *Detector) http.HandlerFunc {
+func onCallVote(state *gameState, connection rconConnection) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		player, errPlayer := detector.players.bySteamID(sid)
+		player, errPlayer := state.players.bySteamID(sid)
 		if errPlayer != nil {
 			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player state", errAttr(errPlayer), slog.String("steam_id", sid.String()))
@@ -170,12 +174,17 @@ func callVote(detector *Detector) http.HandlerFunc {
 
 		reason := KickReason(r.PathValue("reason"))
 
-		if errVote := detector.callVote(r.Context(), player.UserID, reason); errVote != nil {
+		cmd := fmt.Sprintf("callvote kick \"%d %s\"", player.UserID, reason)
+
+		resp, errCallVote := connection.exec(r.Context(), cmd, false)
+		if errCallVote != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
-			slog.Error("Failed to call vote", slog.String("steam_id", sid.String()), errAttr(errVote))
+			slog.Error("Failed to call vote", slog.String("steam_id", sid.String()), errAttr(errCallVote))
 
 			return
 		}
+
+		slog.Debug(resp, slog.String("cmd", cmd))
 
 		responseOK(w, http.StatusNoContent, nil)
 	}
@@ -185,7 +194,7 @@ type PostNotesOpts struct {
 	Note string `json:"note"`
 }
 
-func postNotes(detector *Detector) http.HandlerFunc {
+func onPostNotes(db store.Querier, state *gameState) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
@@ -197,7 +206,7 @@ func postNotes(detector *Detector) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := detector.GetPlayerOrCreate(r.Context(), sid)
+		player, errPlayer := getPlayerOrCreate(r.Context(), db, state.players, sid)
 
 		if errPlayer != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
@@ -210,14 +219,14 @@ func postNotes(detector *Detector) http.HandlerFunc {
 
 		player.Dirty = true
 
-		if errSave := detector.dataStore.SavePlayer(r.Context(), &player); errSave != nil {
+		if errSave := db.PlayerUpdate(r.Context(), playerToPlayerUpdateParams(player)); errSave != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to save player notes", errAttr(errSave))
 
 			return
 		}
 
-		detector.players.update(player)
+		state.players.update(player)
 
 		responseOK(w, http.StatusNoContent, nil)
 	}
@@ -231,14 +240,14 @@ type UnmarkResponse struct {
 	Remaining int `json:"remaining"`
 }
 
-func deleteMarkedPlayer(detector *Detector) http.HandlerFunc {
+func onDeleteMarkedPlayer(db store.Querier, state *gameState, re *rules.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		remaining, errUnmark := detector.unMark(r.Context(), sid)
+		remaining, errUnmark := unMark(r.Context(), re, db, state, sid)
 		if errUnmark != nil {
 			if errors.Is(errUnmark, errNotMarked) {
 				responseOK(w, http.StatusNotFound, nil)
@@ -255,7 +264,7 @@ func deleteMarkedPlayer(detector *Detector) http.HandlerFunc {
 	}
 }
 
-func markPlayerPost(detector *Detector) http.HandlerFunc {
+func onMarkPlayerPost(sm *settingsManager, db store.Querier, state *gameState, re *rules.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
@@ -274,7 +283,7 @@ func markPlayerPost(detector *Detector) http.HandlerFunc {
 			return
 		}
 
-		if errCreateMark := detector.mark(r.Context(), sid, opts.Attrs); errCreateMark != nil {
+		if errCreateMark := mark(r.Context(), sm, db, state, re, sid, opts.Attrs); errCreateMark != nil {
 			if errors.Is(errCreateMark, rules.ErrDuplicateSteamID) {
 				responseErr(w, http.StatusConflict, nil)
 				slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))
@@ -292,14 +301,14 @@ func markPlayerPost(detector *Detector) http.HandlerFunc {
 	}
 }
 
-func updateWhitelistPlayer(detector *Detector, enable bool) http.HandlerFunc {
+func onUpdateWhitelistPlayer(db store.Querier, state *gameState, re *rules.Engine, enable bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		if errWl := detector.whitelist(r.Context(), sid, enable); errWl != nil {
+		if errWl := whitelist(r.Context(), db, state, re, sid, enable); errWl != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
 

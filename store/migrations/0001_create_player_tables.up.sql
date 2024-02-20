@@ -37,6 +37,7 @@ create table if not exists player_messages (
     steam_id integer not null,
     message text not null,
     team boolean not null default false,
+    dead boolean not null default false,
     created_on date not null default (DATETIME('now')),
     foreign key (steam_id) references player (steam_id) on delete cascade
 );

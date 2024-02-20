@@ -103,7 +103,7 @@ func createLocalDataSource(key string) (*LocalDataSource, error) {
 	return &LocalDataSource{}, nil
 }
 
-func NewDataSource(userSettings UserSettings) (DataSource, error) {
+func NewDataSource(userSettings userSettings) (DataSource, error) {
 	if userSettings.BdAPIEnabled {
 		return createAPIDataSource(userSettings.BdAPIAddress)
 	} else {

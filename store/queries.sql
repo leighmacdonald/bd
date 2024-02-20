@@ -16,19 +16,16 @@ SELECT p.steam_id,
        p.created_on,
        p.updated_on,
        p.profile_updated_on,
-       pn.name
-FROm player p
-LEFT JOIN player_names pn on p.steam_id = pn.steam_id
-WHERE p.steam_id = @steam_id
-ORDER BY pn.created_on DESC
-LIMIT 1;
+       p.personaname
+FROM player p
+WHERE p.steam_id = @steam_id;
 
 -- name: PlayerInsert :one
-INSERT INTO player (steam_id, visibility, real_name, account_created_on,
+INSERT INTO player (steam_id, personaname, visibility, real_name, account_created_on,
                     avatar_hash, community_banned, game_bans, vac_bans, last_vac_ban_on,
                     kills_on, deaths_by, rage_quits, notes, whitelist, profile_updated_on,
                     created_on, updated_on)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: PlayerUpdate :exec
@@ -47,7 +44,8 @@ SET visibility         = @visibility,
     notes              = @notes,
     whitelist          = @whitelist,
     updated_on         = @updated_on,
-    profile_updated_on = @profile_updated_on
+    profile_updated_on = @profile_updated_on,
+    personaname        = @personaname
 WHERE steam_id = @steam_id;
 
 -- name: PlayerSearch :many
@@ -68,11 +66,10 @@ SELECT p.steam_id,
        p.profile_updated_on,
        p.created_on,
        p.updated_on,
-       pn.name
+       p.personaname
 FROM player p
-         LEFT JOIN player_names pn on p.steam_id = pn.steam_id
 WHERE (@steam_id = 0 OR p.steam_id = @steam_id)
-  AND (@name IS '' OR pn.name LIKE @name)
+  AND (@name IS '' OR p.personaname LIKE @name)
 ORDER BY p.updated_on DESC
 LIMIT 1000;
 
@@ -86,10 +83,10 @@ FROM player_names
 WHERE steam_id = @steam_id;
 
 -- name: MessageSave :exec
-INSERT INTO player_messages (message_id, steam_id, message, team, created_on)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO player_messages (message_id, steam_id, message, team, dead, created_on)
+VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: Messages :many
-SELECT message_id, steam_id, message, created_on
-    FROM player_messages
+SELECT message_id, steam_id, message, team, dead, created_on
+FROM player_messages
 WHERE steam_id = @steam_id;

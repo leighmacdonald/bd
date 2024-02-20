@@ -6,18 +6,20 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"log/slog"
 	"os"
+	"time"
 )
 
 // unMark will unmark & remove a player from your local list. This *will not* unmark players from any
 // other list sources. If you want to not kick someone on a 3rd party list, you can instead whitelist the player.
-func unMark(ctx context.Context, store store.Querier, sid64 steamid.SID64) (int, error) {
-	player, errPlayer := getPlayerOrCreate(ctx, store, sid64)
+func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *gameState, sid64 steamid.SID64) (int, error) {
+	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
 	if errPlayer != nil {
 		return 0, errPlayer
 	}
 
-	if !d.rules.Unmark(sid64) {
+	if !re.Unmark(sid64) {
 		return 0, errNotMarked
 	}
 
@@ -33,24 +35,24 @@ func unMark(ctx context.Context, store store.Querier, sid64 steamid.SID64) (int,
 
 	player.Matches = valid
 
-	go d.updateState(newMarkEvent(sid64, nil, false))
+	state.updateChan <- newMarkEvent(sid64, nil, false)
 
 	return len(valid), nil
 }
 
 // mark will add a new entry in your local player list.
-func mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
-	player, errPlayer := d.GetPlayerOrCreate(ctx, sid64)
+func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gameState, re *rules.Engine, sid64 steamid.SID64, attrs []string) error {
+	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
 
-	name := player.Name
+	name := player.Personaname
 	if name == "" {
 		name = player.NamePrevious
 	}
 
-	if errMark := d.rules.Mark(rules.MarkOpts{
+	if errMark := re.Mark(rules.MarkOpts{
 		SteamID:    sid64,
 		Attributes: attrs,
 		Name:       name,
@@ -59,39 +61,37 @@ func mark(ctx context.Context, sid64 steamid.SID64, attrs []string) error {
 		return errors.Join(errMark, errMark)
 	}
 
-	settings := d.Settings()
-
-	outputFile, errOf := os.OpenFile(settings.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	outputFile, errOf := os.OpenFile(sm.LocalPlayerListPath(), os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if errOf != nil {
 		return errors.Join(errOf, errPlayerListOpen)
 	}
 
 	defer LogClose(outputFile)
 
-	if errExport := d.rules.ExportPlayers(rules.LocalRuleName, outputFile); errExport != nil {
+	if errExport := re.ExportPlayers(rules.LocalRuleName, outputFile); errExport != nil {
 		slog.Error("Failed to save updated player list", errAttr(errExport))
 	}
 
-	go d.updateState(newMarkEvent(sid64, attrs, true))
+	state.updateChan <- newMarkEvent(sid64, attrs, true)
 
 	return nil
 }
 
 // whitelist prevents a player marked in 3rd party lists from being flagged for kicking.
-func whitelist(ctx context.Context, db store.Querier, state *playerState, rules *rules.Engine, sid64 steamid.SID64, enabled bool) error {
-	player, errPlayer := getPlayerOrCreate(ctx, db, sid64)
+func whitelist(ctx context.Context, db store.Querier, state *gameState, rules *rules.Engine, sid64 steamid.SID64, enabled bool) error {
+	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
 
-	player.Whitelisted = enabled
+	player.Whitelist = enabled
 	player.Dirty = true
 
-	if errSave := db.PlayerUpdate(ctx, &player); errSave != nil {
+	if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(player)); errSave != nil {
 		return errors.Join(errSave, errSavePlayer)
 	}
 
-	state.update(player)
+	state.players.update(player)
 
 	if enabled {
 		rules.WhitelistAdd(sid64)
@@ -99,23 +99,22 @@ func whitelist(ctx context.Context, db store.Querier, state *playerState, rules 
 		rules.WhitelistRemove(sid64)
 	}
 
-	go d.updateState(newWhitelistEvent(player.SteamID, enabled))
+	state.updateChan <- newWhitelistEvent(player.SID64(), enabled)
 
 	slog.Info("Update player whitelist status successfully",
-		slog.String("steam_id", player.SteamID.String()), slog.Bool("enabled", enabled))
+		slog.Int64("steam_id", player.SteamID), slog.Bool("enabled", enabled))
 
 	return nil
 }
 
 // addUserName will add an entry into the players username history table and check the username
 // against the rules sets.
-func addUserName(ctx context.Context, player *Player) error {
-	unh, errMessage := NewUserNameHistory(player.SteamID, player.Name)
-	if errMessage != nil {
-		return errors.Join(errMessage, errGetNames)
-	}
-
-	if errSave := d.dataStore.SaveUserNameHistory(ctx, unh); errSave != nil {
+func addUserName(ctx context.Context, db store.Querier, player Player) error {
+	if errSave := db.UserNameSave(ctx, store.UserNameSaveParams{
+		SteamID:   player.SteamID,
+		Name:      player.Personaname,
+		CreatedOn: time.Now(),
+	}); errSave != nil {
 		return errors.Join(errSave, errSaveNames)
 	}
 
@@ -124,15 +123,12 @@ func addUserName(ctx context.Context, player *Player) error {
 
 // addUserMessage will add an entry into the players message history table and check the message
 // against the rules sets.
-func addUserMessage(ctx context.Context, player *Player, message string, dead bool, teamOnly bool) error {
-	userMessage, errMessage := NewUserMessage(player.SteamID, message, dead, teamOnly)
-	if errMessage != nil {
-		return errors.Join(errMessage, errCreateMessage)
-	}
-
-	if errSave := d.dataStore.SaveMessage(ctx, userMessage); errSave != nil {
-		return errors.Join(errSave, errSaveMessage)
-	}
-
-	return nil
+func addUserMessage(ctx context.Context, db store.Querier, player Player, message string, dead bool, teamOnly bool) error {
+	return db.MessageSave(ctx, store.MessageSaveParams{
+		SteamID:   player.SteamID,
+		Message:   message,
+		Team:      teamOnly,
+		Dead:      dead,
+		CreatedOn: time.Time{},
+	})
 }

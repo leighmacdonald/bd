@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
@@ -21,7 +22,6 @@ import (
 )
 
 const (
-	configRoot            = "bd"
 	defaultConfigFileName = "bd.yaml"
 )
 
@@ -93,10 +93,199 @@ const (
 	ModeDebug   = "debug"
 )
 
-type UserSettings struct {
-	// Path to config used when reading UserSettings
-	ConfigPath string        `yaml:"-" json:"config_path"`
-	SteamID    steamid.SID64 `yaml:"steam_id" json:"steam_id"`
+type settingsManager struct {
+	// Path to config used when reading userSettings
+	configPath string
+	configRoot string
+	settingsMu sync.RWMutex
+	settings   userSettings
+	platform   platform.Platform
+}
+
+func newSettingsManager(plat platform.Platform) *settingsManager {
+	sm := settingsManager{
+		platform:   plat,
+		configRoot: "bd",
+	}
+
+	return &sm
+}
+
+func (sm *settingsManager) setup() error {
+	if !platform.Exists(sm.ListRoot()) {
+		if err := os.MkdirAll(sm.ListRoot(), 0o755); err != nil {
+			return errors.Join(err, errSettingDirectoryCreate)
+		}
+	}
+
+	return nil
+}
+
+func (sm *settingsManager) ConfigRoot() string {
+	configPath := configdir.LocalConfig(sm.configRoot)
+	if err := configdir.MakePath(configPath); err != nil {
+		return ""
+	}
+
+	return configPath
+}
+
+func (sm *settingsManager) ListRoot() string {
+	return filepath.Join(sm.ConfigRoot(), "lists")
+}
+
+func (sm *settingsManager) DBPath() string {
+	return filepath.Join(sm.ConfigRoot(), "bd.sqlite?cache=shared")
+}
+
+func (sm *settingsManager) LocalPlayerListPath() string {
+	return filepath.Join(sm.ListRoot(), fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
+}
+
+func (sm *settingsManager) LocalRulesListPath() string {
+	return filepath.Join(sm.ListRoot(), fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
+}
+
+func (sm *settingsManager) LogFilePath() string {
+	return filepath.Join(configdir.LocalConfig(sm.configRoot), "bd.log")
+}
+
+func (sm *settingsManager) readDefaultOrCreate() error {
+	configPath := configdir.LocalConfig(sm.configRoot)
+	if err := configdir.MakePath(configPath); err != nil {
+		return errors.Join(err, errSettingDirectoryCreate)
+	}
+
+	errRead := sm.readFilePath(filepath.Join(configPath, defaultConfigFileName))
+	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
+		return sm.save()
+	}
+
+	sm.reload()
+
+	return errRead
+}
+
+func (sm *settingsManager) Settings() userSettings {
+	sm.settingsMu.RLock()
+	defer sm.settingsMu.RUnlock()
+
+	return sm.settings
+}
+
+func (sm *settingsManager) validateAndLoad() error {
+	settings, errSettings := newSettings(sm.platform)
+	if errSettings != nil {
+		return errSettings
+	}
+
+	if errReadSettings := sm.readDefaultOrCreate(); errReadSettings != nil {
+		return errReadSettings
+	}
+
+	if errValidate := settings.Validate(); errValidate != nil {
+		return errValidate
+	}
+
+	if settings.APIKey != "" {
+		if errSetSteamKey := steamweb.SetKey(settings.APIKey); errSetSteamKey != nil {
+			slog.Error("Failed to set steam api key", errAttr(errSetSteamKey))
+		}
+	}
+
+	return nil
+}
+
+func (sm *settingsManager) readFilePath(filePath string) error {
+	if !platform.Exists(filePath) {
+		return errConfigNotFound
+	}
+
+	settingsFile, errOpen := os.Open(filePath)
+	if errOpen != nil {
+		return errors.Join(errOpen, errSettingsOpen)
+	}
+
+	defer IgnoreClose(settingsFile)
+
+	if errRead := sm.read(settingsFile); errRead != nil {
+		return errRead
+	}
+
+	sm.settingsMu.Lock()
+	sm.configPath = filePath
+	sm.settingsMu.Unlock()
+
+	return nil
+}
+
+func (sm *settingsManager) read(inputFile io.Reader) error {
+	settings := userSettings{}
+	if errDecode := yaml.NewDecoder(inputFile).Decode(&settings); errDecode != nil {
+		return errors.Join(errDecode, errSettingsDecode)
+	}
+
+	settings.Rcon = NewRconConfig(settings.RCONStatic)
+
+	sm.settingsMu.Lock()
+	sm.settings = settings
+	sm.settingsMu.Unlock()
+
+	return nil
+}
+
+func (sm *settingsManager) save() error {
+	sm.settingsMu.RLock()
+
+	if errValidate := sm.settings.Validate(); errValidate != nil {
+		sm.settingsMu.RUnlock()
+		return errValidate
+	}
+
+	sm.settingsMu.RUnlock()
+
+	return sm.writeFilePath(sm.configPath)
+}
+
+func (sm *settingsManager) reload() {
+	sm.settingsMu.Lock()
+	defer sm.settingsMu.Unlock()
+
+	sm.settings.Rcon = NewRconConfig(sm.settings.RCONStatic)
+}
+
+func (sm *settingsManager) writeFilePath(filePath string) error {
+	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
+	if errOpen != nil {
+		return errors.Join(errOpen, errSettingsOpenOutput)
+	}
+
+	defer IgnoreClose(settingsFile)
+
+	return sm.write(settingsFile)
+}
+
+func (sm *settingsManager) write(outputFile io.Writer) error {
+	sm.settingsMu.RLock()
+	defer sm.settingsMu.RUnlock()
+
+	if errEncode := yaml.NewEncoder(outputFile).Encode(sm.settings); errEncode != nil {
+		return errors.Join(errEncode, errSettingsEncode)
+	}
+
+	return nil
+}
+
+func (sm *settingsManager) replace(newSettings userSettings) error {
+	sm.settingsMu.Lock()
+	sm.settings = newSettings
+	sm.settingsMu.Unlock()
+
+	return sm.writeFilePath(sm.configPath)
+}
+
+type userSettings struct {
+	SteamID steamid.SID64 `yaml:"steam_id" json:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
@@ -127,33 +316,8 @@ type UserSettings struct {
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
-func loadAndValidateSettings() (UserSettings, error) {
-	userSettings, errSettings := newSettings()
-	if errSettings != nil {
-		return UserSettings{}, errSettings
-	}
-
-	if errReadSettings := userSettings.ReadDefaultOrCreate(); errReadSettings != nil {
-		return UserSettings{}, errReadSettings
-	}
-
-	if errValidate := userSettings.Validate(); errValidate != nil {
-		return UserSettings{}, errValidate
-	}
-
-	if userSettings.APIKey != "" {
-		if errSetSteamKey := steamweb.SetKey(userSettings.APIKey); errSetSteamKey != nil {
-			slog.Error("Failed to set steam api key", errAttr(errSetSteamKey))
-		}
-	}
-
-	return userSettings, nil
-}
-
-func newSettings() (UserSettings, error) {
-	plat := platform.New()
-	newSettings := UserSettings{
-		ConfigPath:              ".",
+func newSettings(plat platform.Platform) (userSettings, error) {
+	settings := userSettings{
 		SteamID:                 "",
 		SteamDir:                plat.DefaultSteamRoot(),
 		TF2Dir:                  plat.DefaultTF2Root(),
@@ -262,20 +426,10 @@ func newSettings() (UserSettings, error) {
 		Rcon:           NewRconConfig(false),
 	}
 
-	if !platform.Exists(newSettings.ListRoot()) {
-		if err := os.MkdirAll(newSettings.ListRoot(), 0o755); err != nil {
-			return newSettings, errors.Join(err, errSettingDirectoryCreate)
-		}
-	}
-
-	return newSettings, nil
+	return settings, nil
 }
 
-func (s *UserSettings) LogFilePath() string {
-	return filepath.Join(configdir.LocalConfig(configRoot), "bd.log")
-}
-
-func (s *UserSettings) AddList(config *ListConfig) error {
+func (s *userSettings) AddList(config *ListConfig) error {
 	for _, known := range s.Lists {
 		if config.ListType == known.ListType &&
 			strings.EqualFold(config.URL, known.URL) {
@@ -288,23 +442,7 @@ func (s *UserSettings) AddList(config *ListConfig) error {
 	return nil
 }
 
-func (s *UserSettings) ReadDefaultOrCreate() error {
-	configPath := configdir.LocalConfig(configRoot)
-	if err := configdir.MakePath(configPath); err != nil {
-		return errors.Join(err, errSettingDirectoryCreate)
-	}
-
-	errRead := s.ReadFilePath(filepath.Join(configPath, defaultConfigFileName))
-	if errRead != nil && errors.Is(errRead, errConfigNotFound) {
-		return s.Save()
-	}
-
-	s.reload()
-
-	return errRead
-}
-
-func (s *UserSettings) Validate() error {
+func (s *userSettings) Validate() error {
 	const apiKeyLen = 32
 
 	var err error
@@ -330,98 +468,6 @@ func (s *UserSettings) Validate() error {
 	}
 
 	return err
-}
-
-func (s *UserSettings) ListRoot() string {
-	return filepath.Join(s.ConfigRoot(), "lists")
-}
-
-func (s *UserSettings) ConfigRoot() string {
-	configPath := configdir.LocalConfig(configRoot)
-	if err := configdir.MakePath(configPath); err != nil {
-		return ""
-	}
-
-	return configPath
-}
-
-func (s *UserSettings) DBPath() string {
-	return filepath.Join(s.ConfigRoot(), "bd.sqlite?cache=shared")
-}
-
-func (s *UserSettings) LocalPlayerListPath() string {
-	return filepath.Join(s.ListRoot(), fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
-}
-
-func (s *UserSettings) LocalRulesListPath() string {
-	return filepath.Join(s.ListRoot(), fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
-}
-
-func (s *UserSettings) ReadFilePath(filePath string) error {
-	if !platform.Exists(filePath) {
-		// Use defaults
-		s.ConfigPath = filePath
-
-		return errConfigNotFound
-	}
-
-	settingsFile, errOpen := os.Open(filePath)
-	if errOpen != nil {
-		return errors.Join(errOpen, errSettingsOpen)
-	}
-
-	defer IgnoreClose(settingsFile)
-
-	if errRead := s.Read(settingsFile); errRead != nil {
-		return errRead
-	}
-
-	s.ConfigPath = filePath
-
-	return nil
-}
-
-func (s *UserSettings) Read(inputFile io.Reader) error {
-	if errDecode := yaml.NewDecoder(inputFile).Decode(&s); errDecode != nil {
-		return errors.Join(errDecode, errSettingsDecode)
-	}
-
-	s.reload()
-
-	return nil
-}
-
-func (s *UserSettings) Save() error {
-	if errValidate := s.Validate(); errValidate != nil {
-		return errValidate
-	}
-
-	return s.WriteFilePath(s.ConfigPath)
-}
-
-func (s *UserSettings) reload() {
-	newCfg := NewRconConfig(s.RCONStatic)
-
-	s.Rcon = newCfg
-}
-
-func (s *UserSettings) WriteFilePath(filePath string) error {
-	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
-	if errOpen != nil {
-		return errors.Join(errOpen, errSettingsOpenOutput)
-	}
-
-	defer IgnoreClose(settingsFile)
-
-	return s.Write(settingsFile)
-}
-
-func (s *UserSettings) Write(outputFile io.Writer) error {
-	if errEncode := yaml.NewEncoder(outputFile).Encode(s); errEncode != nil {
-		return errors.Join(errEncode, errSettingsEncode)
-	}
-
-	return nil
 }
 
 const (

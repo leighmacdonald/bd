@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamweb/v2"
 	"log/slog"
@@ -66,7 +67,7 @@ func (state *playerState) update(updated Player) {
 	state.Lock()
 	defer state.Unlock()
 
-	var valid []Player //nolint:prealloc
+	valid := make([]Player, len(state.activePlayers))
 
 	for _, player := range state.activePlayers {
 		if player.SteamID == updated.SteamID {
@@ -128,12 +129,12 @@ func (state *playerState) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerState) checkPlayerState(ctx context.Context, player *Player, validTeam Team) {
+func (state *playerState) checkPlayerState(ctx context.Context, re *rules.Engine, player *Player, validTeam Team) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
 
-	if matchSteam := d.rules.MatchSteam(player.SteamID); matchSteam != nil { //nolint:nestif
+	if matchSteam := re.MatchSteam(player.SID64()); matchSteam != nil { //nolint:nestif
 		player.Matches = matchSteam
 
 		if validTeam == player.Team {
@@ -213,7 +214,7 @@ func (state *playerState) cleanupHandler(ctx context.Context) {
 
 type gameState struct {
 	updateChan chan updateStateEvent
-	settings   UserSettings
+	settings   userSettings
 	players    *playerState
 	server     serverState
 	store      store.Querier
@@ -221,7 +222,7 @@ type gameState struct {
 	g15        g15Parser
 }
 
-func newStateHandler(store store.Querier, settings UserSettings, playerState *playerState, rcon rconConnection) *gameState {
+func newGameState(store store.Querier, settings userSettings, playerState *playerState, rcon rconConnection) *gameState {
 	return &gameState{
 		store:      store,
 		settings:   settings,

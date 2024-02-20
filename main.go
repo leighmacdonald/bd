@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"fyne.io/systray"
 	"github.com/leighmacdonald/bd/discord/client"
 	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"golang.org/x/sync/errgroup"
@@ -58,23 +60,86 @@ func testLogFeeder(logChan chan string) {
 	}
 }
 
+const (
+	profileAgeLimit = time.Hour * 24
+)
+
+func createRulesEngine(sm *settingsManager) *rules.Engine {
+	rulesEngine := rules.New()
+
+	if sm.Settings().RunMode != ModeTest { //nolint:nestif
+		// Try and load our existing custom players
+		if platform.Exists(sm.LocalPlayerListPath()) {
+			input, errInput := os.Open(sm.LocalPlayerListPath())
+			if errInput != nil {
+				slog.Error("Failed to open local player list", errAttr(errInput))
+			} else {
+				var localPlayersList rules.PlayerListSchema
+				if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
+					slog.Error("Failed to parse local player list", errAttr(errRead))
+				} else {
+					count, errPlayerImport := rulesEngine.ImportPlayers(&localPlayersList)
+					if errPlayerImport != nil {
+						slog.Error("Failed to import local player list", errAttr(errPlayerImport))
+					} else {
+						slog.Info("Loaded local player list", slog.Int("count", count))
+					}
+				}
+
+				LogClose(input)
+			}
+		}
+
+		// Try and load our existing custom rules
+		if platform.Exists(sm.LocalRulesListPath()) {
+			input, errInput := os.Open(sm.LocalRulesListPath())
+			if errInput != nil {
+				slog.Error("Failed to open local rules list", errAttr(errInput))
+			} else {
+				var localRules rules.RuleSchema
+				if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
+					slog.Error("Failed to parse local rules list", errAttr(errRead))
+				} else {
+					count, errRulesImport := rulesEngine.ImportRules(&localRules)
+					if errRulesImport != nil {
+						slog.Error("Failed to import local rules list", errAttr(errRulesImport))
+					}
+
+					slog.Debug("Loaded local rules list", slog.Int("count", count))
+				}
+
+				LogClose(input)
+			}
+		}
+	}
+
+	return rulesEngine
+}
+
 func run() int {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	startupTime := time.Now()
-
 	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	plat := platform.New()
 
-	userSettings, errSettings := loadAndValidateSettings()
-	if errSettings != nil {
+	settingsMgr := newSettingsManager(plat)
+
+	if errSetup := settingsMgr.setup(); errSetup != nil {
+		slog.Error("Failed to create settings directories", errAttr(errSetup))
+
+		return 1
+	}
+
+	if errSettings := settingsMgr.validateAndLoad(); errSettings != nil {
 		slog.Error("Failed to load settings", errAttr(errSettings))
 
 		return 1
 	}
 
-	logCloser := MustCreateLogger(userSettings)
+	settings := settingsMgr.Settings()
+
+	logCloser := MustCreateLogger(settings)
 	defer logCloser()
 
 	slog.Info("Starting BD",
@@ -83,14 +148,14 @@ func run() int {
 		slog.String("commit", versionInfo.Commit),
 		slog.String("via", versionInfo.BuiltBy))
 
-	db, dbCloser, errDb := store.CreateDb(userSettings.DBPath())
+	db, dbCloser, errDb := store.CreateDb(settingsMgr.DBPath())
 	if errDb != nil {
 		slog.Error("failed to create database", errAttr(errDb))
 		return 1
 	}
 	defer dbCloser()
 
-	fsCache, cacheErr := NewCache(userSettings.ConfigRoot(), DurationCacheTimeout)
+	fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
 	if cacheErr != nil {
 		slog.Error("Failed to setup cache", errAttr(cacheErr))
 		return 1
@@ -98,13 +163,15 @@ func run() int {
 
 	logChan := make(chan string)
 
-	logReader, errLogReader := newLogReader(filepath.Join(userSettings.TF2Dir, "console.log"), logChan, true)
+	logReader, errLogReader := newLogReader(filepath.Join(settings.TF2Dir, "console.log"), logChan, true)
 	if errLogReader != nil {
 		slog.Error("Failed to create logreader", errAttr(errLogReader))
 		return 1
 	}
 
-	dataSource, errDataSource := NewDataSource(userSettings)
+	go logReader.start(rootCtx)
+
+	dataSource, errDataSource := NewDataSource(settings)
 	if errDataSource != nil {
 		slog.Error("failed to create data source", errAttr(errDataSource))
 		return 1
@@ -116,15 +183,17 @@ func run() int {
 	discordPresence := client.New()
 
 	playerStates := newPlayerState()
-	state := newStateHandler(userSettings, playerStates)
+	state := newGameState(userSettings, playerStates)
 
-	rules := createRulesEngine(userSettings)
+	re := createRulesEngine(userSettings)
 	eventChan := make(chan LogEvent)
 	parser := NewLogParser(logChan, eventChan)
-	web, errWeb := newWebServer(application)
+	process := newProcessState(plat)
+
+	httpServer, errWeb := newHTTPServer(rootCtx, settings.HTTPListenAddr, db, state, process, settingsMgr, re)
 
 	if errWeb != nil {
-		panic(errWeb)
+		slog.Error("Failed to initialize http server", errAttr(errWeb))
 	}
 
 	go testLogFeeder(logChan)
@@ -136,33 +205,37 @@ func run() int {
 				slog.Error("Failed to open browser", errAttr(errOpen))
 			}
 		}, func() {
-			go application.LaunchGameAndWait()
+			go process.LaunchGameAndWait(settings)
 		},
 	)
 
+	defer systray.Quit()
+
+	shutdown := func() {
+		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
+		defer cancel()
+
+		if errShutdown := httpServer.Shutdown(timeout); errShutdown != nil {
+			slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
+		}
+	}
+
 	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
 	serviceGroup.Go(func() error {
-		application.Start(serviceCtx)
+		shutdown()
+
 		return nil
 	})
 
 	serviceGroup.Go(func() error {
 		systray.Run(tray.OnReady(stop), func() {
-			if errShutdown := application.Shutdown(context.Background()); errShutdown != nil {
-				slog.Error("Failed to shutdown cleanly")
-			}
+			shutdown()
 		})
 		return nil
 	})
 
 	serviceGroup.Go(func() error {
 		<-serviceCtx.Done()
-
-		if errShutdown := application.Shutdown(context.Background()); errShutdown != nil { //nolint:contextcheck
-			slog.Error("Failed to gracefully shutdown", errAttr(errShutdown))
-		}
-
-		systray.Quit()
 
 		return nil
 	})

@@ -35,6 +35,7 @@ type PlayerMessage struct {
 	SteamID   int64     `json:"steam_id"`
 	Message   string    `json:"message"`
 	Team      bool      `json:"team"`
+	Dead      bool      `json:"dead"`
 	CreatedOn time.Time `json:"created_on"`
 }
 
