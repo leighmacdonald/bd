@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"fyne.io/systray"
 	"github.com/leighmacdonald/bd/platform"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"log/slog"
 	_ "modernc.org/sqlite"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -188,22 +190,27 @@ func run() int {
 		return 1
 	}
 
-	updater := newProfileUpdater(db, dataSource, state)
+	updater := newProfileUpdater(db, dataSource, state, settingsMgr)
 	go updater.start(rootCtx)
 
-	announcer := newAnnounceHandler(settingsMgr, rcon, state)
+	//announcer := newAnnounceHandler(settingsMgr, rcon, state)
 
-	kickRequestChan := make(chan kickRequest)
+	//kickRequestChan := make(chan kickRequest)
 
 	discordPresence := newDiscordState(state, settingsMgr)
 	go discordPresence.start(rootCtx)
 
 	re := createRulesEngine(settingsMgr)
-	eventChan := make(chan LogEvent)
-	parser := NewLogParser(logChan, eventChan)
+	//eventChan := make(chan LogEvent)
+	//parser := NewLogParser(logChan, eventChan)
 	process := newProcessState(plat, rcon)
 
-	httpServer, errWeb := newHTTPServer(rootCtx, settings.HTTPListenAddr, db, state, process, settingsMgr, re)
+	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
+	if errRoutes != nil {
+		slog.Error("failed to create http handlers", errAttr(errRoutes))
+	}
+
+	httpServer, errWeb := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
 
 	if errWeb != nil {
 		slog.Error("Failed to initialize http server", errAttr(errWeb))
@@ -211,18 +218,22 @@ func run() int {
 
 	go testLogFeeder(logChan)
 
-	tray := NewSystray(
-		plat.Icon(),
-		func() {
-			if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
-				slog.Error("Failed to open browser", errAttr(errOpen))
-			}
-		}, func() {
-			go process.LaunchGameAndWait(settings)
-		},
-	)
+	var tray *Systray
 
-	defer systray.Quit()
+	if settings.SystrayEnabled {
+		tray = NewSystray(
+			plat.Icon(),
+			func() {
+				if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
+					slog.Error("Failed to open browser", errAttr(errOpen))
+				}
+			}, func() {
+				go process.LaunchGameAndWait(settings)
+			},
+		)
+
+		defer systray.Quit()
+	}
 
 	shutdown := func() {
 		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
@@ -234,29 +245,38 @@ func run() int {
 	}
 
 	go func() {
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Second * 3)
 
 		if settings.RunMode == ModeRelease {
-			openApplicationPage()
+			openApplicationPage(plat, settings.HTTPListenAddr)
 		}
 	}()
 
 	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
 	serviceGroup.Go(func() error {
-		shutdown()
+		errServe := httpServer.ListenAndServe()
+		if errServe != nil {
+			if !errors.Is(errServe, http.ErrServerClosed) {
+				return errors.Join(errServe, errHTTPListen)
+			}
+			return nil
+		}
 
 		return nil
 	})
 
-	serviceGroup.Go(func() error {
-		systray.Run(tray.OnReady(stop), func() {
-			shutdown()
+	if settings.SystrayEnabled {
+		serviceGroup.Go(func() error {
+			systray.Run(tray.OnReady(stop), func() {
+				shutdown()
+			})
+			return nil
 		})
-		return nil
-	})
+	}
 
 	serviceGroup.Go(func() error {
 		<-serviceCtx.Done()
+		shutdown()
 
 		return nil
 	})

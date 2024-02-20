@@ -20,7 +20,7 @@ func newAnnounceHandler(settings *settingsManager, rcon rconConnection, state *g
 }
 
 // announceMatch handles announcing after a match is triggered against a player.
-func (a announceHandler) announceMatch(ctx context.Context, player *Player, matches []*rules.MatchResult) {
+func (a announceHandler) announceMatch(ctx context.Context, player Player, matches []*rules.MatchResult) {
 	settings := a.settings.Settings()
 
 	if len(matches) == 0 {
@@ -43,7 +43,7 @@ func (a announceHandler) announceMatch(ctx context.Context, player *Player, matc
 
 		player.AnnouncedGeneralLast = time.Now()
 
-		a.state.players.update(*player)
+		a.state.players.update(player)
 	}
 
 	if player.Whitelist {

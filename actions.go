@@ -183,7 +183,7 @@ func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kick
 					kickRequests = nil
 				}
 
-				player, errPlayer := players.bySteamID(request.steamID)
+				player, errPlayer := players.bySteamID(request.steamID.Int64())
 				if errPlayer != nil {
 					slog.Error("Failed to get player to kick", errAttr(errPlayer))
 

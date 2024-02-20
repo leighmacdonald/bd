@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/leighmacdonald/bd/store"
+	"log/slog"
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
@@ -184,7 +185,9 @@ func playerRowToPlayer(row store.PlayerRow) Player {
 		UpdatedOn:        row.UpdatedOn,
 	}
 
-	player.LastVacBanOn.Scan(row.LastVacBanOn)
+	if err := player.LastVacBanOn.Scan(row.LastVacBanOn); err != nil {
+		slog.Error("failed to scan last ban", errAttr(err))
+	}
 
 	return Player{Player: player}
 }
@@ -193,7 +196,7 @@ func playerRowToPlayer(row store.PlayerRow) Player {
 // inserted into the database and returned. If you only want players actively in the game, use the playerState functions
 // instead.
 func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerState, sid64 steamid.SID64) (Player, error) {
-	activePlayer, errPlayer := players.bySteamID(sid64)
+	activePlayer, errPlayer := players.bySteamID(sid64.Int64())
 	if errPlayer == nil {
 		return activePlayer, nil
 	}

@@ -41,7 +41,7 @@ watch-go:
 	@air
 
 serve-ts:
-	makefile -C
+	make -C frontend serve
 
 snapshot:
 	goreleaser build --snapshot --clean

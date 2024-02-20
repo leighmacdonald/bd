@@ -24,7 +24,7 @@ func New() LinuxPlatform {
 	// We cant really auto-detect this stuff in the same manner as on windows with the registry
 	// so linux users may need to configure this manually if .
 	steamRoot, _ := homedir.Expand("~/.local/share/steam/Steam")
-	tf2Root, _ := homedir.Expand("~/.local/share/steam/Steam/steamapps/common/Team Fortress 2/tf")
+	tf2Root, _ := homedir.Expand("~/.local/share/steam/steam/steamapps/common/Team Fortress 2/tf")
 
 	return LinuxPlatform{
 		defaultSteamRoot:      steamRoot,
