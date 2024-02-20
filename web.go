@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net"
 	"net/http"
@@ -13,38 +15,24 @@ import (
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
-type Web struct {
-	*http.Server
-}
-
-func newWebServer(detector *Detector) (*Web, error) {
-	mux, errRoutes := createHandlers(detector)
+func newHTTPServer(ctx context.Context, listenAddr string, store store.Querier, state *gameState, process *processState,
+	settingsMgr *settingsManager, re *rules.Engine) (*http.Server, error) {
+	mux, errRoutes := createHandlers(store, state, process, settingsMgr, re)
 	if errRoutes != nil {
 		return nil, errRoutes
 	}
 
 	httpServer := &http.Server{
-		Addr:         detector.Settings().HTTPListenAddr,
+		Addr:         listenAddr,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 
-	return &Web{
-		Server: httpServer,
-	}, nil
-}
-
-func (w *Web) startWeb(ctx context.Context) error {
-	w.BaseContext = func(_ net.Listener) context.Context {
-		return ctx
-	}
-
-	if errServe := w.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
-		return errors.Join(errServe, errHTTPListen)
-	}
-
-	return nil
+	return httpServer, nil
 }
 
 func bind(w http.ResponseWriter, r *http.Request, receiver any) bool {
@@ -85,24 +73,24 @@ func responseOK(w http.ResponseWriter, status int, data any) {
 
 // createHandlers configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
-func createHandlers(state *gameState, process *processState) (*http.ServeMux, error) {
+func createHandlers(store store.Querier, state *gameState, process *processState, settings *settingsManager, re *rules.Engine) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /state", getState(state, process))
-	mux.HandleFunc("GET /messages/{steam_id}", getMessages(detector))
-	mux.HandleFunc("GET /names/{steam_id}", getNames(detector))
-	mux.HandleFunc("POST /mark/{steam_id}", markPlayerPost(detector))
-	mux.HandleFunc("DELETE /mark/{steam_id}", deleteMarkedPlayer(detector))
-	mux.HandleFunc("GET /settings", getSettings(detector))
-	mux.HandleFunc("PUT /settings", putSettings(detector))
-	mux.HandleFunc("GET /launch", getLaunchGame(detector))
-	mux.HandleFunc("GET /quit", getQuitGame(detector))
-	mux.HandleFunc("POST /whitelist/{steam_id}", updateWhitelistPlayer(detector, true))
-	mux.HandleFunc("DELETE /whitelist/{steam_id}", updateWhitelistPlayer(detector, false))
-	mux.HandleFunc("POST /notes/{steam_id}", postNotes(detector))
-	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", callVote())
+	mux.HandleFunc("GET /state", onGetState(state, process))
+	mux.HandleFunc("GET /messages/{steam_id}", onGetMessages(store))
+	mux.HandleFunc("GET /names/{steam_id}", onGetNames(store))
+	mux.HandleFunc("POST /mark/{steam_id}", onMarkPlayerPost(store, state, re))
+	mux.HandleFunc("DELETE /mark/{steam_id}", onDeleteMarkedPlayer(store, state, re))
+	mux.HandleFunc("GET /settings", onGetSettings(settings, re))
+	mux.HandleFunc("PUT /settings", onPutSettings(settings))
+	mux.HandleFunc("GET /launch", onGGetLaunchGame(process, settings))
+	mux.HandleFunc("GET /quit", onGetQuitGame(process))
+	mux.HandleFunc("POST /whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state.players, re, true))
+	mux.HandleFunc("DELETE /whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state.players, re, false))
+	mux.HandleFunc("POST /notes/{steam_id}", onPostNotes(store, state))
+	mux.HandleFunc("POST /callvote/{steam_id}/{reason}", onCallVote(state))
 
-	if detector.Settings().RunMode == ModeTest {
+	if settings.Settings().RunMode == ModeTest {
 		// Don't rely on assets when testing api endpoints
 		return mux, nil
 	}
@@ -126,19 +114,4 @@ func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SID64, bool) 
 	}
 
 	return steamID, true
-}
-
-func (w *Web) Stop(ctx context.Context) error {
-	if w.Server == nil {
-		return nil
-	}
-
-	timeout, cancel := context.WithTimeout(ctx, time.Second*15)
-	defer cancel()
-
-	if errShutdown := w.Server.Shutdown(timeout); errShutdown != nil {
-		return errors.Join(errShutdown, errHTTPShutdown)
-	}
-
-	return nil
 }

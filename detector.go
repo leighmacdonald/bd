@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,67 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
-
-const (
-	profileAgeLimit = time.Hour * 24
-)
-
-func createRulesEngine(settings UserSettings) *rules.Engine {
-	rulesEngine := rules.New()
-
-	if settings.RunMode != ModeTest { //nolint:nestif
-		// Try and load our existing custom players
-		if platform.Exists(settings.LocalPlayerListPath()) {
-			input, errInput := os.Open(settings.LocalPlayerListPath())
-			if errInput != nil {
-				slog.Error("Failed to open local player list", errAttr(errInput))
-			} else {
-				var localPlayersList rules.PlayerListSchema
-				if errRead := json.NewDecoder(input).Decode(&localPlayersList); errRead != nil {
-					slog.Error("Failed to parse local player list", errAttr(errRead))
-				} else {
-					count, errPlayerImport := rulesEngine.ImportPlayers(&localPlayersList)
-					if errPlayerImport != nil {
-						slog.Error("Failed to import local player list", errAttr(errPlayerImport))
-					} else {
-						slog.Info("Loaded local player list", slog.Int("count", count))
-					}
-				}
-
-				LogClose(input)
-			}
-		}
-
-		// Try and load our existing custom rules
-		if platform.Exists(settings.LocalRulesListPath()) {
-			input, errInput := os.Open(settings.LocalRulesListPath())
-			if errInput != nil {
-				slog.Error("Failed to open local rules list", errAttr(errInput))
-			} else {
-				var localRules rules.RuleSchema
-				if errRead := json.NewDecoder(input).Decode(&localRules); errRead != nil {
-					slog.Error("Failed to parse local rules list", errAttr(errRead))
-				} else {
-					count, errRulesImport := rulesEngine.ImportRules(&localRules)
-					if errRulesImport != nil {
-						slog.Error("Failed to import local rules list", errAttr(errRulesImport))
-					}
-
-					slog.Debug("Loaded local rules list", slog.Int("count", count))
-				}
-
-				LogClose(input)
-			}
-		}
-	}
-
-	return rulesEngine
-}
 
 // // BD is the main application container
 // type BD struct {
@@ -119,51 +60,6 @@ func createRulesEngine(settings UserSettings) *rules.Engine {
 //		}
 //	}
 //}
-
-// callVote handles sending the vote commands to the game client.
-func callVote(ctx context.Context, userID int, reason KickReason) error {
-	if !d.ready(ctx) {
-		return errInvalidReadyState
-	}
-
-	return d.execRcon(fmt.Sprintf("callvote kick \"%d %s\"", userID, reason))
-}
-
-// processChecker handles checking and updating the running state of the tf2 process.
-func processChecker(ctx context.Context) {
-	ticker := time.NewTicker(DurationProcessTimeout)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			existingState := d.gameProcessActive.Load()
-
-			newState, errRunningStatus := d.platform.IsGameRunning()
-			if errRunningStatus != nil {
-				slog.Error("Failed to get process run status", errAttr(errRunningStatus))
-
-				continue
-			}
-
-			if existingState != newState {
-				d.gameProcessActive.Store(newState)
-				slog.Info("Game process state changed", slog.Bool("is_running", newState))
-			}
-
-			// Handle auto closing the app on game close if enabled
-			if !d.gameHasStartedOnce.Load() || !d.Settings().AutoCloseOnGameExit {
-				continue
-			}
-
-			if !newState {
-				slog.Info("Auto-closing on game exit", slog.Duration("uptime", time.Since(d.startupTime)))
-				os.Exit(0)
-			}
-		}
-	}
-}
 
 // Shutdown closes any open rcon connection and will flush any player list to disk.
 func Shutdown(ctx context.Context) error {

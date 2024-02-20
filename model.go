@@ -51,24 +51,6 @@ type UserMessage struct {
 	TeamOnly  bool      `json:"team_only"`
 }
 
-func NewUserMessage(sid64 steamid.SID64, message string, dead bool, teamOnly bool) (*UserMessage, error) {
-	if !sid64.Valid() {
-		return nil, errInvalidSid
-	}
-
-	if message == "" {
-		return nil, errEmptyValue
-	}
-
-	return &UserMessage{
-		BaseSID:  BaseSID{SteamID: sid64},
-		Message:  message,
-		Created:  time.Now(),
-		Dead:     dead,
-		TeamOnly: teamOnly,
-	}, nil
-}
-
 func (um UserMessage) Formatted() string {
 	var msg []string
 	if um.TeamOnly {

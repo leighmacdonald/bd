@@ -66,6 +66,10 @@ type Player struct {
 	Matches []*rules.MatchResult `json:"matches"`
 }
 
+func (ps Player) SID64() steamid.SID64 {
+	return steamid.New(ps.SteamID)
+}
+
 func (ps Player) toUpdateParams() store.PlayerUpdateParams {
 	return store.PlayerUpdateParams{
 		Visibility:       ps.Visibility,
@@ -136,10 +140,32 @@ func newPlayer(sid64 steamid.SID64, name string) Player {
 	}
 }
 
+func playerToPlayerUpdateParams(player Player) store.PlayerUpdateParams {
+	return store.PlayerUpdateParams{
+		SteamID:          player.SteamID,
+		Visibility:       player.Visibility,
+		RealName:         player.RealName,
+		AccountCreatedOn: player.AccountCreatedOn,
+		AvatarHash:       player.AvatarHash,
+		CommunityBanned:  player.CommunityBanned,
+		GameBans:         player.GameBans,
+		VacBans:          player.VacBans,
+		LastVacBanOn:     player.LastVacBanOn,
+		KillsOn:          player.KillsOn,
+		DeathsBy:         player.DeathsBy,
+		RageQuits:        player.RageQuits,
+		Notes:            player.Notes,
+		Whitelist:        player.Whitelist,
+		UpdatedOn:        player.UpdatedOn,
+		ProfileUpdatedOn: player.ProfileUpdatedOn,
+		Personaname:      player.Personaname,
+	}
+}
+
 func playerRowToPlayer(row store.PlayerRow) Player {
 	player := store.Player{
 		SteamID:          row.SteamID,
-		Personaname:      row.Name.String,
+		Personaname:      row.Personaname,
 		Visibility:       row.Visibility,
 		RealName:         row.RealName,
 		AccountCreatedOn: row.AccountCreatedOn,
@@ -199,15 +225,3 @@ type UserNameHistory struct {
 }
 
 type UserNameHistoryCollection []UserNameHistory
-
-func NewUserNameHistory(steamID steamid.SID64, name string) (*UserNameHistory, error) {
-	if name == "" {
-		return nil, errEmptyValue
-	}
-
-	return &UserNameHistory{
-		BaseSID:   BaseSID{SteamID: steamID},
-		Name:      name,
-		FirstSeen: time.Now(),
-	}, nil
-}

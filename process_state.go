@@ -4,9 +4,10 @@ import (
 	"context"
 	"github.com/leighmacdonald/bd/addons"
 	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/bd/rules"
 	"log/slog"
+	"os"
 	"sync/atomic"
+	"time"
 )
 
 type processState struct {
@@ -34,7 +35,7 @@ func newProcessState(platform platform.Platform, rcon rconConnection) *processSt
 
 // LaunchGameAndWait is the main entry point to launching the game. It will install the included addon, write the
 // voice bans out if enabled and execute the platform specific launcher command, blocking until exit.
-func (p *processState) LaunchGameAndWait(rules *rules.Engine, settings UserSettings) {
+func (p *processState) LaunchGameAndWait(settings userSettings) {
 	defer func() {
 		p.gameProcessActive.Store(false)
 	}()
@@ -80,4 +81,40 @@ func (p *processState) Quit(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// processChecker handles checking and updating the running state of the tf2 process.
+func (p *processState) start(ctx context.Context, sm *settingsManager) {
+	ticker := time.NewTicker(DurationProcessTimeout)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			existingState := p.gameProcessActive.Load()
+
+			newState, errRunningStatus := p.platform.IsGameRunning()
+			if errRunningStatus != nil {
+				slog.Error("Failed to get process run status", errAttr(errRunningStatus))
+
+				continue
+			}
+
+			if existingState != newState {
+				p.gameProcessActive.Store(newState)
+				slog.Info("Game process state changed", slog.Bool("is_running", newState))
+			}
+
+			// Handle auto closing the app on game close if enabled
+			if !p.gameHasStartedOnce.Load() || !sm.Settings().AutoCloseOnGameExit {
+				continue
+			}
+
+			if !newState {
+				slog.Info("Auto-closing on game exit")
+				os.Exit(0)
+			}
+		}
+	}
 }

@@ -10,7 +10,7 @@ import (
 
 type Querier interface {
 	MessageSave(ctx context.Context, arg MessageSaveParams) error
-	Messages(ctx context.Context, steamID int64) ([]MessagesRow, error)
+	Messages(ctx context.Context, steamID int64) ([]PlayerMessage, error)
 	Player(ctx context.Context, steamID int64) (PlayerRow, error)
 	PlayerInsert(ctx context.Context, arg PlayerInsertParams) (Player, error)
 	PlayerSearch(ctx context.Context, arg PlayerSearchParams) ([]PlayerSearchRow, error)

@@ -8,7 +8,7 @@ import (
 	"github.com/dotse/slug"
 )
 
-func MustCreateLogger(settings UserSettings) func() {
+func MustCreateLogger(sm *settingsManager) func() {
 	var logHandler slog.Handler
 
 	closer := func() {}
@@ -17,8 +17,10 @@ func MustCreateLogger(settings UserSettings) func() {
 		HandlerOptions: slog.HandlerOptions{},
 	}
 
+	settings := sm.Settings()
+
 	if settings.DebugLogEnabled {
-		logFile, errLogFile := os.Create(settings.LogFilePath())
+		logFile, errLogFile := os.Create(sm.LogFilePath())
 		if errLogFile != nil {
 			panic(fmt.Sprintf("Failed to open logfile: %v", errLogFile))
 		}

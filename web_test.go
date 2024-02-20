@@ -115,7 +115,7 @@ func TestGetSettingsHandler(t *testing.T) { //nolint:tparallel
 		var wus WebUserSettings
 
 		fetchIntoWithStatus(t, app, "GET", "/settings", http.StatusOK, &wus, nil)
-		userSettings := WebUserSettings{UserSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
+		userSettings := WebUserSettings{userSettings: app.Settings(), UniqueTags: app.Rules().UniqueTags()}
 		require.Equal(t, userSettings.SteamID, wus.SteamID)
 		require.Equal(t, userSettings.SteamDir, wus.SteamDir)
 		require.Equal(t, userSettings.AutoLaunchGame, wus.AutoLaunchGame)
