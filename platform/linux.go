@@ -5,12 +5,14 @@ package platform
 import (
 	"errors"
 	"fmt"
-	"os/exec"
-
 	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
+	"log/slog"
+	"os/exec"
+	"path"
+	"strings"
 )
 
 type LinuxPlatform struct {
@@ -23,8 +25,25 @@ type LinuxPlatform struct {
 func New() LinuxPlatform {
 	// We cant really auto-detect this stuff in the same manner as on windows with the registry
 	// so linux users may need to configure this manually if .
-	steamRoot, _ := homedir.Expand("~/.local/share/steam/Steam")
-	tf2Root, _ := homedir.Expand("~/.local/share/steam/steam/steamapps/common/Team Fortress 2/tf")
+	var knownInstallLocations = []string{
+		"~/.local/share/Steam", // Standard location
+		"~/.steam/steam/Steam",
+	}
+	var steamRoot string
+	for _, location := range knownInstallLocations {
+		expanded, errExpand := homedir.Expand(location)
+		if errExpand != nil {
+			slog.Warn("Cannot expand home dir", slog.String("error", errExpand.Error()))
+			continue
+		}
+
+		if Exists(expanded) {
+			steamRoot = expanded
+			break
+		}
+	}
+
+	tf2Root := path.Join(steamRoot, "steamapps/common/Team Fortress 2/tf")
 
 	return LinuxPlatform{
 		defaultSteamRoot:      steamRoot,
@@ -44,10 +63,22 @@ func (l LinuxPlatform) DefaultTF2Root() string {
 
 // LaunchTF2 calls the steam binary directly
 // On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size.
-func (l LinuxPlatform) LaunchTF2(_ string, args []string) error {
-	fa := []string{"-applaunch", "440"}
-	fa = append(fa, args...)
-	cmd := exec.Command("steam", fa...)
+func (l LinuxPlatform) LaunchTF2(steamRoot string, args []string) error {
+	cmdArgs := fmt.Sprintf("steam://rungameid/440/%s/", strings.Join(args, "/"))
+	slog.Debug("launching game", slog.String("args", cmdArgs))
+	cmd := exec.Command("xdg-open", cmdArgs)
+	//steamBin, errBin := exec.LookPath("steam")
+	//if errBin != nil {
+	//	return errBin
+	//}
+
+	//steamBin := path.Join(steamRoot, "steamapps/common/Team Fortress 2/hl2.sh")
+
+	//fa := []string{steamBin, "-applaunch", "440"}
+	//fa := []string{steamBin}
+	//fa = append(fa, args...)
+	//slog.Debug(fmt.Sprintf("calling %s %s", steamBin, strings.Join(fa, " ")))
+	//cmd := exec.Command("/bin/bash", fa...)
 
 	if errLaunch := cmd.Run(); errLaunch != nil {
 		return errors.Join(errLaunch, ErrLaunchBinary)

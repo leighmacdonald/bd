@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/steamweb/v2"
 	"io"
 	"log/slog"
 	"net/url"
@@ -18,6 +17,7 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamweb/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -290,6 +290,28 @@ func (sm *settingsManager) replace(newSettings userSettings) error {
 	sm.settingsMu.Unlock()
 
 	return sm.writeFilePath(sm.configPath)
+}
+
+func (sm *settingsManager) locateSteamDir() string {
+	sm.settingsMu.RLock()
+	defer sm.settingsMu.RUnlock()
+
+	if sm.settings.SteamDir != "" {
+		return sm.settings.SteamDir
+	}
+
+	return sm.platform.DefaultSteamRoot()
+}
+
+func (sm *settingsManager) locateTF2Dir() string {
+	sm.settingsMu.RLock()
+	defer sm.settingsMu.RUnlock()
+
+	if sm.settings.TF2Dir != "" {
+		return sm.settings.TF2Dir
+	}
+
+	return sm.platform.DefaultTF2Root()
 }
 
 type userSettings struct {

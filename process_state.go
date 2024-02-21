@@ -33,12 +33,14 @@ func newProcessState(platform platform.Platform, rcon rconConnection) *processSt
 	return ps
 }
 
-// LaunchGameAndWait is the main entry point to launching the game. It will install the included addon, write the
+// launchGameAndWait is the main entry point to launching the game. It will install the included addon, write the
 // voice bans out if enabled and execute the platform specific launcher command, blocking until exit.
-func (p *processState) LaunchGameAndWait(settings userSettings) {
+func (p *processState) launchGameAndWait(settingsMgr *settingsManager) {
 	defer func() {
 		p.gameProcessActive.Store(false)
 	}()
+
+	settings := settingsMgr.Settings()
 
 	if errInstall := addons.Install(settings.TF2Dir); errInstall != nil {
 		slog.Error("Error trying to install addon", errAttr(errInstall))
@@ -54,7 +56,7 @@ func (p *processState) LaunchGameAndWait(settings userSettings) {
 	args, errArgs := getLaunchArgs(
 		settings.Rcon.Password,
 		settings.Rcon.Port,
-		settings.SteamDir,
+		settingsMgr.locateSteamDir(),
 		settings.SteamID)
 
 	if errArgs != nil {
@@ -65,7 +67,7 @@ func (p *processState) LaunchGameAndWait(settings userSettings) {
 
 	p.gameHasStartedOnce.Store(true)
 
-	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args); errLaunch != nil {
+	if errLaunch := p.platform.LaunchTF2(settingsMgr.locateSteamDir(), args); errLaunch != nil {
 		slog.Error("Failed to launch game", errAttr(errLaunch))
 	}
 }

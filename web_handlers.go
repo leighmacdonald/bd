@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net/http"
 
 	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 )
 
 func onGetMessages(store store.Querier) http.HandlerFunc {
@@ -107,9 +107,9 @@ func onGGetLaunchGame(process *processState, settingsMgr *settingsManager) http.
 			return
 		}
 
-		go process.LaunchGameAndWait(settingsMgr.Settings())
+		go process.launchGameAndWait(settingsMgr)
 
-		responseOK(w, http.StatusNoContent, map[string]string{})
+		responseOK(w, http.StatusOK, map[string]string{})
 	}
 }
 

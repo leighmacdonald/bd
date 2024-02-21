@@ -4,19 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/leighmacdonald/bd/frontend"
+	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) (*http.Server, error) {
-
 	httpServer := &http.Server{
 		Addr:         listenAddr,
 		Handler:      handler,
@@ -34,7 +33,8 @@ func bind(w http.ResponseWriter, r *http.Request, receiver any) bool {
 	if errDecode := json.NewDecoder(r.Body).Decode(receiver); errDecode != nil {
 		responseErr(w, http.StatusBadRequest, nil)
 
-		slog.Error("Received malformed request", errAttr(errDecode))
+		slog.Error("Received malformed request",
+			errAttr(errDecode), slog.String("path", r.RequestURI), slog.String("method", r.Method))
 
 		return false
 	}

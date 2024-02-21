@@ -5,13 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"fyne.io/systray"
-	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/bd/store"
-	"golang.org/x/sync/errgroup"
 	"log/slog"
-	_ "modernc.org/sqlite"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,6 +13,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"fyne.io/systray"
+	"github.com/leighmacdonald/bd/platform"
+	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
+	"golang.org/x/sync/errgroup"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -193,16 +194,16 @@ func run() int {
 	updater := newProfileUpdater(db, dataSource, state, settingsMgr)
 	go updater.start(rootCtx)
 
-	//announcer := newAnnounceHandler(settingsMgr, rcon, state)
+	// announcer := newAnnounceHandler(settingsMgr, rcon, state)
 
-	//kickRequestChan := make(chan kickRequest)
+	// kickRequestChan := make(chan kickRequest)
 
 	discordPresence := newDiscordState(state, settingsMgr)
 	go discordPresence.start(rootCtx)
 
 	re := createRulesEngine(settingsMgr)
-	//eventChan := make(chan LogEvent)
-	//parser := NewLogParser(logChan, eventChan)
+	// eventChan := make(chan LogEvent)
+	// parser := NewLogParser(logChan, eventChan)
 	process := newProcessState(plat, rcon)
 
 	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
@@ -228,7 +229,7 @@ func run() int {
 					slog.Error("Failed to open browser", errAttr(errOpen))
 				}
 			}, func() {
-				go process.LaunchGameAndWait(settings)
+				go process.launchGameAndWait(settingsMgr)
 			},
 		)
 
