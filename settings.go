@@ -174,6 +174,15 @@ func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
 		return userSettings{}, errRead
 	}
 
+	// Make sure we have defaults defined if not configured
+	if settings.SteamDir == "" {
+		settings.SteamDir = sm.locateSteamDir()
+	}
+
+	if settings.TF2Dir == "" {
+		settings.TF2Dir = sm.locateTF2Dir()
+	}
+
 	return settings, nil
 }
 

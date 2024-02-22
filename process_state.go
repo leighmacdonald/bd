@@ -68,7 +68,7 @@ func (p *processState) launchGameAndWait(settingsMgr *settingsManager) {
 
 	p.gameHasStartedOnce.Store(true)
 
-	if errLaunch := p.platform.LaunchTF2(settingsMgr.locateSteamDir(), args); errLaunch != nil {
+	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args); errLaunch != nil {
 		slog.Error("Failed to launch game", errAttr(errLaunch))
 	}
 }
