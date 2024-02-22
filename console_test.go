@@ -95,12 +95,12 @@ func TestParseEvent(t *testing.T) {
 		},
 	}
 
-	reader := NewLogParser(nil, nil)
+	reader := newLogParser()
 
 	for num, testCase := range cases {
 		var (
 			event LogEvent
-			err   = reader.Parse(testCase.text, &event)
+			err   = reader.parse(testCase.text, &event)
 		)
 
 		if testCase.match {

@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -29,37 +28,6 @@ var (
 	date    = "n/a"    //nolint:gochecknoglobals
 	builtBy = "src"    //nolint:gochecknoglobals
 )
-
-func testLogFeeder(logChan chan string) {
-	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
-		body, errRead := os.ReadFile(testLogPath)
-		if errRead != nil {
-			slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
-
-			return
-		}
-
-		lines := strings.Split(string(body), "\n")
-		curLine := 0
-		lineCount := len(lines)
-
-		go func() {
-			updateTicker := time.NewTicker(time.Millisecond * 10)
-
-			for {
-				<-updateTicker.C
-
-				logChan <- strings.Trim(lines[curLine], "\r")
-
-				curLine++
-
-				if curLine >= lineCount {
-					curLine = 0
-				}
-			}
-		}()
-	}
-}
 
 const (
 	profileAgeLimit = time.Hour * 24
@@ -169,21 +137,24 @@ func run() int {
 	//	 return 1
 	// }
 
-	logChan := make(chan string)
-
-	logReader, errLogReader := newLogReader(filepath.Join(settings.TF2Dir, "console.log"), logChan, true)
-	if errLogReader != nil {
-		slog.Error("Failed to create logreader", errAttr(errLogReader))
-		return 1
-	}
-	defer logReader.tail.Cleanup()
-
-	go logReader.start(rootCtx)
-
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
 
-	playerStates := newPlayerState()
-	state := newGameState(db, settingsMgr, playerStates, rcon)
+	state := newGameState(db, settingsMgr, newPlayerState(), rcon)
+
+	eh := newEventHandler(state)
+	go eh.start(rootCtx)
+
+	logReader, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
+	if errLogReader != nil {
+		slog.Error("Failed to create log startIngest", errAttr(errLogReader))
+		return 1
+	}
+
+	logReader.registerConsumer(eh.eventChan)
+
+	go logReader.startIngest(rootCtx)
+
+	go testLogFeeder(logReader)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -202,8 +173,6 @@ func run() int {
 	go discordPresence.start(rootCtx)
 
 	re := createRulesEngine(settingsMgr)
-	// eventChan := make(chan LogEvent)
-	// parser := NewLogParser(logChan, eventChan)
 	process := newProcessState(plat, rcon)
 
 	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
@@ -212,8 +181,6 @@ func run() int {
 	}
 
 	httpServer := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
-
-	go testLogFeeder(logChan)
 
 	var tray *Systray
 

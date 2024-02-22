@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 	"net"
 	"strings"
 	"sync"
@@ -398,12 +400,19 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 
 	if player.Personaname != evt.name {
 		player.Personaname = evt.name
-		if errAddName := s.store.UserNameSave(ctx, store.UserNameSaveParams{
+		errAddName := s.store.UserNameSave(ctx, store.UserNameSaveParams{
 			SteamID:   player.SteamID,
 			Name:      player.Personaname,
 			CreatedOn: time.Now(),
-		}); errAddName != nil {
-			slog.Error("Could not save new user name", errAttr(errAddName))
+		})
+		if errAddName != nil {
+			if sqliteErr, ok := errAddName.(*sqlite.Error); ok {
+				if sqliteErr.Code() != sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
+					slog.Error("Could not save new user name", errAttr(errAddName))
+				}
+			} else {
+				slog.Error("Could not save new user name", errAttr(errAddName))
+			}
 		}
 	}
 

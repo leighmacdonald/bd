@@ -185,14 +185,20 @@ type eventHandler struct {
 	eventChan    chan LogEvent
 }
 
+func newEventHandler(state *gameState) *eventHandler {
+	return &eventHandler{
+		stateHandler: state,
+		eventChan:    make(chan LogEvent),
+	}
+}
+
 // handles mapping incoming LogEvent payloads into the more generalized
 // updateStateEvent used for all state updates.
 func (e eventHandler) start(ctx context.Context) {
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case evt := <-e.eventChan:
+			slog.Debug("received event", slog.Int("type", int(evt.Type)))
 			switch evt.Type { //nolint:exhaustive
 			case EvtMap:
 				// update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
@@ -239,6 +245,9 @@ func (e eventHandler) start(ctx context.Context) {
 			case EvtConnect:
 			case EvtLobby:
 			}
+		case <-ctx.Done():
+			return
 		}
+
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
@@ -185,9 +184,7 @@ func playerRowToPlayer(row store.PlayerRow) Player {
 		UpdatedOn:        row.UpdatedOn,
 	}
 
-	if err := player.LastVacBanOn.Scan(row.LastVacBanOn); err != nil {
-		slog.Error("failed to scan last ban", errAttr(err))
-	}
+	player.LastVacBanOn = row.LastVacBanOn
 
 	return Player{Player: player}
 }

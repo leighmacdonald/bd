@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
@@ -90,4 +93,42 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 	}
 
 	playerState.replace(testPlayers)
+}
+
+func testLogFeeder(ingest *logIngest) {
+	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
+		logPath := "testdata/console.log"
+		if testLogPath != "" {
+			logPath = testLogPath
+		}
+
+		body, errRead := os.ReadFile(logPath)
+		if errRead != nil {
+			slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", logPath), errAttr(errRead))
+
+			return
+		}
+
+		lines := strings.Split(string(body), "\n")
+		curLine := 0
+		lineCount := len(lines)
+
+		go func() {
+			// Delay the incoming data a bit so its more realistic
+			updateTicker := time.NewTicker(time.Millisecond * 10)
+
+			for {
+				<-updateTicker.C
+
+				ingest.external <- lines[curLine]
+
+				curLine++
+
+				// Wrap back around once we are done
+				if curLine >= lineCount {
+					curLine = 0
+				}
+			}
+		}()
+	}
 }
