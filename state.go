@@ -5,16 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamweb/v2"
 	"log/slog"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamweb/v2"
 )
 
 var errPlayerNotFound = errors.New("player not found")
@@ -74,7 +74,7 @@ func (state *playerState) update(updated Player) {
 	state.Lock()
 	defer state.Unlock()
 
-	valid := make([]Player, len(state.activePlayers))
+	var valid []Player //nolint:prealloc
 
 	for _, player := range state.activePlayers {
 		if player.SteamID == updated.SteamID {
@@ -146,7 +146,7 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 
 		if validTeam == player.Team {
 			announcer.announceMatch(ctx, player, matchSteam)
-			//state.update(*player)
+			// state.update(*player)
 		}
 	} else if player.Personaname != "" {
 		if matchName := re.MatchName(player.Personaname); matchName != nil && validTeam == player.Team {
@@ -154,7 +154,7 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 
 			if validTeam == player.Team {
 				announcer.announceMatch(ctx, player, matchName)
-				//state.update(*player)
+				// state.update(*player)
 			}
 		}
 	}
@@ -168,7 +168,6 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 
 		player.Dirty = false
 	}
-
 }
 
 type gameState struct {

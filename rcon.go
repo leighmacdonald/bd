@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/rcon/rcon"
 	"log/slog"
 	"time"
+
+	"github.com/leighmacdonald/rcon/rcon"
 )
 
 type rconConnection struct {

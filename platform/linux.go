@@ -5,14 +5,15 @@ package platform
 import (
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/frontend"
-	"github.com/mitchellh/go-homedir"
-	"github.com/mitchellh/go-ps"
-	"github.com/pkg/browser"
 	"log/slog"
 	"os/exec"
 	"path"
 	"strings"
+
+	"github.com/leighmacdonald/bd/frontend"
+	"github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-ps"
+	"github.com/pkg/browser"
 )
 
 type LinuxPlatform struct {
@@ -25,7 +26,7 @@ type LinuxPlatform struct {
 func New() LinuxPlatform {
 	// We cant really auto-detect this stuff in the same manner as on windows with the registry
 	// so linux users may need to configure this manually if .
-	var knownInstallLocations = []string{
+	knownInstallLocations := []string{
 		"~/.local/share/Steam", // Standard location
 		"~/.steam/steam/Steam",
 	}
@@ -72,13 +73,13 @@ func (l LinuxPlatform) LaunchTF2(steamRoot string, args []string) error {
 	//	return errBin
 	//}
 
-	//steamBin := path.Join(steamRoot, "steamapps/common/Team Fortress 2/hl2.sh")
+	// steamBin := path.Join(steamRoot, "steamapps/common/Team Fortress 2/hl2.sh")
 
-	//fa := []string{steamBin, "-applaunch", "440"}
-	//fa := []string{steamBin}
-	//fa = append(fa, args...)
-	//slog.Debug(fmt.Sprintf("calling %s %s", steamBin, strings.Join(fa, " ")))
-	//cmd := exec.Command("/bin/bash", fa...)
+	// fa := []string{steamBin, "-applaunch", "440"}
+	// fa := []string{steamBin}
+	// fa = append(fa, args...)
+	// slog.Debug(fmt.Sprintf("calling %s %s", steamBin, strings.Join(fa, " ")))
+	// cmd := exec.Command("/bin/bash", fa...)
 
 	if errLaunch := cmd.Run(); errLaunch != nil {
 		return errors.Join(errLaunch, ErrLaunchBinary)
