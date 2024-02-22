@@ -23,11 +23,6 @@ type LogReader struct {
 }
 
 func newLogReader(path string, outChan chan string, echo bool) (*LogReader, error) {
-	log := tail.DefaultLogger
-	if !echo {
-		log = tail.DiscardingLogger
-	}
-
 	//goland:noinspection GoBoolExpressions
 	tailConfig := tail.Config{
 		Location: &tail.SeekInfo{
@@ -38,7 +33,7 @@ func newLogReader(path string, outChan chan string, echo bool) (*LogReader, erro
 		ReOpen:    true,
 		MustExist: false,
 		Poll:      runtime.GOOS == "windows",
-		Logger:    log,
+		Logger:    tailLogAdapter{echo: echo},
 	}
 	//goland:noinspection ALL
 	tailFile, errTail := tail.TailFile(path, tailConfig)
