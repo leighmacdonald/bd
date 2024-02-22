@@ -15,8 +15,8 @@ import (
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
-func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) (*http.Server, error) {
-	httpServer := &http.Server{
+func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) *http.Server {
+	return &http.Server{
 		Addr:         listenAddr,
 		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
@@ -25,8 +25,6 @@ func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler)
 			return ctx
 		},
 	}
-
-	return httpServer, nil
 }
 
 func bind(w http.ResponseWriter, r *http.Request, receiver any) bool {

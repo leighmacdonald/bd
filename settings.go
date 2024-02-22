@@ -163,19 +163,15 @@ func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
 	if errRead != nil {
 		if errors.Is(errRead, errConfigNotFound) {
 			slog.Info("Creating default config")
-			defaultSettings, errNew := newSettings(sm.platform)
-			if errNew != nil {
-				return userSettings{}, errNew
-			}
-
+			defaultSettings := newSettings(sm.platform)
 			if errSave := sm.save(); errSave != nil {
 				return settings, errSave
 			}
 
 			return defaultSettings, nil
-		} else {
-			return userSettings{}, errRead
 		}
+
+		return userSettings{}, errRead
 	}
 
 	return settings, nil
@@ -347,7 +343,7 @@ type userSettings struct {
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
-func newSettings(plat platform.Platform) (userSettings, error) {
+func newSettings(plat platform.Platform) userSettings {
 	settings := userSettings{
 		SteamID:                 "",
 		SteamDir:                plat.DefaultSteamRoot(),
@@ -458,7 +454,7 @@ func newSettings(plat platform.Platform) (userSettings, error) {
 		Rcon:           newRconConfig(false),
 	}
 
-	return settings, nil
+	return settings
 }
 
 func (s *userSettings) AddList(config *ListConfig) error {

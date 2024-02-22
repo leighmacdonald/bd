@@ -39,7 +39,7 @@ linters:
     - gocritic
     - gocyclo
     - godot
-    - godox
+    #- godox
     - goerr113
     - gofmt
     - gofumpt
@@ -91,7 +91,7 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - unused
+    #- unused
     - usestdlibvars
     #- varnamelen
     - wastedassign

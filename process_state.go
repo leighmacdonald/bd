@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/leighmacdonald/bd/addons"
-	"github.com/leighmacdonald/bd/platform"
 	"log/slog"
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/leighmacdonald/bd/addons"
+	"github.com/leighmacdonald/bd/platform"
 )
 
 type processState struct {

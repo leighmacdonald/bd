@@ -5,10 +5,11 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log/slog"
+
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"log/slog"
 )
 
 //go:embed migrations/*.sql
@@ -25,13 +26,13 @@ var (
 	ErrPerformMigration = errors.New("failed to migrate database")
 )
 
-func CreateDb(dbPath string) (*Queries, func(), error) {
+func CreateDB(dbPath string) (*Queries, func(), error) {
 	dbConn, errDB := Connect(dbPath)
 	if errDB != nil {
 		return nil, nil, errDB
 	}
 
-	var closer = func() {
+	closer := func() {
 		Close(dbConn)
 	}
 
@@ -43,7 +44,7 @@ func CreateDb(dbPath string) (*Queries, func(), error) {
 }
 
 func Connect(dsn string) (*sql.DB, error) {
-	dsn = dsn + "?cache=shared&mode=rwc"
+	dsn += "?cache=shared&mode=rwc"
 	database, errOpen := sql.Open("sqlite", dsn)
 	if errOpen != nil {
 		return nil, errors.Join(errOpen, ErrOpenDatabase)

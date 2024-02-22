@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 	"log/slog"
 	"os"
 	"sort"
 	"time"
+
+	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 // unMark will unmark & remove a player from your local list. This *will not* unmark players from any

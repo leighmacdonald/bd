@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
-	"math/rand"
-	"time"
 )
 
 type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (Player, error)

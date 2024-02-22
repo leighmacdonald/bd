@@ -218,9 +218,9 @@ func (d discordState) discordUpdateActivity() error {
 	state := "Offline"
 
 	// TODO
-	//if inGame {
-	//	state = "In-Game"
-	//}
+	// if inGame {
+	//   state = "In-Game"
+	// }
 
 	details := "Idle"
 	if server.ServerName != "" {
@@ -246,9 +246,9 @@ func (d discordState) discordUpdateActivity() error {
 		SmallImage: "logo_cd",
 		SmallText:  "",
 		Party:      party,
-		//Timestamps: &client.Timestamps{
+		// Timestamps: &client.Timestamps{
 		//	Start: &startupTime,
-		//},
+		// },
 		Buttons: buttons,
 	}); errSetActivity != nil {
 		return errors.Join(errSetActivity, errDiscordActivity)

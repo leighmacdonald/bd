@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/rules"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/leighmacdonald/bd/rules"
 )
 
 type announceHandler struct {

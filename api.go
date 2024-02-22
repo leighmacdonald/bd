@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd/store"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd-api/models"
+	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
@@ -107,12 +107,12 @@ func createLocalDataSource(key string) (*LocalDataSource, error) {
 	return &LocalDataSource{}, nil
 }
 
-func newDataSource(userSettings userSettings) (DataSource, error) {
+func newDataSource(userSettings userSettings) (DataSource, error) { //nolint:ireturn
 	if userSettings.BdAPIEnabled {
 		return createAPIDataSource(userSettings.BdAPIAddress)
-	} else {
-		return createLocalDataSource(userSettings.APIKey)
 	}
+
+	return createLocalDataSource(userSettings.APIKey)
 }
 
 // steamIDStringList transforms a steamid.Collection into a comma separated list of SID64 strings.
@@ -318,7 +318,9 @@ func (p profileUpdater) applyRemoteData(data updatedRemoteData) {
 
 				if ban.VACBanned {
 					since := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
-					player.LastVacBanOn.Scan(since)
+					if err := player.LastVacBanOn.Scan(since); err != nil {
+						slog.Error("failed to scan last vac ban", errAttr(err))
+					}
 				}
 
 				break

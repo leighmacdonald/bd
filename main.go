@@ -156,18 +156,18 @@ func run() int {
 		slog.String("commit", versionInfo.Commit),
 		slog.String("via", versionInfo.BuiltBy))
 
-	db, dbCloser, errDb := store.CreateDb(settingsMgr.DBPath())
-	if errDb != nil {
-		slog.Error("failed to create database", errAttr(errDb))
+	db, dbCloser, errDB := store.CreateDB(settingsMgr.DBPath())
+	if errDB != nil {
+		slog.Error("failed to create database", errAttr(errDB))
 		return 1
 	}
 	defer dbCloser()
 
-	//fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
-	//if cacheErr != nil {
-	//	slog.Error("Failed to setup cache", errAttr(cacheErr))
-	//	return 1
-	//}
+	// fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
+	// if cacheErr != nil {
+	//	 slog.Error("Failed to setup cache", errAttr(cacheErr))
+	//	 return 1
+	// }
 
 	logChan := make(chan string)
 
@@ -211,11 +211,7 @@ func run() int {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 	}
 
-	httpServer, errWeb := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
-
-	if errWeb != nil {
-		slog.Error("Failed to initialize http server", errAttr(errWeb))
-	}
+	httpServer := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
 
 	go testLogFeeder(logChan)
 
