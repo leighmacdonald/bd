@@ -8,7 +8,7 @@ import (
 	"github.com/dotse/slug"
 )
 
-// tailLogAdapter implements a tail.logger interface using log/slog
+// tailLogAdapter implements a tail.logger interface using log/slog.
 type tailLogAdapter struct {
 	echo bool
 }

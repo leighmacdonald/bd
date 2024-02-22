@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/nxadm/tail"
 	"io"
 	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/nxadm/tail"
 )
 
 type logIngest struct {
@@ -83,7 +84,7 @@ func (li *logIngest) lineEmitter(ctx context.Context, incoming chan string) {
 	}
 }
 
-// startIngest begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent
+// startIngest begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent.
 func (li *logIngest) startIngest(ctx context.Context) {
 	defer li.tail.Cleanup()
 	incomingLogLines := make(chan string)

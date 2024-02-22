@@ -248,6 +248,5 @@ func (e eventHandler) start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-
 	}
 }

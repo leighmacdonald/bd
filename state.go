@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
 	"net"
 	"strings"
 	"sync"
@@ -17,6 +15,8 @@ import (
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 var errPlayerNotFound = errors.New("player not found")
@@ -406,7 +406,8 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 			CreatedOn: time.Now(),
 		})
 		if errAddName != nil {
-			if sqliteErr, ok := errAddName.(*sqlite.Error); ok {
+			var sqliteErr *sqlite.Error
+			if errors.As(errAddName, &sqliteErr) {
 				if sqliteErr.Code() != sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 					slog.Error("Could not save new user name", errAttr(errAddName))
 				}

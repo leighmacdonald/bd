@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 var ErrNoMatch = errors.New("no match found")
