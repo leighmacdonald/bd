@@ -35,3 +35,5 @@ export const WhitelistMenu = ({
         />
     );
 };
+
+export default WhitelistMenu;

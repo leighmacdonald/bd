@@ -32,3 +32,5 @@ export const UnmarkMenu = ({
         />
     );
 };
+
+export default UnmarkMenu;

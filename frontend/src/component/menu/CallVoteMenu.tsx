@@ -48,3 +48,5 @@ export const CallVoteMenu = ({
         </NestedMenuItem>
     );
 };
+
+export default CallVoteMenu;

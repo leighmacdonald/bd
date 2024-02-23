@@ -10,8 +10,9 @@ import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../../util';
-import { CancelButton, SaveButton } from '../Buttons';
+import { CancelButton } from '../CancelButton.tsx';
 import { SettingsContext } from '../../context/SettingsContext';
+import SaveButton from '../SaveButton.tsx';
 
 interface MarkNewTagEditorProps {
     steam_id: string;

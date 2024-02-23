@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import {
+    Dispatch,
+    SetStateAction,
+    useCallback,
+    useMemo,
+    useState
+} from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     DialogActions,
@@ -10,11 +16,11 @@ import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError, uniqCI } from '../../util.ts';
-import { CancelButton, SaveButton } from '../Buttons.tsx';
+import { CancelButton, SaveButton } from '../CancelButton.tsx';
 import { UserSettings } from '../../api.ts';
 
 interface KickTagEditorProps {
-    setNewSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
+    setNewSettings: Dispatch<SetStateAction<UserSettings>>;
 }
 
 export const SettingsKickTagEditorModal = NiceModal.create<KickTagEditorProps>(

@@ -22,13 +22,14 @@ import {
     TextField
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
-import { inputValidator } from './SettingsEditorModal.tsx';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { logError } from '../../util.ts';
-import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
+import { inputValidator, logError } from '../../util.ts';
+import CancelButton from '../CancelButton.tsx';
+import ResetButton from '../ResetButton.tsx';
+import SaveButton from '../SaveButton.tsx';
 
 interface SettingsLinkProps {
     link: Link;

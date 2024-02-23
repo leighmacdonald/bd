@@ -4,7 +4,7 @@ import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import { logError, writeToClipboard } from '../../util';
 import { SteamIDProps, SubMenuProps } from './common';
-import * as SteamID from 'steamid';
+import SteamID from 'steamid';
 
 export const SteamIDMenu = ({
     contextMenuPos,
@@ -44,3 +44,5 @@ export const SteamIDMenu = ({
         </NestedMenuItem>
     );
 };
+
+export default SteamIDMenu;

@@ -31,3 +31,5 @@ export const NotesMenu = ({
         />
     );
 };
+
+export default NotesMenu;
