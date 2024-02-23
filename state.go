@@ -14,7 +14,6 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/leighmacdonald/steamweb/v2"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -30,23 +29,23 @@ type serverState struct {
 	LastUpdate time.Time `json:"last_update"`
 }
 
-type playerState struct {
-	activePlayers []Player
+type playerStates struct {
+	activePlayers []PlayerState
 	sync.RWMutex
 }
 
-func newPlayerState() *playerState {
-	return &playerState{}
+func newPlayerStates() *playerStates {
+	return &playerStates{}
 }
 
-func (state *playerState) current() []Player {
+func (state *playerStates) current() []PlayerState {
 	state.RLock()
 	defer state.RUnlock()
 
 	return state.activePlayers
 }
 
-func (state *playerState) byName(name string) (Player, error) {
+func (state *playerStates) byName(name string) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
@@ -56,10 +55,10 @@ func (state *playerState) byName(name string) (Player, error) {
 		}
 	}
 
-	return Player{}, errPlayerNotFound
+	return PlayerState{}, errPlayerNotFound
 }
 
-func (state *playerState) bySteamID(sid64 int64) (Player, error) {
+func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
@@ -69,14 +68,14 @@ func (state *playerState) bySteamID(sid64 int64) (Player, error) {
 		}
 	}
 
-	return Player{}, errPlayerNotFound
+	return PlayerState{}, errPlayerNotFound
 }
 
-func (state *playerState) update(updated Player) {
+func (state *playerStates) update(updated PlayerState) {
 	state.Lock()
 	defer state.Unlock()
 
-	var valid []Player //nolint:prealloc
+	var valid []PlayerState //nolint:prealloc
 
 	for _, player := range state.activePlayers {
 		if player.SteamID == updated.SteamID {
@@ -91,18 +90,18 @@ func (state *playerState) update(updated Player) {
 	state.activePlayers = valid
 }
 
-func (state *playerState) all() []Player {
+func (state *playerStates) all() []PlayerState {
 	state.Lock()
 	defer state.Unlock()
 
 	return state.activePlayers
 }
 
-func (state *playerState) kickable() []Player {
+func (state *playerStates) kickable() []PlayerState {
 	state.Lock()
 	defer state.Unlock()
 
-	var kickable []Player
+	var kickable []PlayerState
 
 	for _, player := range state.activePlayers {
 		if len(player.Matches) > 0 && !player.Whitelist {
@@ -113,21 +112,21 @@ func (state *playerState) kickable() []Player {
 	return kickable
 }
 
-func (state *playerState) replace(replacementPlayers []Player) {
+func (state *playerStates) replace(replacementPlayers []PlayerState) {
 	state.Lock()
 	defer state.Unlock()
 
 	state.activePlayers = replacementPlayers
 }
 
-func (state *playerState) remove(sid64 steamid.SID64) {
+func (state *playerStates) remove(sid64 steamid.SID64) {
 	state.Lock()
 	defer state.Unlock()
 
-	var valid []Player //nolint:prealloc
+	var valid []PlayerState //nolint:prealloc
 
 	for _, player := range state.activePlayers {
-		if player.SteamID != sid64.Int64() {
+		if player.SteamID != sid64 {
 			continue
 		}
 
@@ -138,7 +137,7 @@ func (state *playerState) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier, re *rules.Engine, player Player, validTeam Team, announcer announceHandler) {
+func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer announceHandler) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
@@ -160,30 +159,20 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 			}
 		}
 	}
-
-	if player.Dirty {
-		if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(player)); errSave != nil {
-			slog.Error("Failed to save dirty player state", errAttr(errSave))
-
-			return
-		}
-
-		player.Dirty = false
-	}
 }
 
 type gameState struct {
 	mu         *sync.RWMutex
 	updateChan chan updateStateEvent
 	settings   *settingsManager
-	players    *playerState
+	players    *playerStates
 	server     serverState
 	store      store.Querier
 	rcon       rconConnection
 	g15        g15Parser
 }
 
-func newGameState(store store.Querier, settings *settingsManager, playerState *playerState, rcon rconConnection) *gameState {
+func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection) *gameState {
 	return &gameState{
 		mu:         &sync.RWMutex{},
 		store:      store,
@@ -223,13 +212,6 @@ func (s *gameState) start(ctx context.Context) {
 				}
 
 				s.onKill(evt)
-			case updateBans:
-				evt, ok := update.data.(steamweb.PlayerBanState)
-				if !ok {
-					continue
-				}
-
-				s.onBans(evt)
 			case updateKickAttempts:
 				s.onKickAttempt(update.source)
 			case updateStatus:
@@ -273,8 +255,6 @@ func (s *gameState) start(ctx context.Context) {
 // and server from the current known state once they have been disconnected for the timeout periods.
 func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settingsManager) {
 	const disconnectMsg = "Disconnected"
-
-	defer slog.Debug("cleanupHandler exited")
 
 	deleteTimer := time.NewTicker(time.Second * time.Duration(settingsMgr.Settings().PlayerExpiredTimeout))
 
@@ -341,11 +321,11 @@ func (s *gameState) onKill(evt killEvent) {
 	src.Kills++
 	target.Deaths++
 
-	if target.SteamID == ourSid.Int64() {
+	if target.SteamID == ourSid {
 		src.DeathsBy++
 	}
 
-	if src.SteamID == ourSid.Int64() {
+	if src.SteamID == ourSid {
 		target.KillsOn++
 	}
 
@@ -353,29 +333,8 @@ func (s *gameState) onKill(evt killEvent) {
 	s.players.update(target)
 }
 
-func (s *gameState) onBans(evt steamweb.PlayerBanState) {
-	player, errPlayer := s.players.bySteamID(evt.SteamID.Int64())
-	if errPlayer != nil {
-		return
-	}
-
-	player.VacBans = int64(evt.NumberOfVACBans)
-	player.GameBans = int64(evt.NumberOfGameBans)
-	player.CommunityBanned = evt.CommunityBanned
-	player.EconomyBan = evt.EconomyBan
-
-	if evt.DaysSinceLastBan > 0 {
-		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
-		if err := player.LastVacBanOn.Scan(subTime); err != nil {
-			slog.Error("failed to scan last ban", errAttr(err))
-		}
-	}
-
-	s.players.update(player)
-}
-
 func (s *gameState) onKickAttempt(steamID steamid.SID64) {
-	player, errPlayer := s.players.bySteamID(steamID.Int64())
+	player, errPlayer := s.players.bySteamID(steamID)
 	if errPlayer != nil {
 		return
 	}
@@ -401,7 +360,7 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 	if player.Personaname != evt.name {
 		player.Personaname = evt.name
 		errAddName := s.store.UserNameSave(ctx, store.UserNameSaveParams{
-			SteamID:   player.SteamID,
+			SteamID:   player.SteamID.Int64(),
 			Name:      player.Personaname,
 			CreatedOn: time.Now(),
 		})
@@ -463,24 +422,6 @@ func (s *gameState) onMapChange() {
 	s.server.ServerName = ""
 }
 
-func (s *gameState) onUpdateMessage(ctx context.Context, evt messageEvent) {
-	player, errPlayer := s.players.byName(evt.name)
-	if errPlayer != nil {
-		return
-	}
-
-	if errUm := s.store.MessageSave(ctx, store.MessageSaveParams{
-		SteamID:   player.SteamID,
-		Message:   evt.message,
-		CreatedOn: evt.createdAt,
-		Team:      evt.teamOnly,
-	}); errUm != nil {
-		slog.Error("Failed to handle user message", errAttr(errUm))
-	}
-
-	s.players.update(player)
-}
-
 // updatePlayerState fetches the current game state over rcon using both the `status` and `g15_dumpplayer` command
 // output. The results are then parsed and applied to the current player and server states.
 func (s *gameState) updatePlayerState(ctx context.Context) error {
@@ -506,7 +447,7 @@ func (s *gameState) updatePlayerState(ctx context.Context) error {
 			continue
 		}
 
-		player, errPlayer := s.players.bySteamID(sid.Int64())
+		player, errPlayer := s.players.bySteamID(sid)
 		if errPlayer != nil {
 			// status command is what we use to add players to the active game.
 			continue

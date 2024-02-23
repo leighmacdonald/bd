@@ -61,8 +61,6 @@ type updateType int
 
 const (
 	updateKill updateType = iota
-	updateProfile
-	updateBans
 	updateStatus
 	updateLobby
 	updateMap
@@ -80,10 +78,6 @@ func (ut updateType) String() string {
 	switch ut {
 	case updateKill:
 		return "kill"
-	case updateProfile:
-		return "profile"
-	case updateBans:
-		return "bans"
 	case updateStatus:
 		return "status"
 	case updateLobby:
@@ -145,20 +139,6 @@ func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEve
 	}
 }
 
-type whitelistEvent struct {
-	addWhitelist bool
-}
-
-func newWhitelistEvent(sid steamid.SID64, addWhitelist bool) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateWhitelist,
-		source: sid,
-		data: whitelistEvent{
-			addWhitelist: addWhitelist, // false to unmark
-		},
-	}
-}
-
 type messageEvent struct {
 	steamID   steamid.SID64
 	name      string
@@ -198,7 +178,7 @@ func (e eventHandler) start(ctx context.Context) {
 	for {
 		select {
 		case evt := <-e.eventChan:
-			slog.Debug("received event", slog.Int("type", int(evt.Type)))
+			// slog.Debug("received event", slog.Int("type", int(evt.Type)))
 			switch evt.Type { //nolint:exhaustive
 			case EvtMap:
 				// update = updateStateEvent{kind: updateMap, data: mapEvent{mapName: evt.MetaData}}
@@ -234,16 +214,9 @@ func (e eventHandler) start(ctx context.Context) {
 			case EvtKill:
 				e.stateHandler.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player})
 			case EvtMsg:
-				e.stateHandler.onUpdateMessage(ctx, messageEvent{
-					steamID:   evt.PlayerSID,
-					name:      evt.Player,
-					createdAt: evt.Timestamp,
-					message:   evt.Message,
-					teamOnly:  evt.TeamOnly,
-					dead:      evt.Dead,
-				})
 			case EvtConnect:
 			case EvtLobby:
+			case EvtAny:
 			}
 		case <-ctx.Done():
 			return

@@ -33,7 +33,6 @@ type Engine struct {
 	rulesLists  []*RuleSchema
 	playerLists []*PlayerListSchema
 	knownTags   []string
-	whitelist   steamid.Collection
 	sync.RWMutex
 }
 
@@ -42,7 +41,6 @@ func New() *Engine {
 		rulesLists:  []*RuleSchema{NewRuleSchema()},
 		playerLists: []*PlayerListSchema{NewPlayerListSchema()},
 		knownTags:   []string{},
-		whitelist:   steamid.Collection{},
 		RWMutex:     sync.RWMutex{},
 	}
 }
@@ -58,91 +56,25 @@ type MarkOpts struct {
 	Name       string
 }
 
-func (e *Engine) Whitelisted(sid64 steamid.SID64) bool {
-	e.RLock()
-	defer e.RUnlock()
-
-	for _, entry := range e.whitelist {
-		if entry == sid64 {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (e *Engine) WhitelistAdd(sid64 steamid.SID64) bool {
-	if e.Whitelisted(sid64) {
-		return false
-	}
-
-	e.Lock()
-	defer e.Unlock()
-
-	e.whitelist = append(e.whitelist, sid64)
-
-	return true
-}
-
-func (e *Engine) WhitelistRemove(sid64 steamid.SID64) bool {
-	e.Lock()
-	defer e.Unlock()
-
-	var (
-		removed = false
-		newWl   steamid.Collection
-	)
-
-	for _, whitelistEntry := range e.whitelist {
-		if sid64 == whitelistEntry {
-			removed = true
-
-			continue
-		}
-
-		newWl = append(newWl, whitelistEntry)
-	}
-
-	e.whitelist = newWl
-
-	return removed
-}
-
+// FindNewestEntries will scan all loaded lists and return the most recent matches as determined by the last seen attr.
+// This is mostly only useful for exporting voice bans since there is a limited amount you can export and using the most
+// recent seems like the most sensible option.
 func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collection {
 	e.RLock()
 	defer e.RUnlock()
 
-	var matchers []SteamIDMatcher
+	var matchers []SteamIDMatcherI
 
 	for _, list := range e.playerLists {
 		for _, m := range list.matchersSteam {
-			steamMatcher, ok := m.(SteamIDMatcher)
-			if !ok {
-				continue
+			if m.HasOneOfAttr(validAttrs...) {
+				matchers = append(matchers, m)
 			}
-
-			valid := false
-
-			for _, tag := range steamMatcher.attributes {
-				for _, okTags := range validAttrs {
-					if strings.EqualFold(tag, okTags) {
-						valid = true
-
-						break
-					}
-				}
-			}
-
-			if !valid {
-				continue
-			}
-
-			matchers = append(matchers, steamMatcher)
 		}
 	}
 
 	sort.Slice(matchers, func(i, j int) bool {
-		return matchers[i].lastSeen.Time > matchers[j].lastSeen.Time
+		return matchers[i].LastSeen().After(matchers[j].LastSeen())
 	})
 
 	var valid steamid.Collection
@@ -152,7 +84,7 @@ func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collect
 			break
 		}
 
-		valid = append(valid, s.steamID)
+		valid = append(valid, s.SteamID())
 	}
 
 	return valid
@@ -193,15 +125,14 @@ func (e *Engine) Unmark(steamID steamid.SID64) bool {
 		players []PlayerDefinition
 	)
 
-	for _, knownPlayer := range list.Players {
-		strID := steamID
-		if knownPlayer.SteamID == strID {
+	for idx := range list.Players {
+		if list.Players[idx].SteamID == steamID {
 			found = true
 
 			continue
 		}
 
-		players = append(players, knownPlayer)
+		players = append(players, list.Players[idx])
 	}
 
 	list.Players = players
@@ -212,7 +143,7 @@ func (e *Engine) Unmark(steamID steamid.SID64) bool {
 	)
 
 	for _, matcher := range userList.matchersSteam {
-		if match := matcher.Match(steamID); match == nil {
+		if _, matchFound := matcher.Match(steamID); matchFound {
 			validMatchers = append(validMatchers, matcher)
 		}
 	}
@@ -273,7 +204,7 @@ func (e *Engine) Mark(opts MarkOpts) error {
 		userList.Players = append(userList.Players, PlayerDefinition{
 			Attributes: opts.Attributes,
 			LastSeen: PlayerLastSeen{
-				Time:       int(time.Now().Unix()),
+				Time:       time.Now().Unix(),
 				PlayerName: opts.Name,
 			},
 			SteamID: opts.SteamID,
@@ -471,26 +402,21 @@ func (rs *RuleSchema) RegisterTextMatcher(matcher TextMatcher) {
 	rs.MatchersText = append(rs.MatchersText, matcher)
 }
 
-func (rs *RuleSchema) matchTextType(text string, matchType TextMatchType) *MatchResult {
+func (rs *RuleSchema) matchTextType(text string, matchType TextMatchType) (MatchResult, bool) {
 	for _, matcher := range rs.MatchersText {
 		if matcher.Type() != TextMatchTypeAny && matcher.Type() != matchType {
 			continue
 		}
 
-		match := matcher.Match(text)
-		if match != nil {
-			return match
+		if match, found := matcher.Match(text); found {
+			return match, true
 		}
 	}
 
-	return nil
+	return MatchResult{}, false
 }
 
 func (e *Engine) MatchSteam(steamID steamid.SID64) MatchResults {
-	if e.Whitelisted(steamID) {
-		return nil
-	}
-
 	e.RLock()
 	defer e.RUnlock()
 
@@ -498,8 +424,7 @@ func (e *Engine) MatchSteam(steamID steamid.SID64) MatchResults {
 
 	for _, list := range e.playerLists {
 		for _, sm := range list.matchersSteam {
-			match := sm.Match(steamID)
-			if match != nil {
+			if match, found := sm.Match(steamID); found {
 				matches = append(matches, match)
 
 				break
@@ -510,54 +435,51 @@ func (e *Engine) MatchSteam(steamID steamid.SID64) MatchResults {
 	return matches
 }
 
-func (e *Engine) MatchName(name string) []*MatchResult {
-	var found MatchResults
+func (e *Engine) MatchName(name string) []MatchResult {
+	var results MatchResults
 
 	for _, list := range e.rulesLists {
-		match := list.matchTextType(name, TextMatchTypeName)
-		if match != nil {
-			found = append(found, match)
+		if match, found := list.matchTextType(name, TextMatchTypeName); found {
+			results = append(results, match)
 
 			continue
 		}
 	}
 
-	return found
+	return results
 }
 
-func (e *Engine) MatchMessage(text string) []*MatchResult {
-	var found MatchResults
+func (e *Engine) MatchMessage(text string) []MatchResult {
+	var results MatchResults
 
 	for _, list := range e.rulesLists {
-		match := list.matchTextType(text, TextMatchTypeMessage)
-		if match != nil {
-			found = append(found, match)
+		if match, found := list.matchTextType(text, TextMatchTypeMessage); found {
+			results = append(results, match)
 
 			continue
 		}
 	}
 
-	return found
+	return results
 }
 
 // func (e *Engine) matchAny(text string) *MatchResult {
 //	   return e.matchTextType(text, TextMatchTypeAny)
 // }
 
-func (e *Engine) MatchAvatar(avatar []byte) []*MatchResult {
+func (e *Engine) MatchAvatar(avatar []byte) []MatchResult {
 	if avatar == nil {
 		return nil
 	}
 
 	var (
 		hexDigest = HashBytes(avatar)
-		matches   []*MatchResult
+		matches   []MatchResult
 	)
 
 	for _, list := range e.rulesLists {
 		for _, matcher := range list.MatchersAvatar {
-			match := matcher.Match(hexDigest)
-			if match != nil {
+			if match, found := matcher.Match(hexDigest); found {
 				matches = append(matches, match)
 
 				break

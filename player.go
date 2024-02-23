@@ -13,10 +13,25 @@ import (
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type Player struct {
-	store.Player
-
-	NamePrevious string `json:"name_previous"`
+type PlayerState struct {
+	SteamID          steamid.SID64 `json:"steam_id"`
+	Personaname      string        `json:"personaname"`
+	Visibility       int64         `json:"visibility"`
+	RealName         string        `json:"real_name"`
+	AccountCreatedOn time.Time     `json:"account_created_on"`
+	AvatarHash       string        `json:"avatar_hash"`
+	CommunityBanned  bool          `json:"community_banned"`
+	GameBans         int64         `json:"game_bans"`
+	VacBans          int64         `json:"vac_bans"`
+	LastVacBanOn     int64         `json:"last_vac_ban_on"`
+	KillsOn          int64         `json:"kills_on"`
+	DeathsBy         int64         `json:"deaths_by"`
+	RageQuits        int64         `json:"rage_quits"`
+	Notes            string        `json:"notes"`
+	Whitelist        bool          `json:"whitelist"`
+	ProfileUpdatedOn time.Time     `json:"profile_updated_on"`
+	CreatedOn        time.Time     `json:"created_on"`
+	UpdatedOn        time.Time     `json:"updated_on"`
 
 	EconomyBan steamweb.EconBanState `json:"economy_ban"`
 
@@ -45,53 +60,23 @@ type Player struct {
 	Deaths      int  `json:"deaths"`
 	Kills       int  `json:"kills"`
 
-	// - Misc
-
+	// Misc
 	KPM float64 `json:"kpm"`
-
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int `json:"kick_attempt_count"`
-
 	// Tracks the duration between announces to chat
-	AnnouncedPartyLast time.Time `json:"-"`
-
-	AnnouncedGeneralLast time.Time `json:"-"`
-
-	OurFriend bool `json:"our_friend"`
-
-	Sourcebans []models.SbBanRecord `json:"sourcebans"`
-	// Dirty indicates that state which has database backed fields has been changed and need to be saved
-	Dirty bool `json:"-"`
-
-	Matches []*rules.MatchResult `json:"matches"`
+	AnnouncedPartyLast   time.Time            `json:"-"`
+	AnnouncedGeneralLast time.Time            `json:"-"`
+	OurFriend            bool                 `json:"our_friend"`
+	Sourcebans           []models.SbBanRecord `json:"sourcebans"`
+	Matches              []rules.MatchResult  `json:"matches"`
 }
 
-func (ps Player) SID64() steamid.SID64 {
+func (ps PlayerState) SID64() steamid.SID64 {
 	return steamid.New(ps.SteamID)
 }
 
-func (ps Player) toUpdateParams() store.PlayerUpdateParams {
-	return store.PlayerUpdateParams{
-		Visibility:       ps.Visibility,
-		RealName:         ps.RealName,
-		AccountCreatedOn: time.Time{},
-		AvatarHash:       ps.AvatarHash,
-		CommunityBanned:  ps.CommunityBanned,
-		GameBans:         ps.GameBans,
-		VacBans:          ps.VacBans,
-		LastVacBanOn:     sql.NullTime{},
-		KillsOn:          ps.KillsOn,
-		DeathsBy:         ps.DeathsBy,
-		RageQuits:        ps.RageQuits,
-		Notes:            ps.Notes,
-		Whitelist:        ps.Whitelist,
-		UpdatedOn:        time.Now(),
-		ProfileUpdatedOn: ps.ProfileUpdatedOn,
-		SteamID:          ps.SteamID,
-	}
-}
-
-func (ps Player) MatchAttr(tags []string) bool {
+func (ps PlayerState) MatchAttr(tags []string) bool {
 	for _, match := range ps.Matches {
 		for _, tag := range tags {
 			if match.HasAttr(tag) {
@@ -108,92 +93,90 @@ const (
 	playerExpiration = time.Second * 60
 )
 
-func (ps Player) isProfileExpired() bool {
+func (ps PlayerState) isProfileExpired() bool {
 	return time.Since(ps.ProfileUpdatedOn) < profileAgeLimit || ps.Personaname != ""
 }
 
-func (ps Player) isDisconnected() bool {
+func (ps PlayerState) isDisconnected() bool {
 	return time.Since(ps.UpdatedOn) > playerDisconnect
 }
 
-func (ps Player) IsExpired() bool {
+func (ps PlayerState) IsExpired() bool {
 	return time.Since(ps.UpdatedOn) > playerExpiration
 }
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-func newPlayer(sid64 steamid.SID64, name string) Player {
+func newPlayer(sid64 steamid.SID64, name string) PlayerState {
 	curTIme := time.Now()
 
-	return Player{
-		Player: store.Player{
-			SteamID:          sid64.Int64(),
-			Personaname:      name,
-			AvatarHash:       defaultAvatarHash,
-			AccountCreatedOn: time.Time{},
-			Visibility:       int64(steamweb.VisibilityPublic),
-			CreatedOn:        curTIme,
-			UpdatedOn:        curTIme,
-			ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),
-		},
-		Matches: rules.MatchResults{},
+	return PlayerState{
+		SteamID:          sid64,
+		Personaname:      name,
+		AvatarHash:       defaultAvatarHash,
+		AccountCreatedOn: time.Time{},
+		Visibility:       int64(steamweb.VisibilityPublic),
+		CreatedOn:        curTIme,
+		UpdatedOn:        curTIme,
+		ProfileUpdatedOn: curTIme.AddDate(-1, 0, 0),
+		Matches:          rules.MatchResults{},
 	}
 }
 
-func playerToPlayerUpdateParams(player Player) store.PlayerUpdateParams {
+func (ps PlayerState) toUpdateParams() store.PlayerUpdateParams {
 	return store.PlayerUpdateParams{
-		SteamID:          player.SteamID,
-		Visibility:       player.Visibility,
-		RealName:         player.RealName,
-		AccountCreatedOn: player.AccountCreatedOn,
-		AvatarHash:       player.AvatarHash,
-		CommunityBanned:  player.CommunityBanned,
-		GameBans:         player.GameBans,
-		VacBans:          player.VacBans,
-		LastVacBanOn:     player.LastVacBanOn,
-		KillsOn:          player.KillsOn,
-		DeathsBy:         player.DeathsBy,
-		RageQuits:        player.RageQuits,
-		Notes:            player.Notes,
-		Whitelist:        player.Whitelist,
-		UpdatedOn:        player.UpdatedOn,
-		ProfileUpdatedOn: player.ProfileUpdatedOn,
-		Personaname:      player.Personaname,
+		SteamID:          ps.SteamID.Int64(),
+		Visibility:       ps.Visibility,
+		RealName:         ps.RealName,
+		AccountCreatedOn: ps.AccountCreatedOn,
+		AvatarHash:       ps.AvatarHash,
+		CommunityBanned:  ps.CommunityBanned,
+		GameBans:         ps.GameBans,
+		VacBans:          ps.VacBans,
+		LastVacBanOn: sql.NullTime{
+			Time:  time.Unix(ps.LastVacBanOn, 0),
+			Valid: ps.LastVacBanOn > 0,
+		},
+		KillsOn:          ps.KillsOn,
+		DeathsBy:         ps.DeathsBy,
+		RageQuits:        ps.RageQuits,
+		Notes:            ps.Notes,
+		Whitelist:        ps.Whitelist,
+		UpdatedOn:        ps.UpdatedOn,
+		ProfileUpdatedOn: ps.ProfileUpdatedOn,
+		Personaname:      ps.Personaname,
 	}
 }
 
-func playerRowToPlayer(row store.PlayerRow) Player {
-	player := store.Player{
-		SteamID:          row.SteamID,
-		Personaname:      row.Personaname,
-		Visibility:       row.Visibility,
-		RealName:         row.RealName,
-		AccountCreatedOn: row.AccountCreatedOn,
-		AvatarHash:       row.AvatarHash,
-		CommunityBanned:  row.CommunityBanned,
-		GameBans:         row.GameBans,
-		VacBans:          row.VacBans,
-		LastVacBanOn:     sql.NullTime{},
-		KillsOn:          row.KillsOn,
-		DeathsBy:         row.DeathsBy,
-		RageQuits:        row.RageQuits,
-		Notes:            row.Notes,
-		Whitelist:        row.Whitelist,
-		ProfileUpdatedOn: row.ProfileUpdatedOn,
-		CreatedOn:        row.CreatedOn,
-		UpdatedOn:        row.UpdatedOn,
+func playerRowToPlayerState(row store.PlayerRow) PlayerState {
+	ps := newPlayer(steamid.New(row.SteamID), row.Personaname)
+	ps.Visibility = row.Visibility
+	ps.RealName = row.RealName
+	ps.AccountCreatedOn = row.AccountCreatedOn
+	ps.AvatarHash = row.AvatarHash
+	ps.CommunityBanned = row.CommunityBanned
+	ps.GameBans = row.GameBans
+	ps.VacBans = row.VacBans
+	if row.LastVacBanOn.Valid {
+		ps.LastVacBanOn = row.LastVacBanOn.Time.Unix()
 	}
+	ps.KillsOn = row.KillsOn
+	ps.DeathsBy = row.DeathsBy
+	ps.RageQuits = row.RageQuits
+	ps.Notes = row.Notes
+	ps.Whitelist = row.Whitelist
+	ps.ProfileUpdatedOn = row.ProfileUpdatedOn
+	ps.CreatedOn = row.CreatedOn
+	ps.UpdatedOn = row.UpdatedOn
 
-	player.LastVacBanOn = row.LastVacBanOn
-
-	return Player{Player: player}
+	return ps
 }
 
 // getPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
-// inserted into the database and returned. If you only want players actively in the game, use the playerState functions
+// inserted into the database and returned. If you only want players actively in the game, use the playerStates functions
 // instead.
-func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerState, sid64 steamid.SID64) (Player, error) {
-	activePlayer, errPlayer := players.bySteamID(sid64.Int64())
+func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerStates, sid64 steamid.SID64) (PlayerState, error) {
+	activePlayer, errPlayer := players.bySteamID(sid64)
 	if errPlayer == nil {
 		return activePlayer, nil
 	}
@@ -201,14 +184,14 @@ func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerSta
 	playerRow, errGet := db.Player(ctx, sid64.Int64())
 	if errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {
-			return Player{}, errors.Join(errGet, errGetPlayer)
+			return PlayerState{}, errors.Join(errGet, errGetPlayer)
 		}
 
 		// use date in past to trigger update.
 		playerRow.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
 	}
 
-	player := playerRowToPlayer(playerRow)
+	player := playerRowToPlayerState(playerRow)
 
 	player.MapTimeStart = time.Now()
 

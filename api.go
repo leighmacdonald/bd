@@ -18,9 +18,9 @@ import (
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type FriendMap map[int64][]steamweb.Friend
+type FriendMap map[steamid.SID64][]steamweb.Friend
 
-type SourcebansMap map[int64][]models.SbBanRecord
+type SourcebansMap map[steamid.SID64][]models.SbBanRecord
 
 type DataSource interface {
 	Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
@@ -78,9 +78,9 @@ func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collectio
 			defer mutex.Unlock()
 
 			if friends == nil {
-				resp[sid.Int64()] = []steamweb.Friend{}
+				resp[sid] = []steamweb.Friend{}
 			} else {
-				resp[sid.Int64()] = friends
+				resp[sid] = friends
 			}
 		}(steamID)
 	}
@@ -93,7 +93,7 @@ func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collectio
 func (n LocalDataSource) sourceBans(_ context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
 	dummy := SourcebansMap{}
 	for _, sid := range steamIDs {
-		dummy[sid.Int64()] = []models.SbBanRecord{}
+		dummy[sid] = []models.SbBanRecord{}
 	}
 
 	return dummy, nil
@@ -248,6 +248,7 @@ func (p profileUpdater) start(ctx context.Context) {
 				go func() { update <- true }()
 			}
 		case <-update:
+			// TODO wait for 1 second or 100 profiles and batch update
 			if len(queue) == 0 {
 				continue
 			}
@@ -257,7 +258,7 @@ func (p profileUpdater) start(ctx context.Context) {
 
 			for _, player := range p.state.players.all() {
 				localPlayer := player
-				if errSave := p.db.PlayerUpdate(ctx, playerToPlayerUpdateParams(localPlayer)); errSave != nil {
+				if errSave := p.db.PlayerUpdate(ctx, localPlayer.toUpdateParams()); errSave != nil {
 					if errSave.Error() != "sql: database is closed" {
 						slog.Error("Failed to save updated player state",
 							slog.String("sid", localPlayer.SID64().String()), errAttr(errSave))
@@ -299,7 +300,7 @@ func (p profileUpdater) applyRemoteData(data updatedRemoteData) {
 	for _, curPlayer := range players {
 		player := curPlayer
 		for _, sum := range data.summaries {
-			if sum.SteamID.Int64() == player.SteamID {
+			if sum.SteamID == player.SteamID {
 				player.AvatarHash = sum.AvatarHash
 				player.AccountCreatedOn = time.Unix(int64(sum.TimeCreated), 0)
 				player.Visibility = int64(sum.CommunityVisibilityState)
@@ -309,18 +310,15 @@ func (p profileUpdater) applyRemoteData(data updatedRemoteData) {
 		}
 
 		for _, ban := range data.bans {
-			if ban.SteamID.Int64() == player.SteamID {
+			if ban.SteamID == player.SteamID {
 				player.CommunityBanned = ban.CommunityBanned
 				player.CommunityBanned = ban.VACBanned
 				player.GameBans = int64(ban.NumberOfGameBans)
 				player.VacBans = int64(ban.NumberOfVACBans)
 				player.EconomyBan = ban.EconomyBan
 
-				if ban.VACBanned {
-					since := time.Now().AddDate(0, 0, -ban.DaysSinceLastBan)
-					if err := player.LastVacBanOn.Scan(since); err != nil {
-						slog.Error("failed to scan last vac ban", errAttr(err))
-					}
+				if ban.VACBanned && ban.DaysSinceLastBan > 0 {
+					player.LastVacBanOn = time.Now().AddDate(0, 0, -ban.DaysSinceLastBan).Unix()
 				}
 
 				break

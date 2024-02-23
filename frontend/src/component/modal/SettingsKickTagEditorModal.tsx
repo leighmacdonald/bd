@@ -16,8 +16,9 @@ import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError, uniqCI } from '../../util.ts';
-import { CancelButton, SaveButton } from '../CancelButton.tsx';
+import { CancelButton } from '../CancelButton.tsx';
 import { UserSettings } from '../../api.ts';
+import SaveButton from '../SaveButton.tsx';
 
 interface KickTagEditorProps {
     setNewSettings: Dispatch<SetStateAction<UserSettings>>;

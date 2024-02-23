@@ -87,7 +87,8 @@ const (
 type EventType int
 
 const (
-	EvtKill EventType = iota
+	EvtAny = iota - 1
+	EvtKill
 	EvtMsg
 	EvtConnect
 	EvtDisconnect

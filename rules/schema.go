@@ -130,7 +130,7 @@ type PlayerListSchema struct {
 
 type PlayerLastSeen struct {
 	PlayerName string `json:"player_name,omitempty"`
-	Time       int    `json:"time,omitempty"`
+	Time       int64  `json:"time,omitempty"`
 }
 
 type PlayerDefinition struct {

@@ -83,8 +83,8 @@ FROM player_names
 WHERE steam_id = @steam_id;
 
 -- name: MessageSave :exec
-INSERT INTO player_messages (message_id, steam_id, message, team, dead, created_on)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO player_messages (steam_id, message, team, dead, created_on)
+VALUES (?, ?, ?, ?, ?);
 
 -- name: Messages :many
 SELECT message_id, steam_id, message, team, dead, created_on

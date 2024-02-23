@@ -133,28 +133,31 @@ func run() int {
 
 	// fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
 	// if cacheErr != nil {
-	//	 slog.Error("Failed to setup cache", errAttr(cacheErr))
+	//	 slog.Error("Failed to set up cache", errAttr(cacheErr))
 	//	 return 1
 	// }
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
 
-	state := newGameState(db, settingsMgr, newPlayerState(), rcon)
+	state := newGameState(db, settingsMgr, newPlayerStates(), rcon)
 
 	eh := newEventHandler(state)
 	go eh.start(rootCtx)
 
-	logReader, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
+	ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
 	if errLogReader != nil {
-		slog.Error("Failed to create log startIngest", errAttr(errLogReader))
+		slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
 		return 1
 	}
 
-	logReader.registerConsumer(eh.eventChan)
+	cr := newChatRecorder(db, ingest)
+	go cr.start(rootCtx)
 
-	go logReader.startIngest(rootCtx)
+	ingest.registerConsumer(eh.eventChan)
 
-	go testLogFeeder(logReader)
+	go ingest.startEventEmitter(rootCtx)
+
+	go testLogFeeder(ingest)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {

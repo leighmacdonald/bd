@@ -11,7 +11,9 @@ import { Trans, useTranslation } from 'react-i18next';
 import { saveUserNote } from '../../api.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../../util.ts';
-import { CancelButton, ClearButton, SaveButton } from '../CancelButton.tsx';
+import CancelButton from '../CancelButton.tsx';
+import SaveButton from '../SaveButton.tsx';
+import ClearButton from '../ClearButton.tsx';
 
 interface NoteEditorProps {
     notes: string;

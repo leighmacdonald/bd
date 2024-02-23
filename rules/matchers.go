@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
@@ -26,7 +28,7 @@ func (mr MatchResult) HasAttr(attr string) bool {
 	return false
 }
 
-type MatchResults []*MatchResult
+type MatchResults []MatchResult
 
 type TextMatchType string
 
@@ -47,7 +49,7 @@ const (
 
 // AvatarMatcherI provides an interface to match avatars using custom methods.
 type AvatarMatcherI interface {
-	Match(hexDigest string) *MatchResult
+	Match(hexDigest string) (MatchResult, bool)
 	Type() AvatarMatchType
 }
 
@@ -62,14 +64,14 @@ func (m AvatarMatcher) Type() AvatarMatchType {
 	return m.matchType
 }
 
-func (m AvatarMatcher) Match(hexDigest string) *MatchResult {
+func (m AvatarMatcher) Match(hexDigest string) (MatchResult, bool) {
 	for _, hash := range m.hashes {
 		if hash == hexDigest {
-			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type()), Attributes: m.attributes}
+			return MatchResult{Origin: m.origin, MatcherType: string(m.Type()), Attributes: m.attributes}, true
 		}
 	}
 
-	return nil
+	return MatchResult{}, false
 }
 
 func NewAvatarMatcher(origin string, avatarMatchType AvatarMatchType, hashes ...string) AvatarMatcher {
@@ -83,13 +85,16 @@ func NewAvatarMatcher(origin string, avatarMatchType AvatarMatchType, hashes ...
 // TextMatcher provides an interface to build text based matchers for names or in game messages.
 type TextMatcher interface {
 	// Match performs a text based match
-	Match(text string) *MatchResult
+	Match(text string) (MatchResult, bool)
 	Type() TextMatchType
 }
 
 // SteamIDMatcherI provides a basic interface to match steam ids.
 type SteamIDMatcherI interface {
-	Match(sid64 steamid.SID64) *MatchResult
+	Match(sid64 steamid.SID64) (MatchResult, bool)
+	HasOneOfAttr(attrs ...string) bool
+	LastSeen() time.Time
+	SteamID() steamid.SID64
 }
 
 type SteamIDMatcher struct {
@@ -99,12 +104,32 @@ type SteamIDMatcher struct {
 	lastSeen   PlayerLastSeen
 }
 
-func (m SteamIDMatcher) Match(sid64 steamid.SID64) *MatchResult {
-	if sid64 == m.steamID {
-		return &MatchResult{Origin: m.origin, MatcherType: "steam_id", Attributes: m.attributes}
+func (m SteamIDMatcher) SteamID() steamid.SID64 {
+	return m.SteamID()
+}
+
+func (m SteamIDMatcher) LastSeen() time.Time {
+	return time.Unix(m.lastSeen.Time, 0)
+}
+
+func (m SteamIDMatcher) HasOneOfAttr(attrs ...string) bool {
+	for _, attr := range attrs {
+		if slices.ContainsFunc(m.attributes, func(s string) bool {
+			return strings.EqualFold(attr, s)
+		}) {
+			return true
+		}
 	}
 
-	return nil
+	return false
+}
+
+func (m SteamIDMatcher) Match(sid64 steamid.SID64) (MatchResult, bool) {
+	if sid64 == m.steamID {
+		return MatchResult{Origin: m.origin, MatcherType: "steam_id", Attributes: m.attributes}, true
+	}
+
+	return MatchResult{}, false
 }
 
 func NewSteamIDMatcher(origin string, sid64 steamid.SID64, attributes []string) SteamIDMatcher {
@@ -161,7 +186,7 @@ type GeneralTextMatcher struct {
 	origin        string
 }
 
-func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit,cyclop
+func (m GeneralTextMatcher) Match(value string) (MatchResult, bool) { //nolint:gocognit,cyclop
 	switch m.mode {
 	case TextMatchModeRegex:
 		// Not implemented
@@ -169,11 +194,11 @@ func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasPrefix(value, prefix) {
-					return &MatchResult{Origin: m.origin, Attributes: m.attributes}
+					return MatchResult{Origin: m.origin, Attributes: m.attributes}, true
 				}
 			} else {
 				if strings.HasPrefix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &MatchResult{Origin: m.origin}
+					return MatchResult{Origin: m.origin}, true
 				}
 			}
 		}
@@ -181,11 +206,11 @@ func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.HasSuffix(value, prefix) {
-					return &MatchResult{Origin: m.origin}
+					return MatchResult{Origin: m.origin}, true
 				}
 			} else {
 				if strings.HasSuffix(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
+					return MatchResult{Origin: m.origin, MatcherType: string(m.Type())}, true
 				}
 			}
 		}
@@ -193,11 +218,11 @@ func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if value == prefix {
-					return &MatchResult{Origin: m.origin}
+					return MatchResult{Origin: m.origin}, true
 				}
 			} else {
 				if strings.EqualFold(value, prefix) {
-					return &MatchResult{Origin: m.origin}
+					return MatchResult{Origin: m.origin}, true
 				}
 			}
 		}
@@ -205,11 +230,11 @@ func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit
 		for _, prefix := range m.patterns {
 			if m.caseSensitive {
 				if strings.Contains(value, prefix) {
-					return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
+					return MatchResult{Origin: m.origin, MatcherType: string(m.Type())}, true
 				}
 			} else {
 				if strings.Contains(strings.ToLower(value), strings.ToLower(prefix)) {
-					return &MatchResult{Origin: m.origin}
+					return MatchResult{Origin: m.origin}, true
 				}
 			}
 		}
@@ -222,18 +247,18 @@ func (m GeneralTextMatcher) Match(value string) *MatchResult { //nolint:gocognit
 			for _, pattern := range m.patterns {
 				if m.caseSensitive {
 					if pattern == word {
-						return &MatchResult{Origin: m.origin}
+						return MatchResult{Origin: m.origin}, true
 					}
 				} else {
 					if strings.EqualFold(strings.ToLower(pattern), word) {
-						return &MatchResult{Origin: m.origin}
+						return MatchResult{Origin: m.origin}, true
 					}
 				}
 			}
 		}
 	}
 
-	return nil
+	return MatchResult{}, false
 }
 
 func (m GeneralTextMatcher) Type() TextMatchType {

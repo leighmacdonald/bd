@@ -26,7 +26,7 @@ func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *game
 		return 0, errNotMarked
 	}
 
-	var valid []*rules.MatchResult //nolint:prealloc
+	var valid []rules.MatchResult //nolint:prealloc
 
 	for _, m := range player.Matches {
 		if m.Origin == "local" {
@@ -50,15 +50,10 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 		return errPlayer
 	}
 
-	name := player.Personaname
-	if name == "" {
-		name = player.NamePrevious
-	}
-
 	if errMark := re.Mark(rules.MarkOpts{
 		SteamID:    sid64,
 		Attributes: attrs,
-		Name:       name,
+		Name:       player.Personaname,
 		Proof:      []string{},
 	}); errMark != nil {
 		return errors.Join(errMark, errMark)
@@ -81,31 +76,22 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 }
 
 // whitelist prevents a player marked in 3rd party lists from being flagged for kicking.
-func whitelist(ctx context.Context, db store.Querier, state *gameState, rules *rules.Engine, sid64 steamid.SID64, enabled bool) error {
+func whitelist(ctx context.Context, db store.Querier, state *gameState, sid64 steamid.SID64, enabled bool) error {
 	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
 
 	player.Whitelist = enabled
-	player.Dirty = true
 
-	if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(player)); errSave != nil {
+	if errSave := db.PlayerUpdate(ctx, player.toUpdateParams()); errSave != nil {
 		return errors.Join(errSave, errSavePlayer)
 	}
 
 	state.players.update(player)
 
-	if enabled {
-		rules.WhitelistAdd(sid64)
-	} else {
-		rules.WhitelistRemove(sid64)
-	}
-
-	state.updateChan <- newWhitelistEvent(player.SID64(), enabled)
-
 	slog.Info("Update player whitelist status successfully",
-		slog.Int64("steam_id", player.SteamID), slog.Bool("enabled", enabled))
+		slog.String("steam_id", player.SteamID.String()), slog.Bool("enabled", enabled))
 
 	return nil
 }
@@ -130,7 +116,7 @@ func newKickHandler(settings *settingsManager, rcon rconConnection) kickHandler 
 // autoKicker handles making kick votes. It prioritizes manual vote kick requests from the user before trying
 // to kick players that match the auto kickable criteria. Auto kick attempts will cycle through the players with the least
 // amount of kick attempts.
-func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kickRequestChan chan kickRequest) {
+func (kh kickHandler) autoKicker(ctx context.Context, players *playerStates, kickRequestChan chan kickRequest) {
 	kickTicker := time.NewTicker(time.Millisecond * 100)
 
 	var kickRequests []kickRequest
@@ -141,7 +127,7 @@ func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kick
 			kickRequests = append(kickRequests, request)
 		case <-kickTicker.C:
 			var (
-				kickTarget Player
+				kickTarget PlayerState
 				reason     KickReason
 			)
 
@@ -157,7 +143,7 @@ func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kick
 					continue
 				}
 
-				var valid []Player
+				var valid []PlayerState
 
 				for _, player := range kickable {
 					if player.MatchAttr(curSettings.KickTags) {
@@ -184,7 +170,7 @@ func (kh kickHandler) autoKicker(ctx context.Context, players *playerState, kick
 					kickRequests = nil
 				}
 
-				player, errPlayer := players.bySteamID(request.steamID.Int64())
+				player, errPlayer := players.bySteamID(request.steamID)
 				if errPlayer != nil {
 					slog.Error("Failed to get player to kick", errAttr(errPlayer))
 

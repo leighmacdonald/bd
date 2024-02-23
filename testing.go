@@ -14,11 +14,11 @@ import (
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (Player, error)
+type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (PlayerState, error)
 
 // CreateTestPlayers will generate fake player data for testing purposes.
 // nolint:gosec
-func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
+func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 	idIdx := 0
 	knownIDs := steamid.Collection{
 		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
@@ -30,7 +30,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		"76561198015577906", "76561197997861796",
 	}
 
-	randPlayer := func(userId int) Player {
+	randPlayer := func(userId int) PlayerState {
 		team := Blu
 		if userId%2 == 0 {
 			team = Red
@@ -61,7 +61,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		return player
 	}
 
-	var testPlayers []Player
+	var testPlayers []PlayerState
 
 	for i := 0; i < count; i++ {
 		player := randPlayer(i)
@@ -70,16 +70,16 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		case 1:
 			player.VacBans = 2
 			player.Notes = "User notes \ngo here"
-			last := time.Now().AddDate(-1, 0, 0)
-			player.LastVacBanOn.Time = last
+			last := time.Now().AddDate(-1, 0, 0).Unix()
+			player.LastVacBanOn = last
 		case 4:
-			player.Matches = append(player.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"cheater"},
 				MatcherType: "string",
 			})
 		case 6:
-			player.Matches = append(player.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"other"},
 				MatcherType: "string",
@@ -115,7 +115,7 @@ func testLogFeeder(ingest *logIngest) {
 
 		go func() {
 			// Delay the incoming data a bit so its more realistic
-			updateTicker := time.NewTicker(time.Millisecond * 10)
+			updateTicker := time.NewTicker(time.Millisecond * 1000)
 
 			for {
 				<-updateTicker.C

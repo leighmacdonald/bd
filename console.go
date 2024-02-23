@@ -16,7 +16,7 @@ type logIngest struct {
 	tail *tail.Tail
 	mu   sync.RWMutex
 	// Events are broadcast to any registered consumers
-	eventConsumer []chan LogEvent
+	eventConsumer map[EventType][]chan LogEvent
 	logger        *slog.Logger
 	parser        Parser
 	// Use mostly for testing, allowing simple feeding of an existing console.log file
@@ -43,18 +43,30 @@ func newLogIngest(path string, parser Parser, echo bool) (*logIngest, error) {
 	}
 
 	return &logIngest{
-		tail:     tailFile,
-		logger:   slog.Default().WithGroup("logReader"),
-		parser:   parser,
-		external: make(chan string),
+		tail:          tailFile,
+		logger:        slog.Default().WithGroup("logReader"),
+		parser:        parser,
+		eventConsumer: make(map[EventType][]chan LogEvent),
+		external:      make(chan string),
 	}, nil
 }
 
-func (li *logIngest) registerConsumer(consumer chan LogEvent) {
+func (li *logIngest) registerConsumer(consumer chan LogEvent, eventTypes ...EventType) {
 	li.mu.Lock()
 	defer li.mu.Unlock()
 
-	li.eventConsumer = append(li.eventConsumer, consumer)
+	if len(eventTypes) == 0 {
+		eventTypes = append(eventTypes, EvtAny)
+	}
+
+	for _, evtType := range eventTypes {
+		_, found := li.eventConsumer[evtType]
+		if !found {
+			li.eventConsumer[evtType] = []chan LogEvent{}
+		}
+
+		li.eventConsumer[evtType] = append(li.eventConsumer[evtType], consumer)
+	}
 }
 
 func (li *logIngest) lineEmitter(ctx context.Context, incoming chan string) {
@@ -84,8 +96,8 @@ func (li *logIngest) lineEmitter(ctx context.Context, incoming chan string) {
 	}
 }
 
-// startIngest begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent.
-func (li *logIngest) startIngest(ctx context.Context) {
+// startEventEmitter begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent.
+func (li *logIngest) startEventEmitter(ctx context.Context) {
 	defer li.tail.Cleanup()
 	incomingLogLines := make(chan string)
 
@@ -101,9 +113,16 @@ func (li *logIngest) startIngest(ctx context.Context) {
 			}
 
 			li.mu.RLock()
-			for _, consumer := range li.eventConsumer {
+			// Emit all events to these consumers
+			for _, consumer := range li.eventConsumer[EvtAny] {
 				consumer <- logEvent
 			}
+
+			// Emit specifically requested events to consumers
+			for _, consumer := range li.eventConsumer[logEvent.Type] {
+				consumer <- logEvent
+			}
+
 			li.mu.RUnlock()
 		case <-ctx.Done():
 			if errStop := li.tail.Stop(); errStop != nil {

@@ -12,12 +12,11 @@ import (
 )
 
 const messageSave = `-- name: MessageSave :exec
-INSERT INTO player_messages (message_id, steam_id, message, team, dead, created_on)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO player_messages (steam_id, message, team, dead, created_on)
+VALUES (?, ?, ?, ?, ?)
 `
 
 type MessageSaveParams struct {
-	MessageID int64     `json:"message_id"`
 	SteamID   int64     `json:"steam_id"`
 	Message   string    `json:"message"`
 	Team      bool      `json:"team"`
@@ -27,7 +26,6 @@ type MessageSaveParams struct {
 
 func (q *Queries) MessageSave(ctx context.Context, arg MessageSaveParams) error {
 	_, err := q.exec(ctx, q.messageSaveStmt, messageSave,
-		arg.MessageID,
 		arg.SteamID,
 		arg.Message,
 		arg.Team,
