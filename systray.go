@@ -2,41 +2,53 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"github.com/leighmacdonald/bd/platform"
 	"log/slog"
 
 	"fyne.io/systray"
 )
 
-type Systray struct {
-	icon     []byte
-	onOpen   func()
-	onLaunch func()
-	quit     *systray.MenuItem
+type appSystray struct {
+	platform    platform.Platform
+	settingsMgr *settingsManager
+	process     *processState
+	quit        *systray.MenuItem
 }
 
-func NewSystray(icon []byte, onOpen func(), onLaunch func()) *Systray {
-	tray := &Systray{
-		icon:     icon,
-		onOpen:   onOpen,
-		onLaunch: onLaunch,
+func newAppSystray(platform platform.Platform, settingsMgr *settingsManager, process *processState) *appSystray {
+	return &appSystray{
+		platform:    platform,
+		settingsMgr: settingsMgr,
+		process:     process,
 	}
-
-	return tray
 }
 
-func (s *Systray) OnReady(cancel context.CancelFunc) func() {
+func (s *appSystray) onOpen() {
+	settings := s.settingsMgr.Settings()
+	if errOpen := s.platform.OpenURL(settings.AppURL()); errOpen != nil {
+		slog.Error("Failed to open browser", errAttr(errOpen))
+	}
+}
+
+func (s *appSystray) onLaunch() {
+	go s.process.launchGameAndWait(s.settingsMgr)
+}
+
+func (s *appSystray) OnReady(ctx context.Context) func() {
 	return func() {
-		systray.SetIcon(s.icon)
+		settings := s.settingsMgr.Settings()
+		systray.SetIcon(s.platform.Icon())
 		systray.SetTitle("BD")
-		systray.SetTooltip("Bot Detector")
+		systray.SetTooltip(fmt.Sprintf("Bot Detector\n%s", settings.AppURL()))
 
 		go func() {
 			openWeb := systray.AddMenuItem("Open BD", "Open BD in your browser")
-			openWeb.SetIcon(s.icon)
+			openWeb.SetIcon(s.platform.Icon())
 			openWeb.Enable()
 
 			launchGame := systray.AddMenuItem("Launch TF2", "Launch Team Fortress 2")
-			launchGame.SetIcon(s.icon)
+			launchGame.SetIcon(s.platform.Icon())
 			launchGame.Enable()
 
 			systray.AddSeparator()
@@ -55,7 +67,12 @@ func (s *Systray) OnReady(cancel context.CancelFunc) func() {
 					s.onOpen()
 				case <-s.quit.ClickedCh:
 					slog.Debug("User Quit")
-					cancel()
+					systray.Quit()
+					return
+
+				case <-ctx.Done():
+					systray.Quit()
+					return
 				}
 			}
 		}()

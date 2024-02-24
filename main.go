@@ -17,20 +17,15 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"golang.org/x/sync/errgroup"
 	_ "modernc.org/sqlite"
 )
 
 var (
-	// Build info embedded by goreleaser.
+	// Build info embedded at build time.
 	version = "master" //nolint:gochecknoglobals
 	commit  = "latest" //nolint:gochecknoglobals
 	date    = "n/a"    //nolint:gochecknoglobals
 	builtBy = "src"    //nolint:gochecknoglobals
-)
-
-const (
-	profileAgeLimit = time.Hour * 24
 )
 
 func createRulesEngine(sm *settingsManager) *rules.Engine {
@@ -94,9 +89,6 @@ func openApplicationPage(plat platform.Platform, addr string) {
 }
 
 func run() int {
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
 	plat := platform.New()
 	settingsMgr := newSettingsManager(plat)
@@ -138,11 +130,8 @@ func run() int {
 	// }
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
-
 	state := newGameState(db, settingsMgr, newPlayerStates(), rcon)
-
 	eh := newEventHandler(state)
-	go eh.start(rootCtx)
 
 	ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
 	if errLogReader != nil {
@@ -151,13 +140,8 @@ func run() int {
 	}
 
 	cr := newChatRecorder(db, ingest)
-	go cr.start(rootCtx)
 
 	ingest.registerConsumer(eh.eventChan)
-
-	go ingest.startEventEmitter(rootCtx)
-
-	go testLogFeeder(ingest)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -166,52 +150,33 @@ func run() int {
 	}
 
 	updater := newProfileUpdater(db, dataSource, state, settingsMgr)
-	go updater.start(rootCtx)
-
-	// announcer := newAnnounceHandler(settingsMgr, rcon, state)
-
-	// kickRequestChan := make(chan kickRequest)
-
 	discordPresence := newDiscordState(state, settingsMgr)
-	go discordPresence.start(rootCtx)
-
 	re := createRulesEngine(settingsMgr)
 	process := newProcessState(plat, rcon)
+	su := newStatusUpdater(rcon, process, state, time.Second*2)
 
 	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 	}
 
-	httpServer := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
+	httpServer := newHTTPServer(settings.HTTPListenAddr, mux)
 
-	var tray *Systray
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	if settings.SystrayEnabled {
-		tray = NewSystray(
-			plat.Icon(),
-			func() {
-				if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
-					slog.Error("Failed to open browser", errAttr(errOpen))
-				}
-			}, func() {
-				go process.launchGameAndWait(settingsMgr)
-			},
-		)
+	// Start all the background workers
 
-		defer systray.Quit()
-	}
-
-	shutdown := func() {
-		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
-		defer cancel()
-
-		if errShutdown := httpServer.Shutdown(timeout); errShutdown != nil {
-			slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
-		}
-	}
+	go eh.start(ctx)
+	go discordPresence.start(ctx)
+	go cr.start(ctx)
+	go ingest.start(ctx)
+	go updater.start(ctx)
+	go su.start(ctx)
+	go testLogFeeder(ingest)
 
 	go func() {
+		// TODO configure the auto open
 		time.Sleep(time.Second * 3)
 
 		if settings.RunMode == ModeRelease {
@@ -219,39 +184,31 @@ func run() int {
 		}
 	}()
 
-	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
-	serviceGroup.Go(func() error {
-		errServe := httpServer.ListenAndServe()
-		if errServe != nil {
-			if !errors.Is(errServe, http.ErrServerClosed) {
-				return errors.Join(errServe, errHTTPListen)
-			}
-			return nil
+	go func() {
+		if errServe := httpServer.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
+			slog.Error("error trying to shutdown http service", errAttr(errServe))
 		}
-
-		return nil
-	})
+	}()
 
 	if settings.SystrayEnabled {
-		serviceGroup.Go(func() error {
-			systray.Run(tray.OnReady(stop), func() {
-				shutdown()
-			})
-			return nil
+		slog.Debug("Using systray")
+
+		tray := newAppSystray(plat, settingsMgr, process)
+
+		systray.Run(tray.OnReady(ctx), func() {
+			stop()
 		})
 	}
 
-	serviceGroup.Go(func() error {
-		<-serviceCtx.Done()
-		shutdown()
+	<-ctx.Done()
 
-		return nil
-	})
+	timeout, cancelHTTP := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancelHTTP()
 
-	if err := serviceGroup.Wait(); err != nil {
-		slog.Error("Sad Goodbye", errAttr(err))
-
-		return 1
+	if errShutdown := httpServer.Shutdown(timeout); errShutdown != nil {
+		slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
+	} else {
+		slog.Debug("HTTP Service shutdown successfully")
 	}
 
 	return 0
