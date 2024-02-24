@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/bd/platform"
 	"log/slog"
 
 	"fyne.io/systray"
+	"github.com/leighmacdonald/bd/platform"
 )
 
 type appSystray struct {

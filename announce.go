@@ -10,18 +10,30 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 )
 
-type announceHandler struct {
+type bigBrother struct {
 	state    *gameState
 	rcon     rconConnection
 	settings *settingsManager
 }
 
-func newAnnounceHandler(settings *settingsManager, rcon rconConnection, state *gameState) announceHandler {
-	return announceHandler{settings: settings, rcon: rcon, state: state}
+func newBigBrother(settings *settingsManager, rcon rconConnection, state *gameState) bigBrother {
+	return bigBrother{settings: settings, rcon: rcon, state: state}
+}
+
+func (a bigBrother) start(ctx context.Context) {
+	timer := time.NewTicker(time.Second * 1)
+	for {
+		select {
+		case <-timer.C:
+			a.update()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // announceMatch handles announcing after a match is triggered against a player.
-func (a announceHandler) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
+func (a bigBrother) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
 	settings := a.settings.Settings()
 
 	if len(matches) == 0 {
@@ -68,7 +80,7 @@ func (a announceHandler) announceMatch(ctx context.Context, player PlayerState, 
 }
 
 // sendChat is used to send chat messages to the various chat interfaces in game: say|say_team|say_party.
-func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
+func (a bigBrother) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
 	var cmd string
 
 	switch destination {
@@ -88,6 +100,26 @@ func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, for
 	}
 
 	slog.Debug(resp, slog.String("cmd", cmd))
+
+	return nil
+}
+
+func (a bigBrother) watch(ctx context.Context) {
+	updateTimer := time.NewTicker(time.Second)
+
+	for {
+		select {
+		case <-updateTimer.C:
+		}
+	}
+}
+
+func (a bigBrother) update() {
+}
+
+func (a bigBrother) findCandidates() []PlayerState {
+	a.state.players.RLock()
+	defer a.state.players.RUnlock()
 
 	return nil
 }

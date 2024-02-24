@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -137,7 +136,7 @@ func (state *playerStates) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer announceHandler) {
+func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer bigBrother) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
@@ -169,7 +168,6 @@ type gameState struct {
 	server     serverState
 	store      store.Querier
 	rcon       rconConnection
-	g15        g15Parser
 }
 
 func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection) *gameState {
@@ -180,23 +178,14 @@ func newGameState(store store.Querier, settings *settingsManager, playerState *p
 		players:    playerState,
 		rcon:       rcon,
 		server:     serverState{},
-		g15:        newG15Parser(),
 		updateChan: make(chan updateStateEvent),
 	}
 }
 
 func (s *gameState) start(ctx context.Context) {
-	statusTimer := time.NewTicker(DurationStatusUpdateTimer)
 	for {
 		select {
-		case <-statusTimer.C:
-			if errUpdate := s.updatePlayerState(ctx); errUpdate != nil {
-				slog.Debug("Failed to query state", errAttr(errUpdate))
 
-				continue
-			}
-		case <-ctx.Done():
-			return
 		case update := <-s.updateChan:
 			slog.Debug("Game state update input received", slog.String("kind", update.kind.String()))
 
@@ -247,6 +236,8 @@ func (s *gameState) start(ctx context.Context) {
 			default:
 				slog.Debug("unhandled state update case")
 			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -420,58 +411,4 @@ func (s *gameState) onMapChange() {
 
 	s.server.CurrentMap = ""
 	s.server.ServerName = ""
-}
-
-// updatePlayerState fetches the current game state over rcon using both the `status` and `g15_dumpplayer` command
-// output. The results are then parsed and applied to the current player and server states.
-func (s *gameState) updatePlayerState(ctx context.Context) error {
-	// Sent to client, response via log output
-	_, errStatus := s.rcon.exec(ctx, "status", true)
-	if errStatus != nil {
-		return errors.Join(errStatus, errRCONStatus)
-	}
-
-	dumpPlayer, errDumpPlayer := s.rcon.exec(ctx, "g15_dumpplayer", true)
-	if errDumpPlayer != nil {
-		return errors.Join(errDumpPlayer, errRCONG15)
-	}
-
-	var dump DumpPlayer
-	if errG15 := s.g15.Parse(bytes.NewBufferString(dumpPlayer), &dump); errG15 != nil {
-		return errors.Join(errG15, errG15Parse)
-	}
-
-	for index, sid := range dump.SteamID {
-		if index == 0 || index > 32 || !sid.Valid() {
-			// Actual data always starts at 1
-			continue
-		}
-
-		player, errPlayer := s.players.bySteamID(sid)
-		if errPlayer != nil {
-			// status command is what we use to add players to the active game.
-			continue
-		}
-
-		player.MapTime = time.Since(player.MapTimeStart).Seconds()
-
-		if player.Kills > 0 {
-			player.KPM = float64(player.Kills) / (player.MapTime / 60)
-		}
-
-		player.Ping = dump.Ping[index]
-		player.Score = dump.Score[index]
-		player.Deaths = dump.Deaths[index]
-		player.IsConnected = dump.Connected[index]
-		player.Team = Team(dump.Team[index])
-		player.Alive = dump.Alive[index]
-		player.Health = dump.Health[index]
-		player.Valid = dump.Valid[index]
-		player.UserID = dump.UserID[index]
-		player.UpdatedOn = time.Now()
-
-		s.players.update(player)
-	}
-
-	return nil
 }

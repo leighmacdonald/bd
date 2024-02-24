@@ -466,6 +466,10 @@ func newSettings(plat platform.Platform) userSettings {
 	return settings
 }
 
+func (s *userSettings) AppURL() string {
+	return fmt.Sprintf("http://%s/", s.HTTPListenAddr)
+}
+
 func (s *userSettings) AddList(config *ListConfig) error {
 	for _, known := range s.Lists {
 		if config.ListType == known.ListType &&

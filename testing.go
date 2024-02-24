@@ -95,40 +95,43 @@ func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 	playerState.replace(testPlayers)
 }
 
-func testLogFeeder(ingest *logIngest) {
-	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
-		logPath := "testdata/console.log"
-		if testLogPath != "" {
-			logPath = testLogPath
-		}
+func testLogFeeder(ctx context.Context, ingest *logIngest) {
+	testLogPath, found := os.LookupEnv("TEST_CONSOLE_LOG")
+	if !found {
+		return
+	}
 
-		body, errRead := os.ReadFile(logPath)
-		if errRead != nil {
-			slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", logPath), errAttr(errRead))
+	logPath := "testdata/console.log"
+	if testLogPath != "" {
+		logPath = testLogPath
+	}
 
+	body, errRead := os.ReadFile(logPath)
+	if errRead != nil {
+		slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", logPath), errAttr(errRead))
+
+		return
+	}
+
+	lines := strings.Split(string(body), "\n")
+	curLine := 0
+	lineCount := len(lines)
+
+	// Delay the incoming data a bit so its more realistic
+	updateTicker := time.NewTicker(time.Millisecond * 1000)
+
+	for {
+		select {
+		case <-updateTicker.C:
+			ingest.external <- lines[curLine]
+			curLine++
+
+			// Wrap back around once we are done
+			if curLine >= lineCount {
+				curLine = 0
+			}
+		case <-ctx.Done():
 			return
 		}
-
-		lines := strings.Split(string(body), "\n")
-		curLine := 0
-		lineCount := len(lines)
-
-		go func() {
-			// Delay the incoming data a bit so its more realistic
-			updateTicker := time.NewTicker(time.Millisecond * 1000)
-
-			for {
-				<-updateTicker.C
-
-				ingest.external <- lines[curLine]
-
-				curLine++
-
-				// Wrap back around once we are done
-				if curLine >= lineCount {
-					curLine = 0
-				}
-			}
-		}()
 	}
 }

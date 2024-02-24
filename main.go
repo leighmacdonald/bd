@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -81,8 +80,7 @@ func createRulesEngine(sm *settingsManager) *rules.Engine {
 }
 
 // openApplicationPage launches the http frontend using the platform specific browser launcher function.
-func openApplicationPage(plat platform.Platform, addr string) {
-	appURL := fmt.Sprintf("http://%s", addr)
+func openApplicationPage(plat platform.Platform, appURL string) {
 	if errOpen := plat.OpenURL(appURL); errOpen != nil {
 		slog.Error("Failed to open URL", slog.String("url", appURL), errAttr(errOpen))
 	}
@@ -154,33 +152,34 @@ func run() int {
 	re := createRulesEngine(settingsMgr)
 	process := newProcessState(plat, rcon)
 	su := newStatusUpdater(rcon, process, state, time.Second*2)
+	bb := newBigBrother(settingsMgr, rcon, state)
 
 	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 	}
 
-	httpServer := newHTTPServer(settings.HTTPListenAddr, mux)
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Start all the background workers
+	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
+	// Start all the background workers
 	go eh.start(ctx)
 	go discordPresence.start(ctx)
 	go cr.start(ctx)
 	go ingest.start(ctx)
 	go updater.start(ctx)
 	go su.start(ctx)
-	go testLogFeeder(ingest)
+	go bb.start(ctx)
+	go testLogFeeder(ctx, ingest)
 
 	go func() {
 		// TODO configure the auto open
 		time.Sleep(time.Second * 3)
 
 		if settings.RunMode == ModeRelease {
-			openApplicationPage(plat, settings.HTTPListenAddr)
+			openApplicationPage(plat, settings.AppURL())
 		}
 	}()
 

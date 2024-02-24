@@ -91,6 +91,7 @@ func (ps PlayerState) MatchAttr(tags []string) bool {
 const (
 	playerDisconnect = time.Second * 5
 	playerExpiration = time.Second * 60
+	profileAgeLimit  = time.Hour * 24
 )
 
 func (ps PlayerState) isProfileExpired() bool {

@@ -96,8 +96,8 @@ func (li *logIngest) lineEmitter(ctx context.Context, incoming chan string) {
 	}
 }
 
-// startEventEmitter begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent.
-func (li *logIngest) startEventEmitter(ctx context.Context) {
+// start begins reading incoming log events, parsing events from the lines and emitting any found events as a LogEvent.
+func (li *logIngest) start(ctx context.Context) {
 	defer li.tail.Cleanup()
 	incomingLogLines := make(chan string)
 
