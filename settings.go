@@ -324,7 +324,7 @@ type userSettings struct {
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
-	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
+	// Path to tf2 mod eg: (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
 	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
 	AutoLaunchGame          bool                 `yaml:"auto_launch_game" json:"auto_launch_game"`
 	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`

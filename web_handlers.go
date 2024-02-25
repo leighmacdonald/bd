@@ -157,7 +157,7 @@ func onCallVote(state *gameState, connection rconConnection) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := state.players.bySteamID(sid)
+		player, errPlayer := state.players.bySteamID(sid, true)
 		if errPlayer != nil {
 			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player state", errAttr(errPlayer), slog.String("steam_id", sid.String()))
@@ -206,7 +206,7 @@ func onPostNotes(db store.Querier, state *gameState) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := getPlayerOrCreate(r.Context(), db, state.players, sid)
+		player, errPlayer := getPlayerOrCreate(r.Context(), db, sid)
 
 		if errPlayer != nil {
 			responseErr(w, http.StatusInternalServerError, nil)

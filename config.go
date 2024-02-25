@@ -121,22 +121,17 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 	}
 
 	bdArgs := []string{
-		"-game", "tf",
-		"-noreactlogin", // needed for vac to load as of late 2022?
-		"-steam",
-		"-secure",
 		"-usercon",
-		"+ip", "0.0.0.0", "+alias", "ip",
+		"+ip", "0.0.0.0",
 		"+sv_rcon_whitelist_address", "127.0.0.1",
 		"+sv_quota_stringcmdspersecond", "1000000",
-		"+rcon_password", rconPass, "+alias", "rcon_password",
-		"+hostport", fmt.Sprintf("%d", rconPort), "+alias", "hostport",
+		"+rcon_password", rconPass,
+		"+hostport", fmt.Sprintf("%d", rconPort),
 		"+net_start",
-		"+con_timestamp", "1", "+alias", "con_timestamp",
+		"+con_timestamp", "1",
 		"-condebug",
 		"-conclearlog",
 		"-g15",
-		"xx",
 	}
 
 	var full []string //nolint:prealloc

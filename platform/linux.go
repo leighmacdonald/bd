@@ -5,15 +5,13 @@ package platform
 import (
 	"errors"
 	"fmt"
-	"log/slog"
-	"os/exec"
-	"path"
-	"strings"
-
 	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
+	"log/slog"
+	"os/exec"
+	"path"
 )
 
 type LinuxPlatform struct {
@@ -64,25 +62,13 @@ func (l LinuxPlatform) DefaultTF2Root() string {
 
 // LaunchTF2 calls the steam binary directly
 // On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size.
-func (l LinuxPlatform) LaunchTF2(steamRoot string, args []string) error {
-	cmdArgs := fmt.Sprintf("steam://rungameid/440/%s/", strings.Join(args, "/"))
-	slog.Debug("launching game", slog.String("args", cmdArgs))
-	cmd := exec.Command("xdg-open", cmdArgs)
-	//steamBin, errBin := exec.LookPath("steam")
-	//if errBin != nil {
-	//	return errBin
-	//}
-
-	// steamBin := path.Join(steamRoot, "steamapps/common/Team Fortress 2/hl2.sh")
-
-	// fa := []string{steamBin, "-applaunch", "440"}
-	// fa := []string{steamBin}
-	// fa = append(fa, args...)
-	// slog.Debug(fmt.Sprintf("calling %s %s", steamBin, strings.Join(fa, " ")))
-	// cmd := exec.Command("/bin/bash", fa...)
-
-	if errLaunch := cmd.Run(); errLaunch != nil {
-		return errors.Join(errLaunch, ErrLaunchBinary)
+func (l LinuxPlatform) LaunchTF2(_ string, password string, port uint16) error {
+	err := exec.Command( //nolint:gosec
+		"steam", "-applaunch", "440", "-usercon", "+ip", "0.0.0.0", "-g15",
+		"+net_start", "-condebug", "-conclearlog", "+hostport", fmt.Sprintf("%d", port), "+rcon_password", password,
+	).Run()
+	if err != nil {
+		return errors.Join(err, ErrLaunchBinary)
 	}
 
 	return nil

@@ -54,21 +54,21 @@ func (p *processState) launchGameAndWait(settingsMgr *settingsManager) {
 	//	}
 	// }
 
-	args, errArgs := getLaunchArgs(
-		settings.Rcon.Password,
-		settings.Rcon.Port,
-		settingsMgr.locateSteamDir(),
-		settings.SteamID)
-
-	if errArgs != nil {
-		slog.Error("Failed to get TF2 launch args", errAttr(errArgs))
-
-		return
-	}
+	////args, errArgs := getLaunchArgs(
+	////	settings.Rcon.Password,
+	////	settings.Rcon.Port,
+	////	settingsMgr.locateSteamDir(),
+	////	settings.SteamID)
+	//
+	//if errArgs != nil {
+	//	slog.Error("Failed to get TF2 launch args", errAttr(errArgs))
+	//
+	//	return
+	//}
 
 	p.gameHasStartedOnce.Store(true)
 
-	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args); errLaunch != nil {
+	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, settings.Rcon.Password, settings.Rcon.Port); errLaunch != nil {
 		slog.Error("Failed to launch game", errAttr(errLaunch))
 	}
 }

@@ -21,10 +21,11 @@ var (
 	ErrGameInstallPath     = errors.New("game install path could not be found")
 )
 
+// Platform is used to implement operating system specific functionality across linux and windows.
 type Platform interface {
 	DefaultSteamRoot() string
 	DefaultTF2Root() string
-	LaunchTF2(_ string, args []string) error
+	LaunchTF2(_ string, password string, port uint16) error
 	OpenFolder(dir string) error
 	IsGameRunning() (bool, error)
 	Icon() []byte

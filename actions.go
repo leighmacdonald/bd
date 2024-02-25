@@ -34,8 +34,6 @@ func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *game
 
 	player.Matches = valid
 
-	state.updateChan <- newMarkEvent(sid64, nil, false)
-
 	return len(valid), nil
 }
 
@@ -72,8 +70,6 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 	if errExport := re.ExportPlayers(rules.LocalRuleName, outputFile); errExport != nil {
 		slog.Error("Failed to save updated player list", errAttr(errExport))
 	}
-
-	state.updateChan <- newMarkEvent(sid64, attrs, true)
 
 	return nil
 }
