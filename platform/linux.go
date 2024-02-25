@@ -5,13 +5,14 @@ package platform
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"os/exec"
+	"path"
+
 	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
-	"log/slog"
-	"os/exec"
-	"path"
 )
 
 type LinuxPlatform struct {
@@ -61,11 +62,14 @@ func (l LinuxPlatform) DefaultTF2Root() string {
 }
 
 // LaunchTF2 calls the steam binary directly
-// On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size.
-func (l LinuxPlatform) LaunchTF2(_ string, password string, port uint16) error {
+// This expects the steam  binary to be in %PATH%
+func (l LinuxPlatform) LaunchTF2(_ string, args ...string) error {
+	if len(args) != 2 {
+		panic("invalid arg count")
+	}
 	err := exec.Command( //nolint:gosec
 		"steam", "-applaunch", "440", "-usercon", "+ip", "0.0.0.0", "-g15",
-		"+net_start", "-condebug", "-conclearlog", "+hostport", fmt.Sprintf("%d", port), "+rcon_password", password,
+		"+net_start", "-rpt", "+con_timestamp", "1", "+hostport", args[1], "+rcon_password", args[0],
 	).Run()
 	if err != nil {
 		return errors.Join(err, ErrLaunchBinary)

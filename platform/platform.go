@@ -25,7 +25,7 @@ var (
 type Platform interface {
 	DefaultSteamRoot() string
 	DefaultTF2Root() string
-	LaunchTF2(_ string, password string, port uint16) error
+	LaunchTF2(steamRoot string, args []string) error
 	OpenFolder(dir string) error
 	IsGameRunning() (bool, error)
 	Icon() []byte

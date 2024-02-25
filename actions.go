@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
+
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"log/slog"
-	"os"
 )
 
 // unMark will unmark & remove a player from your local list. This *will not* unmark players from any
 // other list sources. If you want to not kick someone on a 3rd party list, you can instead whitelist the player.
 func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *gameState, sid64 steamid.SID64) (int, error) {
-	player, errPlayer := getPlayerOrCreate(ctx, db, sid64)
+	player, errPlayer := loadPlayerOrCreate(ctx, db, sid64)
 	if errPlayer != nil {
 		return 0, errPlayer
 	}
@@ -44,7 +45,7 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 		if !errors.Is(errPlayer, errPlayerNotFound) {
 			return errPlayer
 		}
-		created, errCreate := getPlayerOrCreate(ctx, db, sid64)
+		created, errCreate := loadPlayerOrCreate(ctx, db, sid64)
 		if errCreate != nil {
 			return errCreate
 		}
@@ -76,7 +77,7 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 
 // whitelist prevents a player marked in 3rd party lists from being flagged for kicking.
 func whitelist(ctx context.Context, db store.Querier, state *gameState, sid64 steamid.SID64, enabled bool) error {
-	player, errPlayer := getPlayerOrCreate(ctx, db, sid64)
+	player, errPlayer := loadPlayerOrCreate(ctx, db, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}

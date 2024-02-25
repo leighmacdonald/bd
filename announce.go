@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 	"log/slog"
 	"slices"
 	"sort"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
 type kickRequest struct {

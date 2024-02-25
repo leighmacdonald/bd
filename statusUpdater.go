@@ -29,7 +29,7 @@ func newStatusUpdater(rcon rconConnection, process *processState, state *gameSta
 }
 
 func (s statusUpdater) start(ctx context.Context) {
-	timer := time.NewTimer(s.updateRate)
+	timer := time.NewTicker(s.updateRate)
 
 	for {
 		select {
@@ -53,6 +53,7 @@ func (s statusUpdater) start(ctx context.Context) {
 func (s statusUpdater) updatePlayerState(ctx context.Context) error {
 	// Sent to client, response via log output
 	_, errStatus := s.rcon.exec(ctx, "status", true)
+
 	if errStatus != nil {
 		return errors.Join(errStatus, errRCONStatus)
 	}

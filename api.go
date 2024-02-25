@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/leighmacdonald/bd-api/models"
-	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/leighmacdonald/steamweb/v2"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/leighmacdonald/bd-api/models"
+	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamweb/v2"
 )
 
 type FriendMap map[steamid.SID64][]steamweb.Friend

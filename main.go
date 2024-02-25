@@ -16,6 +16,7 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 	_ "modernc.org/sqlite"
 )
 
@@ -124,7 +125,10 @@ func run() int {
 	// }
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
-	state := newGameState(db, settingsMgr, newPlayerStates(), rcon)
+
+	profileUpdateQueue := make(chan steamid.SID64)
+
+	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db, profileUpdateQueue)
 	eh := newEventHandler(state)
 
 	ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
@@ -144,9 +148,9 @@ func run() int {
 	}
 
 	re := createRulesEngine(settingsMgr)
-	updater := newPlayerDataLoader(db, dataSource, state, settingsMgr, re)
+	updater := newPlayerDataLoader(db, dataSource, state, settingsMgr, re, profileUpdateQueue)
 	discordPresence := newDiscordState(state, settingsMgr)
-	processHandler := newProcessState(plat, rcon)
+	processHandler := newProcessState(plat, rcon, settingsMgr)
 	statusHandler := newStatusUpdater(rcon, processHandler, state, time.Second*2)
 	bigBrotherHandler := newOverwatch(settingsMgr, rcon, state)
 
@@ -161,7 +165,7 @@ func run() int {
 	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
 	// Start all the background workers
-	for _, svc := range []backgroundService{eh, discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler} {
+	for _, svc := range []backgroundService{eh, discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler, processHandler} {
 		go svc.start(ctx)
 	}
 

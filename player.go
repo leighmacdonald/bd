@@ -67,6 +67,7 @@ type PlayerState struct {
 	// Tracks the duration between announces to chat
 	AnnouncedPartyLast   time.Time            `json:"-"`
 	AnnouncedGeneralLast time.Time            `json:"-"`
+	Friends              []steamweb.Friend    `json:"friends"`
 	OurFriend            bool                 `json:"our_friend"`
 	Sourcebans           []models.SbBanRecord `json:"sourcebans"`
 	Matches              []rules.MatchResult  `json:"matches"`
@@ -173,10 +174,10 @@ func playerRowToPlayerState(row store.PlayerRow) PlayerState {
 	return ps
 }
 
-// getPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
+// loadPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
 // inserted into the database and returned. If you only want players actively in the game, use the playerStates functions
 // instead.
-func getPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID64) (PlayerState, error) {
+func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID64) (PlayerState, error) {
 	playerRow, errGet := db.Player(ctx, sid64.Int64())
 	if errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {

@@ -140,6 +140,8 @@ func getTF2Folder() (string, error) {
 	return "", ErrGameInstallPath
 }
 
+// LaunchTF2 calls the steam binary directly
+// On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size.
 func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 	var (
 		procAttr os.ProcAttr

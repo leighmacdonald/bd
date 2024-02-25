@@ -149,31 +149,38 @@ func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engin
 }
 
 type gameState struct {
-	mu         *sync.RWMutex
-	updateChan chan updateStateEvent
-	settings   *settingsManager
-	players    *playerStates
-	server     serverState
-	store      store.Querier
-	rcon       rconConnection
+	mu                 *sync.RWMutex
+	updateChan         chan updateStateEvent
+	playerDataChan     chan playerDataUpdate
+	profileUpdateQueue chan steamid.SID64
+	settings           *settingsManager
+	players            *playerStates
+	db                 store.Querier
+	server             serverState
+	store              store.Querier
+	rcon               rconConnection
 }
 
-func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection) *gameState {
+func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection,
+	db store.Querier, profileUpdateQueue chan steamid.SID64,
+) *gameState {
 	return &gameState{
-		mu:         &sync.RWMutex{},
-		store:      store,
-		settings:   settings,
-		players:    playerState,
-		rcon:       rcon,
-		server:     serverState{},
-		updateChan: make(chan updateStateEvent),
+		mu:                 &sync.RWMutex{},
+		store:              store,
+		settings:           settings,
+		players:            playerState,
+		rcon:               rcon,
+		db:                 db,
+		server:             serverState{},
+		updateChan:         make(chan updateStateEvent),
+		playerDataChan:     make(chan playerDataUpdate),
+		profileUpdateQueue: profileUpdateQueue,
 	}
 }
 
 func (s *gameState) start(ctx context.Context) {
 	for {
 		select {
-
 		case update := <-s.updateChan:
 			slog.Debug("Game state update input received", slog.String("kind", update.kind.String()))
 
@@ -275,6 +282,54 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 	}
 }
 
+// applyRemoteData updates the current player states with new incoming remote data sources.
+func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) {
+	player, errPlayer := s.players.bySteamID(data.steamID, true)
+	if errPlayer != nil {
+		return
+	}
+
+	// Summary
+	player.AvatarHash = data.summary.AvatarHash
+	player.AccountCreatedOn = time.Unix(int64(data.summary.TimeCreated), 0)
+	player.Visibility = int64(data.summary.CommunityVisibilityState)
+
+	// Bans
+	player.CommunityBanned = data.bans.CommunityBanned
+	player.GameBans = int64(data.bans.NumberOfGameBans)
+	player.VacBans = int64(data.bans.NumberOfVACBans)
+	player.EconomyBan = data.bans.EconomyBan
+	if player.VacBans > 0 && data.bans.DaysSinceLastBan > 0 {
+		player.LastVacBanOn = time.Now().AddDate(0, 0, -data.bans.DaysSinceLastBan).Unix()
+	}
+
+	// Sourcebans
+	player.Sourcebans = data.sourcebans
+
+	// Friends
+	ourSID := s.settings.Settings().SteamID
+	player.Friends = data.friends
+	for _, friend := range data.friends {
+		if friend.SteamID == ourSID {
+			player.OurFriend = true
+			break
+		}
+	}
+
+	// meta
+	player.UpdatedOn = time.Now()
+	player.ProfileUpdatedOn = player.UpdatedOn
+
+	if errSave := s.db.PlayerUpdate(ctx, player.toUpdateParams()); errSave != nil {
+		if errSave.Error() != "sql: database is closed" {
+			slog.Error("Failed to save updated player data",
+				slog.String("sid", player.SID64().String()), errAttr(errSave))
+		}
+		return
+	}
+	s.players.update(player)
+}
+
 func (s *gameState) CurrentServerState() serverState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -310,15 +365,14 @@ func (s *gameState) onKill(evt killEvent) {
 	s.players.update(target)
 }
 
-func (s *gameState) getPlayer(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
+func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
 	player, errPlayer := s.players.bySteamID(steamID, false)
 	if errPlayer != nil {
 		if !errors.Is(errParseTimestamp, errPlayerNotFound) {
-
 			return PlayerState{}, errPlayer
 		}
 
-		createdPlayer, errCreate := getPlayerOrCreate(ctx, s.store, steamID)
+		createdPlayer, errCreate := loadPlayerOrCreate(ctx, s.store, steamID)
 		if errCreate != nil {
 			return PlayerState{}, errCreate
 		}
@@ -330,10 +384,15 @@ func (s *gameState) getPlayer(ctx context.Context, steamID steamid.SID64) (Playe
 }
 
 func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
-	player, errPlayer := s.getPlayer(ctx, steamID)
+	player, errPlayer := s.getPlayerOrCreate(ctx, steamID)
 	if errPlayer != nil {
-		slog.Error("Error trying to get player", errAttr(errParseTimestamp))
 		return
+	}
+
+	// Trigger update of external data if its been long enough, or the player is new to us.
+	if time.Since(player.UpdatedOn) > time.Hour*24 {
+		// TODO save friends and sourcebans data locally
+		s.profileUpdateQueue <- steamID
 	}
 
 	player.MapTimeStart = time.Now()
@@ -372,21 +431,27 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 }
 
 func (s *gameState) onTags(evt tagsEvent) {
+	s.mu.Lock()
 	s.server.Tags = evt.tags
 	s.server.LastUpdate = time.Now()
+	s.mu.Unlock()
 
 	slog.Debug("Tags updated", slog.String("tags", strings.Join(evt.tags, ",")))
 }
 
 func (s *gameState) onHostname(evt hostnameEvent) {
+	s.mu.Lock()
 	s.server.ServerName = evt.hostname
 	s.server.LastUpdate = time.Now()
+	s.mu.Unlock()
 
 	slog.Debug("Hostname changed", slog.String("hostname", evt.hostname))
 }
 
 func (s *gameState) onMapName(evt mapEvent) {
+	s.mu.Lock()
 	s.server.CurrentMap = evt.mapName
+	s.mu.Unlock()
 
 	slog.Debug("Map changed", slog.String("map", evt.mapName))
 }
@@ -402,7 +467,8 @@ func (s *gameState) onMapChange() {
 
 		s.players.update(player)
 	}
-
+	s.mu.Lock()
 	s.server.CurrentMap = ""
 	s.server.ServerName = ""
+	s.mu.Unlock()
 }

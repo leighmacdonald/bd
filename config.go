@@ -121,6 +121,10 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 	}
 
 	bdArgs := []string{
+		"-game", "tf",
+		//"-noreactlogin", // needed for vac to load as of late 2022?
+		"-steam",
+		"-secure",
 		"-usercon",
 		"+ip", "0.0.0.0",
 		"+sv_rcon_whitelist_address", "127.0.0.1",

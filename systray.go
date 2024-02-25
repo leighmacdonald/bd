@@ -32,7 +32,7 @@ func (s *appSystray) onOpen() {
 }
 
 func (s *appSystray) onLaunch() {
-	go s.process.launchGameAndWait(s.settingsMgr)
+	go s.process.launchGame(s.settingsMgr)
 }
 
 func (s *appSystray) OnReady(ctx context.Context) func() {
