@@ -176,12 +176,7 @@ func playerRowToPlayerState(row store.PlayerRow) PlayerState {
 // getPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
 // inserted into the database and returned. If you only want players actively in the game, use the playerStates functions
 // instead.
-func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerStates, sid64 steamid.SID64) (PlayerState, error) {
-	activePlayer, errPlayer := players.bySteamID(sid64)
-	if errPlayer == nil {
-		return activePlayer, nil
-	}
-
+func getPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID64) (PlayerState, error) {
 	playerRow, errGet := db.Player(ctx, sid64.Int64())
 	if errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {
@@ -193,10 +188,6 @@ func getPlayerOrCreate(ctx context.Context, db store.Querier, players *playerSta
 	}
 
 	player := playerRowToPlayerState(playerRow)
-
-	player.MapTimeStart = time.Now()
-
-	defer players.update(player)
 
 	return player, nil
 }

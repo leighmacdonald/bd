@@ -67,10 +67,7 @@ const (
 	updateHostname
 	updateTags
 	changeMap
-	updateMark
-	updateWhitelist
 	updateTeam
-	updateKickAttempts
 	updateTestPlayer = 1000
 )
 
@@ -90,14 +87,8 @@ func (ut updateType) String() string {
 		return "tags"
 	case changeMap:
 		return "change_map"
-	case updateMark:
-		return "mark"
-	case updateWhitelist:
-		return "whitelist"
 	case updateTeam:
 		return "team"
-	case updateKickAttempts:
-		return "kicks"
 	case updateTestPlayer:
 		return "test_player"
 	default:
@@ -121,22 +112,6 @@ type updateStateEvent struct {
 	kind   updateType
 	source steamid.SID64
 	data   any
-}
-
-type markEvent struct {
-	tags    []string
-	addMark bool
-}
-
-func newMarkEvent(sid steamid.SID64, tags []string, addMark bool) updateStateEvent {
-	return updateStateEvent{
-		kind:   updateMark,
-		source: sid,
-		data: markEvent{
-			tags:    tags,
-			addMark: addMark, // false to unmark
-		},
-	}
 }
 
 type messageEvent struct {

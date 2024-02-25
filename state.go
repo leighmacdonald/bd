@@ -57,12 +57,14 @@ func (state *playerStates) byName(name string) (PlayerState, error) {
 	return PlayerState{}, errPlayerNotFound
 }
 
-func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
+// bySteamID returns a player currently being tracked in the game state. If connectedOnly is true, then
+// players who have timed out already are ignored.
+func (state *playerStates) bySteamID(sid64 steamid.SID64, connectedOnly bool) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
 	for _, knownPlayer := range state.activePlayers {
-		if knownPlayer.SteamID == sid64 {
+		if knownPlayer.SteamID == sid64 && !(connectedOnly && knownPlayer.isDisconnected()) {
 			return knownPlayer, nil
 		}
 	}
@@ -70,6 +72,7 @@ func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
 	return PlayerState{}, errPlayerNotFound
 }
 
+// update replaces the current players state with the new state provided.
 func (state *playerStates) update(updated PlayerState) {
 	state.Lock()
 	defer state.Unlock()
@@ -90,25 +93,10 @@ func (state *playerStates) update(updated PlayerState) {
 }
 
 func (state *playerStates) all() []PlayerState {
-	state.Lock()
-	defer state.Unlock()
+	state.RLock()
+	defer state.RUnlock()
 
 	return state.activePlayers
-}
-
-func (state *playerStates) kickable() []PlayerState {
-	state.Lock()
-	defer state.Unlock()
-
-	var kickable []PlayerState
-
-	for _, player := range state.activePlayers {
-		if len(player.Matches) > 0 && !player.Whitelist {
-			kickable = append(kickable, player)
-		}
-	}
-
-	return kickable
 }
 
 func (state *playerStates) replace(replacementPlayers []PlayerState) {
@@ -136,7 +124,7 @@ func (state *playerStates) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer bigBrother) {
+func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer overwatch) {
 	if player.isDisconnected() || len(player.Matches) > 0 {
 		return
 	}
@@ -201,8 +189,6 @@ func (s *gameState) start(ctx context.Context) {
 				}
 
 				s.onKill(evt)
-			case updateKickAttempts:
-				s.onKickAttempt(update.source)
 			case updateStatus:
 				evt, ok := update.data.(statusEvent)
 				if !ok {
@@ -324,25 +310,33 @@ func (s *gameState) onKill(evt killEvent) {
 	s.players.update(target)
 }
 
-func (s *gameState) onKickAttempt(steamID steamid.SID64) {
-	player, errPlayer := s.players.bySteamID(steamID)
+func (s *gameState) getPlayer(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
+	player, errPlayer := s.players.bySteamID(steamID, false)
 	if errPlayer != nil {
-		return
+		if !errors.Is(errParseTimestamp, errPlayerNotFound) {
+
+			return PlayerState{}, errPlayer
+		}
+
+		createdPlayer, errCreate := getPlayerOrCreate(ctx, s.store, steamID)
+		if errCreate != nil {
+			return PlayerState{}, errCreate
+		}
+
+		player = createdPlayer
 	}
 
-	player.KickAttemptCount++
-
-	s.players.update(player)
+	return player, nil
 }
 
 func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
-	player, errPlayer := getPlayerOrCreate(ctx, s.store, s.players, steamID)
+	player, errPlayer := s.getPlayer(ctx, steamID)
 	if errPlayer != nil {
-		slog.Error("Failed to get or create player", errAttr(errPlayer))
-
+		slog.Error("Error trying to get player", errAttr(errParseTimestamp))
 		return
 	}
 
+	player.MapTimeStart = time.Now()
 	player.Ping = evt.ping
 	player.Connected = evt.connected.Seconds()
 	player.UpdatedOn = time.Now()

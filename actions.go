@@ -3,21 +3,17 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"log/slog"
-	"os"
-	"sort"
-	"time"
-
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
+	"log/slog"
+	"os"
 )
 
 // unMark will unmark & remove a player from your local list. This *will not* unmark players from any
 // other list sources. If you want to not kick someone on a 3rd party list, you can instead whitelist the player.
 func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *gameState, sid64 steamid.SID64) (int, error) {
-	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
+	player, errPlayer := getPlayerOrCreate(ctx, db, sid64)
 	if errPlayer != nil {
 		return 0, errPlayer
 	}
@@ -45,9 +41,16 @@ func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *game
 
 // mark will add a new entry in your local player list.
 func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gameState, re *rules.Engine, sid64 steamid.SID64, attrs []string) error {
-	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
+	player, errPlayer := state.players.bySteamID(sid64, false)
 	if errPlayer != nil {
-		return errPlayer
+		if !errors.Is(errPlayer, errPlayerNotFound) {
+			return errPlayer
+		}
+		created, errCreate := getPlayerOrCreate(ctx, db, sid64)
+		if errCreate != nil {
+			return errCreate
+		}
+		player = created
 	}
 
 	if errMark := re.Mark(rules.MarkOpts{
@@ -77,7 +80,7 @@ func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gam
 
 // whitelist prevents a player marked in 3rd party lists from being flagged for kicking.
 func whitelist(ctx context.Context, db store.Querier, state *gameState, sid64 steamid.SID64, enabled bool) error {
-	player, errPlayer := getPlayerOrCreate(ctx, db, state.players, sid64)
+	player, errPlayer := getPlayerOrCreate(ctx, db, sid64)
 	if errPlayer != nil {
 		return errPlayer
 	}
@@ -94,109 +97,4 @@ func whitelist(ctx context.Context, db store.Querier, state *gameState, sid64 st
 		slog.String("steam_id", player.SteamID.String()), slog.Bool("enabled", enabled))
 
 	return nil
-}
-
-type kickRequest struct {
-	steamID steamid.SID64
-	reason  KickReason
-}
-
-type kickHandler struct {
-	settings *settingsManager
-	rcon     rconConnection
-}
-
-func newKickHandler(settings *settingsManager, rcon rconConnection) kickHandler {
-	return kickHandler{
-		settings: settings,
-		rcon:     rcon,
-	}
-}
-
-// autoKicker handles making kick votes. It prioritizes manual vote kick requests from the user before trying
-// to kick players that match the auto kickable criteria. Auto kick attempts will cycle through the players with the least
-// amount of kick attempts.
-func (kh kickHandler) autoKicker(ctx context.Context, players *playerStates, kickRequestChan chan kickRequest) {
-	kickTicker := time.NewTicker(time.Millisecond * 100)
-
-	var kickRequests []kickRequest
-
-	for {
-		select {
-		case request := <-kickRequestChan:
-			kickRequests = append(kickRequests, request)
-		case <-kickTicker.C:
-			var (
-				kickTarget PlayerState
-				reason     KickReason
-			)
-
-			curSettings := kh.settings.Settings()
-
-			if !curSettings.KickerEnabled {
-				continue
-			}
-
-			if len(kickRequests) == 0 { //nolint:nestif
-				kickable := players.kickable()
-				if len(kickable) == 0 {
-					continue
-				}
-
-				var valid []PlayerState
-
-				for _, player := range kickable {
-					if player.MatchAttr(curSettings.KickTags) {
-						valid = append(valid, player)
-					}
-				}
-
-				if len(valid) == 0 {
-					continue
-				}
-
-				sort.SliceStable(valid, func(i, j int) bool {
-					return valid[i].KickAttemptCount < valid[j].KickAttemptCount
-				})
-
-				reason = KickReasonCheating
-				kickTarget = valid[0]
-			} else {
-				request := kickRequests[0]
-
-				if len(kickRequests) > 1 {
-					kickRequests = kickRequests[1:]
-				} else {
-					kickRequests = nil
-				}
-
-				player, errPlayer := players.bySteamID(request.steamID)
-				if errPlayer != nil {
-					slog.Error("Failed to get player to kick", errAttr(errPlayer))
-
-					continue
-				}
-
-				reason = request.reason
-				kickTarget = player
-			}
-
-			kickTarget.KickAttemptCount++
-
-			players.update(kickTarget)
-
-			cmd := fmt.Sprintf("callvote kick \"%d %s\"", kickTarget.UserID, reason)
-
-			resp, errCallVote := kh.rcon.exec(ctx, cmd, false)
-			if errCallVote != nil {
-				slog.Error("Failed to call vote", slog.String("steam_id", kickTarget.SID64().String()), errAttr(errCallVote))
-
-				return
-			}
-
-			slog.Debug(resp, slog.String("cmd", cmd))
-		case <-ctx.Done():
-			return
-		}
-	}
 }

@@ -23,7 +23,7 @@ func newChatRecorder(db store.Querier, ingest *logIngest) chatRecorder {
 	return cr
 }
 
-func (s *chatRecorder) start(ctx context.Context) {
+func (s chatRecorder) start(ctx context.Context) {
 	for {
 		select {
 		case evt := <-s.incoming:

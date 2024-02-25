@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -121,5 +122,8 @@ type Version struct {
 	Version string
 	Commit  string
 	Date    string
-	BuiltBy string
+}
+
+type backgroundService interface {
+	start(ctx context.Context)
 }

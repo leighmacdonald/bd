@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// statusUpdater is responsible for periodically sending `status` and `g15_dumpplayer` command to the
+// game client.
 type statusUpdater struct {
 	rcon       rconConnection
 	process    *processState
@@ -26,7 +28,7 @@ func newStatusUpdater(rcon rconConnection, process *processState, state *gameSta
 	}
 }
 
-func (s *statusUpdater) start(ctx context.Context) {
+func (s statusUpdater) start(ctx context.Context) {
 	timer := time.NewTimer(s.updateRate)
 
 	for {
@@ -48,7 +50,7 @@ func (s *statusUpdater) start(ctx context.Context) {
 
 // updatePlayerState fetches the current game state over rcon using both the `status` and `g15_dumpplayer` command
 // output. The results are then parsed and applied to the current player and server states.
-func (s *statusUpdater) updatePlayerState(ctx context.Context) error {
+func (s statusUpdater) updatePlayerState(ctx context.Context) error {
 	// Sent to client, response via log output
 	_, errStatus := s.rcon.exec(ctx, "status", true)
 	if errStatus != nil {
@@ -71,7 +73,7 @@ func (s *statusUpdater) updatePlayerState(ctx context.Context) error {
 			continue
 		}
 
-		player, errPlayer := s.state.players.bySteamID(sid)
+		player, errPlayer := s.state.players.bySteamID(sid, true)
 		if errPlayer != nil {
 			// status command is what we use to add players to the active game.
 			continue

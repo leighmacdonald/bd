@@ -24,7 +24,6 @@ var (
 	version = "master" //nolint:gochecknoglobals
 	commit  = "latest" //nolint:gochecknoglobals
 	date    = "n/a"    //nolint:gochecknoglobals
-	builtBy = "src"    //nolint:gochecknoglobals
 )
 
 func createRulesEngine(sm *settingsManager) *rules.Engine {
@@ -87,7 +86,7 @@ func openApplicationPage(plat platform.Platform, appURL string) {
 }
 
 func run() int {
-	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+	versionInfo := Version{Version: version, Commit: commit, Date: date}
 	plat := platform.New()
 	settingsMgr := newSettingsManager(plat)
 
@@ -108,11 +107,8 @@ func run() int {
 	logCloser := MustCreateLogger(settingsMgr)
 	defer logCloser()
 
-	slog.Info("Starting BD",
-		slog.String("version", versionInfo.Version),
-		slog.String("date", versionInfo.Date),
-		slog.String("commit", versionInfo.Commit),
-		slog.String("via", versionInfo.BuiltBy))
+	slog.Info("Starting", slog.String("ver", versionInfo.Version),
+		slog.String("date", versionInfo.Date), slog.String("commit", versionInfo.Commit))
 
 	db, dbCloser, errDB := store.CreateDB(settingsMgr.DBPath())
 	if errDB != nil {
@@ -139,7 +135,7 @@ func run() int {
 
 	cr := newChatRecorder(db, ingest)
 
-	ingest.registerConsumer(eh.eventChan)
+	ingest.registerConsumer(eh.eventChan, EvtAny)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -147,14 +143,14 @@ func run() int {
 		return 1
 	}
 
-	updater := newProfileUpdater(db, dataSource, state, settingsMgr)
-	discordPresence := newDiscordState(state, settingsMgr)
 	re := createRulesEngine(settingsMgr)
-	process := newProcessState(plat, rcon)
-	su := newStatusUpdater(rcon, process, state, time.Second*2)
-	bb := newBigBrother(settingsMgr, rcon, state)
+	updater := newPlayerDataLoader(db, dataSource, state, settingsMgr, re)
+	discordPresence := newDiscordState(state, settingsMgr)
+	processHandler := newProcessState(plat, rcon)
+	statusHandler := newStatusUpdater(rcon, processHandler, state, time.Second*2)
+	bigBrotherHandler := newOverwatch(settingsMgr, rcon, state)
 
-	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
+	mux, errRoutes := createHandlers(db, state, processHandler, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 	}
@@ -165,14 +161,9 @@ func run() int {
 	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
 	// Start all the background workers
-	go eh.start(ctx)
-	go discordPresence.start(ctx)
-	go cr.start(ctx)
-	go ingest.start(ctx)
-	go updater.start(ctx)
-	go su.start(ctx)
-	go bb.start(ctx)
-	go testLogFeeder(ctx, ingest)
+	for _, svc := range []backgroundService{eh, discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler} {
+		go svc.start(ctx)
+	}
 
 	go func() {
 		// TODO configure the auto open
@@ -192,7 +183,7 @@ func run() int {
 	if settings.SystrayEnabled {
 		slog.Debug("Using systray")
 
-		tray := newAppSystray(plat, settingsMgr, process)
+		tray := newAppSystray(plat, settingsMgr, processHandler)
 
 		systray.Run(tray.OnReady(ctx), func() {
 			stop()
