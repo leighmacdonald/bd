@@ -33,6 +33,7 @@ var (
 	errPlayerListOpen    = errors.New("failed to open player list")
 	errPathNotExist      = errors.New("path does not exist")
 	errCreateMessage     = errors.New("failed to create user message")
+	errCreatePlayer      = errors.New("failed to create new player")
 	errSaveMessage       = errors.New("failed to save user message")
 	errGetNames          = errors.New("failed to load name history")
 	errSaveNames         = errors.New("failed to save name history")

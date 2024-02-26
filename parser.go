@@ -14,6 +14,129 @@ import (
 
 var ErrNoMatch = errors.New("no match found")
 
+type hostnameEvent struct {
+	hostname string
+}
+
+type mapEvent struct {
+	mapName string
+}
+
+type tagsEvent struct {
+	tags []string
+}
+
+const logTimestampFormat = "01/02/2006 - 15:04:05"
+
+// parseTimestamp will convert the source formatted log timestamps into a time.Time value.
+func parseTimestamp(timestamp string) (time.Time, error) {
+	parsedTime, errParse := time.Parse(logTimestampFormat, timestamp)
+	if errParse != nil {
+		return time.Time{}, errors.Join(errParse, errParseTimestamp)
+	}
+
+	return parsedTime, nil
+}
+
+type LogEvent struct {
+	Type            EventType
+	Player          string
+	PlayerPing      int
+	PlayerConnected time.Duration
+	Team            Team
+	UserID          int
+	PlayerSID       steamid.SID64
+	Victim          string
+	VictimSID       steamid.SID64
+	Message         string
+	Timestamp       time.Time
+	MetaData        string
+	Dead            bool
+	TeamOnly        bool
+}
+
+func (e *LogEvent) ApplyTimestamp(tsString string) error {
+	ts, errTS := parseTimestamp(tsString)
+	if errTS != nil {
+		return errTS
+	}
+
+	e.Timestamp = ts
+
+	return nil
+}
+
+type Event struct {
+	Name  EventType
+	Value any
+}
+
+type updateType int
+
+const (
+	updateKill updateType = iota
+	updateStatus
+	updateLobby
+	updateMap
+	updateHostname
+	updateTags
+	changeMap
+	updateTeam
+	updateTestPlayer = 1000
+)
+
+func (ut updateType) String() string {
+	switch ut {
+	case updateKill:
+		return "kill"
+	case updateStatus:
+		return "status"
+	case updateLobby:
+		return "lobby"
+	case updateMap:
+		return "map_name"
+	case updateHostname:
+		return "hostname"
+	case updateTags:
+		return "tags"
+	case changeMap:
+		return "change_map"
+	case updateTeam:
+		return "team"
+	case updateTestPlayer:
+		return "test_player"
+	default:
+		return "unknown"
+	}
+}
+
+type killEvent struct {
+	sourceName string
+	victimName string
+}
+
+type statusEvent struct {
+	ping      int
+	userID    int
+	name      string
+	connected time.Duration
+}
+
+type updateStateEvent struct {
+	kind   updateType
+	source steamid.SID64
+	data   any
+}
+
+type messageEvent struct {
+	steamID   steamid.SID64
+	name      string
+	createdAt time.Time
+	message   string
+	teamOnly  bool
+	dead      bool
+}
+
 type Parser interface {
 	parse(msg string, outEvent *LogEvent) error
 }

@@ -47,8 +47,8 @@ const (
 	// avatarMatchReduced AvatarMatchType = "hash_reduced".
 )
 
-// AvatarMatcherI provides an interface to match avatars using custom methods.
-type AvatarMatcherI interface {
+// AvatarMatcherHandler provides an interface to match avatars using custom methods.
+type AvatarMatcherHandler interface {
 	Match(hexDigest string) (MatchResult, bool)
 	Type() AvatarMatchType
 }
@@ -82,15 +82,15 @@ func NewAvatarMatcher(origin string, avatarMatchType AvatarMatchType, hashes ...
 	}
 }
 
-// TextMatcher provides an interface to build text based matchers for names or in game messages.
-type TextMatcher interface {
+// TextMatchHandler provides an interface to build text based matchers for names or in game messages.
+type TextMatchHandler interface {
 	// Match performs a text based match
 	Match(text string) (MatchResult, bool)
 	Type() TextMatchType
 }
 
-// SteamIDMatcherI provides a basic interface to match steam ids.
-type SteamIDMatcherI interface {
+// SteamIDMatcherHandler provides a basic interface to match steam ids.
+type SteamIDMatcherHandler interface {
 	Match(sid64 steamid.SID64) (MatchResult, bool)
 	HasOneOfAttr(attrs ...string) bool
 	LastSeen() time.Time
@@ -143,14 +143,14 @@ type RegexTextMatcher struct {
 	attributes  []string
 }
 
-func (m RegexTextMatcher) Match(value string) *MatchResult {
+func (m RegexTextMatcher) Match(value string) (MatchResult, bool) {
 	for _, re := range m.patterns {
 		if re.MatchString(value) {
-			return &MatchResult{Origin: m.origin, MatcherType: string(m.Type())}
+			return MatchResult{Origin: m.origin, MatcherType: string(m.Type())}, true
 		}
 	}
 
-	return nil
+	return MatchResult{}, false
 }
 
 func (m RegexTextMatcher) Type() TextMatchType {

@@ -42,7 +42,7 @@ type PlayerState struct {
 
 	// status
 	// Connected is how long the user has been in the server
-	Connected float64 `json:"connected"`
+	Connected time.Duration `json:"connected"`
 
 	MapTimeStart time.Time `json:"-"`
 	MapTime      float64   `json:"map_time"`
@@ -97,10 +97,6 @@ const (
 
 func (ps PlayerState) isProfileExpired() bool {
 	return time.Since(ps.ProfileUpdatedOn) < profileAgeLimit || ps.Personaname != ""
-}
-
-func (ps PlayerState) isDisconnected() bool {
-	return time.Since(ps.UpdatedOn) > playerDisconnect
 }
 
 func (ps PlayerState) IsExpired() bool {
@@ -175,8 +171,8 @@ func playerRowToPlayerState(row store.PlayerRow) PlayerState {
 }
 
 // loadPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
-// inserted into the database and returned. If you only want players actively in the game, use the playerStates functions
-// instead.
+// inserted into the database and returned so that fks are satisfied. If you only want players actively in the game,
+// use the playerStates functions instead.
 func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID64) (PlayerState, error) {
 	playerRow, errGet := db.Player(ctx, sid64.Int64())
 	if errGet != nil {
@@ -184,8 +180,35 @@ func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID
 			return PlayerState{}, errors.Join(errGet, errGetPlayer)
 		}
 
-		// use date in past to trigger update.
+		// use date in past to trigger update queue.
 		playerRow.ProfileUpdatedOn = time.Now().AddDate(-1, 0, 0)
+		playerRow.AvatarHash = defaultAvatarHash
+		playerRow.CreatedOn = time.Now()
+		playerRow.UpdatedOn = playerRow.CreatedOn
+
+		if _, errInsert := db.PlayerInsert(ctx, store.PlayerInsertParams{
+			// Most values are not really required to be set as zero values are ok
+			SteamID:          sid64.Int64(),
+			Personaname:      playerRow.Personaname,
+			Visibility:       playerRow.Visibility,
+			RealName:         playerRow.RealName,
+			AccountCreatedOn: playerRow.AccountCreatedOn,
+			AvatarHash:       playerRow.AvatarHash,
+			CommunityBanned:  playerRow.CommunityBanned,
+			GameBans:         playerRow.GameBans,
+			VacBans:          playerRow.VacBans,
+			LastVacBanOn:     playerRow.LastVacBanOn,
+			KillsOn:          playerRow.KillsOn,
+			DeathsBy:         playerRow.DeathsBy,
+			RageQuits:        playerRow.RageQuits,
+			Notes:            playerRow.Notes,
+			Whitelist:        playerRow.Whitelist,
+			ProfileUpdatedOn: playerRow.ProfileUpdatedOn,
+			CreatedOn:        playerRow.CreatedOn,
+			UpdatedOn:        playerRow.UpdatedOn,
+		}); errInsert != nil {
+			return PlayerState{}, errors.Join(errInsert, errCreatePlayer)
+		}
 	}
 
 	player := playerRowToPlayerState(playerRow)

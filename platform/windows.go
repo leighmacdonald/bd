@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
 	"golang.org/x/sys/windows/registry"
@@ -140,8 +139,6 @@ func getTF2Folder() (string, error) {
 	return "", ErrGameInstallPath
 }
 
-// LaunchTF2 calls the steam binary directly
-// On linux args may overflow the allowed length. This will often be 512chars as it's based on the stack size.
 func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
 	var (
 		procAttr os.ProcAttr
@@ -187,7 +184,7 @@ func (l WindowsPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l WindowsPlatform) Icon() []byte {
-	return frontend.Read(frontend.IconWindows)
+	return readIcon(IconWindows)
 }
 
 func (l WindowsPlatform) OpenURL(url string) error {

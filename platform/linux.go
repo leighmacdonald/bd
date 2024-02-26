@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path"
 
-	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
@@ -102,7 +101,7 @@ func (l LinuxPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l LinuxPlatform) Icon() []byte {
-	return frontend.Read(frontend.IconOther)
+	return readIcon(IconOther)
 }
 
 func (l LinuxPlatform) OpenURL(url string) error {

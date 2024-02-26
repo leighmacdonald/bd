@@ -80,9 +80,9 @@ func NewRuleSchema(rules ...RuleDefinition) *RuleSchema {
 
 type RuleSchema struct {
 	BaseSchema
-	Rules          []RuleDefinition `json:"rules" yaml:"rules"`
-	MatchersText   []TextMatcher    `json:"-" yaml:"-"`
-	MatchersAvatar []AvatarMatcherI `json:"-" yaml:"-"`
+	Rules          []RuleDefinition       `json:"rules" yaml:"rules"`
+	MatchersText   []TextMatchHandler     `json:"-" yaml:"-"`
+	MatchersAvatar []AvatarMatcherHandler `json:"-" yaml:"-"`
 }
 
 type RuleTriggerNameMatch struct {
@@ -124,8 +124,8 @@ type RuleDefinition struct {
 
 type PlayerListSchema struct {
 	BaseSchema
-	Players       []PlayerDefinition `json:"players"`
-	matchersSteam []SteamIDMatcherI  `yaml:"-"`
+	Players       []PlayerDefinition      `json:"players"`
+	matchersSteam []SteamIDMatcherHandler `yaml:"-"`
 }
 
 type PlayerLastSeen struct {

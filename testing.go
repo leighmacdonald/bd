@@ -42,7 +42,7 @@ func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 		}
 
 		if player.Personaname == "" {
-			player.Personaname = fmt.Sprintf("%d - %d", userId, player.SteamID)
+			player.Personaname = fmt.Sprintf("%d - %s", userId, player.SteamID.String())
 		}
 
 		player.Visibility = int64(steamweb.VisibilityPublic)
@@ -50,7 +50,7 @@ func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 		player.RageQuits = int64(rand.Intn(10))
 		player.DeathsBy = int64(rand.Intn(20))
 		player.Team = team
-		player.Connected = float64(rand.Intn(3600))
+		player.Connected = time.Duration(rand.Intn(3600) * 1000000)
 		player.UserID = userId
 		player.Ping = rand.Intn(150)
 		player.Kills = rand.Intn(50)

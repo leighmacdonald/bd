@@ -63,7 +63,7 @@ func (e *Engine) FindNewestEntries(max int, validAttrs []string) steamid.Collect
 	e.RLock()
 	defer e.RUnlock()
 
-	var matchers []SteamIDMatcherI
+	var matchers []SteamIDMatcherHandler
 
 	for _, list := range e.playerLists {
 		for _, m := range list.matchersSteam {
@@ -139,7 +139,7 @@ func (e *Engine) Unmark(steamID steamid.SID64) bool {
 
 	var (
 		userList      = e.UserPlayerList()
-		validMatchers []SteamIDMatcherI
+		validMatchers []SteamIDMatcherHandler
 	)
 
 	for _, matcher := range userList.matchersSteam {
@@ -324,10 +324,7 @@ func (e *Engine) ImportRules(list *RuleSchema) (int, error) {
 				hashes = append(hashes, h.AvatarHash)
 			}
 
-			list.RegisterAvatarMatcher(NewAvatarMatcher(
-				list.FileInfo.Title,
-				AvatarMatchExact,
-				hashes...))
+			list.RegisterAvatarMatcher(NewAvatarMatcher(list.FileInfo.Title, AvatarMatchExact, hashes...))
 
 			count++
 		}
@@ -390,15 +387,15 @@ func (e *Engine) ImportPlayers(list *PlayerListSchema) (int, error) {
 	return count, nil
 }
 
-func (pls *PlayerListSchema) RegisterSteamIDMatcher(matcher SteamIDMatcherI) {
+func (pls *PlayerListSchema) RegisterSteamIDMatcher(matcher SteamIDMatcherHandler) {
 	pls.matchersSteam = append(pls.matchersSteam, matcher)
 }
 
-func (rs *RuleSchema) RegisterAvatarMatcher(matcher AvatarMatcherI) {
+func (rs *RuleSchema) RegisterAvatarMatcher(matcher AvatarMatcherHandler) {
 	rs.MatchersAvatar = append(rs.MatchersAvatar, matcher)
 }
 
-func (rs *RuleSchema) RegisterTextMatcher(matcher TextMatcher) {
+func (rs *RuleSchema) RegisterTextMatcher(matcher TextMatchHandler) {
 	rs.MatchersText = append(rs.MatchersText, matcher)
 }
 

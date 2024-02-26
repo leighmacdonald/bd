@@ -20,7 +20,7 @@ type FriendMap map[steamid.SID64][]steamweb.Friend
 type SourcebansMap map[steamid.SID64][]models.SbBanRecord
 
 type DataSource interface {
-	Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
+	summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
 	Bans(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerBanState, error)
 	friends(ctx context.Context, steamIDs steamid.Collection) (FriendMap, error)
 	sourceBans(ctx context.Context, steamIDs steamid.Collection) (SourcebansMap, error)
@@ -30,7 +30,7 @@ type DataSource interface {
 // service, or if it is otherwise down.
 type LocalDataSource struct{}
 
-func (n LocalDataSource) Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error) {
+func (n LocalDataSource) summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error) {
 	summaries, errSummaries := steamweb.PlayerSummaries(ctx, steamIDs)
 	if errSummaries != nil {
 		return nil, errors.Join(errSummaries, errFetchSummaries)
@@ -169,7 +169,7 @@ func (n APIDataSource) get(ctx context.Context, path string, results any) error 
 	return nil
 }
 
-func (n APIDataSource) Summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error) {
+func (n APIDataSource) summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error) {
 	var out []steamweb.PlayerSummary
 	if errGet := n.get(ctx, n.url("/summary", steamIDs), &out); errGet != nil {
 		return nil, errGet
