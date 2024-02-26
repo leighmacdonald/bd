@@ -31,29 +31,29 @@ type playerDataUpdate struct {
 type playerDataLoader struct {
 	profileUpdateQueue chan steamid.SID64
 	datasource         DataSource
-	state              *gameState
+	playerDataChan     chan playerDataUpdate
 	db                 store.Querier
 	settings           *settingsManager
 	re                 *rules.Engine
 }
 
-func newPlayerDataLoader(db store.Querier, ds DataSource, state *gameState, settings *settingsManager, re *rules.Engine,
-	profileUpdateQueue chan steamid.SID64,
+func newPlayerDataLoader(db store.Querier, ds DataSource, settings *settingsManager, re *rules.Engine,
+	profileUpdateQueue chan steamid.SID64, playerDataChan chan playerDataUpdate,
 ) *playerDataLoader {
 	return &playerDataLoader{
 		db:                 db,
 		datasource:         ds,
-		state:              state,
 		settings:           settings,
 		re:                 re,
 		profileUpdateQueue: profileUpdateQueue,
+		playerDataChan:     playerDataChan,
 	}
 }
 
 // playerDataLoader will update the 3rd party data from remote APIs.
 // It will wait a short amount of time between updates to attempt to batch send the requests
 // as much as possible.
-func (p playerDataLoader) start(ctx context.Context) {
+func (p *playerDataLoader) start(ctx context.Context) {
 	var (
 		queue       steamid.Collection
 		updateTimer = time.NewTicker(DurationUpdateTimer)
@@ -106,7 +106,7 @@ func (p playerDataLoader) start(ctx context.Context) {
 			}
 
 			for _, update := range updates {
-				p.state.playerDataChan <- update
+				p.playerDataChan <- update
 			}
 
 			slog.Info("Updated",
@@ -128,7 +128,7 @@ func (p playerDataLoader) start(ctx context.Context) {
 //
 // If the user does not configure their own steam api key using LocalDataSource, then the
 // default bd-api backed APIDataSource will instead be used as a proxy for fetching the results.
-func (p playerDataLoader) fetchProfileUpdates(ctx context.Context, queued steamid.Collection) bulkUpdatedRemoteData {
+func (p *playerDataLoader) fetchProfileUpdates(ctx context.Context, queued steamid.Collection) bulkUpdatedRemoteData {
 	localCtx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
 
@@ -142,7 +142,7 @@ func (p playerDataLoader) fetchProfileUpdates(ctx context.Context, queued steami
 	go func(c steamid.Collection) {
 		defer waitGroup.Done()
 
-		newSummaries, errSum := p.datasource.Summaries(localCtx, c)
+		newSummaries, errSum := p.datasource.summaries(localCtx, c)
 		if errSum == nil {
 			updated.summaries = newSummaries
 		}

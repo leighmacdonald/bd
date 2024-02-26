@@ -16,7 +16,6 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
 	_ "modernc.org/sqlite"
 )
 
@@ -118,18 +117,9 @@ func run() int {
 	}
 	defer dbCloser()
 
-	// fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
-	// if cacheErr != nil {
-	//	 slog.Error("Failed to set up cache", errAttr(cacheErr))
-	//	 return 1
-	// }
-
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
 
-	profileUpdateQueue := make(chan steamid.SID64)
-
-	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db, profileUpdateQueue)
-	eh := newEventHandler(state)
+	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db)
 
 	ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
 	if errLogReader != nil {
@@ -139,7 +129,7 @@ func run() int {
 
 	cr := newChatRecorder(db, ingest)
 
-	ingest.registerConsumer(eh.eventChan, EvtAny)
+	ingest.registerConsumer(state.eventChan, EvtAny)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -148,7 +138,15 @@ func run() int {
 	}
 
 	re := createRulesEngine(settingsMgr)
-	updater := newPlayerDataLoader(db, dataSource, state, settingsMgr, re, profileUpdateQueue)
+
+	cache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
+	if cacheErr != nil {
+		slog.Error("Failed to set up cache", errAttr(cacheErr))
+		return 1
+	}
+
+	lm := newListManager(cache, re, settingsMgr)
+	updater := newPlayerDataLoader(db, dataSource, settingsMgr, re, state.profileUpdateQueue, state.playerDataChan)
 	discordPresence := newDiscordState(state, settingsMgr)
 	processHandler := newProcessState(plat, rcon, settingsMgr)
 	statusHandler := newStatusUpdater(rcon, processHandler, state, time.Second*2)
@@ -165,7 +163,7 @@ func run() int {
 	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
 	// Start all the background workers
-	for _, svc := range []backgroundService{eh, discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler, processHandler} {
+	for _, svc := range []backgroundService{discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler, processHandler, state, lm} {
 		go svc.start(ctx)
 	}
 
