@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,12 +60,12 @@ func (state *playerStates) byName(name string) (PlayerState, error) {
 
 // bySteamID returns a player currently being tracked in the game state. If connectedOnly is true, then
 // players who have timed out already are ignored.
-func (state *playerStates) bySteamID(sid64 steamid.SID64, connectedOnly bool) (PlayerState, error) {
+func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
 	for _, knownPlayer := range state.activePlayers {
-		if knownPlayer.SteamID == sid64 && !(connectedOnly && knownPlayer.isDisconnected()) {
+		if knownPlayer.SteamID == sid64 {
 			return knownPlayer, nil
 		}
 	}
@@ -125,7 +126,7 @@ func (state *playerStates) remove(sid64 steamid.SID64) {
 
 // checkPlayerStates will run a check against the current player state for matches.
 func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer overwatch) {
-	if player.isDisconnected() || len(player.Matches) > 0 {
+	if !player.IsConnected || len(player.Matches) > 0 {
 		return
 	}
 
@@ -150,9 +151,9 @@ func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engin
 
 type gameState struct {
 	mu                 *sync.RWMutex
-	updateChan         chan updateStateEvent
 	playerDataChan     chan playerDataUpdate
 	profileUpdateQueue chan steamid.SID64
+	eventChan          chan LogEvent
 	settings           *settingsManager
 	players            *playerStates
 	db                 store.Querier
@@ -162,7 +163,7 @@ type gameState struct {
 }
 
 func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection,
-	db store.Querier, profileUpdateQueue chan steamid.SID64,
+	db store.Querier,
 ) *gameState {
 	return &gameState{
 		mu:                 &sync.RWMutex{},
@@ -172,62 +173,57 @@ func newGameState(store store.Querier, settings *settingsManager, playerState *p
 		rcon:               rcon,
 		db:                 db,
 		server:             serverState{},
-		updateChan:         make(chan updateStateEvent),
 		playerDataChan:     make(chan playerDataUpdate),
-		profileUpdateQueue: profileUpdateQueue,
+		eventChan:          make(chan LogEvent),
+		profileUpdateQueue: make(chan steamid.SID64),
 	}
 }
 
 func (s *gameState) start(ctx context.Context) {
 	for {
 		select {
-		case update := <-s.updateChan:
-			slog.Debug("Game state update input received", slog.String("kind", update.kind.String()))
+		case playerData := <-s.playerDataChan:
+			s.applyRemoteData(ctx, playerData)
+		case evt := <-s.eventChan:
+			// slog.Debug("received event", slog.Int("type", int(evt.Type)))
+			switch evt.Type { //nolint:exhaustive
+			case EvtMap:
+				s.onMapName(mapEvent{mapName: evt.MetaData})
+			case EvtHostname:
+				s.onHostname(hostnameEvent{hostname: evt.MetaData})
+			case EvtTags:
+				s.onTags(tagsEvent{tags: strings.Split(evt.MetaData, ",")})
+			case EvtAddress:
+				pcs := strings.Split(evt.MetaData, ":")
 
-			if update.kind == updateStatus && !update.source.Valid() {
-				continue
-			}
+				_, errPort := strconv.ParseUint(pcs[1], 10, 16)
+				if errPort != nil {
+					slog.Error("Failed to parse port: %v", errAttr(errPort), slog.String("port", pcs[1]))
 
-			switch update.kind { //nolint:exhaustive
-			case updateKill:
-				evt, ok := update.data.(killEvent)
-				if !ok {
 					continue
 				}
 
-				s.onKill(evt)
-			case updateStatus:
-				evt, ok := update.data.(statusEvent)
-				if !ok {
+				parsedIP := net.ParseIP(pcs[0])
+				if parsedIP == nil {
+					slog.Error("Failed to parse ip", slog.String("ip", pcs[0]))
+
 					continue
 				}
-
-				s.onStatus(ctx, update.source, evt)
-			case updateTags:
-				evt, ok := update.data.(tagsEvent)
-				if !ok {
-					continue
-				}
-
-				s.onTags(evt)
-			case updateHostname:
-				evt, ok := update.data.(hostnameEvent)
-				if !ok {
-					continue
-				}
-
-				s.onHostname(evt)
-			case updateMap:
-				evt, ok := update.data.(mapEvent)
-				if !ok {
-					continue
-				}
-
-				s.onMapName(evt)
-			case changeMap:
+			case EvtStatusID:
+				s.onStatus(ctx, evt.PlayerSID, statusEvent{
+					ping:      evt.PlayerPing,
+					userID:    evt.UserID,
+					name:      evt.Player,
+					connected: evt.PlayerConnected,
+				})
+			case EvtDisconnect:
 				s.onMapChange()
-			default:
-				slog.Debug("unhandled state update case")
+			case EvtKill:
+				s.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player})
+			case EvtMsg:
+			case EvtConnect:
+			case EvtLobby:
+			case EvtAny:
 			}
 		case <-ctx.Done():
 			return
@@ -264,7 +260,7 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 			s.mu.Unlock()
 
 			for _, player := range s.players.all() {
-				if player.isDisconnected() {
+				if player.IsConnected {
 					player.IsConnected = false
 					s.players.update(player)
 				}
@@ -284,7 +280,7 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 
 // applyRemoteData updates the current player states with new incoming remote data sources.
 func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) {
-	player, errPlayer := s.players.bySteamID(data.steamID, true)
+	player, errPlayer := s.players.bySteamID(data.steamID)
 	if errPlayer != nil {
 		return
 	}
@@ -366,9 +362,9 @@ func (s *gameState) onKill(evt killEvent) {
 }
 
 func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
-	player, errPlayer := s.players.bySteamID(steamID, false)
+	player, errPlayer := s.players.bySteamID(steamID)
 	if errPlayer != nil {
-		if !errors.Is(errParseTimestamp, errPlayerNotFound) {
+		if !errors.Is(errPlayer, errPlayerNotFound) {
 			return PlayerState{}, errPlayer
 		}
 
@@ -389,16 +385,11 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 		return
 	}
 
-	// Trigger update of external data if its been long enough, or the player is new to us.
-	if time.Since(player.UpdatedOn) > time.Hour*24 {
-		// TODO save friends and sourcebans data locally
-		s.profileUpdateQueue <- steamID
-	}
-
 	player.MapTimeStart = time.Now()
 	player.Ping = evt.ping
-	player.Connected = evt.connected.Seconds()
+	player.Connected = evt.connected
 	player.UpdatedOn = time.Now()
+	player.IsConnected = true
 	player.UserID = evt.userID
 
 	if player.Personaname != evt.name {
@@ -421,6 +412,13 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 	}
 
 	s.players.update(player)
+
+	// Trigger update of external data if its been long enough, or the player is new to us.
+	if time.Since(player.ProfileUpdatedOn) > time.Hour*24 {
+		// TODO save friends and sourcebans data locally
+		slog.Debug("Updating user data", sidAttr(steamID))
+		s.profileUpdateQueue <- steamID
+	}
 
 	slog.Debug("Player status updated",
 		slog.String("sid", steamID.String()),
@@ -457,9 +455,10 @@ func (s *gameState) onMapName(evt mapEvent) {
 }
 
 func (s *gameState) onMapChange() {
-	for _, curPlayer := range s.players.all() {
+	players := s.players.all()
+	for _, curPlayer := range players {
 		player := curPlayer
-
+		player.IsConnected = true
 		player.Kills = 0
 		player.Deaths = 0
 		player.MapTimeStart = time.Now()

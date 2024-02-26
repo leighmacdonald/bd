@@ -52,7 +52,7 @@ func (bb overwatch) nextKickTarget() (PlayerState, bool) {
 
 	// Pull names from the manual queue first.
 	if len(bb.queued) > 0 {
-		player, errNotFound := bb.state.players.bySteamID(bb.queued[0].steamID, true)
+		player, errNotFound := bb.state.players.bySteamID(bb.queued[0].steamID)
 		if errNotFound != nil {
 			// They are not in the game anymore.
 			if len(bb.queued) > 1 {

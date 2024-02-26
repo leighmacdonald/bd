@@ -159,7 +159,7 @@ func onCallVote(state *gameState, connection rconConnection) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := state.players.bySteamID(sid, true)
+		player, errPlayer := state.players.bySteamID(sid)
 		if errPlayer != nil {
 			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player state", errAttr(errPlayer), slog.String("steam_id", sid.String()))

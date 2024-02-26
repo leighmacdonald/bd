@@ -74,7 +74,7 @@ func (s statusUpdater) updatePlayerState(ctx context.Context) error {
 			continue
 		}
 
-		player, errPlayer := s.state.players.bySteamID(sid, true)
+		player, errPlayer := s.state.players.bySteamID(sid)
 		if errPlayer != nil {
 			// status command is what we use to add players to the active game.
 			continue

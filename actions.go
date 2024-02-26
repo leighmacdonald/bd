@@ -40,7 +40,7 @@ func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *game
 
 // mark will add a new entry in your local player list.
 func mark(ctx context.Context, sm *settingsManager, db store.Querier, state *gameState, re *rules.Engine, sid64 steamid.SID64, attrs []string) error {
-	player, errPlayer := state.players.bySteamID(sid64, false)
+	player, errPlayer := state.players.bySteamID(sid64)
 	if errPlayer != nil {
 		if !errors.Is(errPlayer, errPlayerNotFound) {
 			return errPlayer
