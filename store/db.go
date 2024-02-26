@@ -24,6 +24,27 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.friendsStmt, err = db.PrepareContext(ctx, friends); err != nil {
+		return nil, fmt.Errorf("error preparing query Friends: %w", err)
+	}
+	if q.friendsDeleteStmt, err = db.PrepareContext(ctx, friendsDelete); err != nil {
+		return nil, fmt.Errorf("error preparing query FriendsDelete: %w", err)
+	}
+	if q.friendsInsertStmt, err = db.PrepareContext(ctx, friendsInsert); err != nil {
+		return nil, fmt.Errorf("error preparing query FriendsInsert: %w", err)
+	}
+	if q.listsStmt, err = db.PrepareContext(ctx, lists); err != nil {
+		return nil, fmt.Errorf("error preparing query Lists: %w", err)
+	}
+	if q.listsDeleteStmt, err = db.PrepareContext(ctx, listsDelete); err != nil {
+		return nil, fmt.Errorf("error preparing query ListsDelete: %w", err)
+	}
+	if q.listsInsertStmt, err = db.PrepareContext(ctx, listsInsert); err != nil {
+		return nil, fmt.Errorf("error preparing query ListsInsert: %w", err)
+	}
+	if q.listsUpdateStmt, err = db.PrepareContext(ctx, listsUpdate); err != nil {
+		return nil, fmt.Errorf("error preparing query ListsUpdate: %w", err)
+	}
 	if q.messageSaveStmt, err = db.PrepareContext(ctx, messageSave); err != nil {
 		return nil, fmt.Errorf("error preparing query MessageSave: %w", err)
 	}
@@ -53,6 +74,41 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.friendsStmt != nil {
+		if cerr := q.friendsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing friendsStmt: %w", cerr)
+		}
+	}
+	if q.friendsDeleteStmt != nil {
+		if cerr := q.friendsDeleteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing friendsDeleteStmt: %w", cerr)
+		}
+	}
+	if q.friendsInsertStmt != nil {
+		if cerr := q.friendsInsertStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing friendsInsertStmt: %w", cerr)
+		}
+	}
+	if q.listsStmt != nil {
+		if cerr := q.listsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listsStmt: %w", cerr)
+		}
+	}
+	if q.listsDeleteStmt != nil {
+		if cerr := q.listsDeleteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listsDeleteStmt: %w", cerr)
+		}
+	}
+	if q.listsInsertStmt != nil {
+		if cerr := q.listsInsertStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listsInsertStmt: %w", cerr)
+		}
+	}
+	if q.listsUpdateStmt != nil {
+		if cerr := q.listsUpdateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listsUpdateStmt: %w", cerr)
+		}
+	}
 	if q.messageSaveStmt != nil {
 		if cerr := q.messageSaveStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing messageSaveStmt: %w", cerr)
@@ -130,29 +186,43 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db               DBTX
-	tx               *sql.Tx
-	messageSaveStmt  *sql.Stmt
-	messagesStmt     *sql.Stmt
-	playerStmt       *sql.Stmt
-	playerInsertStmt *sql.Stmt
-	playerSearchStmt *sql.Stmt
-	playerUpdateStmt *sql.Stmt
-	userNameSaveStmt *sql.Stmt
-	userNamesStmt    *sql.Stmt
+	db                DBTX
+	tx                *sql.Tx
+	friendsStmt       *sql.Stmt
+	friendsDeleteStmt *sql.Stmt
+	friendsInsertStmt *sql.Stmt
+	listsStmt         *sql.Stmt
+	listsDeleteStmt   *sql.Stmt
+	listsInsertStmt   *sql.Stmt
+	listsUpdateStmt   *sql.Stmt
+	messageSaveStmt   *sql.Stmt
+	messagesStmt      *sql.Stmt
+	playerStmt        *sql.Stmt
+	playerInsertStmt  *sql.Stmt
+	playerSearchStmt  *sql.Stmt
+	playerUpdateStmt  *sql.Stmt
+	userNameSaveStmt  *sql.Stmt
+	userNamesStmt     *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:               tx,
-		tx:               tx,
-		messageSaveStmt:  q.messageSaveStmt,
-		messagesStmt:     q.messagesStmt,
-		playerStmt:       q.playerStmt,
-		playerInsertStmt: q.playerInsertStmt,
-		playerSearchStmt: q.playerSearchStmt,
-		playerUpdateStmt: q.playerUpdateStmt,
-		userNameSaveStmt: q.userNameSaveStmt,
-		userNamesStmt:    q.userNamesStmt,
+		db:                tx,
+		tx:                tx,
+		friendsStmt:       q.friendsStmt,
+		friendsDeleteStmt: q.friendsDeleteStmt,
+		friendsInsertStmt: q.friendsInsertStmt,
+		listsStmt:         q.listsStmt,
+		listsDeleteStmt:   q.listsDeleteStmt,
+		listsInsertStmt:   q.listsInsertStmt,
+		listsUpdateStmt:   q.listsUpdateStmt,
+		messageSaveStmt:   q.messageSaveStmt,
+		messagesStmt:      q.messagesStmt,
+		playerStmt:        q.playerStmt,
+		playerInsertStmt:  q.playerInsertStmt,
+		playerSearchStmt:  q.playerSearchStmt,
+		playerUpdateStmt:  q.playerUpdateStmt,
+		userNameSaveStmt:  q.userNameSaveStmt,
+		userNamesStmt:     q.userNamesStmt,
 	}
 }
