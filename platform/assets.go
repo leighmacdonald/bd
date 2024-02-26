@@ -1,24 +1,21 @@
-package frontend
+package platform
 
 import (
 	"embed"
-	"errors"
 	"fmt"
 )
 
 //go:embed *.ico *.png
 var content embed.FS
 
-var ErrStaticPath = errors.New("failed to setup static paths")
-
-type Name string
+type iconName string
 
 const (
-	IconWindows Name = "icon.ico"
-	IconOther   Name = "icon.png"
+	IconWindows iconName = "icon.ico"
+	IconOther   iconName = "icon.png"
 )
 
-func Read(name Name) []byte {
+func readIcon(name iconName) []byte {
 	data, errRead := content.ReadFile(string(name))
 	if errRead != nil {
 		panic(fmt.Sprintf("Cannot load embed asset: %v", errRead))
