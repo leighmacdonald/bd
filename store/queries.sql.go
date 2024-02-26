@@ -11,6 +11,178 @@ import (
 	"time"
 )
 
+const friends = `-- name: Friends :many
+SELECT  steam_id, steam_id_friend, friend_since, created_on
+FROM player_friends
+WHERE steam_id = ?1
+`
+
+func (q *Queries) Friends(ctx context.Context, steamID int64) ([]PlayerFriend, error) {
+	rows, err := q.query(ctx, q.friendsStmt, friends, steamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PlayerFriend
+	for rows.Next() {
+		var i PlayerFriend
+		if err := rows.Scan(
+			&i.SteamID,
+			&i.SteamIDFriend,
+			&i.FriendSince,
+			&i.CreatedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const friendsDelete = `-- name: FriendsDelete :exec
+DELETE FROM player_friends WHERE steam_id = ?1
+`
+
+func (q *Queries) FriendsDelete(ctx context.Context, steamID int64) error {
+	_, err := q.exec(ctx, q.friendsDeleteStmt, friendsDelete, steamID)
+	return err
+}
+
+const friendsInsert = `-- name: FriendsInsert :exec
+INSERT INTO player_friends (steam_id, steam_id_friend, friend_since, created_on)
+VALUES (?, ?, ?, ?)
+`
+
+type FriendsInsertParams struct {
+	SteamID       int64     `json:"steam_id"`
+	SteamIDFriend int64     `json:"steam_id_friend"`
+	FriendSince   time.Time `json:"friend_since"`
+	CreatedOn     time.Time `json:"created_on"`
+}
+
+func (q *Queries) FriendsInsert(ctx context.Context, arg FriendsInsertParams) error {
+	_, err := q.exec(ctx, q.friendsInsertStmt, friendsInsert,
+		arg.SteamID,
+		arg.SteamIDFriend,
+		arg.FriendSince,
+		arg.CreatedOn,
+	)
+	return err
+}
+
+const lists = `-- name: Lists :many
+SELECT list_id, list_type, url, enabled, updated_on, created_on
+FROM lists
+`
+
+func (q *Queries) Lists(ctx context.Context) ([]List, error) {
+	rows, err := q.query(ctx, q.listsStmt, lists)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []List
+	for rows.Next() {
+		var i List
+		if err := rows.Scan(
+			&i.ListID,
+			&i.ListType,
+			&i.Url,
+			&i.Enabled,
+			&i.UpdatedOn,
+			&i.CreatedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listsDelete = `-- name: ListsDelete :exec
+DELETE FROM lists WHERE list_id = ?1
+`
+
+func (q *Queries) ListsDelete(ctx context.Context, listID interface{}) error {
+	_, err := q.exec(ctx, q.listsDeleteStmt, listsDelete, listID)
+	return err
+}
+
+const listsInsert = `-- name: ListsInsert :one
+INSERT INTO lists (list_type, url, enabled, updated_on, created_on)
+VALUES (?, ?, ?, ?, ?)
+RETURNING list_id, list_type, url, enabled, updated_on, created_on
+`
+
+type ListsInsertParams struct {
+	ListType  int64     `json:"list_type"`
+	Url       string    `json:"url"`
+	Enabled   bool      `json:"enabled"`
+	UpdatedOn time.Time `json:"updated_on"`
+	CreatedOn time.Time `json:"created_on"`
+}
+
+func (q *Queries) ListsInsert(ctx context.Context, arg ListsInsertParams) (List, error) {
+	row := q.queryRow(ctx, q.listsInsertStmt, listsInsert,
+		arg.ListType,
+		arg.Url,
+		arg.Enabled,
+		arg.UpdatedOn,
+		arg.CreatedOn,
+	)
+	var i List
+	err := row.Scan(
+		&i.ListID,
+		&i.ListType,
+		&i.Url,
+		&i.Enabled,
+		&i.UpdatedOn,
+		&i.CreatedOn,
+	)
+	return i, err
+}
+
+const listsUpdate = `-- name: ListsUpdate :exec
+UPDATE lists
+SET
+    list_type = ?1,
+    url = ?2,
+    enabled = ?3,
+    updated_on = ?4
+WHERE list_id = ?5
+`
+
+type ListsUpdateParams struct {
+	ListType  int64       `json:"list_type"`
+	Url       string      `json:"url"`
+	Enabled   bool        `json:"enabled"`
+	UpdatedOn time.Time   `json:"updated_on"`
+	ListID    interface{} `json:"list_id"`
+}
+
+func (q *Queries) ListsUpdate(ctx context.Context, arg ListsUpdateParams) error {
+	_, err := q.exec(ctx, q.listsUpdateStmt, listsUpdate,
+		arg.ListType,
+		arg.Url,
+		arg.Enabled,
+		arg.UpdatedOn,
+		arg.ListID,
+	)
+	return err
+}
+
 const messageSave = `-- name: MessageSave :exec
 INSERT INTO player_messages (steam_id, message, team, dead, created_on)
 VALUES (?, ?, ?, ?, ?)

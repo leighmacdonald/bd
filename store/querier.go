@@ -9,6 +9,13 @@ import (
 )
 
 type Querier interface {
+	Friends(ctx context.Context, steamID int64) ([]PlayerFriend, error)
+	FriendsDelete(ctx context.Context, steamID int64) error
+	FriendsInsert(ctx context.Context, arg FriendsInsertParams) error
+	Lists(ctx context.Context) ([]List, error)
+	ListsDelete(ctx context.Context, listID interface{}) error
+	ListsInsert(ctx context.Context, arg ListsInsertParams) (List, error)
+	ListsUpdate(ctx context.Context, arg ListsUpdateParams) error
 	MessageSave(ctx context.Context, arg MessageSaveParams) error
 	Messages(ctx context.Context, steamID int64) ([]PlayerMessage, error)
 	Player(ctx context.Context, steamID int64) (PlayerRow, error)

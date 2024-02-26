@@ -90,3 +90,36 @@ VALUES (?, ?, ?, ?, ?);
 SELECT message_id, steam_id, message, team, dead, created_on
 FROM player_messages
 WHERE steam_id = @steam_id;
+
+-- name: Friends :many
+SELECT  steam_id, steam_id_friend, friend_since, created_on
+FROM player_friends
+WHERE steam_id = @steam_id;
+
+-- name: FriendsInsert :exec
+INSERT INTO player_friends (steam_id, steam_id_friend, friend_since, created_on)
+VALUES (?, ?, ?, ?);
+
+-- name: FriendsDelete :exec
+DELETE FROM player_friends WHERE steam_id = @steam_id;
+
+-- name: Lists :many
+SELECT list_id, list_type, url, enabled, updated_on, created_on
+FROM lists;
+
+-- name: ListsInsert :one
+INSERT INTO lists (list_type, url, enabled, updated_on, created_on)
+VALUES (?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: ListsDelete :exec
+DELETE FROM lists WHERE list_id = @list_id;
+
+-- name: ListsUpdate :exec
+UPDATE lists
+SET
+    list_type = @list_type,
+    url = @url,
+    enabled = @enabled,
+    updated_on = @updated_on
+WHERE list_id = @list_id;
