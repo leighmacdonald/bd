@@ -63,6 +63,15 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.playerUpdateStmt, err = db.PrepareContext(ctx, playerUpdate); err != nil {
 		return nil, fmt.Errorf("error preparing query PlayerUpdate: %w", err)
 	}
+	if q.sourcebansStmt, err = db.PrepareContext(ctx, sourcebans); err != nil {
+		return nil, fmt.Errorf("error preparing query Sourcebans: %w", err)
+	}
+	if q.sourcebansDeleteStmt, err = db.PrepareContext(ctx, sourcebansDelete); err != nil {
+		return nil, fmt.Errorf("error preparing query SourcebansDelete: %w", err)
+	}
+	if q.sourcebansInsertStmt, err = db.PrepareContext(ctx, sourcebansInsert); err != nil {
+		return nil, fmt.Errorf("error preparing query SourcebansInsert: %w", err)
+	}
 	if q.userNameSaveStmt, err = db.PrepareContext(ctx, userNameSave); err != nil {
 		return nil, fmt.Errorf("error preparing query UserNameSave: %w", err)
 	}
@@ -139,6 +148,21 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing playerUpdateStmt: %w", cerr)
 		}
 	}
+	if q.sourcebansStmt != nil {
+		if cerr := q.sourcebansStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing sourcebansStmt: %w", cerr)
+		}
+	}
+	if q.sourcebansDeleteStmt != nil {
+		if cerr := q.sourcebansDeleteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing sourcebansDeleteStmt: %w", cerr)
+		}
+	}
+	if q.sourcebansInsertStmt != nil {
+		if cerr := q.sourcebansInsertStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing sourcebansInsertStmt: %w", cerr)
+		}
+	}
 	if q.userNameSaveStmt != nil {
 		if cerr := q.userNameSaveStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing userNameSaveStmt: %w", cerr)
@@ -186,43 +210,49 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                DBTX
-	tx                *sql.Tx
-	friendsStmt       *sql.Stmt
-	friendsDeleteStmt *sql.Stmt
-	friendsInsertStmt *sql.Stmt
-	listsStmt         *sql.Stmt
-	listsDeleteStmt   *sql.Stmt
-	listsInsertStmt   *sql.Stmt
-	listsUpdateStmt   *sql.Stmt
-	messageSaveStmt   *sql.Stmt
-	messagesStmt      *sql.Stmt
-	playerStmt        *sql.Stmt
-	playerInsertStmt  *sql.Stmt
-	playerSearchStmt  *sql.Stmt
-	playerUpdateStmt  *sql.Stmt
-	userNameSaveStmt  *sql.Stmt
-	userNamesStmt     *sql.Stmt
+	db                   DBTX
+	tx                   *sql.Tx
+	friendsStmt          *sql.Stmt
+	friendsDeleteStmt    *sql.Stmt
+	friendsInsertStmt    *sql.Stmt
+	listsStmt            *sql.Stmt
+	listsDeleteStmt      *sql.Stmt
+	listsInsertStmt      *sql.Stmt
+	listsUpdateStmt      *sql.Stmt
+	messageSaveStmt      *sql.Stmt
+	messagesStmt         *sql.Stmt
+	playerStmt           *sql.Stmt
+	playerInsertStmt     *sql.Stmt
+	playerSearchStmt     *sql.Stmt
+	playerUpdateStmt     *sql.Stmt
+	sourcebansStmt       *sql.Stmt
+	sourcebansDeleteStmt *sql.Stmt
+	sourcebansInsertStmt *sql.Stmt
+	userNameSaveStmt     *sql.Stmt
+	userNamesStmt        *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                tx,
-		tx:                tx,
-		friendsStmt:       q.friendsStmt,
-		friendsDeleteStmt: q.friendsDeleteStmt,
-		friendsInsertStmt: q.friendsInsertStmt,
-		listsStmt:         q.listsStmt,
-		listsDeleteStmt:   q.listsDeleteStmt,
-		listsInsertStmt:   q.listsInsertStmt,
-		listsUpdateStmt:   q.listsUpdateStmt,
-		messageSaveStmt:   q.messageSaveStmt,
-		messagesStmt:      q.messagesStmt,
-		playerStmt:        q.playerStmt,
-		playerInsertStmt:  q.playerInsertStmt,
-		playerSearchStmt:  q.playerSearchStmt,
-		playerUpdateStmt:  q.playerUpdateStmt,
-		userNameSaveStmt:  q.userNameSaveStmt,
-		userNamesStmt:     q.userNamesStmt,
+		db:                   tx,
+		tx:                   tx,
+		friendsStmt:          q.friendsStmt,
+		friendsDeleteStmt:    q.friendsDeleteStmt,
+		friendsInsertStmt:    q.friendsInsertStmt,
+		listsStmt:            q.listsStmt,
+		listsDeleteStmt:      q.listsDeleteStmt,
+		listsInsertStmt:      q.listsInsertStmt,
+		listsUpdateStmt:      q.listsUpdateStmt,
+		messageSaveStmt:      q.messageSaveStmt,
+		messagesStmt:         q.messagesStmt,
+		playerStmt:           q.playerStmt,
+		playerInsertStmt:     q.playerInsertStmt,
+		playerSearchStmt:     q.playerSearchStmt,
+		playerUpdateStmt:     q.playerUpdateStmt,
+		sourcebansStmt:       q.sourcebansStmt,
+		sourcebansDeleteStmt: q.sourcebansDeleteStmt,
+		sourcebansInsertStmt: q.sourcebansInsertStmt,
+		userNameSaveStmt:     q.userNameSaveStmt,
+		userNamesStmt:        q.userNamesStmt,
 	}
 }

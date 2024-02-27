@@ -22,6 +22,9 @@ type Querier interface {
 	PlayerInsert(ctx context.Context, arg PlayerInsertParams) (Player, error)
 	PlayerSearch(ctx context.Context, arg PlayerSearchParams) ([]PlayerSearchRow, error)
 	PlayerUpdate(ctx context.Context, arg PlayerUpdateParams) error
+	Sourcebans(ctx context.Context, steamID int64) ([]PlayerSourceban, error)
+	SourcebansDelete(ctx context.Context, steamID int64) error
+	SourcebansInsert(ctx context.Context, arg SourcebansInsertParams) (PlayerSourceban, error)
 	UserNameSave(ctx context.Context, arg UserNameSaveParams) error
 	UserNames(ctx context.Context, steamID int64) ([]PlayerName, error)
 }

@@ -61,3 +61,14 @@ type PlayerName struct {
 	Name      string    `json:"name"`
 	CreatedOn time.Time `json:"created_on"`
 }
+
+type PlayerSourceban struct {
+	SourcebansID interface{} `json:"sourcebans_id"`
+	SteamID      int64       `json:"steam_id"`
+	Site         string      `json:"site"`
+	PlayerName   string      `json:"player_name"`
+	Reason       string      `json:"reason"`
+	Duration     int64       `json:"duration"`
+	Permanent    bool        `json:"permanent"`
+	CreatedOn    time.Time   `json:"created_on"`
+}

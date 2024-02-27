@@ -107,6 +107,8 @@ func (p *playerDataLoader) start(ctx context.Context) {
 
 			for _, update := range updates {
 				p.playerDataChan <- update
+				p.saveFriends(ctx, update.steamID, update.friends)
+				p.saveSourceBans(ctx, update.steamID, update.sourcebans)
 			}
 
 			slog.Info("Updated",
@@ -114,6 +116,46 @@ func (p *playerDataLoader) start(ctx context.Context) {
 				slog.Int("sourcebans", len(bulkData.sourcebans)), slog.Int("fiends", len(bulkData.friends)))
 
 			queue = nil
+		}
+	}
+}
+
+func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.SID64, records []models.SbBanRecord) {
+	if err := p.db.SourcebansDelete(ctx, steamID.Int64()); err != nil {
+		slog.Error("failed to delete sourcebans records", errAttr(err))
+		return
+	}
+
+	for _, sb := range records {
+		if _, err := p.db.SourcebansInsert(ctx, store.SourcebansInsertParams{
+			SteamID:    steamID.Int64(),
+			Site:       string(sb.SiteName),
+			PlayerName: sb.PersonaName,
+			Reason:     sb.Reason,
+			Duration:   int64(sb.Duration),
+			Permanent:  sb.Permanent,
+			CreatedOn:  sb.CreatedOn,
+		}); err != nil {
+			slog.Error("failed to insert sourcebans record", errAttr(err))
+		}
+	}
+}
+
+func (p *playerDataLoader) saveFriends(ctx context.Context, steamID steamid.SID64, friends []steamweb.Friend) {
+	if err := p.db.FriendsDelete(ctx, steamID.Int64()); err != nil {
+		slog.Error("failed to delete friends")
+		return
+	}
+
+	for _, friend := range friends {
+		if err := p.db.FriendsInsert(ctx, store.FriendsInsertParams{
+			SteamID:       steamID.Int64(),
+			SteamIDFriend: friend.SteamID.Int64(),
+			FriendSince:   time.Unix(int64(friend.FriendSince), 0),
+			CreatedOn:     time.Now(),
+		}); err != nil {
+			slog.Error("failed to insert friend", errAttr(err))
+			continue
 		}
 	}
 }

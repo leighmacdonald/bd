@@ -546,6 +546,93 @@ func (q *Queries) PlayerUpdate(ctx context.Context, arg PlayerUpdateParams) erro
 	return err
 }
 
+const sourcebans = `-- name: Sourcebans :many
+SELECT sourcebans_id, steam_id, site,  player_name, reason, duration, permanent, created_on
+FROM player_sourcebans
+WHERE steam_id = ?1
+`
+
+func (q *Queries) Sourcebans(ctx context.Context, steamID int64) ([]PlayerSourceban, error) {
+	rows, err := q.query(ctx, q.sourcebansStmt, sourcebans, steamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PlayerSourceban
+	for rows.Next() {
+		var i PlayerSourceban
+		if err := rows.Scan(
+			&i.SourcebansID,
+			&i.SteamID,
+			&i.Site,
+			&i.PlayerName,
+			&i.Reason,
+			&i.Duration,
+			&i.Permanent,
+			&i.CreatedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sourcebansDelete = `-- name: SourcebansDelete :exec
+DELETE FROM player_sourcebans WHERE steam_id = ?1
+`
+
+func (q *Queries) SourcebansDelete(ctx context.Context, steamID int64) error {
+	_, err := q.exec(ctx, q.sourcebansDeleteStmt, sourcebansDelete, steamID)
+	return err
+}
+
+const sourcebansInsert = `-- name: SourcebansInsert :one
+INSERT INTO player_sourcebans (steam_id, site, player_name, reason, duration, permanent, created_on)
+VALUES (?,?,?,?, ?, ?, ?)
+RETURNING sourcebans_id, steam_id, site, player_name, reason, duration, permanent, created_on
+`
+
+type SourcebansInsertParams struct {
+	SteamID    int64     `json:"steam_id"`
+	Site       string    `json:"site"`
+	PlayerName string    `json:"player_name"`
+	Reason     string    `json:"reason"`
+	Duration   int64     `json:"duration"`
+	Permanent  bool      `json:"permanent"`
+	CreatedOn  time.Time `json:"created_on"`
+}
+
+func (q *Queries) SourcebansInsert(ctx context.Context, arg SourcebansInsertParams) (PlayerSourceban, error) {
+	row := q.queryRow(ctx, q.sourcebansInsertStmt, sourcebansInsert,
+		arg.SteamID,
+		arg.Site,
+		arg.PlayerName,
+		arg.Reason,
+		arg.Duration,
+		arg.Permanent,
+		arg.CreatedOn,
+	)
+	var i PlayerSourceban
+	err := row.Scan(
+		&i.SourcebansID,
+		&i.SteamID,
+		&i.Site,
+		&i.PlayerName,
+		&i.Reason,
+		&i.Duration,
+		&i.Permanent,
+		&i.CreatedOn,
+	)
+	return i, err
+}
+
 const userNameSave = `-- name: UserNameSave :exec
 INSERT INTO player_names (name_id, steam_id, name, created_on)
 VALUES (?, ?, ?, ?)

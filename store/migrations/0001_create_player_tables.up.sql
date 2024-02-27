@@ -45,17 +45,30 @@ create table if not exists player_messages
 
 create table if not exists player_friends
 (
-    steam_id   integer not null,
-    steam_id_friend    integer    not null,
-    friend_since date not null,
-    created_on date    not null default (DATETIME('now')),
+    steam_id        integer not null,
+    steam_id_friend integer not null,
+    friend_since    date    not null,
+    created_on      date    not null default (DATETIME('now')),
     foreign key (steam_id) references player (steam_id) on delete cascade,
     primary key (steam_id, steam_id_friend)
 );
 
+create table if not exists player_sourcebans
+(
+    sourcebans_id integer primary key,
+    steam_id      integer not null,
+    site          text    not null,
+    player_name   text    not null default '',
+    reason        text    not null unique,
+    duration      integer not null default 0,
+    permanent     boolean not null default false,
+    created_on    date    not null default (DATETIME('now')),
+    foreign key (steam_id) references player (steam_id) on delete cascade
+);
+
 create table if not exists lists
 (
-    list_id    inteter primary key,
+    list_id    integer primary key,
     list_type  integer not null,
     url        text    not null unique,
     enabled    boolean not null default true,
