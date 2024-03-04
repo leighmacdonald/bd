@@ -72,6 +72,7 @@ var (
 	errHTTPShutdown      = errors.New("failed to shutdown http service")
 	errTempDir           = errors.New("failed to create temp dir")
 	errSettingsBDAPIAddr = errors.New("bd-api address invalid")
+	errResolveAddr       = errors.New("failed to resolve address")
 )
 
 const (

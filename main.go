@@ -121,15 +121,29 @@ func run() int {
 
 	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db)
 
-	ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), newLogParser(), true)
-	if errLogReader != nil {
-		slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
-		return 1
+	parser := newLogParser()
+	broadcaster := newEventBroadcaster()
+
+	var logSrc backgroundService
+	if settings.UDPListenerEnabled {
+		ingest, errListener := newUDPListener(settings.UDPListenerAddr, parser, broadcaster)
+		if errListener != nil {
+			slog.Error("failed to start udp log listener", errAttr(errListener))
+			return 1
+		}
+		logSrc = ingest
+	} else {
+		ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), parser, true, broadcaster)
+		if errLogReader != nil {
+			slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
+			return 1
+		}
+		logSrc = ingest
 	}
 
-	cr := newChatRecorder(db, ingest)
+	cr := newChatRecorder(db, broadcaster)
 
-	ingest.registerConsumer(state.eventChan, EvtAny)
+	broadcaster.registerConsumer(state.eventChan, EvtAny)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -163,7 +177,7 @@ func run() int {
 	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
 	// Start all the background workers
-	for _, svc := range []backgroundService{discordPresence, cr, ingest, updater, statusHandler, bigBrotherHandler, processHandler, state, lm} {
+	for _, svc := range []backgroundService{discordPresence, cr, logSrc, updater, statusHandler, bigBrotherHandler, processHandler, state, lm} {
 		go svc.start(ctx)
 	}
 

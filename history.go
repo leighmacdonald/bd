@@ -12,7 +12,7 @@ type chatRecorder struct {
 	db       store.Querier
 }
 
-func newChatRecorder(db store.Querier, ingest *logIngest) chatRecorder {
+func newChatRecorder(db store.Querier, ingest *eventBroadcaster) chatRecorder {
 	cr := chatRecorder{
 		incoming: make(chan LogEvent),
 		db:       db,

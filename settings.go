@@ -349,6 +349,8 @@ type userSettings struct {
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level" json:"log_level"`
 	SystrayEnabled          bool                 `yaml:"systray_enabled" json:"systray_enabled"`
+	UDPListenerEnabled      bool                 `yaml:"udp_listener_enabled" json:"udp_listener_enabled"`
+	UDPListenerAddr         string               `yaml:"udp_listener_addr" json:"udp_listener_addr"`
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
@@ -375,6 +377,8 @@ func newSettings(plat platform.Platform) userSettings {
 		SystrayEnabled:          true,
 		PlayerExpiredTimeout:    6,
 		PlayerDisconnectTimeout: 20,
+		UDPListenerAddr:         "0.0.0.0:27777",
+		UDPListenerEnabled:      false,
 		Lists: []*ListConfig{
 			{
 				Name:     "Uncletopia",

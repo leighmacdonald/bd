@@ -49,7 +49,9 @@ func (p *processState) launchGame(settingsMgr *settingsManager) {
 		settings.Rcon.Password,
 		settings.Rcon.Port,
 		settingsMgr.locateSteamDir(),
-		settings.SteamID)
+		settings.SteamID,
+		settings.UDPListenerEnabled,
+		settings.UDPListenerAddr)
 
 	if errArgs != nil {
 		slog.Error("Failed to get TF2 launch args", errAttr(errArgs))
