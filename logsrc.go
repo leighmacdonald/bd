@@ -27,6 +27,9 @@ func newEventBroadcaster() *eventBroadcaster {
 }
 
 func (e *eventBroadcaster) broadcast(logEvent LogEvent) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
 	// Emit all events to these consumers
 	for _, consumer := range e.eventConsumer[EvtAny] {
 		consumer <- logEvent
