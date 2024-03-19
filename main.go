@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -18,51 +16,14 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"golang.org/x/sync/errgroup"
 	_ "modernc.org/sqlite"
 )
 
 var (
-	// Build info embedded by goreleaser.
+	// Build info embedded at build time.
 	version = "master" //nolint:gochecknoglobals
 	commit  = "latest" //nolint:gochecknoglobals
 	date    = "n/a"    //nolint:gochecknoglobals
-	builtBy = "src"    //nolint:gochecknoglobals
-)
-
-func testLogFeeder(logChan chan string) {
-	if testLogPath, isTest := os.LookupEnv("TEST_CONSOLE_LOG"); isTest {
-		body, errRead := os.ReadFile(testLogPath)
-		if errRead != nil {
-			slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", testLogPath), errAttr(errRead))
-
-			return
-		}
-
-		lines := strings.Split(string(body), "\n")
-		curLine := 0
-		lineCount := len(lines)
-
-		go func() {
-			updateTicker := time.NewTicker(time.Millisecond * 10)
-
-			for {
-				<-updateTicker.C
-
-				logChan <- strings.Trim(lines[curLine], "\r")
-
-				curLine++
-
-				if curLine >= lineCount {
-					curLine = 0
-				}
-			}
-		}()
-	}
-}
-
-const (
-	profileAgeLimit = time.Hour * 24
 )
 
 func createRulesEngine(sm *settingsManager) *rules.Engine {
@@ -118,18 +79,14 @@ func createRulesEngine(sm *settingsManager) *rules.Engine {
 }
 
 // openApplicationPage launches the http frontend using the platform specific browser launcher function.
-func openApplicationPage(plat platform.Platform, addr string) {
-	appURL := fmt.Sprintf("http://%s", addr)
+func openApplicationPage(plat platform.Platform, appURL string) {
 	if errOpen := plat.OpenURL(appURL); errOpen != nil {
 		slog.Error("Failed to open URL", slog.String("url", appURL), errAttr(errOpen))
 	}
 }
 
 func run() int {
-	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	versionInfo := Version{Version: version, Commit: commit, Date: date, BuiltBy: builtBy}
+	versionInfo := Version{Version: version, Commit: commit, Date: date}
 	plat := platform.New()
 	settingsMgr := newSettingsManager(plat)
 
@@ -150,11 +107,8 @@ func run() int {
 	logCloser := MustCreateLogger(settingsMgr)
 	defer logCloser()
 
-	slog.Info("Starting BD",
-		slog.String("version", versionInfo.Version),
-		slog.String("date", versionInfo.Date),
-		slog.String("commit", versionInfo.Commit),
-		slog.String("via", versionInfo.BuiltBy))
+	slog.Info("Starting", slog.String("ver", versionInfo.Version),
+		slog.String("date", versionInfo.Date), slog.String("commit", versionInfo.Commit))
 
 	db, dbCloser, errDB := store.CreateDB(settingsMgr.DBPath())
 	if errDB != nil {
@@ -163,27 +117,33 @@ func run() int {
 	}
 	defer dbCloser()
 
-	// fsCache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
-	// if cacheErr != nil {
-	//	 slog.Error("Failed to setup cache", errAttr(cacheErr))
-	//	 return 1
-	// }
-
-	logChan := make(chan string)
-
-	logReader, errLogReader := newLogReader(filepath.Join(settings.TF2Dir, "console.log"), logChan, true)
-	if errLogReader != nil {
-		slog.Error("Failed to create logreader", errAttr(errLogReader))
-		return 1
-	}
-	defer logReader.tail.Cleanup()
-
-	go logReader.start(rootCtx)
-
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
 
-	playerStates := newPlayerState()
-	state := newGameState(db, settingsMgr, playerStates, rcon)
+	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db)
+
+	parser := newLogParser()
+	broadcaster := newEventBroadcaster()
+
+	var logSrc backgroundService
+	if settings.UDPListenerEnabled {
+		ingest, errListener := newUDPListener(settings.UDPListenerAddr, parser, broadcaster)
+		if errListener != nil {
+			slog.Error("failed to start udp log listener", errAttr(errListener))
+			return 1
+		}
+		logSrc = ingest
+	} else {
+		ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), parser, true, broadcaster)
+		if errLogReader != nil {
+			slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
+			return 1
+		}
+		logSrc = ingest
+	}
+
+	cr := newChatRecorder(db, broadcaster)
+
+	broadcaster.registerConsumer(state.eventChan, EvtAny)
 
 	dataSource, errDataSource := newDataSource(settings)
 	if errDataSource != nil {
@@ -191,97 +151,70 @@ func run() int {
 		return 1
 	}
 
-	updater := newProfileUpdater(db, dataSource, state, settingsMgr)
-	go updater.start(rootCtx)
-
-	// announcer := newAnnounceHandler(settingsMgr, rcon, state)
-
-	// kickRequestChan := make(chan kickRequest)
-
-	discordPresence := newDiscordState(state, settingsMgr)
-	go discordPresence.start(rootCtx)
-
 	re := createRulesEngine(settingsMgr)
-	// eventChan := make(chan LogEvent)
-	// parser := NewLogParser(logChan, eventChan)
-	process := newProcessState(plat, rcon)
 
-	mux, errRoutes := createHandlers(db, state, process, settingsMgr, re, rcon)
+	cache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
+	if cacheErr != nil {
+		slog.Error("Failed to set up cache", errAttr(cacheErr))
+		return 1
+	}
+
+	lm := newListManager(cache, re, settingsMgr)
+	updater := newPlayerDataLoader(db, dataSource, settingsMgr, re, state.profileUpdateQueue, state.playerDataChan)
+	discordPresence := newDiscordState(state, settingsMgr)
+	processHandler := newProcessState(plat, rcon, settingsMgr)
+	statusHandler := newStatusUpdater(rcon, processHandler, state, time.Second*2)
+	bigBrotherHandler := newOverwatch(settingsMgr, rcon, state)
+
+	mux, errRoutes := createHandlers(db, state, processHandler, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 	}
 
-	httpServer := newHTTPServer(rootCtx, settings.HTTPListenAddr, mux)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	go testLogFeeder(logChan)
+	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
-	var tray *Systray
-
-	if settings.SystrayEnabled {
-		tray = NewSystray(
-			plat.Icon(),
-			func() {
-				if errOpen := plat.OpenURL(fmt.Sprintf("http://%s/", settings.HTTPListenAddr)); errOpen != nil {
-					slog.Error("Failed to open browser", errAttr(errOpen))
-				}
-			}, func() {
-				go process.launchGameAndWait(settingsMgr)
-			},
-		)
-
-		defer systray.Quit()
-	}
-
-	shutdown := func() {
-		timeout, cancel := context.WithTimeout(context.Background(), time.Second*15)
-		defer cancel()
-
-		if errShutdown := httpServer.Shutdown(timeout); errShutdown != nil {
-			slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
-		}
+	// Start all the background workers
+	for _, svc := range []backgroundService{discordPresence, cr, logSrc, updater, statusHandler, bigBrotherHandler, processHandler, state, lm} {
+		go svc.start(ctx)
 	}
 
 	go func() {
+		// TODO configure the auto open
 		time.Sleep(time.Second * 3)
 
 		if settings.RunMode == ModeRelease {
-			openApplicationPage(plat, settings.HTTPListenAddr)
+			openApplicationPage(plat, settings.AppURL())
 		}
 	}()
 
-	serviceGroup, serviceCtx := errgroup.WithContext(rootCtx)
-	serviceGroup.Go(func() error {
-		errServe := httpServer.ListenAndServe()
-		if errServe != nil {
-			if !errors.Is(errServe, http.ErrServerClosed) {
-				return errors.Join(errServe, errHTTPListen)
-			}
-			return nil
+	go func() {
+		if errServe := httpServer.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
+			slog.Error("error trying to shutdown http service", errAttr(errServe))
 		}
-
-		return nil
-	})
+	}()
 
 	if settings.SystrayEnabled {
-		serviceGroup.Go(func() error {
-			systray.Run(tray.OnReady(stop), func() {
-				shutdown()
-			})
-			return nil
+		slog.Debug("Using systray")
+
+		tray := newAppSystray(plat, settingsMgr, processHandler)
+
+		systray.Run(tray.OnReady(ctx), func() {
+			stop()
 		})
 	}
 
-	serviceGroup.Go(func() error {
-		<-serviceCtx.Done()
-		shutdown()
+	<-ctx.Done()
 
-		return nil
-	})
+	timeout, cancelHTTP := context.WithTimeout(context.Background(), time.Second*15)
+	defer cancelHTTP()
 
-	if err := serviceGroup.Wait(); err != nil {
-		slog.Error("Sad Goodbye", errAttr(err))
-
-		return 1
+	if errShutdown := httpServer.Shutdown(timeout); errShutdown != nil {
+		slog.Error("Failed to shutdown cleanly", errAttr(errShutdown))
+	} else {
+		slog.Debug("HTTP Service shutdown successfully")
 	}
 
 	return 0

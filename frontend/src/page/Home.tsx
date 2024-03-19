@@ -7,16 +7,14 @@ import Stack from '@mui/material/Stack';
 import { Toolbar } from '../component/Toolbar';
 import { Player } from '../api';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-import { SettingsEditorModal } from '../component/modal/SettingsEditorModal.tsx';
 import { getDefaultColumns } from '../table.ts';
-import { ModalSettings } from '../component/modal';
 
 export const Home = () => {
     const [order, setOrder] = useState<Order>(
         (localStorage.getItem('sortOrder') as Order) ?? 'desc'
     );
     const [orderBy, setOrderBy] = useState<keyof Player>(
-        (localStorage.getItem('sortBy') as keyof Player) ?? 'name'
+        (localStorage.getItem('sortBy') as keyof Player) ?? 'personaname'
     );
     const [matchesOnly, setMatchesOnly] = useState(
         JSON.parse(localStorage.getItem('matchesOnly') || 'false') === true
@@ -47,7 +45,7 @@ export const Home = () => {
     return (
         <Grid container>
             <Grid xs={12}>
-                <SettingsEditorModal id={ModalSettings} />
+                {/*<SettingsEditorModal id={ModalSettings} />*/}
                 <Paper sx={{ width: '100%', overflow: 'hidden' }}>
                     <PlayerTableContext.Provider
                         value={{

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -32,6 +33,7 @@ var (
 	errPlayerListOpen    = errors.New("failed to open player list")
 	errPathNotExist      = errors.New("path does not exist")
 	errCreateMessage     = errors.New("failed to create user message")
+	errCreatePlayer      = errors.New("failed to create new player")
 	errSaveMessage       = errors.New("failed to save user message")
 	errGetNames          = errors.New("failed to load name history")
 	errSaveNames         = errors.New("failed to save name history")
@@ -70,6 +72,7 @@ var (
 	errHTTPShutdown      = errors.New("failed to shutdown http service")
 	errTempDir           = errors.New("failed to create temp dir")
 	errSettingsBDAPIAddr = errors.New("bd-api address invalid")
+	errResolveAddr       = errors.New("failed to resolve address")
 )
 
 const (
@@ -87,7 +90,8 @@ const (
 type EventType int
 
 const (
-	EvtKill EventType = iota
+	EvtAny = iota - 1
+	EvtKill
 	EvtMsg
 	EvtConnect
 	EvtDisconnect
@@ -120,5 +124,8 @@ type Version struct {
 	Version string
 	Commit  string
 	Date    string
-	BuiltBy string
+}
+
+type backgroundService interface {
+	start(ctx context.Context)
 }

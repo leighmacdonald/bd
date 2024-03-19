@@ -50,7 +50,14 @@ func Connect(dsn string) (*sql.DB, error) {
 		return nil, errors.Join(errOpen, ErrOpenDatabase)
 	}
 
-	for _, pragma := range []string{"PRAGMA encoding = 'UTF-8'", "PRAGMA foreign_keys = ON"} {
+	pragmas := []string{
+		"PRAGMA journal_mode = 'WAL'", // WAL does not work if mapped to a network drive
+		"PRAGMA encoding = 'UTF-8'",
+		"PRAGMA foreign_keys = ON",
+		"PRAGMA cache_size = -4096", // Double the cache size from 2mb (negative is correct)
+	}
+
+	for _, pragma := range pragmas {
 		_, errPragma := database.Exec(pragma)
 		if errPragma != nil {
 			return nil, fmt.Errorf("%w: %s", ErrStorePragma, pragma)

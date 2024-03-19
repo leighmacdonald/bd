@@ -5,23 +5,30 @@ import Tooltip from '@mui/material/Tooltip';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
-import { useModal } from '@ebay/nice-modal-react';
+import NiceModal from '@ebay/nice-modal-react';
 import Stack from '@mui/material/Stack';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { logError } from '../util';
-import { getLaunch, getQuit, Team, useCurrentState } from '../api';
+import {
+    getLaunch,
+    getQuit,
+    Team,
+    useCurrentState,
+    UserSettings
+} from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { ModalSettings } from './modal';
+import { SettingsContext } from '../context/SettingsContext.ts';
 
 export const Toolbar = () => {
     const state = useCurrentState();
     const { t } = useTranslation();
     const { setMatchesOnly } = useContext(PlayerTableContext);
-    const modal = useModal(ModalSettings);
+    const { settings, setSettings } = useContext(SettingsContext);
 
     const onSetMatches = useCallback(() => {
         setMatchesOnly((prevState) => {
@@ -52,7 +59,12 @@ export const Toolbar = () => {
                         <IconButton
                             onClick={async () => {
                                 try {
-                                    await modal.show();
+                                    const newSettings =
+                                        await NiceModal.show<UserSettings>(
+                                            ModalSettings,
+                                            { settings }
+                                        );
+                                    setSettings(newSettings);
                                 } catch (e) {
                                     logError(e);
                                 }

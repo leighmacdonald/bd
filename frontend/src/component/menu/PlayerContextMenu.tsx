@@ -78,7 +78,7 @@ export const PlayerContextMenu = ({
             {/*    leftIcon={<BadgeOutlinedIcon color={'primary'} />}*/}
             {/*    label={t('player_table.menu.name_history_label')}*/}
             {/*/>*/}
-            {player.whitelisted ? (
+            {player.whitelist ? (
                 <RemoveWhitelistMenu
                     contextMenuPos={contextMenuPos}
                     steam_id={player.steam_id}
@@ -99,3 +99,5 @@ export const PlayerContextMenu = ({
         </Menu>
     );
 };
+
+export default PlayerContextMenu;

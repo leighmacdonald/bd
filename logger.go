@@ -6,7 +6,87 @@ import (
 	"os"
 
 	"github.com/dotse/slug"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
+
+// tailLogAdapter implements a tail.logger interface using log/slog.
+type tailLogAdapter struct {
+	echo bool
+}
+
+func (t tailLogAdapter) Fatal(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	// Not actually fatal.
+	slog.Error("Fatal error", slog.Any("value", v))
+}
+
+func (t tailLogAdapter) Fatalf(format string, v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	// Not actually fatal.
+	slog.Error("Fatal error", slog.Any("value", fmt.Sprintf(format, v...)))
+}
+
+func (t tailLogAdapter) Fatalln(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+	// Not actually fatal.
+	slog.Error("Fatal error", slog.Any("value", v))
+}
+
+func (t tailLogAdapter) Panic(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	panic(v)
+}
+
+func (t tailLogAdapter) Panicf(format string, v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	panic(fmt.Sprintf(format, v...))
+}
+
+func (t tailLogAdapter) Panicln(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	panic(fmt.Sprintf("%v\n", v))
+}
+
+func (t tailLogAdapter) Print(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	slog.Info(fmt.Sprintf("%v", v))
+}
+
+func (t tailLogAdapter) Printf(format string, v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	slog.Info(fmt.Sprintf(format, v...))
+}
+
+func (t tailLogAdapter) Println(v ...interface{}) {
+	if !t.echo {
+		return
+	}
+
+	slog.Info(fmt.Sprintf("%v\n", v))
+}
 
 func MustCreateLogger(sm *settingsManager) func() {
 	var (
@@ -59,4 +139,8 @@ func MustCreateLogger(sm *settingsManager) func() {
 
 func errAttr(err error) slog.Attr {
 	return slog.Any("error", err)
+}
+
+func sidAttr(steamID steamid.SID64) slog.Attr {
+	return slog.String("sid", steamID.String())
 }

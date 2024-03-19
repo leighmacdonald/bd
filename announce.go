@@ -4,25 +4,88 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
-type announceHandler struct {
+type kickRequest struct {
+	steamID steamid.SID64
+	reason  KickReason
+}
+
+// overwatch handles looking through the current player states and finding targets to attempt to perform action against.
+// This mainly includes announcing their status to lobby/in-game chat, and trying to kick them.
+//
+// Players may also be queued for automatic kicks manually by the player when they initiate a kick request from the
+// ui/api. These kicks are given first priority.
+type overwatch struct {
 	state    *gameState
 	rcon     rconConnection
 	settings *settingsManager
+	queued   []kickRequest
 }
 
-func newAnnounceHandler(settings *settingsManager, rcon rconConnection, state *gameState) announceHandler {
-	return announceHandler{settings: settings, rcon: rcon, state: state}
+func newOverwatch(settings *settingsManager, rcon rconConnection, state *gameState) overwatch {
+	return overwatch{settings: settings, rcon: rcon, state: state}
+}
+
+func (bb overwatch) start(ctx context.Context) {
+	timer := time.NewTicker(time.Second * 1)
+	for {
+		select {
+		case <-timer.C:
+			bb.update()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// nextKickTarget searches for the next eligible target to initiate a vote kick against.
+func (bb overwatch) nextKickTarget() (PlayerState, bool) {
+	var validTargets []PlayerState
+
+	// Pull names from the manual queue first.
+	if len(bb.queued) > 0 {
+		player, errNotFound := bb.state.players.bySteamID(bb.queued[0].steamID)
+		if errNotFound != nil {
+			// They are not in the game anymore.
+			if len(bb.queued) > 1 {
+				bb.queued = slices.Delete(bb.queued, 0, 1)
+			} else {
+				bb.queued = bb.queued[1:]
+			}
+		}
+
+		validTargets = append(validTargets, player)
+	}
+
+	for _, player := range bb.state.players.current() {
+		if len(player.Matches) > 0 && !player.Whitelist {
+			validTargets = append(validTargets, player)
+		}
+	}
+
+	if len(validTargets) == 0 {
+		return PlayerState{}, false
+	}
+
+	// Find players we have not tried yet.
+	sort.Slice(validTargets, func(i, j int) bool {
+		return validTargets[i].KickAttemptCount < validTargets[j].KickAttemptCount
+	})
+
+	return validTargets[0], true
 }
 
 // announceMatch handles announcing after a match is triggered against a player.
-func (a announceHandler) announceMatch(ctx context.Context, player Player, matches []*rules.MatchResult) {
-	settings := a.settings.Settings()
+func (bb overwatch) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
+	settings := bb.settings.Settings()
 
 	if len(matches) == 0 {
 		return
@@ -44,7 +107,7 @@ func (a announceHandler) announceMatch(ctx context.Context, player Player, match
 
 		player.AnnouncedGeneralLast = time.Now()
 
-		a.state.players.update(player)
+		bb.state.players.update(player)
 	}
 
 	if player.Whitelist {
@@ -54,7 +117,7 @@ func (a announceHandler) announceMatch(ctx context.Context, player Player, match
 	if settings.PartyWarningsEnabled && time.Since(player.AnnouncedPartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
-			if errLog := a.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Personaname); errLog != nil {
+			if errLog := bb.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Personaname); errLog != nil {
 				slog.Error("Failed to send party log message", errAttr(errLog))
 
 				return
@@ -63,12 +126,12 @@ func (a announceHandler) announceMatch(ctx context.Context, player Player, match
 
 		player.AnnouncedPartyLast = time.Now()
 
-		a.state.players.update(player)
+		bb.state.players.update(player)
 	}
 }
 
 // sendChat is used to send chat messages to the various chat interfaces in game: say|say_team|say_party.
-func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
+func (bb overwatch) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
 	var cmd string
 
 	switch destination {
@@ -82,7 +145,7 @@ func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, for
 		return fmt.Errorf("%w: %s", errInvalidChatType, destination)
 	}
 
-	resp, errExec := a.rcon.exec(ctx, cmd, false)
+	resp, errExec := bb.rcon.exec(ctx, cmd, false)
 	if errExec != nil {
 		return errExec
 	}
@@ -90,4 +153,23 @@ func (a announceHandler) sendChat(ctx context.Context, destination ChatDest, for
 	slog.Debug(resp, slog.String("cmd", cmd))
 
 	return nil
+}
+
+func (bb overwatch) update() {
+}
+
+func (bb overwatch) kick(ctx context.Context, player PlayerState, reason KickReason) {
+	player.KickAttemptCount++
+
+	defer bb.state.players.update(player)
+
+	cmd := fmt.Sprintf("callvote kick \"%d %s\"", player.UserID, reason)
+
+	resp, errCallVote := bb.rcon.exec(ctx, cmd, false)
+	if errCallVote != nil {
+		slog.Error("Failed to call vote", slog.String("steam_id", player.SID64().String()), errAttr(errCallVote))
+
+		return
+	}
+	slog.Debug("Kick response", slog.String("resp", resp))
 }

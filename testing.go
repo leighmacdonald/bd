@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
@@ -11,11 +14,11 @@ import (
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (Player, error)
+type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (PlayerState, error)
 
 // CreateTestPlayers will generate fake player data for testing purposes.
 // nolint:gosec
-func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
+func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 	idIdx := 0
 	knownIDs := steamid.Collection{
 		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
@@ -27,7 +30,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		"76561198015577906", "76561197997861796",
 	}
 
-	randPlayer := func(userId int) Player {
+	randPlayer := func(userId int) PlayerState {
 		team := Blu
 		if userId%2 == 0 {
 			team = Red
@@ -39,7 +42,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		}
 
 		if player.Personaname == "" {
-			player.Personaname = fmt.Sprintf("%d - %d", userId, player.SteamID)
+			player.Personaname = fmt.Sprintf("%d - %s", userId, player.SteamID.String())
 		}
 
 		player.Visibility = int64(steamweb.VisibilityPublic)
@@ -47,7 +50,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		player.RageQuits = int64(rand.Intn(10))
 		player.DeathsBy = int64(rand.Intn(20))
 		player.Team = team
-		player.Connected = float64(rand.Intn(3600))
+		player.Connected = time.Duration(rand.Intn(3600) * 1000000)
 		player.UserID = userId
 		player.Ping = rand.Intn(150)
 		player.Kills = rand.Intn(50)
@@ -58,7 +61,7 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		return player
 	}
 
-	var testPlayers []Player
+	var testPlayers []PlayerState
 
 	for i := 0; i < count; i++ {
 		player := randPlayer(i)
@@ -67,16 +70,16 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 		case 1:
 			player.VacBans = 2
 			player.Notes = "User notes \ngo here"
-			last := time.Now().AddDate(-1, 0, 0)
-			player.LastVacBanOn.Time = last
+			last := time.Now().AddDate(-1, 0, 0).Unix()
+			player.LastVacBanOn = last
 		case 4:
-			player.Matches = append(player.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"cheater"},
 				MatcherType: "string",
 			})
 		case 6:
-			player.Matches = append(player.Matches, &rules.MatchResult{
+			player.Matches = append(player.Matches, rules.MatchResult{
 				Origin:      "Test Rules List",
 				Attributes:  []string{"other"},
 				MatcherType: "string",
@@ -90,4 +93,45 @@ func CreateTestPlayers(playerState *playerState, fn mkPlayerFunc, count int) {
 	}
 
 	playerState.replace(testPlayers)
+}
+
+func testLogFeeder(ctx context.Context, ingest *logIngest) {
+	testLogPath, found := os.LookupEnv("TEST_CONSOLE_LOG")
+	if !found {
+		return
+	}
+
+	logPath := "testdata/console.log"
+	if testLogPath != "" {
+		logPath = testLogPath
+	}
+
+	body, errRead := os.ReadFile(logPath)
+	if errRead != nil {
+		slog.Error("Failed to load TEST_CONSOLE_LOG", slog.String("path", logPath), errAttr(errRead))
+
+		return
+	}
+
+	lines := strings.Split(string(body), "\n")
+	curLine := 0
+	lineCount := len(lines)
+
+	// Delay the incoming data a bit so its more realistic
+	updateTicker := time.NewTicker(time.Millisecond * 1000)
+
+	for {
+		select {
+		case <-updateTicker.C:
+			ingest.external <- lines[curLine]
+			curLine++
+
+			// Wrap back around once we are done
+			if curLine >= lineCount {
+				curLine = 0
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }

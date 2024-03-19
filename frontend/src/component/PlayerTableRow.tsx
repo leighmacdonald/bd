@@ -105,7 +105,7 @@ export const PlayerTableRow = ({
         );
     };
 
-    const mouseEnter = (event: React.MouseEvent<HTMLTableRowElement>) => {
+    const mouseEnter = (event: MouseEvent<HTMLTableRowElement>) => {
         setHoverMenuPos(
             contextMenuPos === null
                 ? {
@@ -174,11 +174,11 @@ export const PlayerTableRow = ({
                                     textOverflow={'clip'}
                                     variant={'subtitle1'}
                                 >
-                                    {player.name}
+                                    {player.personaname}
                                 </Typography>
                             </Grid>
 
-                            {player.number_of_vac_bans > 0 && (
+                            {player.vac_bans > 0 && (
                                 <Grid
                                     xs={'auto'}
                                     display="flex"
@@ -189,7 +189,7 @@ export const PlayerTableRow = ({
                                         width={18}
                                         height={18}
                                         src={vac}
-                                        alt={`${player.number_of_vac_bans} ${t(
+                                        alt={`${player.vac_bans} ${t(
                                             'player_table.row.vac_bans'
                                         )}`}
                                     />
@@ -232,7 +232,7 @@ export const PlayerTableRow = ({
                                     />
                                 </Grid>
                             )}
-                            {player.whitelisted && (
+                            {player.whitelist && (
                                 <Grid
                                     xs={'auto'}
                                     display="flex"

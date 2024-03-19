@@ -174,6 +174,15 @@ func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
 		return userSettings{}, errRead
 	}
 
+	// Make sure we have defaults defined if not configured
+	if settings.SteamDir == "" {
+		settings.SteamDir = sm.locateSteamDir()
+	}
+
+	if settings.TF2Dir == "" {
+		settings.TF2Dir = sm.locateTF2Dir()
+	}
+
 	return settings, nil
 }
 
@@ -315,7 +324,7 @@ type userSettings struct {
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
-	// Path to tf2 mod (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
+	// Path to tf2 mod eg: (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
 	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
 	AutoLaunchGame          bool                 `yaml:"auto_launch_game" json:"auto_launch_game"`
 	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`
@@ -340,6 +349,8 @@ type userSettings struct {
 	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
 	LogLevel                string               `yaml:"log_level" json:"log_level"`
 	SystrayEnabled          bool                 `yaml:"systray_enabled" json:"systray_enabled"`
+	UDPListenerEnabled      bool                 `yaml:"udp_listener_enabled" json:"udp_listener_enabled"`
+	UDPListenerAddr         string               `yaml:"udp_listener_addr" json:"udp_listener_addr"`
 	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
 }
 
@@ -366,6 +377,8 @@ func newSettings(plat platform.Platform) userSettings {
 		SystrayEnabled:          true,
 		PlayerExpiredTimeout:    6,
 		PlayerDisconnectTimeout: 20,
+		UDPListenerAddr:         "0.0.0.0:27777",
+		UDPListenerEnabled:      false,
 		Lists: []*ListConfig{
 			{
 				Name:     "Uncletopia",
@@ -455,6 +468,10 @@ func newSettings(plat platform.Platform) userSettings {
 	}
 
 	return settings
+}
+
+func (s *userSettings) AppURL() string {
+	return fmt.Sprintf("http://%s/", s.HTTPListenAddr)
 }
 
 func (s *userSettings) AddList(config *ListConfig) error {

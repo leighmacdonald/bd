@@ -35,3 +35,4 @@ export const RemoveWhitelistMenu = ({
         />
     );
 };
+export default RemoveWhitelistMenu;

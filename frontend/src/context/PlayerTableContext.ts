@@ -24,7 +24,7 @@ interface PlayerTableConfigProps {
     setMatchesOnly: Dispatch<SetStateAction<boolean>>;
     enabledColumns: validColumns[];
     saveSelectedColumns: (columns: validColumns[]) => void;
-    saveSortColumn: (property: keyof Player) => void;
+    saveSortColumn: (property: validColumns) => void;
 }
 
 export const PlayerTableContext = createContext<PlayerTableConfigProps>(

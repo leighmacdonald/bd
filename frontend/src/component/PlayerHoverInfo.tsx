@@ -62,7 +62,7 @@ export const PlayerHoverInfo = ({
                         <img
                             height={184}
                             width={184}
-                            alt={player.name}
+                            alt={player.personaname}
                             src={avatarURL(player.avatar_hash)}
                         />
                     </Grid>
@@ -75,7 +75,7 @@ export const PlayerHoverInfo = ({
                                 )}
                                 {...makeInfoRow(
                                     t('player_table.details.name_label'),
-                                    player.name
+                                    player.personaname
                                 )}
                                 {...makeInfoRow(
                                     t('player_table.details.visibility_label'),
@@ -83,11 +83,11 @@ export const PlayerHoverInfo = ({
                                 )}
                                 {...makeInfoRow(
                                     t('player_table.details.vac_bans_label'),
-                                    player.number_of_vac_bans.toString()
+                                    player.vac_bans.toString()
                                 )}
                                 {...makeInfoRow(
                                     t('player_table.details.game_bans_label'),
-                                    player.number_of_game_bans.toString()
+                                    player.game_bans.toString()
                                 )}
                             </Grid>
                         </div>

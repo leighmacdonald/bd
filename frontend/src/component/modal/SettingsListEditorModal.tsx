@@ -20,7 +20,9 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { CancelButton, ResetButton, SaveButton } from '../Buttons.tsx';
+import CancelButton from '../CancelButton.tsx';
+import ResetButton from '../ResetButton.tsx';
+import SaveButton from '../SaveButton.tsx';
 
 interface SettingsListProps {
     list: List;

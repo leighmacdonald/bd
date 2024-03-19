@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+type List struct {
+	ListID    interface{} `json:"list_id"`
+	ListType  int64       `json:"list_type"`
+	Url       string      `json:"url"`
+	Enabled   bool        `json:"enabled"`
+	UpdatedOn time.Time   `json:"updated_on"`
+	CreatedOn time.Time   `json:"created_on"`
+}
+
 type Player struct {
 	SteamID          int64        `json:"steam_id"`
 	Personaname      string       `json:"personaname"`
@@ -30,6 +39,13 @@ type Player struct {
 	UpdatedOn        time.Time    `json:"updated_on"`
 }
 
+type PlayerFriend struct {
+	SteamID       int64     `json:"steam_id"`
+	SteamIDFriend int64     `json:"steam_id_friend"`
+	FriendSince   time.Time `json:"friend_since"`
+	CreatedOn     time.Time `json:"created_on"`
+}
+
 type PlayerMessage struct {
 	MessageID int64     `json:"message_id"`
 	SteamID   int64     `json:"steam_id"`
@@ -44,4 +60,15 @@ type PlayerName struct {
 	SteamID   int64     `json:"steam_id"`
 	Name      string    `json:"name"`
 	CreatedOn time.Time `json:"created_on"`
+}
+
+type PlayerSourceban struct {
+	SourcebansID interface{} `json:"sourcebans_id"`
+	SteamID      int64       `json:"steam_id"`
+	Site         string      `json:"site"`
+	PlayerName   string      `json:"player_name"`
+	Reason       string      `json:"reason"`
+	Duration     int64       `json:"duration"`
+	Permanent    bool        `json:"permanent"`
+	CreatedOn    time.Time   `json:"created_on"`
 }

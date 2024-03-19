@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/andygrunwald/vdf"
-	"github.com/leighmacdonald/bd/frontend"
 	"github.com/mitchellh/go-ps"
 	"github.com/pkg/browser"
 	"golang.org/x/sys/windows/registry"
@@ -185,7 +184,7 @@ func (l WindowsPlatform) IsGameRunning() (bool, error) {
 }
 
 func (l WindowsPlatform) Icon() []byte {
-	return frontend.Read(frontend.IconWindows)
+	return readIcon(IconWindows)
 }
 
 func (l WindowsPlatform) OpenURL(url string) error {

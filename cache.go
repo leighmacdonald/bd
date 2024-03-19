@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -36,8 +35,7 @@ type FsCache struct {
 type Type int
 
 const (
-	TypeAvatar Type = iota
-	TypeLists
+	TypeLists Type = iota
 )
 
 // NewCache creates a new local storage backed cache for avatars and player lists.
@@ -52,7 +50,7 @@ func NewCache(rootDir string, maxAge time.Duration) (FsCache, error) {
 
 // init creates the directory structure used to store locally cached files.
 func (cache FsCache) init() error {
-	for _, p := range []Type{TypeAvatar, TypeLists} {
+	for _, p := range []Type{TypeLists} {
 		if errMkDir := os.MkdirAll(cache.getPath(p, ""), 0o770); errMkDir != nil {
 			return errors.Join(errMkDir, errCacheSetup)
 		}
@@ -63,15 +61,6 @@ func (cache FsCache) init() error {
 
 func (cache FsCache) getPath(cacheType Type, key string) string {
 	switch cacheType {
-	case TypeAvatar:
-		if key == "" {
-			return filepath.Join(cache.rootPath, "avatars")
-		}
-
-		prefix := key[0:2]
-		root := filepath.Join(cache.rootPath, "avatars", prefix)
-
-		return filepath.Join(root, fmt.Sprintf("%s.jpg", key))
 	case TypeLists:
 		return filepath.Join(cache.rootPath, "lists", key)
 	default:

@@ -78,8 +78,8 @@ func createHandlers(store store.Querier, state *gameState, process *processState
 	mux.HandleFunc("PUT /api/settings", onPutSettings(settings))
 	mux.HandleFunc("GET /api/launch", onGGetLaunchGame(process, settings))
 	mux.HandleFunc("GET /api/quit", onGetQuitGame(process))
-	mux.HandleFunc("POST /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, re, true))
-	mux.HandleFunc("DELETE /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, re, false))
+	mux.HandleFunc("POST /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, true))
+	mux.HandleFunc("DELETE /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, false))
 	mux.HandleFunc("POST /api/notes/{steam_id}", onPostNotes(store, state))
 	mux.HandleFunc("POST /api/callvote/{steam_id}/{reason}", onCallVote(state, rcon))
 

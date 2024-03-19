@@ -28,6 +28,10 @@ export class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
 
     render(): ReactNode {
         if (this.state.hasError) {
+            if (import.meta.env.PROD) {
+                setInterval(() => window.location.reload(), 5000);
+            }
+
             return (
                 <Typography
                     marginTop={3}
@@ -35,7 +39,8 @@ export class ErrorBoundary extends Component<BoundaryProps, BoundaryState> {
                     color={'error'}
                     textAlign={'center'}
                 >
-                    🤯 🤯 🤯 Something went wrong 🤯 🤯 🤯
+                    🤯 🤯 🤯 Something went wrong, reloading in 5 seconds... 🤯
+                    🤯 🤯
                 </Typography>
             );
         }

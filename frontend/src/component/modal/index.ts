@@ -2,7 +2,7 @@ import loadable from '@loadable/component';
 import NiceModal from '@ebay/nice-modal-react';
 
 const NoteEditorModal = loadable(() => import('./NoteEditorModal'));
-const SettingsModal = loadable(() => import('./SettingsEditorModal'));
+const SettingsEditorModal = loadable(() => import('./SettingsEditorModal'));
 const SettingsKickTagsModal = loadable(
     () => import('./SettingsKickTagEditorModal')
 );
@@ -27,7 +27,7 @@ export const ModalSettingsList = 'modal-settings-list';
     [ModalSettingsAddKickTag, SettingsKickTagsModal],
     [ModalSettingsLinks, SettingsLinkEditorModal],
     [ModalSettingsList, SettingsListEditorModal],
-    [ModalSettings, SettingsModal]
+    [ModalSettings, SettingsEditorModal]
 ].map((value) => {
     NiceModal.register(value[0] as never, value[1] as never);
 });

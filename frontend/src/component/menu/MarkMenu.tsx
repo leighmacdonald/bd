@@ -72,3 +72,5 @@ export const MarkMenu = ({
         </NestedMenuItem>
     );
 };
+
+export default MarkMenu;

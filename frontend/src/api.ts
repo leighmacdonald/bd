@@ -88,42 +88,41 @@ export const avatarURL = (hash: string, size = 'full'): string =>
 
 export interface Player {
     steam_id: string;
-    name: string;
-    created_on: Date;
-    updated_on: Date;
-    team: Team;
-    profile_updated_on: Date;
-    kills_on: number;
-    rage_quits: number;
-    deaths_by: number;
-    notes: string;
-    whitelisted: boolean;
-    real_name: string;
-    name_previous: string;
-    account_created_on: Date;
+    personaname: string;
     visibility: ProfileVisibility;
+    real_name: string;
+    account_created_on: Date;
     avatar_hash: string;
     community_banned: boolean;
-    number_of_vac_bans: number;
-    last_vac_ban_on: Date | null;
-    number_of_game_bans: number;
+    game_bans: number;
+    vac_bans: number;
+    last_vac_ban_on: number;
+    kills_on: number;
+    deaths_by: number;
+    rage_quits: number;
+    notes: string;
+    whitelist: boolean;
+    profile_updated_on: Date;
+    created_on: Date;
+    updated_on: Date;
     economy_ban: boolean;
+    team: Team;
     connected: number;
+    map_time: number;
     user_id: number;
     ping: number;
-    kills: number;
-    valid: boolean;
     score: number;
     is_connected: boolean;
-    kick_attempt_count: number;
     alive: boolean;
-    deaths: number;
     health: number;
+    valid: boolean;
+    deaths: number;
+    kills: number;
     kpm: number;
-    map_time: number;
+    kick_attempt_count: number;
     our_friend: boolean;
-    sourcebans: SourcebansRecord[] | null;
-    matches: Match[] | null;
+    sourcebans: SourcebansRecord[];
+    matches: Match[];
 }
 
 export interface SourcebansRecord {

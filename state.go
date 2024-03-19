@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +14,8 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v3/steamid"
-	"github.com/leighmacdonald/steamweb/v2"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 var errPlayerNotFound = errors.New("player not found")
@@ -28,23 +29,23 @@ type serverState struct {
 	LastUpdate time.Time `json:"last_update"`
 }
 
-type playerState struct {
-	activePlayers []Player
+type playerStates struct {
+	activePlayers []PlayerState
 	sync.RWMutex
 }
 
-func newPlayerState() *playerState {
-	return &playerState{}
+func newPlayerStates() *playerStates {
+	return &playerStates{}
 }
 
-func (state *playerState) current() []Player {
+func (state *playerStates) current() []PlayerState {
 	state.RLock()
 	defer state.RUnlock()
 
 	return state.activePlayers
 }
 
-func (state *playerState) byName(name string) (Player, error) {
+func (state *playerStates) byName(name string) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
@@ -54,10 +55,12 @@ func (state *playerState) byName(name string) (Player, error) {
 		}
 	}
 
-	return Player{}, errPlayerNotFound
+	return PlayerState{}, errPlayerNotFound
 }
 
-func (state *playerState) bySteamID(sid64 int64) (Player, error) {
+// bySteamID returns a player currently being tracked in the game state. If connectedOnly is true, then
+// players who have timed out already are ignored.
+func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
@@ -67,14 +70,15 @@ func (state *playerState) bySteamID(sid64 int64) (Player, error) {
 		}
 	}
 
-	return Player{}, errPlayerNotFound
+	return PlayerState{}, errPlayerNotFound
 }
 
-func (state *playerState) update(updated Player) {
+// update replaces the current players state with the new state provided.
+func (state *playerStates) update(updated PlayerState) {
 	state.Lock()
 	defer state.Unlock()
 
-	var valid []Player //nolint:prealloc
+	var valid []PlayerState //nolint:prealloc
 
 	for _, player := range state.activePlayers {
 		if player.SteamID == updated.SteamID {
@@ -89,43 +93,28 @@ func (state *playerState) update(updated Player) {
 	state.activePlayers = valid
 }
 
-func (state *playerState) all() []Player {
-	state.Lock()
-	defer state.Unlock()
+func (state *playerStates) all() []PlayerState {
+	state.RLock()
+	defer state.RUnlock()
 
 	return state.activePlayers
 }
 
-func (state *playerState) kickable() []Player {
-	state.Lock()
-	defer state.Unlock()
-
-	var kickable []Player
-
-	for _, player := range state.activePlayers {
-		if len(player.Matches) > 0 && !player.Whitelist {
-			kickable = append(kickable, player)
-		}
-	}
-
-	return kickable
-}
-
-func (state *playerState) replace(replacementPlayers []Player) {
+func (state *playerStates) replace(replacementPlayers []PlayerState) {
 	state.Lock()
 	defer state.Unlock()
 
 	state.activePlayers = replacementPlayers
 }
 
-func (state *playerState) remove(sid64 steamid.SID64) {
+func (state *playerStates) remove(sid64 steamid.SID64) {
 	state.Lock()
 	defer state.Unlock()
 
-	var valid []Player //nolint:prealloc
+	var valid []PlayerState //nolint:prealloc
 
 	for _, player := range state.activePlayers {
-		if player.SteamID != sid64.Int64() {
+		if player.SteamID != sid64 {
 			continue
 		}
 
@@ -136,8 +125,8 @@ func (state *playerState) remove(sid64 steamid.SID64) {
 }
 
 // checkPlayerStates will run a check against the current player state for matches.
-func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier, re *rules.Engine, player Player, validTeam Team, announcer announceHandler) {
-	if player.isDisconnected() || len(player.Matches) > 0 {
+func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engine, player PlayerState, validTeam Team, announcer overwatch) {
+	if !player.IsConnected || len(player.Matches) > 0 {
 		return
 	}
 
@@ -158,111 +147,86 @@ func (state *playerState) checkPlayerState(ctx context.Context, db store.Querier
 			}
 		}
 	}
-
-	if player.Dirty {
-		if errSave := db.PlayerUpdate(ctx, playerToPlayerUpdateParams(player)); errSave != nil {
-			slog.Error("Failed to save dirty player state", errAttr(errSave))
-
-			return
-		}
-
-		player.Dirty = false
-	}
 }
 
 type gameState struct {
-	mu         *sync.RWMutex
-	updateChan chan updateStateEvent
-	settings   *settingsManager
-	players    *playerState
-	server     serverState
-	store      store.Querier
-	rcon       rconConnection
-	g15        g15Parser
+	mu                 *sync.RWMutex
+	playerDataChan     chan playerDataUpdate
+	profileUpdateQueue chan steamid.SID64
+	eventChan          chan LogEvent
+	settings           *settingsManager
+	players            *playerStates
+	db                 store.Querier
+	server             serverState
+	store              store.Querier
+	rcon               rconConnection
 }
 
-func newGameState(store store.Querier, settings *settingsManager, playerState *playerState, rcon rconConnection) *gameState {
+func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection,
+	db store.Querier,
+) *gameState {
 	return &gameState{
-		mu:         &sync.RWMutex{},
-		store:      store,
-		settings:   settings,
-		players:    playerState,
-		rcon:       rcon,
-		server:     serverState{},
-		g15:        newG15Parser(),
-		updateChan: make(chan updateStateEvent),
+		mu:                 &sync.RWMutex{},
+		store:              store,
+		settings:           settings,
+		players:            playerState,
+		rcon:               rcon,
+		db:                 db,
+		server:             serverState{},
+		playerDataChan:     make(chan playerDataUpdate),
+		eventChan:          make(chan LogEvent),
+		profileUpdateQueue: make(chan steamid.SID64),
 	}
 }
 
 func (s *gameState) start(ctx context.Context) {
-	statusTimer := time.NewTicker(DurationStatusUpdateTimer)
 	for {
 		select {
-		case <-statusTimer.C:
-			if errUpdate := s.updatePlayerState(ctx); errUpdate != nil {
-				slog.Debug("Failed to query state", errAttr(errUpdate))
+		case playerData := <-s.playerDataChan:
+			s.applyRemoteData(ctx, playerData)
+		case evt := <-s.eventChan:
+			// slog.Debug("received event", slog.Int("type", int(evt.Type)))
+			switch evt.Type { //nolint:exhaustive
+			case EvtMap:
+				s.onMapName(mapEvent{mapName: evt.MetaData})
+			case EvtHostname:
+				s.onHostname(hostnameEvent{hostname: evt.MetaData})
+			case EvtTags:
+				s.onTags(tagsEvent{tags: strings.Split(evt.MetaData, ",")})
+			case EvtAddress:
+				pcs := strings.Split(evt.MetaData, ":")
 
-				continue
+				_, errPort := strconv.ParseUint(pcs[1], 10, 16)
+				if errPort != nil {
+					slog.Error("Failed to parse port: %v", errAttr(errPort), slog.String("port", pcs[1]))
+
+					continue
+				}
+
+				parsedIP := net.ParseIP(pcs[0])
+				if parsedIP == nil {
+					slog.Error("Failed to parse ip", slog.String("ip", pcs[0]))
+
+					continue
+				}
+			case EvtStatusID:
+				s.onStatus(ctx, evt.PlayerSID, statusEvent{
+					ping:      evt.PlayerPing,
+					userID:    evt.UserID,
+					name:      evt.Player,
+					connected: evt.PlayerConnected,
+				})
+			case EvtDisconnect:
+				s.onMapChange()
+			case EvtKill:
+				s.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player})
+			case EvtMsg:
+			case EvtConnect:
+			case EvtLobby:
+			case EvtAny:
 			}
 		case <-ctx.Done():
 			return
-		case update := <-s.updateChan:
-			slog.Debug("Game state update input received", slog.String("kind", update.kind.String()))
-
-			if update.kind == updateStatus && !update.source.Valid() {
-				continue
-			}
-
-			switch update.kind { //nolint:exhaustive
-			case updateKill:
-				evt, ok := update.data.(killEvent)
-				if !ok {
-					continue
-				}
-
-				s.onKill(evt)
-			case updateBans:
-				evt, ok := update.data.(steamweb.PlayerBanState)
-				if !ok {
-					continue
-				}
-
-				s.onBans(evt)
-			case updateKickAttempts:
-				s.onKickAttempt(update.source)
-			case updateStatus:
-				evt, ok := update.data.(statusEvent)
-				if !ok {
-					continue
-				}
-
-				s.onStatus(ctx, update.source, evt)
-			case updateTags:
-				evt, ok := update.data.(tagsEvent)
-				if !ok {
-					continue
-				}
-
-				s.onTags(evt)
-			case updateHostname:
-				evt, ok := update.data.(hostnameEvent)
-				if !ok {
-					continue
-				}
-
-				s.onHostname(evt)
-			case updateMap:
-				evt, ok := update.data.(mapEvent)
-				if !ok {
-					continue
-				}
-
-				s.onMapName(evt)
-			case changeMap:
-				s.onMapChange()
-			default:
-				slog.Debug("unhandled state update case")
-			}
 		}
 	}
 }
@@ -271,8 +235,6 @@ func (s *gameState) start(ctx context.Context) {
 // and server from the current known state once they have been disconnected for the timeout periods.
 func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settingsManager) {
 	const disconnectMsg = "Disconnected"
-
-	defer slog.Debug("cleanupHandler exited")
 
 	deleteTimer := time.NewTicker(time.Second * time.Duration(settingsMgr.Settings().PlayerExpiredTimeout))
 
@@ -298,7 +260,7 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 			s.mu.Unlock()
 
 			for _, player := range s.players.all() {
-				if player.isDisconnected() {
+				if player.IsConnected {
 					player.IsConnected = false
 					s.players.update(player)
 				}
@@ -314,6 +276,54 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 			deleteTimer.Reset(time.Second * time.Duration(settings.PlayerExpiredTimeout))
 		}
 	}
+}
+
+// applyRemoteData updates the current player states with new incoming remote data sources.
+func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) {
+	player, errPlayer := s.players.bySteamID(data.steamID)
+	if errPlayer != nil {
+		return
+	}
+
+	// Summary
+	player.AvatarHash = data.summary.AvatarHash
+	player.AccountCreatedOn = time.Unix(int64(data.summary.TimeCreated), 0)
+	player.Visibility = int64(data.summary.CommunityVisibilityState)
+
+	// Bans
+	player.CommunityBanned = data.bans.CommunityBanned
+	player.GameBans = int64(data.bans.NumberOfGameBans)
+	player.VacBans = int64(data.bans.NumberOfVACBans)
+	player.EconomyBan = data.bans.EconomyBan
+	if player.VacBans > 0 && data.bans.DaysSinceLastBan > 0 {
+		player.LastVacBanOn = time.Now().AddDate(0, 0, -data.bans.DaysSinceLastBan).Unix()
+	}
+
+	// Sourcebans
+	player.Sourcebans = data.sourcebans
+
+	// Friends
+	ourSID := s.settings.Settings().SteamID
+	player.Friends = data.friends
+	for _, friend := range data.friends {
+		if friend.SteamID == ourSID {
+			player.OurFriend = true
+			break
+		}
+	}
+
+	// meta
+	player.UpdatedOn = time.Now()
+	player.ProfileUpdatedOn = player.UpdatedOn
+
+	if errSave := s.db.PlayerUpdate(ctx, player.toUpdateParams()); errSave != nil {
+		if errSave.Error() != "sql: database is closed" {
+			slog.Error("Failed to save updated player data",
+				slog.String("sid", player.SID64().String()), errAttr(errSave))
+		}
+		return
+	}
+	s.players.update(player)
 }
 
 func (s *gameState) CurrentServerState() serverState {
@@ -339,11 +349,11 @@ func (s *gameState) onKill(evt killEvent) {
 	src.Kills++
 	target.Deaths++
 
-	if target.SteamID == ourSid.Int64() {
+	if target.SteamID == ourSid {
 		src.DeathsBy++
 	}
 
-	if src.SteamID == ourSid.Int64() {
+	if src.SteamID == ourSid {
 		target.KillsOn++
 	}
 
@@ -351,63 +361,64 @@ func (s *gameState) onKill(evt killEvent) {
 	s.players.update(target)
 }
 
-func (s *gameState) onBans(evt steamweb.PlayerBanState) {
-	player, errPlayer := s.players.bySteamID(evt.SteamID.Int64())
+func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
+	player, errPlayer := s.players.bySteamID(steamID)
 	if errPlayer != nil {
-		return
-	}
-
-	player.VacBans = int64(evt.NumberOfVACBans)
-	player.GameBans = int64(evt.NumberOfGameBans)
-	player.CommunityBanned = evt.CommunityBanned
-	player.EconomyBan = evt.EconomyBan
-
-	if evt.DaysSinceLastBan > 0 {
-		subTime := time.Now().AddDate(0, 0, -evt.DaysSinceLastBan)
-		if err := player.LastVacBanOn.Scan(subTime); err != nil {
-			slog.Error("failed to scan last ban", errAttr(err))
+		if !errors.Is(errPlayer, errPlayerNotFound) {
+			return PlayerState{}, errPlayer
 		}
+
+		createdPlayer, errCreate := loadPlayerOrCreate(ctx, s.store, steamID)
+		if errCreate != nil {
+			return PlayerState{}, errCreate
+		}
+
+		player = createdPlayer
 	}
 
-	s.players.update(player)
-}
-
-func (s *gameState) onKickAttempt(steamID steamid.SID64) {
-	player, errPlayer := s.players.bySteamID(steamID.Int64())
-	if errPlayer != nil {
-		return
-	}
-
-	player.KickAttemptCount++
-
-	s.players.update(player)
+	return player, nil
 }
 
 func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
-	player, errPlayer := getPlayerOrCreate(ctx, s.store, s.players, steamID)
+	player, errPlayer := s.getPlayerOrCreate(ctx, steamID)
 	if errPlayer != nil {
-		slog.Error("Failed to get or create player", errAttr(errPlayer))
-
 		return
 	}
 
+	player.MapTimeStart = time.Now()
 	player.Ping = evt.ping
-	player.Connected = evt.connected.Seconds()
+	player.Connected = evt.connected
 	player.UpdatedOn = time.Now()
+	player.IsConnected = true
 	player.UserID = evt.userID
 
 	if player.Personaname != evt.name {
 		player.Personaname = evt.name
-		if errAddName := s.store.UserNameSave(ctx, store.UserNameSaveParams{
-			SteamID:   player.SteamID,
+		errAddName := s.store.UserNameSave(ctx, store.UserNameSaveParams{
+			SteamID:   player.SteamID.Int64(),
 			Name:      player.Personaname,
 			CreatedOn: time.Now(),
-		}); errAddName != nil {
-			slog.Error("Could not save new user name", errAttr(errAddName))
+		})
+		if errAddName != nil {
+			var sqliteErr *sqlite.Error
+			if errors.As(errAddName, &sqliteErr) {
+				if sqliteErr.Code() != sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
+					slog.Error("Could not save new user name", errAttr(errAddName))
+				}
+			} else {
+				slog.Error("Could not save new user name", errAttr(errAddName))
+			}
 		}
 	}
 
 	s.players.update(player)
+
+	// Trigger update of external data if its been long enough, or the player is new to us.
+	if time.Since(player.ProfileUpdatedOn) > time.Hour*24 {
+		// TODO save friends and sourcebans data locally
+		slog.Debug("Updating user data", sidAttr(steamID))
+		s.profileUpdateQueue <- steamID
+	}
 
 	slog.Debug("Player status updated",
 		slog.String("sid", steamID.String()),
@@ -418,29 +429,36 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt sta
 }
 
 func (s *gameState) onTags(evt tagsEvent) {
+	s.mu.Lock()
 	s.server.Tags = evt.tags
 	s.server.LastUpdate = time.Now()
+	s.mu.Unlock()
 
 	slog.Debug("Tags updated", slog.String("tags", strings.Join(evt.tags, ",")))
 }
 
 func (s *gameState) onHostname(evt hostnameEvent) {
+	s.mu.Lock()
 	s.server.ServerName = evt.hostname
 	s.server.LastUpdate = time.Now()
+	s.mu.Unlock()
 
 	slog.Debug("Hostname changed", slog.String("hostname", evt.hostname))
 }
 
 func (s *gameState) onMapName(evt mapEvent) {
+	s.mu.Lock()
 	s.server.CurrentMap = evt.mapName
+	s.mu.Unlock()
 
 	slog.Debug("Map changed", slog.String("map", evt.mapName))
 }
 
 func (s *gameState) onMapChange() {
-	for _, curPlayer := range s.players.all() {
+	players := s.players.all()
+	for _, curPlayer := range players {
 		player := curPlayer
-
+		player.IsConnected = true
 		player.Kills = 0
 		player.Deaths = 0
 		player.MapTimeStart = time.Now()
@@ -448,79 +466,8 @@ func (s *gameState) onMapChange() {
 
 		s.players.update(player)
 	}
-
+	s.mu.Lock()
 	s.server.CurrentMap = ""
 	s.server.ServerName = ""
-}
-
-func (s *gameState) onUpdateMessage(ctx context.Context, evt messageEvent) {
-	player, errPlayer := s.players.byName(evt.name)
-	if errPlayer != nil {
-		return
-	}
-
-	if errUm := s.store.MessageSave(ctx, store.MessageSaveParams{
-		SteamID:   player.SteamID,
-		Message:   evt.message,
-		CreatedOn: evt.createdAt,
-		Team:      evt.teamOnly,
-	}); errUm != nil {
-		slog.Error("Failed to handle user message", errAttr(errUm))
-	}
-
-	s.players.update(player)
-}
-
-// updatePlayerState fetches the current game state over rcon using both the `status` and `g15_dumpplayer` command
-// output. The results are then parsed and applied to the current player and server states.
-func (s *gameState) updatePlayerState(ctx context.Context) error {
-	// Sent to client, response via log output
-	_, errStatus := s.rcon.exec(ctx, "status", true)
-	if errStatus != nil {
-		return errors.Join(errStatus, errRCONStatus)
-	}
-
-	dumpPlayer, errDumpPlayer := s.rcon.exec(ctx, "g15_dumpplayer", true)
-	if errDumpPlayer != nil {
-		return errors.Join(errDumpPlayer, errRCONG15)
-	}
-
-	var dump DumpPlayer
-	if errG15 := s.g15.Parse(bytes.NewBufferString(dumpPlayer), &dump); errG15 != nil {
-		return errors.Join(errG15, errG15Parse)
-	}
-
-	for index, sid := range dump.SteamID {
-		if index == 0 || index > 32 || !sid.Valid() {
-			// Actual data always starts at 1
-			continue
-		}
-
-		player, errPlayer := s.players.bySteamID(sid.Int64())
-		if errPlayer != nil {
-			// status command is what we use to add players to the active game.
-			continue
-		}
-
-		player.MapTime = time.Since(player.MapTimeStart).Seconds()
-
-		if player.Kills > 0 {
-			player.KPM = float64(player.Kills) / (player.MapTime / 60)
-		}
-
-		player.Ping = dump.Ping[index]
-		player.Score = dump.Score[index]
-		player.Deaths = dump.Deaths[index]
-		player.IsConnected = dump.Connected[index]
-		player.Team = Team(dump.Team[index])
-		player.Alive = dump.Alive[index]
-		player.Health = dump.Health[index]
-		player.Valid = dump.Valid[index]
-		player.UserID = dump.UserID[index]
-		player.UpdatedOn = time.Now()
-
-		s.players.update(player)
-	}
-
-	return nil
+	s.mu.Unlock()
 }

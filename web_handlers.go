@@ -76,22 +76,24 @@ func onGetNames(store store.Querier) http.HandlerFunc {
 }
 
 type CurrentState struct {
-	Tags        []string    `json:"tags"`
-	GameRunning bool        `json:"game_running"`
-	Server      serverState `json:"server"`
-	Players     []Player    `json:"players"`
+	Tags        []string      `json:"tags"`
+	GameRunning bool          `json:"game_running"`
+	Server      serverState   `json:"server"`
+	Players     []PlayerState `json:"players"`
 }
 
 func onGetState(state *gameState, process *processState) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		players := state.players.all()
 		if players == nil {
-			players = []Player{}
+			players = []PlayerState{}
 		}
+
+		server := state.CurrentServerState()
 
 		responseOK(w, http.StatusOK, CurrentState{
 			Tags:        []string{},
-			Server:      state.server,
+			Server:      server,
 			Players:     players,
 			GameRunning: process.gameProcessActive.Load(),
 		})
@@ -107,7 +109,7 @@ func onGGetLaunchGame(process *processState, settingsMgr *settingsManager) http.
 			return
 		}
 
-		go process.launchGameAndWait(settingsMgr)
+		go process.launchGame(settingsMgr)
 
 		responseOK(w, http.StatusOK, map[string]string{})
 	}
@@ -157,7 +159,7 @@ func onCallVote(state *gameState, connection rconConnection) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := state.players.bySteamID(sid.Int64())
+		player, errPlayer := state.players.bySteamID(sid)
 		if errPlayer != nil {
 			responseErr(w, http.StatusNotFound, nil)
 			slog.Error("Failed to get player state", errAttr(errPlayer), slog.String("steam_id", sid.String()))
@@ -206,7 +208,7 @@ func onPostNotes(db store.Querier, state *gameState) http.HandlerFunc {
 			return
 		}
 
-		player, errPlayer := getPlayerOrCreate(r.Context(), db, state.players, sid)
+		player, errPlayer := loadPlayerOrCreate(r.Context(), db, sid)
 
 		if errPlayer != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
@@ -217,9 +219,7 @@ func onPostNotes(db store.Querier, state *gameState) http.HandlerFunc {
 
 		player.Notes = opts.Note
 
-		player.Dirty = true
-
-		if errSave := db.PlayerUpdate(r.Context(), playerToPlayerUpdateParams(player)); errSave != nil {
+		if errSave := db.PlayerUpdate(r.Context(), player.toUpdateParams()); errSave != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to save player notes", errAttr(errSave))
 
@@ -301,14 +301,14 @@ func onMarkPlayerPost(sm *settingsManager, db store.Querier, state *gameState, r
 	}
 }
 
-func onUpdateWhitelistPlayer(db store.Querier, state *gameState, re *rules.Engine, enable bool) http.HandlerFunc {
+func onUpdateWhitelistPlayer(db store.Querier, state *gameState, enable bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
 			return
 		}
 
-		if errWl := whitelist(r.Context(), db, state, re, sid, enable); errWl != nil {
+		if errWl := whitelist(r.Context(), db, state, sid, enable); errWl != nil {
 			responseErr(w, http.StatusInternalServerError, nil)
 			slog.Error("Failed to whitelist steam_id", errAttr(errWl), slog.String("steam_id", sid.String()))
 

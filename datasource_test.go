@@ -48,7 +48,7 @@ func TestDataSource(t *testing.T) {
 		t.Run(fmt.Sprintf("%s_summary", name), func(t *testing.T) {
 			t.Parallel()
 
-			summaries, errSum := dataSource.Summaries(ctx, testIDs)
+			summaries, errSum := dataSource.summaries(ctx, testIDs)
 			require.NoError(t, errSum)
 			require.Equal(t, len(testIDs), len(summaries))
 		})

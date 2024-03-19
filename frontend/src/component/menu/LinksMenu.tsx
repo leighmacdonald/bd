@@ -49,3 +49,5 @@ export const LinksMenu = ({
         </NestedMenuItem>
     );
 };
+
+export default LinksMenu;

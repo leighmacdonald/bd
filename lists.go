@@ -15,15 +15,29 @@ import (
 	"github.com/leighmacdonald/bd/rules"
 )
 
-// FixSteamIDFormat converts raw unquoted steamids to quoted ones
+// fixSteamIDFormat converts raw unquoted steamids to quoted ones
 // e.g. "steamid":76561199063807260 -> "steamid": "76561199063807260".
-func FixSteamIDFormat(body []byte) []byte {
+func fixSteamIDFormat(body []byte) []byte {
 	r := regexp.MustCompile(`("steamid":\+?(\d+))`)
 
 	return r.ReplaceAll(body, []byte("\"steamid\": \"$2\""))
 }
 
-func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+type listManager struct {
+	re          *rules.Engine
+	settingsMgr *settingsManager
+	cache       Cache
+}
+
+func newListManager(cache Cache, re *rules.Engine, settingsMgr *settingsManager) listManager {
+	return listManager{
+		cache:       cache,
+		re:          re,
+		settingsMgr: settingsMgr,
+	}
+}
+
+func (lm listManager) downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
@@ -65,7 +79,7 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 			return fmt.Errorf("%w: %s", errFetchPlayerList, listConfig.URL)
 		}
 
-		body = FixSteamIDFormat(body)
+		body = fixSteamIDFormat(body)
 		dur := time.Since(start)
 
 		switch listConfig.ListType {
@@ -120,13 +134,13 @@ func downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.Pla
 }
 
 // refreshLists updates the 3rd party player lists using their update url.
-func refreshLists(ctx context.Context, re *rules.Engine, settingsMgr *settingsManager) {
-	settings := settingsMgr.Settings()
-	playerLists, ruleLists := downloadLists(ctx, settings.Lists)
+func (lm listManager) start(ctx context.Context) {
+	settings := lm.settingsMgr.Settings()
+	playerLists, ruleLists := lm.downloadLists(ctx, settings.Lists)
 	for _, list := range playerLists {
 		boundList := list
 
-		count, errImport := re.ImportPlayers(&boundList)
+		count, errImport := lm.re.ImportPlayers(&boundList)
 		if errImport != nil {
 			slog.Error("Failed to import player list", slog.String("name", boundList.FileInfo.Title), errAttr(errImport))
 		} else {
@@ -137,7 +151,7 @@ func refreshLists(ctx context.Context, re *rules.Engine, settingsMgr *settingsMa
 	for _, list := range ruleLists {
 		boundList := list
 
-		count, errImport := re.ImportRules(&boundList)
+		count, errImport := lm.re.ImportRules(&boundList)
 		if errImport != nil {
 			slog.Error("Failed to import rules list (%s): %v\n", slog.String("name", boundList.FileInfo.Title), errAttr(errImport))
 		} else {

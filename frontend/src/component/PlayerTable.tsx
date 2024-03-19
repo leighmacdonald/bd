@@ -14,7 +14,7 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
-import { addWhitelist, Player, useCurrentState } from '../api';
+import { addWhitelist, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { Trans } from 'react-i18next';
 import { logError } from '../util';
@@ -223,7 +223,7 @@ export const ColumnConfigButton = () => {
 const PlayerTableHead = () => {
     const { enabledColumns, orderBy, order, saveSortColumn } =
         useContext(PlayerTableContext);
-    const createSortHandler = (property: keyof Player) => () => {
+    const createSortHandler = (property: validColumns) => () => {
         saveSortColumn(property);
     };
 
@@ -287,7 +287,7 @@ export const PlayerTable = () => {
 
     const visibleRows = useMemo(() => {
         const filteredPlayers = state.players.filter(
-            (p) => !matchesOnly || (!p.whitelisted && p.matches?.length)
+            (p) => !matchesOnly || (!p.whitelist && p.matches?.length)
         );
         return stableSort(filteredPlayers, getComparator(order, orderBy));
     }, [order, orderBy, state.players, matchesOnly]);
