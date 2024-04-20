@@ -139,7 +139,7 @@ func getTF2Folder() (string, error) {
 	return "", ErrGameInstallPath
 }
 
-func (l WindowsPlatform) LaunchTF2(tf2Dir string, args []string) error {
+func (l WindowsPlatform) LaunchTF2(tf2Dir string, args ...string) error {
 	var (
 		procAttr os.ProcAttr
 		hl2Path  = filepath.Join(filepath.Dir(tf2Dir), l.binaryName)
