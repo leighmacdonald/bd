@@ -6,7 +6,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 const (
@@ -77,7 +77,7 @@ func VoiceBanWrite(output io.Writer, steamIDs steamid.Collection) error {
 
 	for _, sid := range steamIDs {
 		var (
-			raw      = []byte(steamid.SID64ToSID3(sid))
+			raw      = []byte(sid.Steam3())
 			sidBytes []byte
 		)
 

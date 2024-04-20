@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 const maxDataSize = 102
@@ -21,7 +21,7 @@ type DumpPlayer struct {
 	Team      [maxDataSize]int
 	Alive     [maxDataSize]bool
 	Health    [maxDataSize]int
-	SteamID   [maxDataSize]steamid.SID64
+	SteamID   [maxDataSize]steamid.SteamID
 	Valid     [maxDataSize]bool
 	UserID    [maxDataSize]int
 }
@@ -94,7 +94,7 @@ func (p g15Parser) Parse(reader io.Reader, data *DumpPlayer) error {
 		case "m_iHealth":
 			data.Health[index] = intVal(value, 0)
 		case "m_iAccountID":
-			data.SteamID[index] = steamid.SID32ToSID64(steamid.SID32(uint32(intVal(value, 0))))
+			data.SteamID[index] = steamid.New(int32(intVal(value, 0)))
 		case "m_bValid":
 			data.Valid[index] = boolVal(value)
 		case "m_iUserID":

@@ -10,10 +10,10 @@ import (
 
 	"github.com/andygrunwald/vdf"
 	"github.com/leighmacdonald/bd/platform"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
-func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error) {
+func getLocalConfigPath(steamRoot string, steamID steamid.SteamID) (string, error) {
 	if !steamID.Valid() { //nolint:nestif
 		userDataRoot := path.Join(steamRoot, "userdata")
 		// Attempt to use the id found in the userdata if only one exists
@@ -33,7 +33,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 					continue
 				}
 
-				maybeSteamID := steamid.SID32ToSID64(steamid.SID32(sidInt))
+				maybeSteamID := steamid.New(sidInt)
 				if maybeSteamID.Valid() {
 					steamID = maybeSteamID
 				}
@@ -46,7 +46,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 		}
 	}
 
-	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.SID32()), "config", "localconfig.vdf")
+	configPath := path.Join(steamRoot, "userdata", fmt.Sprintf("%d", steamID.AccountID), "config", "localconfig.vdf")
 	if !platform.Exists(configPath) {
 		return "", errPathNotExist
 	}
@@ -54,7 +54,7 @@ func getLocalConfigPath(steamRoot string, steamID steamid.SID64) (string, error)
 	return configPath, nil
 }
 
-func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error) {
+func getUserLaunchArgs(steamRoot string, steamID steamid.SteamID) ([]string, error) {
 	localConfigPath, errConfigPath := getLocalConfigPath(steamRoot, steamID)
 	if errConfigPath != nil {
 		return nil, errors.Join(errConfigPath, errSteamLocalConfig)
@@ -114,7 +114,7 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SID64) ([]string, error
 	return launchOpts, nil
 }
 
-func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SID64, udpEnabled bool, udpAddr string) ([]string, error) {
+func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SteamID, udpEnabled bool, udpAddr string) ([]string, error) {
 	userArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Join(errUserArgs, errSteamLaunchArgs)

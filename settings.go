@@ -16,7 +16,7 @@ import (
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -320,7 +320,7 @@ func (sm *settingsManager) locateTF2Dir() string {
 }
 
 type userSettings struct {
-	SteamID steamid.SID64 `yaml:"steam_id" json:"steam_id"`
+	SteamID steamid.SteamID `yaml:"steam_id" json:"steam_id"`
 	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
 	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
 	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
@@ -356,7 +356,7 @@ type userSettings struct {
 
 func newSettings(plat platform.Platform) userSettings {
 	settings := userSettings{
-		SteamID:                 "",
+		SteamID:                 steamid.New(""),
 		SteamDir:                plat.DefaultSteamRoot(),
 		TF2Dir:                  plat.DefaultTF2Root(),
 		AutoLaunchGame:          false,
@@ -491,7 +491,7 @@ func (s *userSettings) Validate() error {
 	const apiKeyLen = 32
 
 	var err error
-	if s.SteamID != "" && !s.SteamID.Valid() {
+	if !s.SteamID.Valid() {
 		err = errors.Join(err, steamid.ErrInvalidSID)
 	}
 

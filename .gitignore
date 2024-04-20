@@ -10,3 +10,4 @@ node_modules
 /frontend/lib/
 package-lock.json
 /tmp/
+build

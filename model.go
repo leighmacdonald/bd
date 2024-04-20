@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
-type QueryNamesFunc func(ctx context.Context, sid64 steamid.SID64) (UserNameHistoryCollection, error)
+type QueryNamesFunc func(ctx context.Context, sid64 steamid.SteamID) (UserNameHistoryCollection, error)
 
-type QueryUserMessagesFunc func(ctx context.Context, sid64 steamid.SID64) (UserMessageCollection, error)
+type QueryUserMessagesFunc func(ctx context.Context, sid64 steamid.SteamID) (UserMessageCollection, error)
 
 type Team int
 
@@ -37,7 +37,7 @@ func (t Team) String() string {
 }
 
 type BaseSID struct {
-	SteamID steamid.SID64 `json:"steam_id"`
+	SteamID steamid.SteamID `json:"steam_id"`
 }
 
 type UserMessage struct {

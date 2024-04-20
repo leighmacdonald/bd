@@ -9,7 +9,7 @@ import (
 	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
@@ -21,7 +21,7 @@ type bulkUpdatedRemoteData struct {
 }
 
 type playerDataUpdate struct {
-	steamID    steamid.SID64
+	steamID    steamid.SteamID
 	summary    steamweb.PlayerSummary
 	bans       steamweb.PlayerBanState
 	sourcebans []models.SbBanRecord
@@ -29,7 +29,7 @@ type playerDataUpdate struct {
 }
 
 type playerDataLoader struct {
-	profileUpdateQueue chan steamid.SID64
+	profileUpdateQueue chan steamid.SteamID
 	datasource         DataSource
 	playerDataChan     chan playerDataUpdate
 	db                 store.Querier
@@ -38,7 +38,7 @@ type playerDataLoader struct {
 }
 
 func newPlayerDataLoader(db store.Querier, ds DataSource, settings *settingsManager, re *rules.Engine,
-	profileUpdateQueue chan steamid.SID64, playerDataChan chan playerDataUpdate,
+	profileUpdateQueue chan steamid.SteamID, playerDataChan chan playerDataUpdate,
 ) *playerDataLoader {
 	return &playerDataLoader{
 		db:                 db,
@@ -120,7 +120,7 @@ func (p *playerDataLoader) start(ctx context.Context) {
 	}
 }
 
-func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.SID64, records []models.SbBanRecord) {
+func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.SteamID, records []models.SbBanRecord) {
 	if err := p.db.SourcebansDelete(ctx, steamID.Int64()); err != nil {
 		slog.Error("failed to delete sourcebans records", errAttr(err))
 		return
@@ -141,7 +141,7 @@ func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.S
 	}
 }
 
-func (p *playerDataLoader) saveFriends(ctx context.Context, steamID steamid.SID64, friends []steamweb.Friend) {
+func (p *playerDataLoader) saveFriends(ctx context.Context, steamID steamid.SteamID, friends []steamweb.Friend) {
 	if err := p.db.FriendsDelete(ctx, steamID.Int64()); err != nil {
 		slog.Error("failed to delete friends")
 		return

@@ -13,7 +13,7 @@ import (
 
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -60,7 +60,7 @@ func (state *playerStates) byName(name string) (PlayerState, error) {
 
 // bySteamID returns a player currently being tracked in the game state. If connectedOnly is true, then
 // players who have timed out already are ignored.
-func (state *playerStates) bySteamID(sid64 steamid.SID64) (PlayerState, error) {
+func (state *playerStates) bySteamID(sid64 steamid.SteamID) (PlayerState, error) {
 	state.RLock()
 	defer state.RUnlock()
 
@@ -107,7 +107,7 @@ func (state *playerStates) replace(replacementPlayers []PlayerState) {
 	state.activePlayers = replacementPlayers
 }
 
-func (state *playerStates) remove(sid64 steamid.SID64) {
+func (state *playerStates) remove(sid64 steamid.SteamID) {
 	state.Lock()
 	defer state.Unlock()
 
@@ -130,7 +130,7 @@ func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engin
 		return
 	}
 
-	if matchSteam := re.MatchSteam(player.SID64()); matchSteam != nil {
+	if matchSteam := re.MatchSteam(player.SteamID); matchSteam != nil {
 		player.Matches = matchSteam
 
 		if validTeam == player.Team {
@@ -152,7 +152,7 @@ func (state *playerStates) checkPlayerState(ctx context.Context, re *rules.Engin
 type gameState struct {
 	mu                 *sync.RWMutex
 	playerDataChan     chan playerDataUpdate
-	profileUpdateQueue chan steamid.SID64
+	profileUpdateQueue chan steamid.SteamID
 	eventChan          chan LogEvent
 	settings           *settingsManager
 	players            *playerStates
@@ -175,7 +175,7 @@ func newGameState(store store.Querier, settings *settingsManager, playerState *p
 		server:             serverState{},
 		playerDataChan:     make(chan playerDataUpdate),
 		eventChan:          make(chan LogEvent),
-		profileUpdateQueue: make(chan steamid.SID64),
+		profileUpdateQueue: make(chan steamid.SteamID),
 	}
 }
 
@@ -266,8 +266,8 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 				}
 
 				if player.IsExpired() {
-					s.players.remove(player.SID64())
-					slog.Debug("Flushing expired player", slog.String("steam_id", player.SID64().String()))
+					s.players.remove(player.SteamID)
+					slog.Debug("Flushing expired player", slog.String("steam_id", player.SteamID.String()))
 				}
 			}
 
@@ -319,7 +319,7 @@ func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) 
 	if errSave := s.db.PlayerUpdate(ctx, player.toUpdateParams()); errSave != nil {
 		if errSave.Error() != "sql: database is closed" {
 			slog.Error("Failed to save updated player data",
-				slog.String("sid", player.SID64().String()), errAttr(errSave))
+				slog.String("sid", player.SteamID.String()), errAttr(errSave))
 		}
 		return
 	}
@@ -361,7 +361,7 @@ func (s *gameState) onKill(evt killEvent) {
 	s.players.update(target)
 }
 
-func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SID64) (PlayerState, error) {
+func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SteamID) (PlayerState, error) {
 	player, errPlayer := s.players.bySteamID(steamID)
 	if errPlayer != nil {
 		if !errors.Is(errPlayer, errPlayerNotFound) {
@@ -379,7 +379,7 @@ func (s *gameState) getPlayerOrCreate(ctx context.Context, steamID steamid.SID64
 	return player, nil
 }
 
-func (s *gameState) onStatus(ctx context.Context, steamID steamid.SID64, evt statusEvent) {
+func (s *gameState) onStatus(ctx context.Context, steamID steamid.SteamID, evt statusEvent) {
 	player, errPlayer := s.getPlayerOrCreate(ctx, steamID)
 	if errPlayer != nil {
 		return
