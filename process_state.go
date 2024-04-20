@@ -65,7 +65,7 @@ func (p *processState) launchGame(settingsMgr *settingsManager) {
 	//	}
 	// }
 
-	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args); errLaunch != nil {
+	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args...); errLaunch != nil {
 		slog.Error("Failed to launch game", errAttr(errLaunch))
 	} else {
 		p.gameHasStartedOnce.Store(true)
