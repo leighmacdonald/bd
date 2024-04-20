@@ -18,16 +18,19 @@ static:
 deps: deps-go
 	make -C frontend deps
 
+frontend:
+	make -C frontend build
+
 deps-go:
-	go install github.com/cosmtrek/air@latest
-	go install github.com/nicksnyder/go-i18n/v2/goi18n@latest
-	go install github.com/golang-migrate/migrate/v4
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	go install github.com/daixiang0/gci@latest
-	go install mvdan.cc/gofumpt@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.2
+	go install github.com/cosmtrek/air@v1.51.0
+	go install github.com/nicksnyder/go-i18n/v2/goi18n@v2.4.0
+	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.26.0
+	go install github.com/daixiang0/gci@v0.13.4
+	go install mvdan.cc/gofumpt@v0.6.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.57.2
 	go install honnef.co/go/tools/cmd/staticcheck@v0.4.6
-	go install github.com/goreleaser/goreleaser@latest
+	go install github.com/goreleaser/goreleaser@v1.25.1
 
 test:
 	go test ./...
@@ -42,6 +45,9 @@ watch-go:
 
 serve-ts:
 	make -C frontend serve
+
+local-build: frontend
+	go build -o bd
 
 snapshot:
 	goreleaser build --snapshot --clean
