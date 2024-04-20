@@ -61,7 +61,7 @@ func (l LinuxPlatform) DefaultTF2Root() string {
 }
 
 // LaunchTF2 calls the steam binary directly
-// This expects the steam  binary to be in %PATH%
+// This expects the steam  binary to be in %PATH%.
 func (l LinuxPlatform) LaunchTF2(_ string, args ...string) error {
 	if len(args) != 2 {
 		panic("invalid arg count")

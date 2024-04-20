@@ -16,7 +16,11 @@ func TestVoiceBans(t *testing.T) {
 		_ = vbTestFile.Close()
 	}()
 
-	testIDs := steamid.Collection{"76561198369477018", "76561197970669109", "76561197961279983"}
+	testIDs := steamid.Collection{
+		steamid.New("76561198369477018"),
+		steamid.New("76561197970669109"),
+		steamid.New("76561197961279983"),
+	}
 
 	require.NoError(t, VoiceBanWrite(vbTestFile, testIDs))
 	_ = vbTestFile.Sync()

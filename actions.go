@@ -13,7 +13,7 @@ import (
 
 // unMark will unmark & remove a player from your local list. This *will not* unmark players from any
 // other list sources. If you want to not kick someone on a 3rd party list, you can instead whitelist the player.
-func unMark(ctx context.Context, re *rules.Engine, db store.Querier, state *gameState, sid64 steamid.SteamID) (int, error) {
+func unMark(ctx context.Context, re *rules.Engine, db store.Querier, _ *gameState, sid64 steamid.SteamID) (int, error) {
 	player, errPlayer := loadPlayerOrCreate(ctx, db, sid64)
 	if errPlayer != nil {
 		return 0, errPlayer
