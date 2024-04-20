@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 type MatchResult struct {
@@ -91,20 +91,20 @@ type TextMatchHandler interface {
 
 // SteamIDMatcherHandler provides a basic interface to match steam ids.
 type SteamIDMatcherHandler interface {
-	Match(sid64 steamid.SID64) (MatchResult, bool)
+	Match(sid64 steamid.SteamID) (MatchResult, bool)
 	HasOneOfAttr(attrs ...string) bool
 	LastSeen() time.Time
-	SteamID() steamid.SID64
+	SteamID() steamid.SteamID
 }
 
 type SteamIDMatcher struct {
-	steamID    steamid.SID64
+	steamID    steamid.SteamID
 	origin     string
 	attributes []string
 	lastSeen   PlayerLastSeen
 }
 
-func (m SteamIDMatcher) SteamID() steamid.SID64 {
+func (m SteamIDMatcher) SteamID() steamid.SteamID {
 	return m.SteamID()
 }
 
@@ -124,7 +124,7 @@ func (m SteamIDMatcher) HasOneOfAttr(attrs ...string) bool {
 	return false
 }
 
-func (m SteamIDMatcher) Match(sid64 steamid.SID64) (MatchResult, bool) {
+func (m SteamIDMatcher) Match(sid64 steamid.SteamID) (MatchResult, bool) {
 	if sid64 == m.steamID {
 		return MatchResult{Origin: m.origin, MatcherType: "steam_id", Attributes: m.attributes}, true
 	}
@@ -132,7 +132,7 @@ func (m SteamIDMatcher) Match(sid64 steamid.SID64) (MatchResult, bool) {
 	return MatchResult{}, false
 }
 
-func NewSteamIDMatcher(origin string, sid64 steamid.SID64, attributes []string) SteamIDMatcher {
+func NewSteamIDMatcher(origin string, sid64 steamid.SteamID, attributes []string) SteamIDMatcher {
 	return SteamIDMatcher{steamID: sid64, origin: origin, attributes: attributes}
 }
 

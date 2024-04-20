@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 type kickRequest struct {
-	steamID steamid.SID64
+	steamID steamid.SteamID
 	reason  KickReason
 }
 
@@ -100,7 +100,7 @@ func (bb overwatch) announceMatch(ctx context.Context, player PlayerState, match
 		for _, match := range matches {
 			slog.Debug(msg,
 				slog.String("match_type", match.MatcherType),
-				slog.String("sid", player.SID64().String()),
+				slog.String("sid", player.SteamID.String()),
 				slog.String("name", player.Personaname),
 				slog.String("origin", match.Origin))
 		}
@@ -167,7 +167,7 @@ func (bb overwatch) kick(ctx context.Context, player PlayerState, reason KickRea
 
 	resp, errCallVote := bb.rcon.exec(ctx, cmd, false)
 	if errCallVote != nil {
-		slog.Error("Failed to call vote", slog.String("steam_id", player.SID64().String()), errAttr(errCallVote))
+		slog.Error("Failed to call vote", slog.String("steam_id", player.SteamID.String()), errAttr(errCallVote))
 
 		return
 	}

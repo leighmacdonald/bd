@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 var ErrNoMatch = errors.New("no match found")
@@ -45,9 +45,9 @@ type LogEvent struct {
 	PlayerConnected time.Duration
 	Team            Team
 	UserID          int
-	PlayerSID       steamid.SID64
+	PlayerSID       steamid.SteamID
 	Victim          string
-	VictimSID       steamid.SID64
+	VictimSID       steamid.SteamID
 	Message         string
 	Timestamp       time.Time
 	MetaData        string
@@ -124,12 +124,12 @@ type statusEvent struct {
 
 type updateStateEvent struct {
 	kind   updateType
-	source steamid.SID64
+	source steamid.SteamID
 	data   any
 }
 
 type messageEvent struct {
-	steamID   steamid.SID64
+	steamID   steamid.SteamID
 	name      string
 	createdAt time.Time
 	message   string
@@ -235,7 +235,7 @@ func (parser *logParser) parse(msg string, outEvent *LogEvent) error {
 
 				outEvent.UserID = int(userID)
 				outEvent.Player = match[3]
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[4]))
+				outEvent.PlayerSID = steamid.New(match[4])
 				outEvent.PlayerConnected = dur
 				outEvent.PlayerPing = int(ping)
 			case EvtKill:
@@ -250,7 +250,7 @@ func (parser *logParser) parse(msg string, outEvent *LogEvent) error {
 			case EvtAddress:
 				outEvent.MetaData = match[2]
 			case EvtLobby:
-				outEvent.PlayerSID = steamid.SID3ToSID64(steamid.SID3(match[2]))
+				outEvent.PlayerSID = steamid.New(match[2])
 				if match[3] == "INVADERS" {
 					outEvent.Team = Blu
 				} else {

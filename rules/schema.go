@@ -1,6 +1,6 @@
 package rules
 
-import "github.com/leighmacdonald/steamid/v3/steamid"
+import "github.com/leighmacdonald/steamid/v4/steamid"
 
 type RuleTriggerMode string
 
@@ -134,9 +134,9 @@ type PlayerLastSeen struct {
 }
 
 type PlayerDefinition struct {
-	Attributes []string       `json:"attributes"`
-	LastSeen   PlayerLastSeen `json:"last_seen,omitempty"`
-	SteamID    steamid.SID64  `json:"steamid"` //nolint:tagliatelle
-	Proof      []string       `json:"proof,omitempty"`
-	Origin     string         `json:"origin,omitempty"`
+	Attributes []string        `json:"attributes"`
+	LastSeen   PlayerLastSeen  `json:"last_seen,omitempty"`
+	SteamID    steamid.SteamID `json:"steamid"` //nolint:tagliatelle
+	Proof      []string        `json:"proof,omitempty"`
+	Origin     string          `json:"origin,omitempty"`
 }

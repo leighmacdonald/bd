@@ -12,7 +12,7 @@ import (
 	"github.com/leighmacdonald/bd/frontend"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) *http.Server {
@@ -95,7 +95,7 @@ func createHandlers(store store.Querier, state *gameState, process *processState
 	return mux, nil
 }
 
-func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SID64, bool) {
+func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SteamID, bool) {
 	sidValue := r.PathValue("steam_id")
 	steamID := steamid.New(sidValue)
 
@@ -103,7 +103,7 @@ func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SID64, bool) 
 		responseErr(w, http.StatusBadRequest, nil)
 		slog.Error("Failed to parse steam id param", slog.String("steam_id", sidValue))
 
-		return "", false
+		return steamID, false
 	}
 
 	return steamID, true

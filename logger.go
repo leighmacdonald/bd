@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/dotse/slug"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 // tailLogAdapter implements a tail.logger interface using log/slog.
@@ -141,6 +141,6 @@ func errAttr(err error) slog.Attr {
 	return slog.Any("error", err)
 }
 
-func sidAttr(steamID steamid.SID64) slog.Attr {
+func sidAttr(steamID steamid.SteamID) slog.Attr {
 	return slog.String("sid", steamID.String())
 }

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
 var (
@@ -50,7 +50,7 @@ const (
 )
 
 type MarkOpts struct {
-	SteamID    steamid.SID64
+	SteamID    steamid.SteamID
 	Attributes []string
 	Proof      []string
 	Name       string
@@ -111,7 +111,7 @@ func (e *Engine) UserRuleList() *RuleSchema {
 }
 
 // Unmark a player from the local player list.
-func (e *Engine) Unmark(steamID steamid.SID64) bool {
+func (e *Engine) Unmark(steamID steamid.SteamID) bool {
 	e.Lock()
 	defer e.Unlock()
 
@@ -413,7 +413,7 @@ func (rs *RuleSchema) matchTextType(text string, matchType TextMatchType) (Match
 	return MatchResult{}, false
 }
 
-func (e *Engine) MatchSteam(steamID steamid.SID64) MatchResults {
+func (e *Engine) MatchSteam(steamID steamid.SteamID) MatchResults {
 	e.RLock()
 	defer e.RUnlock()
 

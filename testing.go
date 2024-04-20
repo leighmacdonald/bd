@@ -10,24 +10,28 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type mkPlayerFunc func(ctx context.Context, sid64 steamid.SID64) (PlayerState, error)
+type mkPlayerFunc func(ctx context.Context, sid64 steamid.SteamID) (PlayerState, error)
 
 // CreateTestPlayers will generate fake player data for testing purposes.
 // nolint:gosec
 func CreateTestPlayers(playerState *playerStates, fn mkPlayerFunc, count int) {
 	idIdx := 0
 	knownIDs := steamid.Collection{
-		"76561197998365611", "76561197977133523", "76561198065825165", "76561198004429398", "76561198182505218",
-		"76561197989961569", "76561198183927541", "76561198005026984", "76561197997861796", "76561198377596915",
-		"76561198336028289", "76561198066637626", "76561198818013048", "76561198196411029", "76561198079544034",
-		"76561198008337801", "76561198042902038", "76561198013287458", "76561198038487121", "76561198046766708",
-		"76561197963310062", "76561198017314810", "76561197967842214", "76561197984047970", "76561198020124821",
-		"76561198010868782", "76561198022397372", "76561198016314731", "76561198087124802", "76561198024022137",
-		"76561198015577906", "76561197997861796",
+		steamid.New("76561197998365611"), steamid.New("76561197977133523"), steamid.New("76561198065825165"),
+		steamid.New("76561198004429398"), steamid.New("76561198182505218"), steamid.New("76561197989961569"),
+		steamid.New("76561198183927541"), steamid.New("76561198005026984"), steamid.New("76561197997861796"),
+		steamid.New("76561198377596915"), steamid.New("76561198336028289"), steamid.New("76561198066637626"),
+		steamid.New("76561198818013048"), steamid.New("76561198196411029"), steamid.New("76561198079544034"),
+		steamid.New("76561198008337801"), steamid.New("76561198042902038"), steamid.New("76561198013287458"),
+		steamid.New("76561198038487121"), steamid.New("76561198046766708"), steamid.New("76561197963310062"),
+		steamid.New("76561198017314810"), steamid.New("76561197967842214"), steamid.New("76561197984047970"),
+		steamid.New("76561198020124821"), steamid.New("76561198010868782"), steamid.New("76561198022397372"),
+		steamid.New("76561198016314731"), steamid.New("76561198087124802"), steamid.New("76561198024022137"),
+		steamid.New("76561198015577906"), steamid.New("76561197997861796"),
 	}
 
 	randPlayer := func(userId int) PlayerState {

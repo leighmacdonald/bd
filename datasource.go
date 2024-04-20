@@ -11,13 +11,13 @@ import (
 	"sync"
 
 	"github.com/leighmacdonald/bd-api/models"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
-type FriendMap map[steamid.SID64][]steamweb.Friend
+type FriendMap map[steamid.SteamID][]steamweb.Friend
 
-type SourcebansMap map[steamid.SID64][]models.SbBanRecord
+type SourcebansMap map[steamid.SteamID][]models.SbBanRecord
 
 type DataSource interface {
 	summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
@@ -58,7 +58,7 @@ func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collectio
 	for _, steamID := range steamIDs {
 		waitGroup.Add(1)
 
-		go func(sid steamid.SID64) {
+		go func(sid steamid.SteamID) {
 			defer waitGroup.Done()
 
 			var (

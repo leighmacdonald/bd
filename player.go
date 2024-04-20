@@ -9,29 +9,29 @@ import (
 	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
 
 type PlayerState struct {
-	SteamID          steamid.SID64 `json:"steam_id"`
-	Personaname      string        `json:"personaname"`
-	Visibility       int64         `json:"visibility"`
-	RealName         string        `json:"real_name"`
-	AccountCreatedOn time.Time     `json:"account_created_on"`
-	AvatarHash       string        `json:"avatar_hash"`
-	CommunityBanned  bool          `json:"community_banned"`
-	GameBans         int64         `json:"game_bans"`
-	VacBans          int64         `json:"vac_bans"`
-	LastVacBanOn     int64         `json:"last_vac_ban_on"`
-	KillsOn          int64         `json:"kills_on"`
-	DeathsBy         int64         `json:"deaths_by"`
-	RageQuits        int64         `json:"rage_quits"`
-	Notes            string        `json:"notes"`
-	Whitelist        bool          `json:"whitelist"`
-	ProfileUpdatedOn time.Time     `json:"profile_updated_on"`
-	CreatedOn        time.Time     `json:"created_on"`
-	UpdatedOn        time.Time     `json:"updated_on"`
+	SteamID          steamid.SteamID `json:"steam_id"`
+	Personaname      string          `json:"personaname"`
+	Visibility       int64           `json:"visibility"`
+	RealName         string          `json:"real_name"`
+	AccountCreatedOn time.Time       `json:"account_created_on"`
+	AvatarHash       string          `json:"avatar_hash"`
+	CommunityBanned  bool            `json:"community_banned"`
+	GameBans         int64           `json:"game_bans"`
+	VacBans          int64           `json:"vac_bans"`
+	LastVacBanOn     int64           `json:"last_vac_ban_on"`
+	KillsOn          int64           `json:"kills_on"`
+	DeathsBy         int64           `json:"deaths_by"`
+	RageQuits        int64           `json:"rage_quits"`
+	Notes            string          `json:"notes"`
+	Whitelist        bool            `json:"whitelist"`
+	ProfileUpdatedOn time.Time       `json:"profile_updated_on"`
+	CreatedOn        time.Time       `json:"created_on"`
+	UpdatedOn        time.Time       `json:"updated_on"`
 
 	EconomyBan steamweb.EconBanState `json:"economy_ban"`
 
@@ -73,10 +73,6 @@ type PlayerState struct {
 	Matches              []rules.MatchResult  `json:"matches"`
 }
 
-func (ps PlayerState) SID64() steamid.SID64 {
-	return steamid.New(ps.SteamID)
-}
-
 func (ps PlayerState) MatchAttr(tags []string) bool {
 	for _, match := range ps.Matches {
 		for _, tag := range tags {
@@ -105,7 +101,7 @@ func (ps PlayerState) IsExpired() bool {
 
 const defaultAvatarHash = "fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb"
 
-func newPlayer(sid64 steamid.SID64, name string) PlayerState {
+func newPlayer(sid64 steamid.SteamID, name string) PlayerState {
 	curTIme := time.Now()
 
 	return PlayerState{
@@ -173,7 +169,7 @@ func playerRowToPlayerState(row store.PlayerRow) PlayerState {
 // loadPlayerOrCreate attempts to fetch a player from the current player states. If it doesn't exist it will be
 // inserted into the database and returned so that fks are satisfied. If you only want players actively in the game,
 // use the playerStates functions instead.
-func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SID64) (PlayerState, error) {
+func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.SteamID) (PlayerState, error) {
 	playerRow, errGet := db.Player(ctx, sid64.Int64())
 	if errGet != nil {
 		if !errors.Is(errGet, sql.ErrNoRows) {
