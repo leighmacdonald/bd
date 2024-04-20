@@ -13,9 +13,9 @@ import (
 func TestDataSource(t *testing.T) {
 	t.Parallel()
 
-	const (
-		testIDb4nny  steamid.SID64 = "76561197970669109"
-		testIDCamper steamid.SID64 = "76561197992870439"
+	var (
+		testIDb4nny  = steamid.New("76561197970669109")
+		testIDCamper = steamid.New("76561197992870439")
 	)
 
 	ctx := context.Background()
