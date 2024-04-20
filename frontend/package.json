@@ -94,5 +94,5 @@
     "vite-plugin-html": "^3.2.2",
     "vite-tsconfig-paths": "^4.3.2"
   },
-  "packageManager": "pnpm@8.15.2+sha256.90bb5d6382cb2cb8b8d4959a076b3953d84d1d94121717097bcd41c71344fa14"
+  "packageManager": "pnpm@9.0.4+sha256.caa915eaae9d9aefccf50ee8aeda25a2f8684d8f9d5c6e367eaf176d97c1f89e"
 }
