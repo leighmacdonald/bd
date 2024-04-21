@@ -17,3 +17,12 @@ watch:
 
 serve:
 	pnpm serve
+
+bump_deps:
+	pnpm up --latest --interactive
+
+fmt:
+	pnpm prettier src/ --write
+
+clean:
+	rm -rf dist/

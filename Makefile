@@ -4,7 +4,7 @@ all: fmt check test
 
 bump_deps:
 	go get -u ./...
-	cd frontend && pnpm up --latest --interactive
+	make -C frontend bump_deps
 
 check: lint_golangci static
 	make -C frontend check
@@ -14,9 +14,6 @@ lint_golangci:
 
 static:
 	@staticcheck -go 1.22 ./...
-
-deps: deps-go
-	make -C frontend deps
 
 frontend:
 	make -C frontend build
@@ -38,7 +35,7 @@ test:
 fmt:
 	gci write . --skip-generated -s standard -s default
 	gofumpt -l -w .
-	cd frontend && pnpm prettier src/ --write
+	make -C frontend fmt
 
 watch-go:
 	@air
@@ -54,3 +51,7 @@ snapshot:
 
 generate:
 	sqlc generate
+
+clean:
+	rm -rf build/
+	make -C frontend clean
