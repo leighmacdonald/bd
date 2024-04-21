@@ -87,6 +87,10 @@ func openApplicationPage(plat platform.Platform, appURL string) {
 
 func run() int {
 	versionInfo := Version{Version: version, Commit: commit, Date: date}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	plat := platform.New()
 	settingsMgr := newSettingsManager(plat)
 
@@ -118,9 +122,7 @@ func run() int {
 	defer dbCloser()
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
-
 	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db)
-
 	parser := newLogParser()
 	broadcaster := newEventBroadcaster()
 
@@ -138,10 +140,13 @@ func run() int {
 			slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
 			return 1
 		}
+
+		go testLogFeeder(ctx, ingest)
+
 		logSrc = ingest
 	}
 
-	cr := newChatRecorder(db, broadcaster)
+	chat := newChatRecorder(db, broadcaster)
 
 	broadcaster.registerConsumer(state.eventChan, EvtAny)
 
@@ -169,21 +174,23 @@ func run() int {
 	mux, errRoutes := createHandlers(db, state, processHandler, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
-	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+		return 1
+	}
 
 	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
 
 	// Start all the background workers
-	for _, svc := range []backgroundService{discordPresence, cr, logSrc, updater, statusHandler, bigBrotherHandler, processHandler, state, lm} {
+	for _, svc := range []backgroundService{discordPresence, chat, logSrc, updater, statusHandler, &bigBrotherHandler, processHandler, state, lm} {
 		go svc.start(ctx)
 	}
 
 	go func() {
-		// TODO configure the auto open
 		time.Sleep(time.Second * 3)
+
+		if settings.AutoLaunchGame {
+			go processHandler.launchGame(settingsMgr)
+		}
 
 		if settings.RunMode == ModeRelease {
 			openApplicationPage(plat, settings.AppURL())
