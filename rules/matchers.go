@@ -105,7 +105,7 @@ type SteamIDMatcher struct {
 }
 
 func (m SteamIDMatcher) SteamID() steamid.SteamID {
-	return m.SteamID()
+	return m.steamID
 }
 
 func (m SteamIDMatcher) LastSeen() time.Time {
