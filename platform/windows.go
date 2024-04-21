@@ -42,7 +42,7 @@ func New() WindowsPlatform {
 	return WindowsPlatform{
 		defaultSteamRoot:      defaultSteamRoot,
 		defaultTF2Root:        defaultTF2Root,
-		binaryName:            "hl2.exe",
+		binaryName:            "tf_win64.exe",
 		tf2RootValidationFile: "bin/client.dll",
 	}
 }
