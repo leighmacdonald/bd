@@ -34,7 +34,7 @@ func newOverwatch(settings *settingsManager, rcon rconConnection, state *gameSta
 	return overwatch{settings: settings, rcon: rcon, state: state}
 }
 
-func (bb overwatch) start(ctx context.Context) {
+func (bb *overwatch) start(ctx context.Context) {
 	timer := time.NewTicker(time.Second * 1)
 	for {
 		select {
@@ -47,7 +47,7 @@ func (bb overwatch) start(ctx context.Context) {
 }
 
 // nextKickTarget searches for the next eligible target to initiate a vote kick against.
-func (bb overwatch) nextKickTarget() (PlayerState, bool) {
+func (bb *overwatch) nextKickTarget() (PlayerState, bool) {
 	var validTargets []PlayerState
 
 	// Pull names from the manual queue first.
@@ -84,7 +84,7 @@ func (bb overwatch) nextKickTarget() (PlayerState, bool) {
 }
 
 // announceMatch handles announcing after a match is triggered against a player.
-func (bb overwatch) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
+func (bb *overwatch) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
 	settings := bb.settings.Settings()
 
 	if len(matches) == 0 {
@@ -131,7 +131,7 @@ func (bb overwatch) announceMatch(ctx context.Context, player PlayerState, match
 }
 
 // sendChat is used to send chat messages to the various chat interfaces in game: say|say_team|say_party.
-func (bb overwatch) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
+func (bb *overwatch) sendChat(ctx context.Context, destination ChatDest, format string, args ...any) error {
 	var cmd string
 
 	switch destination {
@@ -155,10 +155,10 @@ func (bb overwatch) sendChat(ctx context.Context, destination ChatDest, format s
 	return nil
 }
 
-func (bb overwatch) update() {
+func (bb *overwatch) update() {
 }
 
-func (bb overwatch) kick(ctx context.Context, player PlayerState, reason KickReason) {
+func (bb *overwatch) kick(ctx context.Context, player PlayerState, reason KickReason) {
 	player.KickAttemptCount++
 
 	defer bb.state.players.update(player)
