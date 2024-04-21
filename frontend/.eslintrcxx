@@ -6,7 +6,7 @@
       "jsx": true
     }
   },
-  "ignorePatterns": ["dist", ".eslintrc"],
+  "ignorePatterns": ["dist", ".eslintrc", "node_modules", "lib"],
   "settings": {
     "react": {
       "version": "18"
