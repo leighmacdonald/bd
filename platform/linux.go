@@ -47,7 +47,7 @@ func New() LinuxPlatform {
 	return LinuxPlatform{
 		defaultSteamRoot:      steamRoot,
 		defaultTF2Root:        tf2Root,
-		binaryName:            "hl2_linux",
+		binaryName:            "tf_linux64",
 		tf2RootValidationFile: "bin/client.so",
 	}
 }
