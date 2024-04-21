@@ -7,9 +7,8 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 export default tseslint.config(
     eslint.configs.recommended,
     ...tseslint.configs.recommended,
+    eslintPluginPrettierRecommended,
     {
-        files: ['src/**/*.ts', 'src/*.ts'],
-        //ignores: ['dist', 'node_modules', 'lib']
-    },
-    eslintPluginPrettierRecommended
+        files: ['src/**/*.ts', 'eslint.config.js']
+    }
 );
