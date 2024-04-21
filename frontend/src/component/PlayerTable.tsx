@@ -43,7 +43,6 @@ const getComparator = <Key extends keyof any>(
         ? (a, b) => descendingComparator(a, b, orderBy)
         : (a, b) => -descendingComparator(a, b, orderBy);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const stableSort = <T,>(
     array: readonly T[],
     comparator: (a: T, b: T) => number
