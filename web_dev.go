@@ -1,6 +1,8 @@
+// When not running in release mode, its expected that you are using vite's built in http serve functionality so that
+// things like hot-reloading work properly.
 //go:build !release
 
-package frontend
+package main
 
 import (
 	"log/slog"
