@@ -163,12 +163,14 @@ func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
 	if errRead != nil {
 		if errors.Is(errRead, errConfigNotFound) {
 			slog.Info("Creating default config")
-			defaultSettings := newSettings(sm.platform)
+			sm.settings = newSettings(sm.platform)
+			sm.configPath = settingsFilePath
+
 			if errSave := sm.save(); errSave != nil {
 				return settings, errSave
 			}
 
-			return defaultSettings, nil
+			return sm.settings, nil
 		}
 
 		return userSettings{}, errRead
@@ -363,7 +365,7 @@ func newSettings(plat platform.Platform) userSettings {
 		AutoCloseOnGameExit:     false,
 		APIKey:                  "",
 		BdAPIEnabled:            true,
-		BdAPIAddress:            "",
+		BdAPIAddress:            "https://bd-api.roto.lol/",
 		DisconnectedTimeout:     "60s",
 		DiscordPresenceEnabled:  true,
 		KickerEnabled:           false,
@@ -491,7 +493,7 @@ func (s *userSettings) Validate() error {
 	const apiKeyLen = 32
 
 	var err error
-	if !s.SteamID.Valid() {
+	if s.SteamID.AccountID > 1 && !s.SteamID.Valid() {
 		err = errors.Join(err, steamid.ErrInvalidSID)
 	}
 
