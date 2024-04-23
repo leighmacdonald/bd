@@ -2,6 +2,8 @@ module github.com/leighmacdonald/bd
 
 go 1.22
 
+toolchain go1.22.2
+
 require (
 	fyne.io/systray v1.10.0
 	github.com/andygrunwald/vdf v1.1.0
