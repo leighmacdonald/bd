@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v4/steamid"
@@ -24,7 +23,7 @@ type playerDataUpdate struct {
 	steamID    steamid.SteamID
 	summary    steamweb.PlayerSummary
 	bans       steamweb.PlayerBanState
-	sourcebans []models.SbBanRecord
+	sourcebans []SbBanRecord
 	friends    []steamweb.Friend
 }
 
@@ -78,7 +77,7 @@ func (p *playerDataLoader) start(ctx context.Context) {
 				u := playerDataUpdate{
 					steamID:    steamID,
 					friends:    make([]steamweb.Friend, 0),
-					sourcebans: make([]models.SbBanRecord, 0),
+					sourcebans: make([]SbBanRecord, 0),
 					bans:       steamweb.PlayerBanState{},
 				}
 				for _, summary := range bulkData.summaries {
@@ -94,11 +93,11 @@ func (p *playerDataLoader) start(ctx context.Context) {
 					}
 				}
 
-				if friends, ok := bulkData.friends[steamID]; ok {
+				if friends, ok := bulkData.friends[steamID.String()]; ok {
 					u.friends = friends
 				}
 
-				if sourcebans, ok := bulkData.sourcebans[steamID]; ok {
+				if sourcebans, ok := bulkData.sourcebans[steamID.String()]; ok {
 					u.sourcebans = sourcebans
 				}
 
@@ -120,7 +119,7 @@ func (p *playerDataLoader) start(ctx context.Context) {
 	}
 }
 
-func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.SteamID, records []models.SbBanRecord) {
+func (p *playerDataLoader) saveSourceBans(ctx context.Context, steamID steamid.SteamID, records []SbBanRecord) {
 	if err := p.db.SourcebansDelete(ctx, steamID.Int64()); err != nil {
 		slog.Error("failed to delete sourcebans records", errAttr(err))
 		return

@@ -10,14 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 )
-
-type FriendMap map[steamid.SteamID][]steamweb.Friend
-
-type SourcebansMap map[steamid.SteamID][]models.SbBanRecord
 
 type DataSource interface {
 	summaries(ctx context.Context, steamIDs steamid.Collection) ([]steamweb.PlayerSummary, error)
@@ -75,9 +70,9 @@ func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collectio
 			defer mutex.Unlock()
 
 			if friends == nil {
-				resp[sid] = []steamweb.Friend{}
+				resp[sid.String()] = []steamweb.Friend{}
 			} else {
-				resp[sid] = friends
+				resp[sid.String()] = friends
 			}
 		}(steamID)
 	}
@@ -90,7 +85,7 @@ func (n LocalDataSource) friends(ctx context.Context, steamIDs steamid.Collectio
 func (n LocalDataSource) sourceBans(_ context.Context, steamIDs steamid.Collection) (SourcebansMap, error) {
 	dummy := SourcebansMap{}
 	for _, sid := range steamIDs {
-		dummy[sid] = []models.SbBanRecord{}
+		dummy[sid.String()] = []SbBanRecord{}
 	}
 
 	return dummy, nil

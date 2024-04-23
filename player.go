@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/leighmacdonald/bd-api/models"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v4/steamid"
@@ -65,12 +64,12 @@ type PlayerState struct {
 	// Incremented on each kick attempt. Used to cycle through and not attempt the same bot
 	KickAttemptCount int `json:"kick_attempt_count"`
 	// Tracks the duration between announces to chat
-	AnnouncedPartyLast   time.Time            `json:"-"`
-	AnnouncedGeneralLast time.Time            `json:"-"`
-	Friends              []steamweb.Friend    `json:"friends"`
-	OurFriend            bool                 `json:"our_friend"`
-	Sourcebans           []models.SbBanRecord `json:"sourcebans"`
-	Matches              []rules.MatchResult  `json:"matches"`
+	AnnouncedPartyLast   time.Time           `json:"-"`
+	AnnouncedGeneralLast time.Time           `json:"-"`
+	Friends              []steamweb.Friend   `json:"friends"`
+	OurFriend            bool                `json:"our_friend"`
+	Sourcebans           []SbBanRecord       `json:"sourcebans"`
+	Matches              []rules.MatchResult `json:"matches"`
 }
 
 func (ps PlayerState) MatchAttr(tags []string) bool {
