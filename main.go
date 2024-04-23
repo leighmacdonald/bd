@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -83,6 +85,37 @@ func openApplicationPage(plat platform.Platform, appURL string) {
 	if errOpen := plat.OpenURL(appURL); errOpen != nil {
 		slog.Error("Failed to open URL", slog.String("url", appURL), errAttr(errOpen))
 	}
+}
+
+func isErrorAddressAlreadyInUse(err error) bool {
+	var errOpError *net.OpError
+	ok := errors.As(err, &errOpError)
+	if !ok {
+		return false
+	}
+
+	var errSyscallError *os.SyscallError
+	ok = errors.As(errOpError.Err, &errSyscallError)
+	if !ok {
+		return false
+	}
+
+	var errErrno syscall.Errno
+	ok = errors.As(errSyscallError.Err, &errErrno)
+	if !ok {
+		return false
+	}
+
+	if errors.Is(errErrno, syscall.EADDRINUSE) {
+		return true
+	}
+
+	const WSAEADDRINUSE = 10048
+	if runtime.GOOS == "windows" && errErrno == WSAEADDRINUSE {
+		return true
+	}
+
+	return false
 }
 
 func run() int {
@@ -199,7 +232,15 @@ func run() int {
 
 	go func() {
 		if errServe := httpServer.ListenAndServe(); errServe != nil && !errors.Is(errServe, http.ErrServerClosed) {
-			slog.Error("error trying to shutdown http service", errAttr(errServe))
+			if isErrorAddressAlreadyInUse(errServe) {
+				// Exit early on bind error.
+				slog.Error("Listen address already in use", errAttr(errServe))
+				stop()
+
+				return
+			}
+
+			slog.Error("Unhandled error trying to shutdown http service", errAttr(errServe))
 		}
 	}()
 
