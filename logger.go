@@ -7,6 +7,7 @@ import (
 
 	"github.com/dotse/slug"
 	"github.com/leighmacdonald/steamid/v4/steamid"
+	slogmulti "github.com/samber/slog-multi"
 )
 
 // tailLogAdapter implements a tail.logger interface using log/slog.
@@ -89,10 +90,7 @@ func (t tailLogAdapter) Println(v ...interface{}) {
 }
 
 func MustCreateLogger(sm *settingsManager) func() {
-	var (
-		logHandler slog.Handler
-		level      slog.Level
-	)
+	var level slog.Level
 
 	switch sm.Settings().LogLevel {
 	case "debug":
@@ -107,14 +105,11 @@ func MustCreateLogger(sm *settingsManager) func() {
 
 	closer := func() {}
 
-	opts := slug.HandlerOptions{
-		HandlerOptions: slog.HandlerOptions{
-			Level: level,
-		},
-	}
-
 	settings := sm.Settings()
 
+	var handlers []slog.Handler
+
+	// Write debug logs to bd.log
 	if settings.DebugLogEnabled {
 		logFile, errLogFile := os.Create(sm.LogFilePath())
 		if errLogFile != nil {
@@ -127,12 +122,17 @@ func MustCreateLogger(sm *settingsManager) func() {
 			}
 		}
 
-		logHandler = slug.NewHandler(opts, logFile)
-	} else {
-		logHandler = slug.NewHandler(opts, os.Stdout)
+		handlers = append(handlers, slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: level}))
 	}
 
-	slog.SetDefault(slog.New(logHandler))
+	// Colourised logs for stdout
+	handlers = append(handlers, slug.NewHandler(slug.HandlerOptions{
+		HandlerOptions: slog.HandlerOptions{
+			Level: level,
+		},
+	}, os.Stdout))
+
+	slog.SetDefault(slog.New(slogmulti.Fanout(handlers...)))
 
 	return closer
 }
