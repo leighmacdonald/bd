@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-//go:embed dist/*
+//go:embed dist
 var embedFS embed.FS
 
 var ErrEmbedFS = errors.New("failed to load embed.fs path")
@@ -21,9 +21,9 @@ func AddRoutes(mux *http.ServeMux, _ string) error {
 		return errors.Join(errSubFS, ErrEmbedFS)
 	}
 
-	mux.Handle("GET /", http.StripPrefix("/dist", http.FileServer(http.FS(subFs))))
-	mux.HandleFunc("GET /index.html", func(writer http.ResponseWriter, _ *http.Request) {
-		index, errIndex := embedFS.ReadFile("index.html")
+	mux.Handle("GET /assets/", http.FileServer(http.FS(subFs)))
+	mux.HandleFunc("GET /", func(writer http.ResponseWriter, _ *http.Request) {
+		index, errIndex := embedFS.ReadFile("dist/index.html")
 		if errIndex != nil {
 			slog.Error("failed to open index.html", slog.String("error", errIndex.Error()))
 
