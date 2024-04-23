@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/leighmacdonald/bd/frontend"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v4/steamid"
@@ -88,7 +87,7 @@ func createHandlers(store store.Querier, state *gameState, process *processState
 		return mux, nil
 	}
 
-	if errStatic := frontend.AddRoutes(mux, "./frontend/dist"); errStatic != nil {
+	if errStatic := AddRoutes(mux, "./frontend/dist"); errStatic != nil {
 		return nil, errors.Join(errStatic, errHTTPRoutes)
 	}
 

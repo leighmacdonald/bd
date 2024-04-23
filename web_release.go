@@ -1,6 +1,9 @@
+// When the binary is compiled in release mode, assets are embedded and served from the binary directly. This expects
+// a ./dist directory containing the frontend assets. This can be created by running the `make frontend`. This is
+// handled automatically if building with goreleaser via `make snapshot`.
 //go:build release
 
-package frontend
+package main
 
 import (
 	"embed"

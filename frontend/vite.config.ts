@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react-swc';
 import { createHtmlPlugin } from 'vite-plugin-html';
 
 export default defineConfig({
+    build: {
+        outDir: '../dist',
+        emptyOutDir: true
+    },
     //base: '/',
     server: {
         open: true,
