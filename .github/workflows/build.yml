@@ -1,52 +1,47 @@
-name: deploy
+name: build
 
 on:
   push:
   pull_request:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 permissions: write-all
 
 jobs:
   lint-ts:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    env:
+      GBANS_GENERAL_STEAM_KEY: ${{ secrets.GBANS_GENERAL_STEAM_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v3
         with:
           version: 8
+          run_install: false
 
-      - name: Use Node.js
-        uses: actions/setup-node@v3
+      - name: Setup nodejs
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache-dependency-path: './frontend/pnpm-lock.yaml'
+          node-version: '20.x'
           cache: 'pnpm'
+          cache-dependency-path: 'frontend/pnpm-lock.yaml'
+
 
       - name: Install modules
         working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --strict-peer-dependencies
 
       - name: Prettier
-        working-directory: ./frontend
-        run: pnpm run prettier:check
-
-      - name: ESLint
-        working-directory: ./frontend
-        run: pnpm run eslint:check
+        run: make lint_ts
 
   lint-golangci:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v4
         with:
-          go-version: '1.22'
+          go-version: 'stable'
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -55,110 +50,26 @@ jobs:
           args: --timeout=10m
 
   staticcheck:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v4
         with:
-          go-version: '1.22'
+          go-version: 'stable'
       - run: go install honnef.co/go/tools/cmd/staticcheck@latest
       - run: make static
 
-  lint-codeql:
-    name: Analyze
-    runs-on: ubuntu-20.04
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'go', 'javascript' ]
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GBANS_GENERAL_STEAM_KEY: ${{ secrets.GBANS_GENERAL_STEAM_KEY }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
-        with:
-          languages: ${{ matrix.language }}
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
-
-  tests:
-    needs: [lint-ts, lint-golangci, lint-codeql, staticcheck]
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - name: Run tests
+      - uses: actions/checkout@v3
+      # TODO run integration tests
+      - name: Run test suite
         run: make test
 
   release:
-    name: "bd release"
-    runs-on: "ubuntu-latest"
-    needs: [tests]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - run: git fetch --force --tags
-
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-          cache-dependency-path: './frontend/pnpm-lock.yaml'
-          cache: 'pnpm'
-
-      - name: Install modules
-        working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        working-directory: ./frontend
-        run: pnpm build
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - run: go mod tidy
-
-      - name: Import GPG key
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.PASSPHRASE }}
-
-      - uses: goreleaser/goreleaser-action@v5
-        if: success() && startsWith(github.ref, 'refs/tags/v')
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCORD_WEBHOOK_ID: ${{ secrets.DISCORD_WEBHOOK_ID }}
-          DISCORD_WEBHOOK_TOKEN: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-
-      - name: Upload snapshot
-        if: success() && ${{ startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: snapshot
-          path: build/*
-          retention-days: 1
-
-
+    needs: [lint-ts, lint-golangci, staticcheck, test]
+    if: success() && startsWith(github.event.ref, 'refs/tags/v')
+    uses: ./.github/workflows/release.yml
