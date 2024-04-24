@@ -1,6 +1,4 @@
-import { createContext, Dispatch, SetStateAction } from 'react';
 import { UserSettings } from '../api';
-import { noop } from '../util.ts';
 
 export const defaultUserSettings: UserSettings = {
     steam_id: '',
@@ -37,13 +35,3 @@ export const defaultUserSettings: UserSettings = {
     player_disconnect_timeout: 20,
     unique_tags: []
 };
-
-interface SettingsContextProps {
-    settings: UserSettings;
-    setSettings: Dispatch<SetStateAction<UserSettings>>;
-}
-
-export const SettingsContext = createContext<SettingsContextProps>({
-    settings: defaultUserSettings,
-    setSettings: noop
-});

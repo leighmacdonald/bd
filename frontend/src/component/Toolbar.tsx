@@ -15,6 +15,8 @@ import { logError } from '../util';
 import {
     getLaunch,
     getQuit,
+    getUserSettings,
+    saveUserSettings,
     Team,
     useCurrentState,
     UserSettings
@@ -22,13 +24,17 @@ import {
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { ModalSettings } from './modal';
-import { SettingsContext } from '../context/SettingsContext.ts';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 export const Toolbar = () => {
     const state = useCurrentState();
     const { t } = useTranslation();
     const { setMatchesOnly } = useContext(PlayerTableContext);
-    const { settings, setSettings } = useContext(SettingsContext);
+
+    const { data: settings } = useQuery({
+        queryKey: ['settings'],
+        queryFn: getUserSettings
+    });
 
     const onSetMatches = useCallback(() => {
         setMatchesOnly((prevState) => {
@@ -36,6 +42,10 @@ export const Toolbar = () => {
             return !prevState;
         });
     }, [setMatchesOnly]);
+
+    const settingsMutation = useMutation({
+        mutationFn: saveUserSettings
+    });
 
     return (
         <Stack direction={'row'}>
@@ -64,7 +74,7 @@ export const Toolbar = () => {
                                             ModalSettings,
                                             { settings }
                                         );
-                                    setSettings(newSettings);
+                                    settingsMutation.mutate(newSettings);
                                 } catch (e) {
                                     logError(e);
                                 }

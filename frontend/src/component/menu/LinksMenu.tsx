@@ -1,20 +1,20 @@
-import { useCallback, useContext } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
 import { formatExternalLink, logError, openInNewTab } from '../../util';
-import { Link } from '../../api';
+import { Link, UserSettings } from '../../api';
 import { SteamIDProps, SubMenuProps } from './common';
-import { SettingsContext } from '../../context/SettingsContext';
 
 export const LinksMenu = ({
     contextMenuPos,
     steam_id,
-    onClose
-}: SteamIDProps & SubMenuProps) => {
+    onClose,
+    settings
+}: SteamIDProps & SubMenuProps & { settings: UserSettings }) => {
     const { t } = useTranslation();
-    const { settings } = useContext(SettingsContext);
+
     const onClickLink = useCallback(
         (steam_id: string, link: Link) => {
             try {

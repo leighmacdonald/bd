@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { createHtmlPlugin } from 'vite-plugin-html';
+import { TanStackRouterVite } from '@tanstack/router-vite-plugin';
 
 export default defineConfig({
     build: {
@@ -22,8 +23,9 @@ export default defineConfig({
     },
     plugins: [
         react(),
+        TanStackRouterVite(),
         createHtmlPlugin({
-            entry: 'src/index.tsx',
+            entry: 'src/app.tsx',
             template: 'index.html',
             inject: {
                 data: {

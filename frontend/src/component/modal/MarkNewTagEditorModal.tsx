@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     DialogActions,
@@ -11,25 +11,31 @@ import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../../util';
 import { CancelButton } from '../CancelButton.tsx';
-import { SettingsContext } from '../../context/SettingsContext';
 import SaveButton from '../SaveButton.tsx';
+import { saveUserSettings, UserSettings } from '../../api.ts';
+import { useMutation } from '@tanstack/react-query';
 
 interface MarkNewTagEditorProps {
     steam_id: string;
     onMarkAs: (steamId: string, attrs: string[]) => Promise<void>;
+    settings: UserSettings;
 }
 
 export const MarkNewTagEditorModal = NiceModal.create<MarkNewTagEditorProps>(
-    ({ steam_id, onMarkAs }) => {
+    ({ steam_id, onMarkAs, settings }) => {
         const [tag, setTag] = useState<string>('');
         const { t } = useTranslation();
         const modal = useModal();
-        const { settings, setSettings } = useContext(SettingsContext);
+
+        const saveSettings = useMutation({
+            mutationFn: saveUserSettings
+        });
 
         const onSaveMarkWithNewTag = useCallback(async () => {
             try {
                 await onMarkAs(steam_id, [tag]);
-                setSettings({
+
+                saveSettings.mutate({
                     ...settings,
                     unique_tags: [tag, ...settings.unique_tags]
                 });
@@ -38,7 +44,7 @@ export const MarkNewTagEditorModal = NiceModal.create<MarkNewTagEditorProps>(
             } finally {
                 await modal.hide();
             }
-        }, [onMarkAs, steam_id, tag, setSettings, settings, modal]);
+        }, [onMarkAs, steam_id, tag, settings, modal]);
 
         const validTag = useMemo(() => {
             return tag.length > 0 && !tag.match(/\s/);

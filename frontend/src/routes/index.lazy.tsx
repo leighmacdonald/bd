@@ -1,15 +1,20 @@
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import Grid from '@mui/material/Unstable_Grid2';
-import { Order, PlayerTable, validColumns } from '../component/PlayerTable';
+import { Order, PlayerTable, validColumns } from '../component/PlayerTable.tsx';
 import Paper from '@mui/material/Paper';
 
 import Stack from '@mui/material/Stack';
-import { Toolbar } from '../component/Toolbar';
-import { Player } from '../api';
-import { PlayerTableContext } from '../context/PlayerTableContext';
+import { Toolbar } from '../component/Toolbar.tsx';
+import { Player } from '../api.ts';
+import { PlayerTableContext } from '../context/PlayerTableContext.ts';
 import { getDefaultColumns } from '../table.ts';
+import { createLazyFileRoute } from '@tanstack/react-router';
 
-export const Home = () => {
+export const Route = createLazyFileRoute('/')({
+    component: Index
+});
+
+function Index() {
     const [order, setOrder] = useState<Order>(
         (localStorage.getItem('sortOrder') as Order) ?? 'desc'
     );
@@ -69,6 +74,4 @@ export const Home = () => {
             </Grid>
         </Grid>
     );
-};
-
-export default Home;
+}

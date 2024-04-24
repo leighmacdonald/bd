@@ -60,24 +60,24 @@ export enum Team {
     RED
 }
 
-export interface Match {
+export type Match = {
     origin: string;
     attributes: string[];
     matcher_type: string;
-}
+};
 
-export interface Server {
+export type Server = {
     server_name: string;
     current_map: string;
     tags: string[];
     last_update: string;
-}
+};
 
-export interface State {
+export type State = {
     game_running: boolean;
     server: Server;
     players: Player[];
-}
+};
 
 const defaultSteamAvatarHash = 'fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb';
 
@@ -86,7 +86,7 @@ export const avatarURL = (hash: string, size = 'full'): string =>
         hash != '' ? hash : defaultSteamAvatarHash
     }_${size}.jpg`;
 
-export interface Player {
+export type Player = {
     steam_id: string;
     personaname: string;
     visibility: ProfileVisibility;
@@ -123,9 +123,9 @@ export interface Player {
     our_friend: boolean;
     sourcebans: SourcebansRecord[];
     matches: Match[];
-}
+};
 
-export interface SourcebansRecord {
+export type SourcebansRecord = {
     ban_id: number;
     site_name: string;
     site_id: number;
@@ -135,7 +135,7 @@ export interface SourcebansRecord {
     duration: number;
     permanent: boolean;
     created_on: string;
-}
+};
 
 export const formatSeconds = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -146,22 +146,22 @@ export const formatSeconds = (seconds: number): string => {
         .join(':');
 };
 
-export interface List {
+export type List = {
     list_type: string;
     name: string;
     enabled: boolean;
     url: string;
-}
+};
 
-export interface Link {
+export type Link = {
     enabled: boolean;
     name: string;
     url: string;
     id_format: steamIdFormat;
     deleted: boolean;
-}
+};
 
-export interface UserSettings {
+export type UserSettings = {
     steam_id: string;
     steam_dir: string;
     tf2_dir: string;
@@ -187,11 +187,16 @@ export interface UserSettings {
     player_expired_timeout: number;
     player_disconnect_timeout: number;
     unique_tags: string[];
-}
+};
 
-export interface UserNote {
+export type FirstTimeSetup = {
+    steam_id: string;
+    tf2_dir: string;
+};
+
+export type UserNote = {
     note: string;
-}
+};
 
 export type kickReasons = 'idle' | 'scamming' | 'cheating' | 'other';
 
@@ -227,6 +232,10 @@ export const getQuit = async () => await callJson('GET', '/api/quit');
 
 export const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/api/settings');
+
+export const saveFirstTimeSetup = async (settings: FirstTimeSetup) => {
+    await call('POST', `/api/setup`, settings);
+};
 
 export const saveUserSettings = async (settings: UserSettings) =>
     await call('PUT', '/api/settings', settings);

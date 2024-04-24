@@ -20,6 +20,7 @@ import { Trans } from 'react-i18next';
 import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
 import { PlayerTableContext } from '../context/PlayerTableContext';
+import React from 'react';
 
 const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     if (b[orderBy] < a[orderBy]) {
