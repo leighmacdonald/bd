@@ -122,7 +122,7 @@ func testLogFeeder(ctx context.Context, ingest *logIngest) {
 	lineCount := len(lines)
 
 	// Delay the incoming data a bit so its more realistic
-	updateTicker := time.NewTicker(time.Millisecond * 1000)
+	updateTicker := time.NewTicker(time.Millisecond * 100)
 
 	for {
 		select {

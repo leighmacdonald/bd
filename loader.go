@@ -27,6 +27,9 @@ type playerDataUpdate struct {
 	friends    []steamweb.Friend
 }
 
+// playerDataLoader facilitates fetching player data using external services. The 2 supported services are
+// the standard steam webapi and a custom service bd-api, which provides some extra information on top of the steam
+// webapi.
 type playerDataLoader struct {
 	profileUpdateQueue chan steamid.SteamID
 	datasource         DataSource
@@ -105,6 +108,7 @@ func (p *playerDataLoader) start(ctx context.Context) {
 			}
 
 			for _, update := range updates {
+				// deadlock
 				p.playerDataChan <- update
 				p.saveFriends(ctx, update.steamID, update.friends)
 				p.saveSourceBans(ctx, update.steamID, update.sourcebans)

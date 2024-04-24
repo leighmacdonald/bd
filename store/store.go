@@ -33,7 +33,7 @@ func CreateDB(dbPath string) (*Queries, func(), error) {
 	}
 
 	closer := func() {
-		Close(dbConn)
+		closeDB(dbConn)
 	}
 
 	if errMigrate := Migrate(dbConn); errMigrate != nil {
@@ -44,11 +44,14 @@ func CreateDB(dbPath string) (*Queries, func(), error) {
 }
 
 func Connect(dsn string) (*sql.DB, error) {
-	dsn += "?cache=shared&mode=rwc"
+	dsn += "?cache=shared"
 	database, errOpen := sql.Open("sqlite", dsn)
 	if errOpen != nil {
 		return nil, errors.Join(errOpen, ErrOpenDatabase)
 	}
+
+	// Prevent locking issues
+	database.SetMaxOpenConns(1)
 
 	pragmas := []string{
 		"PRAGMA journal_mode = 'WAL'", // WAL does not work if mapped to a network drive
@@ -67,7 +70,7 @@ func Connect(dsn string) (*sql.DB, error) {
 	return database, nil
 }
 
-func Close(db *sql.DB) {
+func closeDB(db *sql.DB) {
 	if db == nil {
 		return
 	}
@@ -97,7 +100,7 @@ func Migrate(db *sql.DB) error {
 		return errors.Join(errMigrate, ErrPerformMigration)
 	}
 
-	// We do not call migrator.Close and instead close the fsDriver manually.
+	// We do not call migrator.closeDB and instead close the fsDriver manually.
 	// This is because sqlite will wipe the db when :memory: is used and the connection closes
 	// for any reason, which the migrator does when called.
 	if errClose := fsDriver.Close(); errClose != nil {
