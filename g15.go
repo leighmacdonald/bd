@@ -26,6 +26,8 @@ type DumpPlayer struct {
 	UserID    [maxDataSize]int
 }
 
+// g15parser provides the ability to parse the output of the `g15_dumpplayer` command into a DumpPlayer struct.
+// This functionality requires the `-g15` launch parameter to be set.
 type g15Parser struct {
 	rx *regexp.Regexp
 }

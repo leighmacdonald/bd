@@ -16,6 +16,8 @@ import (
 	"github.com/nxadm/tail"
 )
 
+// eventBroadcaster is responsible for broadcasting incoming parsed log events to any
+// registered consumers.
 type eventBroadcaster struct {
 	// Events are broadcast to any registered consumers
 	eventConsumer map[EventType][]chan LogEvent
@@ -41,6 +43,8 @@ func (e *eventBroadcaster) broadcast(logEvent LogEvent) {
 	}
 }
 
+// registerConsumer can be called to start receiving matching events on the provided LogEvent channel. If no
+// optional EventTypes are provided, it will send all events to that channel by default.
 func (e *eventBroadcaster) registerConsumer(consumer chan LogEvent, eventTypes ...EventType) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -59,6 +63,9 @@ func (e *eventBroadcaster) registerConsumer(consumer chan LogEvent, eventTypes .
 	}
 }
 
+// logIngest is responsible for reading in log lines from console.log, normalizing them, parsing them and
+// sending them out to the broadcaster for further processing of the events. Lines that do not match
+// known events are discarded.
 type logIngest struct {
 	tail   *tail.Tail
 	logger *slog.Logger
@@ -161,6 +168,10 @@ const (
 	s2aLogString2 srcdsPacket = 0x53
 )
 
+// udpListener can be used to receive log lines using the standard srcds remote UDP logging subsystem (logaddress_add ip:port).
+// This is designed to allow receiving logs from a remote system. Most users should not be using this unless they
+// know what they are doing. Beware this functionality has not really tested and this exists mostly as a theoretical
+// implementation, however the relevant functionality was pulled from a known working system.
 type udpListener struct {
 	udpAddr     *net.UDPAddr
 	broadcaster *eventBroadcaster

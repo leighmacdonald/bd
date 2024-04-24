@@ -108,7 +108,6 @@ func (p *playerDataLoader) start(ctx context.Context) {
 			}
 
 			for _, update := range updates {
-				// deadlock
 				p.playerDataChan <- update
 				p.saveFriends(ctx, update.steamID, update.friends)
 				p.saveSourceBans(ctx, update.steamID, update.sourcebans)

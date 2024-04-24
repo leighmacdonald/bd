@@ -11,6 +11,8 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 )
 
+// processState is responsible for tracking the current state of the game process as well as launching
+// and exiting the game upon application close.
 type processState struct {
 	gameProcessActive  atomic.Bool
 	gameHasStartedOnce atomic.Bool
@@ -74,7 +76,7 @@ func (p *processState) launchGame(settingsMgr *settingsManager) {
 
 func (p *processState) Quit(ctx context.Context) error {
 	if !p.gameProcessActive.Load() {
-		return errNotMarked
+		return errGameStopped
 	}
 
 	_, err := p.rcon.exec(ctx, "quit", false)

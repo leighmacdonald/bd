@@ -44,7 +44,6 @@ type ListConfig struct {
 	URL      string   `yaml:"url" json:"url"`
 }
 
-// SteamIDFormat TODO add to steamid pkg.
 type SteamIDFormat string
 
 //goland:noinspection ALL

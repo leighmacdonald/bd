@@ -17,7 +17,6 @@ var migrations embed.FS
 
 var (
 	ErrOpenDatabase     = errors.New("failed to open database")
-	ErrCloseDatabase    = errors.New("failed to cleanly close database")
 	ErrStorePragma      = errors.New("failed to enable pragma")
 	ErrStoreIOFSOpen    = errors.New("failed to create migration iofs")
 	ErrStoreIOFSClose   = errors.New("failed to close migration iofs")
