@@ -180,12 +180,20 @@ func newGameState(store store.Querier, settings *settingsManager, playerState *p
 }
 
 func (s *gameState) start(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case playerData := <-s.playerDataChan:
+				s.applyRemoteData(ctx, playerData)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	for {
 		select {
-		case playerData := <-s.playerDataChan:
-			s.applyRemoteData(ctx, playerData)
 		case evt := <-s.eventChan:
-			// slog.Debug("received event", slog.Int("type", int(evt.Type)))
+			slog.Debug("received event", slog.Int("type", int(evt.Type)))
 			switch evt.Type { //nolint:exhaustive
 			case EvtMap:
 				s.onMapName(mapEvent{mapName: evt.MetaData})

@@ -139,6 +139,8 @@ func (li *logIngest) start(ctx context.Context) {
 				continue
 			}
 
+			slog.Debug("matched line", slog.String("line", line))
+
 			li.broadcaster.broadcast(logEvent)
 		case <-ctx.Done():
 			if errStop := li.tail.Stop(); errStop != nil {
