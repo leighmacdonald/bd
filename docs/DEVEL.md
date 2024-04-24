@@ -90,7 +90,7 @@ is included in the `testdata` that you can use. Otherwise you can just remove it
 
 ### Release
 
-Production releases are handled by GitHub actions, but if you are going to release yourself, using goreleaser, you 
+Production release builds are handled by GitHub actions, but if you are going to release yourself, using goreleaser, you 
 will need to set the following env vars:
     
     # This github token needs the repo scope enabled. 
@@ -98,6 +98,15 @@ will need to set the following env vars:
 
 If you are not using goreleaser, you must ensure that you use the `release` build tag like: `go build -tags release`. This
 tag tells the compiler to embed the assets into the binary for simple, single file deployment.
+
+## Database Changes
+
+The database schemas are automatically generated using sqlc from the store/queries.sql file. If you add new query
+you will need o follow the format used there and/or read the sqlc [docs](https://docs.sqlc.dev/en/stable/tutorials/getting-started-postgresql.html).
+
+Once you have changes read you can uses code generation to regenerate the models via:
+
+    make generate
 
 ## Startup & Environment Info
 

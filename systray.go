@@ -9,6 +9,9 @@ import (
 	"github.com/leighmacdonald/bd/platform"
 )
 
+// appSystray provides a interface for the creation and control of a systray icon. The base functionality
+// is provided by the fyne systray package. Some linux systems may not properly support how this is implemented
+// due to the varying systray standards.
 type appSystray struct {
 	platform    platform.Platform
 	settingsMgr *settingsManager
@@ -35,6 +38,9 @@ func (s *appSystray) onLaunch() {
 	go s.process.launchGame(s.settingsMgr)
 }
 
+// OnReady is called by the systray package and handles user click events along with
+// shutting down the systray subsystem when either the parent context is cancelled or the user
+// clicks the quit button.
 func (s *appSystray) OnReady(ctx context.Context) func() {
 	return func() {
 		settings := s.settingsMgr.Settings()

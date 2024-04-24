@@ -14,6 +14,8 @@ import (
 	"github.com/leighmacdonald/steamid/v4/steamid"
 )
 
+// newHTTPServer configures the HTTP server using the address and handler provided. Note that we also
+// replace the default context with our own parent context to allow better shutdown semantics.
 func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:         listenAddr,
@@ -26,6 +28,9 @@ func newHTTPServer(ctx context.Context, listenAddr string, handler http.Handler)
 	}
 }
 
+// bind is a helper function to ensure the json request body binds to the provided receiver. The receiver should
+// be a pointer to the matching struct. If it fails a error is returned to the http client and no further processing
+// is required in the route handler beyond this call.
 func bind(w http.ResponseWriter, r *http.Request, receiver any) bool {
 	if errDecode := json.NewDecoder(r.Body).Decode(receiver); errDecode != nil {
 		responseErr(w, http.StatusBadRequest, nil)
@@ -50,6 +55,9 @@ func responseErr(w http.ResponseWriter, status int, data any) {
 	}
 }
 
+// responseOK provides a helper for successful responses. All responses currently return a list, so to
+// make life a little easier we ensure we return a empty list instead of a null value so we do not have to deal
+// with 2 separate types on the frontend.
 func responseOK(w http.ResponseWriter, status int, data any) {
 	if data == nil {
 		data = []string{}
@@ -94,6 +102,8 @@ func createHandlers(store store.Querier, state *gameState, process *processState
 	return mux, nil
 }
 
+// steamIDParam provides a helper function for pulling out and validating a steam_id value from
+// a route parameter. Expects the parameter to always be called `steam_id`.
 func steamIDParam(w http.ResponseWriter, r *http.Request) (steamid.SteamID, bool) {
 	sidValue := r.PathValue("steam_id")
 	steamID := steamid.New(sidValue)
