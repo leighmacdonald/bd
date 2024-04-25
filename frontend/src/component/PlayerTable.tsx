@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState, MouseEvent } from 'react';
+import { useCallback, useMemo, useState, MouseEvent } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
@@ -14,13 +14,26 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
-import { addWhitelist, useCurrentState } from '../api';
+import { addWhitelist, getState, State } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { Trans } from 'react-i18next';
 import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
-import { PlayerTableContext } from '../context/PlayerTableContext';
 import React from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+    defaultColumns,
+    defaultMatchesOnly,
+    defaultOrder,
+    defaultOrderBy,
+    getMatchesOnly,
+    loadEnabledColumns,
+    loadOrder,
+    loadOrderBy,
+    Order,
+    saveSortColumn,
+    validColumns
+} from '../table.ts';
 
 const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     if (b[orderBy] < a[orderBy]) {
@@ -31,8 +44,6 @@ const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
     }
     return 0;
 };
-
-export type Order = 'asc' | 'desc';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getComparator = <Key extends keyof any>(
@@ -67,18 +78,16 @@ interface HeadCell {
     tooltip: string;
 }
 
-export type validColumns =
-    | 'user_id'
-    | 'name'
-    | 'score'
-    | 'kills'
-    | 'deaths'
-    | 'kpm'
-    | 'connected'
-    | 'map_time'
-    | 'ping'
-    | 'health'
-    | 'alive';
+const defaultServerState: State = {
+    players: [],
+    server: {
+        server_name: '',
+        current_map: '',
+        last_update: '',
+        tags: []
+    },
+    game_running: false
+};
 
 const headCells: readonly HeadCell[] = [
     {
@@ -155,8 +164,6 @@ const headCells: readonly HeadCell[] = [
 ];
 
 export const ColumnConfigButton = () => {
-    const { saveSelectedColumns, enabledColumns } =
-        useContext(PlayerTableContext);
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
     const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -167,11 +174,19 @@ export const ColumnConfigButton = () => {
         setAnchorEl(null);
     };
 
+    const enabledColumns = useMutation({
+        mutationKey: ['enabledColumns'],
+        mutationFn: async (newFormats: validColumns[]) => {
+            localStorage.setItem('columns', JSON.stringify(newFormats));
+            return newFormats;
+        }
+    });
+
     const handleColumnsChange = (
         _: MouseEvent<HTMLElement>,
         newFormats: validColumns[]
     ) => {
-        saveSelectedColumns(newFormats);
+        enabledColumns.mutate(newFormats);
     };
 
     const open = Boolean(anchorEl);
@@ -220,63 +235,49 @@ export const ColumnConfigButton = () => {
     );
 };
 
-const PlayerTableHead = () => {
-    const { enabledColumns, orderBy, order, saveSortColumn } =
-        useContext(PlayerTableContext);
+export const PlayerTable = () => {
+    const [intervalMS] = React.useState(1000);
+
+    const { data: state } = useQuery({
+        queryKey: ['state'],
+        queryFn: getState,
+        refetchInterval: intervalMS,
+        initialData: defaultServerState
+    });
+
+    const sortColumn = useMutation({
+        mutationKey: ['sortColumn'],
+        mutationFn: saveSortColumn
+    });
+
     const createSortHandler = (property: validColumns) => () => {
-        saveSortColumn(property);
+        sortColumn.mutate(property);
     };
 
-    return (
-        <TableHead>
-            <TableRow>
-                {headCells
-                    .filter(
-                        (c) => enabledColumns.includes(c.id) || !enabledColumns
-                    )
-                    .map((headCell) => (
-                        <Tooltip title={headCell.tooltip} key={headCell.id}>
-                            <TableCell
-                                align={headCell.numeric ? 'right' : 'left'}
-                                padding={
-                                    headCell.disablePadding ? 'none' : 'normal'
-                                }
-                                sortDirection={
-                                    orderBy === headCell.id ? order : false
-                                }
-                            >
-                                <TableSortLabel
-                                    active={orderBy === headCell.id}
-                                    direction={
-                                        orderBy === headCell.id ? order : 'asc'
-                                    }
-                                    onClick={createSortHandler(headCell.id)}
-                                >
-                                    <Trans
-                                        i18nKey={`player_table.column.${headCell.id}`}
-                                    />
-                                    {orderBy === headCell.id ? (
-                                        <Box
-                                            component="span"
-                                            sx={{ display: 'none' }}
-                                        >
-                                            {order === 'desc'
-                                                ? 'sorted descending'
-                                                : 'sorted ascending'}
-                                        </Box>
-                                    ) : null}
-                                </TableSortLabel>
-                            </TableCell>
-                        </Tooltip>
-                    ))}
-            </TableRow>
-        </TableHead>
-    );
-};
+    const { data: enabledColumns } = useQuery({
+        queryKey: ['enabledColumns'],
+        queryFn: loadEnabledColumns,
+        initialData: defaultColumns
+    });
 
-export const PlayerTable = () => {
-    const state = useCurrentState();
-    const { orderBy, order, matchesOnly } = useContext(PlayerTableContext);
+    const { data: orderBy } = useQuery({
+        queryKey: ['orderBy'],
+        queryFn: loadOrderBy,
+        initialData: defaultOrderBy
+    });
+
+    const { data: order } = useQuery({
+        queryKey: ['order'],
+        queryFn: loadOrder,
+        initialData: defaultOrder
+    });
+
+    const { data: matchesOnly } = useQuery({
+        queryKey: ['matchesOnly'],
+        queryFn: getMatchesOnly,
+        initialData: defaultMatchesOnly
+    });
+
     const onWhitelist = useCallback(async (steamId: string) => {
         try {
             await addWhitelist(steamId);
@@ -285,12 +286,17 @@ export const PlayerTable = () => {
         }
     }, []);
 
+    const players = state ? state.players : [];
+
     const visibleRows = useMemo(() => {
-        const filteredPlayers = state.players.filter(
+        if (!state) {
+            return [];
+        }
+        const filteredPlayers = players.filter(
             (p) => !matchesOnly || (!p.whitelist && p.matches?.length)
         );
         return stableSort(filteredPlayers, getComparator(order, orderBy));
-    }, [order, orderBy, state.players, matchesOnly]);
+    }, [order, orderBy, players, matchesOnly]);
 
     const playerRows = useMemo(() => {
         return visibleRows.map((player, i) => (
@@ -305,7 +311,64 @@ export const PlayerTable = () => {
     return (
         <TableContainer sx={{ overflow: 'hidden' }}>
             <Table aria-label="Player table" size="small" padding={'none'}>
-                <PlayerTableHead />
+                <TableHead>
+                    <TableRow>
+                        {headCells
+                            .filter(
+                                (c) =>
+                                    enabledColumns.includes(c.id) ||
+                                    !enabledColumns
+                            )
+                            .map((headCell) => (
+                                <Tooltip
+                                    title={headCell.tooltip}
+                                    key={headCell.id}
+                                >
+                                    <TableCell
+                                        align={
+                                            headCell.numeric ? 'right' : 'left'
+                                        }
+                                        padding={
+                                            headCell.disablePadding
+                                                ? 'none'
+                                                : 'normal'
+                                        }
+                                        sortDirection={
+                                            orderBy === headCell.id
+                                                ? order
+                                                : false
+                                        }
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === headCell.id}
+                                            direction={
+                                                orderBy === headCell.id
+                                                    ? order
+                                                    : 'asc'
+                                            }
+                                            onClick={createSortHandler(
+                                                headCell.id
+                                            )}
+                                        >
+                                            <Trans
+                                                i18nKey={`player_table.column.${headCell.id}`}
+                                            />
+                                            {orderBy === headCell.id ? (
+                                                <Box
+                                                    component="span"
+                                                    sx={{ display: 'none' }}
+                                                >
+                                                    {order === 'desc'
+                                                        ? 'sorted descending'
+                                                        : 'sorted ascending'}
+                                                </Box>
+                                            ) : null}
+                                        </TableSortLabel>
+                                    </TableCell>
+                                </Tooltip>
+                            ))}
+                    </TableRow>
+                </TableHead>
                 <TableBody>{playerRows}</TableBody>
             </Table>
         </TableContainer>

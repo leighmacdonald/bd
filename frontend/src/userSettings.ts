@@ -1,4 +1,4 @@
-import { UserSettings } from '../api';
+import { UserSettings } from './api.ts';
 
 export const defaultUserSettings: UserSettings = {
     steam_id: '',

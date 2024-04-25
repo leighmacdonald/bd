@@ -1,4 +1,4 @@
-import { Fragment, useContext, useState, MouseEvent } from 'react';
+import React, { Fragment, useState, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import TableCell from '@mui/material/TableCell';
 import TableRow from '@mui/material/TableRow';
@@ -7,7 +7,6 @@ import Grid from '@mui/material/Unstable_Grid2';
 import { formatSeconds, Player, Team } from '../api';
 import { PlayerContextMenu } from './menu/PlayerContextMenu';
 import { NullablePosition } from './menu/common';
-import { PlayerTableContext } from '../context/PlayerTableContext';
 import { PlayerHoverInfo } from './PlayerHoverInfo';
 import sb from '../img/sb.png';
 import dead from '../img/dead.png';
@@ -15,6 +14,8 @@ import vac from '../img/vac.png';
 import notes from '../img/notes.png';
 import marked from '../img/marked.png';
 import whitelist from '../img/whitelist.png';
+import { useQuery } from '@tanstack/react-query';
+import { defaultColumns, loadEnabledColumns } from '../table.ts';
 
 export interface TableRowContextMenuProps {
     player: Player;
@@ -85,7 +86,11 @@ export const PlayerTableRow = ({
     const [contextMenuPos, setContextMenuPos] =
         useState<NullablePosition>(null);
 
-    const { enabledColumns } = useContext(PlayerTableContext);
+    const { data: enabledColumns } = useQuery({
+        queryKey: ['enabledColumns'],
+        queryFn: loadEnabledColumns,
+        initialData: defaultColumns
+    });
 
     const handleMenuClose = () => {
         setContextMenuPos(null);

@@ -1,4 +1,4 @@
-import { useCallback, useContext } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
@@ -15,33 +15,45 @@ import { logError } from '../util';
 import {
     getLaunch,
     getQuit,
+    getState,
     getUserSettings,
     saveUserSettings,
     Team,
-    useCurrentState,
     UserSettings
 } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
-import { PlayerTableContext } from '../context/PlayerTableContext';
 import { ModalSettings } from './modal';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { getMatchesOnly } from '../table.ts';
 
 export const Toolbar = () => {
-    const state = useCurrentState();
     const { t } = useTranslation();
-    const { setMatchesOnly } = useContext(PlayerTableContext);
+
+    const { data: state } = useQuery({
+        queryKey: ['state'],
+        queryFn: getState
+    });
 
     const { data: settings } = useQuery({
         queryKey: ['settings'],
         queryFn: getUserSettings
     });
 
-    const onSetMatches = useCallback(() => {
-        setMatchesOnly((prevState) => {
-            localStorage.setItem('matchesOnly', `${!prevState}`);
-            return !prevState;
-        });
-    }, [setMatchesOnly]);
+    const { data: matchesOnly } = useQuery({
+        queryKey: ['matchesOnly'],
+        queryFn: getMatchesOnly
+    });
+
+    const matchesOnlyMut = useMutation({
+        mutationKey: ['matchesOnly'],
+        mutationFn: async (newValue: boolean) => {
+            localStorage.setItem(
+                'matchesOnly',
+                JSON.stringify(Boolean(newValue))
+            );
+            return matchesOnly;
+        }
+    });
 
     const settingsMutation = useMutation({
         mutationFn: saveUserSettings
@@ -52,7 +64,9 @@ export const Toolbar = () => {
             <ButtonGroup>
                 <Tooltip title={t('toolbar.button.show_only_negative')}>
                     <Box>
-                        <IconButton onClick={onSetMatches}>
+                        <IconButton
+                            onClick={() => matchesOnlyMut.mutate(!matchesOnly)}
+                        >
                             <FilterListOutlinedIcon color={'primary'} />
                         </IconButton>
                     </Box>
@@ -87,20 +101,39 @@ export const Toolbar = () => {
 
                 <Tooltip
                     title={t(
-                        state.game_running
-                            ? 'toolbar.button.game_state_running'
+                        state
+                            ? state.game_running
+                                ? 'toolbar.button.game_state_running'
+                                : 'toolbar.button.game_state_stopped'
                             : 'toolbar.button.game_state_stopped'
                     )}
                 >
                     <Box>
                         <IconButton
-                            color={!state.game_running ? 'success' : 'error'}
-                            onClick={!state.game_running ? getLaunch : getQuit}
+                            color={
+                                state
+                                    ? !state.game_running
+                                        ? 'success'
+                                        : 'error'
+                                    : 'success'
+                            }
+                            onClick={
+                                state
+                                    ? !state.game_running
+                                        ? getLaunch
+                                        : getQuit
+                                    : getLaunch
+                            }
+                            disabled={!state}
                         >
-                            {!state.game_running ? (
-                                <PlayArrowIcon />
+                            {state ? (
+                                state.game_running ? (
+                                    <StopIcon />
+                                ) : (
+                                    <PlayArrowIcon />
+                                )
                             ) : (
-                                <StopIcon />
+                                <PlayArrowIcon />
                             )}
                         </IconButton>
                     </Box>
@@ -108,11 +141,11 @@ export const Toolbar = () => {
             </ButtonGroup>
             <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={1}>
                 <Typography variant={'button'} style={{ color: '#004ec2' }}>
-                    {
-                        state.players.filter(
-                            (p) => p.team == Team.BLU && p.is_connected
-                        ).length
-                    }
+                    {state
+                        ? (state.players ?? []).filter(
+                              (p) => p.team == Team.BLU && p.is_connected
+                          ).length
+                        : 0}
                 </Typography>
                 <Typography
                     variant={'button'}
@@ -121,21 +154,21 @@ export const Toolbar = () => {
                     :
                 </Typography>
                 <Typography variant={'button'} style={{ color: '#b40a2a' }}>
-                    {
-                        state.players.filter(
-                            (p) => p.team == Team.RED && p.is_connected
-                        ).length
-                    }
+                    {state
+                        ? state.players.filter(
+                              (p) => p.team == Team.RED && p.is_connected
+                          ).length
+                        : 0}
                 </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
                 <Typography variant={'h1'}>
-                    {state.server.server_name}
+                    {state ? state.server.server_name : 'Not Connected'}
                 </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
                 <Typography variant={'subtitle1'} paddingRight={1}>
-                    {state.server.current_map}
+                    {state ? state.server.current_map : 'N/A'}
                 </Typography>
             </Box>
         </Stack>

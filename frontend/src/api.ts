@@ -1,6 +1,3 @@
-import { useEffect, useState } from 'react';
-import { logError } from './util';
-
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=UTF-8'
@@ -203,9 +200,7 @@ export type kickReasons = 'idle' | 'scamming' | 'cheating' | 'other';
 export const callVote = async (
     steamID: string,
     reason: kickReasons = 'cheating'
-) => {
-    await call('POST', `/api/callvote/${steamID}/${reason}`);
-};
+) => await call('POST', `/api/callvote/${steamID}/${reason}`);
 
 export const addWhitelist = async (steamId: string) =>
     await call('POST', `/api/whitelist/${steamId}`);
@@ -225,46 +220,17 @@ export const markUser = async (steamId: string, attrs: string[]) =>
 export const unmarkUser = async (steamId: string) =>
     await call('DELETE', `/api/mark/${steamId}`);
 
-const getState = async () => await callJson<State>('GET', '/api/state');
+export const getState = async () => await callJson<State>('GET', '/api/state');
 
 export const getLaunch = async () => await callJson('GET', '/api/launch');
+
 export const getQuit = async () => await callJson('GET', '/api/quit');
 
 export const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/api/settings');
 
-export const saveFirstTimeSetup = async (settings: FirstTimeSetup) => {
+export const saveFirstTimeSetup = async (settings: FirstTimeSetup) =>
     await call('POST', `/api/setup`, settings);
-};
 
 export const saveUserSettings = async (settings: UserSettings) =>
     await call('PUT', '/api/settings', settings);
-
-export const useCurrentState = () => {
-    const [state, setState] = useState<State>({
-        game_running: false,
-        server: {
-            server_name: '',
-            current_map: '',
-            tags: [],
-            last_update: ''
-        },
-        players: []
-    });
-
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const newState = await getState();
-                setState(newState);
-            } catch (e) {
-                logError(e);
-            }
-        }, 1000);
-        return () => {
-            clearInterval(interval);
-        };
-    }, []);
-
-    return state;
-};

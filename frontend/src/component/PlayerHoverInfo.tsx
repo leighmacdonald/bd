@@ -13,6 +13,7 @@ import TableBody from '@mui/material/TableBody';
 import Typography from '@mui/material/Typography';
 import { format, parseJSON } from 'date-fns';
 import { NullablePosition } from './menu/common';
+import React from 'react';
 
 interface PlayerHoverInfoProps {
     player: Player;

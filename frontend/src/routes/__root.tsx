@@ -15,7 +15,7 @@ const queryClient = new QueryClient();
 export const Route = createRootRoute({
     component: RootComponent,
     notFoundComponent: () => {
-        return <p>Not Found (on root route)</p>;
+        return <p>Not Found</p>;
     }
 });
 
