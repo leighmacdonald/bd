@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 
 	"github.com/dotse/slug"
 	"github.com/leighmacdonald/steamid/v4/steamid"
@@ -92,7 +93,7 @@ func (t tailLogAdapter) Println(v ...interface{}) {
 func MustCreateLogger(sm *settingsManager) func() {
 	var level slog.Level
 
-	switch sm.Settings().LogLevel {
+	switch settings.LogLevel {
 	case "debug":
 		level = slog.LevelDebug
 	case "info":
@@ -111,7 +112,7 @@ func MustCreateLogger(sm *settingsManager) func() {
 
 	// Write debug logs to bd.log
 	if settings.DebugLogEnabled {
-		logFile, errLogFile := os.Create(sm.LogFilePath())
+		logFile, errLogFile := os.Create(path.Join(configRoot, "bd.log"))
 		if errLogFile != nil {
 			panic(fmt.Sprintf("Failed to open logfile: %v", errLogFile))
 		}

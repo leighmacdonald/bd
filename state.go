@@ -154,7 +154,7 @@ type gameState struct {
 	playerDataChan     chan playerDataUpdate
 	profileUpdateQueue chan steamid.SteamID
 	eventChan          chan LogEvent
-	settings           *settingsManager
+	settings           configManager
 	players            *playerStates
 	db                 store.Querier
 	server             serverState
@@ -162,7 +162,7 @@ type gameState struct {
 	rcon               rconConnection
 }
 
-func newGameState(store store.Querier, settings *settingsManager, playerState *playerStates, rcon rconConnection,
+func newGameState(store store.Querier, settings configManager, playerState *playerStates, rcon rconConnection,
 	db store.Querier,
 ) *gameState {
 	return &gameState{
@@ -180,18 +180,15 @@ func newGameState(store store.Querier, settings *settingsManager, playerState *p
 }
 
 func (s *gameState) start(ctx context.Context) {
-	go func() {
-		for {
-			select {
-			case playerData := <-s.playerDataChan:
-				s.applyRemoteData(ctx, playerData)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 	for {
 		select {
+		case playerData := <-s.playerDataChan:
+			settings, errSettings := s.settings.settings(ctx)
+			if errSettings != nil {
+				slog.Error("Failed to read settings", errAttr(errSettings))
+				continue
+			}
+			s.applyRemoteData(ctx, playerData, settings)
 		case evt := <-s.eventChan:
 			slog.Debug("received event", slog.Int("type", int(evt.Type)))
 			switch evt.Type { //nolint:exhaustive
@@ -227,7 +224,12 @@ func (s *gameState) start(ctx context.Context) {
 			case EvtDisconnect:
 				s.onMapChange()
 			case EvtKill:
-				s.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player})
+				settings, errSettings := s.settings.settings(ctx)
+				if errSettings != nil {
+					slog.Error("Failed to read settings", errAttr(errSettings))
+					continue
+				}
+				s.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player}, settings)
 			case EvtMsg:
 			case EvtConnect:
 			case EvtLobby:
@@ -241,17 +243,27 @@ func (s *gameState) start(ctx context.Context) {
 
 // cleanupHandler is used to track of players and their expiration times. It will remove and reset expired players
 // and server from the current known state once they have been disconnected for the timeout periods.
-func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settingsManager) {
+func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *configManager) {
 	const disconnectMsg = "Disconnected"
 
-	deleteTimer := time.NewTicker(time.Second * time.Duration(settingsMgr.Settings().PlayerExpiredTimeout))
+	settings, errSettings := settingsMgr.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to read settings", errAttr(errSettings))
+		return
+	}
+
+	deleteTimer := time.NewTicker(time.Second * time.Duration(settings.PlayerExpiredTimeout))
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-deleteTimer.C:
-			settings := settingsMgr.Settings()
+			settings, errSettings = settingsMgr.settings(ctx)
+			if errSettings != nil {
+				slog.Error("Failed to read settings", errAttr(errSettings))
+				return
+			}
 
 			slog.Debug("Delete update input received", slog.String("state", "start"))
 
@@ -287,7 +299,7 @@ func (s *gameState) startCleanupHandler(ctx context.Context, settingsMgr *settin
 }
 
 // applyRemoteData updates the current player states with new incoming remote data sources.
-func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) {
+func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate, settings userSettings) {
 	player, errPlayer := s.players.bySteamID(data.steamID)
 	if errPlayer != nil {
 		return
@@ -311,10 +323,9 @@ func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate) 
 	player.Sourcebans = data.sourcebans
 
 	// Friends
-	ourSID := s.settings.Settings().SteamID
 	player.Friends = data.friends
 	for _, friend := range data.friends {
-		if friend.SteamID == ourSID {
+		if friend.SteamID == settings.SteamID {
 			player.OurFriend = true
 			break
 		}
@@ -341,9 +352,7 @@ func (s *gameState) CurrentServerState() serverState {
 	return s.server
 }
 
-func (s *gameState) onKill(evt killEvent) {
-	ourSid := s.settings.Settings().SteamID
-
+func (s *gameState) onKill(evt killEvent, settings userSettings) {
 	src, srcErr := s.players.byName(evt.sourceName)
 	if srcErr != nil {
 		return
@@ -357,11 +366,11 @@ func (s *gameState) onKill(evt killEvent) {
 	src.Kills++
 	target.Deaths++
 
-	if target.SteamID == ourSid {
+	if target.SteamID == settings.SteamID {
 		src.DeathsBy++
 	}
 
-	if src.SteamID == ourSid {
+	if src.SteamID == settings.SteamID {
 		target.KillsOn++
 	}
 
@@ -421,7 +430,7 @@ func (s *gameState) onStatus(ctx context.Context, steamID steamid.SteamID, evt s
 
 	s.players.update(player)
 
-	// Trigger update of external data if its been long enough, or the player is new to us.
+	// Trigger update of external data if it's been long enough, or the player is new to us.
 	if time.Since(player.ProfileUpdatedOn) > time.Hour*24 {
 		// TODO save friends and sourcebans data locally
 		slog.Debug("Updating user data", sidAttr(steamID))

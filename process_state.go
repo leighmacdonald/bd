@@ -16,12 +16,12 @@ import (
 type processState struct {
 	gameProcessActive  atomic.Bool
 	gameHasStartedOnce atomic.Bool
-	sm                 *settingsManager
+	sm                 configManager
 	rcon               rconConnection
 	platform           platform.Platform
 }
 
-func newProcessState(platform platform.Platform, rcon rconConnection, sm *settingsManager) *processState {
+func newProcessState(platform platform.Platform, rcon rconConnection, sm configManager) *processState {
 	isRunning, _ := platform.IsGameRunning()
 
 	ps := &processState{
@@ -40,20 +40,16 @@ func newProcessState(platform platform.Platform, rcon rconConnection, sm *settin
 
 // launchGame is the main entry point to launching the game. It will install the included addon, write the
 // voice bans out if enabled and execute the platform specific launcher command, blocking until exit.
-func (p *processState) launchGame(settingsMgr *settingsManager) {
-	settings := settingsMgr.Settings()
-
-	if errInstall := addons.Install(settings.TF2Dir); errInstall != nil {
+func (p *processState) launchGame(settings userSettings) {
+	if errInstall := addons.Install(settings.Tf2Dir); errInstall != nil {
 		slog.Error("Error trying to install addon", errAttr(errInstall))
 	}
 
 	args, errArgs := getLaunchArgs(
 		settings.Rcon.Password,
 		settings.Rcon.Port,
-		settingsMgr.locateSteamDir(),
-		settings.SteamID,
-		settings.UDPListenerEnabled,
-		settings.UDPListenerAddr)
+		settings.locateSteamDir(),
+		settings.SteamID)
 
 	if errArgs != nil {
 		slog.Error("Failed to get TF2 launch args", errAttr(errArgs))
@@ -67,7 +63,7 @@ func (p *processState) launchGame(settingsMgr *settingsManager) {
 	//	}
 	// }
 
-	if errLaunch := p.platform.LaunchTF2(settings.TF2Dir, args...); errLaunch != nil {
+	if errLaunch := p.platform.LaunchTF2(settings.Tf2Dir, args...); errLaunch != nil {
 		slog.Error("Failed to launch game", errAttr(errLaunch))
 	} else {
 		p.gameHasStartedOnce.Store(true)
@@ -110,8 +106,13 @@ func (p *processState) start(ctx context.Context) {
 				slog.Info("Game process state changed", slog.Bool("is_running", newState))
 			}
 
+			settings, errSettings := p.sm.settings(ctx)
+			if errSettings != nil {
+				return
+			}
+
 			// Handle auto closing the app on game close if enabled
-			if !p.gameHasStartedOnce.Load() || !p.sm.Settings().AutoCloseOnGameExit {
+			if !p.gameHasStartedOnce.Load() || !settings.AutoCloseOnGameExit {
 				continue
 			}
 

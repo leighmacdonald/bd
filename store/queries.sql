@@ -1,3 +1,35 @@
+-- name: Config :one
+SELECT * FROM config;
+
+-- name: ConfigUpdate :exec
+UPDATE config
+SET
+    steam_id = @steam_id,
+    steam_dir = @steam_dir,
+    tf2_dir = @tf2_dir,
+    auto_launch_game = @auto_launch_game,
+    auto_close_on_game_exit = @auto_close_on_game_exit,
+    bd_api_enabled = @bd_api_enabled,
+    bd_api_address = @bd_api_address,
+    api_key = @api_key,
+    systray_enabled = @systray_enabled,
+    disconnected_timeout = @bd_api_enabled,
+    discord_presence_enabled = @bd_api_enabled,
+    kicker_enabled = @bd_api_enabled,
+    chat_warnings_enabled = @bd_api_enabled,
+    voice_bans_enabled = @voice_bans_enabled,
+    debug_log_enabled = @bd_api_enabled,
+    rcon_static = @rcon_static,
+    http_enabled = @http_enabled,
+    http_listen_addr = @http_listen_addr,
+    player_expired_timeout = @player_expired_timeout,
+    player_disconnect_timeout = @player_disconnect_timeout,
+    run_mode = @run_mode,
+    log_level = @log_level,
+    rcon_address = @rcon_address,
+    rcon_port = @rcon_port,
+    rcon_password = @rcon_password;
+
 -- name: Player :one
 SELECT p.steam_id,
        p.visibility,

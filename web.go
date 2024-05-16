@@ -73,24 +73,29 @@ func responseOK(w http.ResponseWriter, status int, data any) {
 
 // createHandlers configures the routes. If the `release` tag is enabled, serves files from the embedded assets
 // in the binary.
-func createHandlers(store store.Querier, state *gameState, process *processState, settings *settingsManager, re *rules.Engine, rcon rconConnection) (*http.ServeMux, error) {
+func createHandlers(ctx context.Context, store store.Querier, state *gameState, process *processState, cfgMgr configManager, re *rules.Engine, rcon rconConnection) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/state", onGetState(state, process))
 	mux.HandleFunc("GET /api/messages/{steam_id}", onGetMessages(store))
 	mux.HandleFunc("GET /api/names/{steam_id}", onGetNames(store))
-	mux.HandleFunc("POST /api/mark/{steam_id}", onMarkPlayerPost(settings, store, state, re))
+	mux.HandleFunc("POST /api/mark/{steam_id}", onMarkPlayerPost(cfgMgr, store, state, re))
 	mux.HandleFunc("DELETE /api/mark/{steam_id}", onDeleteMarkedPlayer(store, state, re))
-	mux.HandleFunc("GET /api/settings", onGetSettings(settings, re))
-	mux.HandleFunc("PUT /api/settings", onPutSettings(settings))
-	mux.HandleFunc("GET /api/launch", onGGetLaunchGame(process, settings))
+	mux.HandleFunc("GET /api/settings", onGetSettings(cfgMgr, re))
+	mux.HandleFunc("PUT /api/settings", onPutSettings(cfgMgr))
+	mux.HandleFunc("GET /api/launch", onGGetLaunchGame(process, cfgMgr))
 	mux.HandleFunc("GET /api/quit", onGetQuitGame(process))
 	mux.HandleFunc("POST /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, true))
 	mux.HandleFunc("DELETE /api/whitelist/{steam_id}", onUpdateWhitelistPlayer(store, state, false))
 	mux.HandleFunc("POST /api/notes/{steam_id}", onPostNotes(store, state))
 	mux.HandleFunc("POST /api/callvote/{steam_id}/{reason}", onCallVote(state, rcon))
 
-	if settings.Settings().RunMode == ModeTest {
+	settings, errSettings := cfgMgr.settings(ctx)
+	if errSettings != nil {
+		return nil, errSettings
+	}
+
+	if settings.RunMode == ModeTest {
 		// Don't rely on assets when testing api endpoints
 		return mux, nil
 	}

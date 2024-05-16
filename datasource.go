@@ -100,11 +100,11 @@ func createLocalDataSource(key string) (*LocalDataSource, error) {
 }
 
 func newDataSource(userSettings userSettings) (DataSource, error) { //nolint:ireturn
-	if userSettings.BdAPIEnabled {
-		return createAPIDataSource(userSettings.BdAPIAddress)
+	if userSettings.BdApiEnabled {
+		return createAPIDataSource(userSettings.BdApiAddress)
 	}
 
-	return createLocalDataSource(userSettings.APIKey)
+	return createLocalDataSource(userSettings.ApiKey)
 }
 
 // steamIDStringList transforms a steamid.Collection into a comma separated list of SID64 strings.

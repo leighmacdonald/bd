@@ -14,12 +14,12 @@ import (
 // due to the varying systray standards.
 type appSystray struct {
 	platform    platform.Platform
-	settingsMgr *settingsManager
+	settingsMgr configManager
 	process     *processState
 	quit        *systray.MenuItem
 }
 
-func newAppSystray(platform platform.Platform, settingsMgr *settingsManager, process *processState) *appSystray {
+func newAppSystray(platform platform.Platform, settingsMgr configManager, process *processState) *appSystray {
 	return &appSystray{
 		platform:    platform,
 		settingsMgr: settingsMgr,
@@ -27,15 +27,26 @@ func newAppSystray(platform platform.Platform, settingsMgr *settingsManager, pro
 	}
 }
 
-func (s *appSystray) onOpen() {
-	settings := s.settingsMgr.Settings()
+func (s *appSystray) onOpen(ctx context.Context) {
+	settings, errSettings := s.settingsMgr.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to read settings", errAttr(errSettings))
+		return
+	}
+
 	if errOpen := s.platform.OpenURL(settings.AppURL()); errOpen != nil {
 		slog.Error("Failed to open browser", errAttr(errOpen))
 	}
 }
 
-func (s *appSystray) onLaunch() {
-	go s.process.launchGame(s.settingsMgr)
+func (s *appSystray) onLaunch(ctx context.Context) {
+	settings, errSettings := s.settingsMgr.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to read settings", errAttr(errSettings))
+		return
+	}
+
+	go s.process.launchGame(settings)
 }
 
 // OnReady is called by the systray package and handles user click events along with
@@ -43,7 +54,12 @@ func (s *appSystray) onLaunch() {
 // clicks the quit button.
 func (s *appSystray) OnReady(ctx context.Context) func() {
 	return func() {
-		settings := s.settingsMgr.Settings()
+		settings, errSettings := s.settingsMgr.settings(ctx)
+		if errSettings != nil {
+			slog.Error("Failed to read settings", errAttr(errSettings))
+			return
+		}
+
 		systray.SetIcon(s.platform.Icon())
 		systray.SetTitle("BD")
 		systray.SetTooltip(fmt.Sprintf("Bot Detector\n%s", settings.AppURL()))
@@ -67,10 +83,10 @@ func (s *appSystray) OnReady(ctx context.Context) func() {
 				case <-launchGame.ClickedCh:
 					slog.Debug("launchGame clicked")
 
-					go s.onLaunch()
+					go s.onLaunch(ctx)
 				case <-openWeb.ClickedCh:
 					slog.Debug("openWeb Clicked")
-					s.onOpen()
+					s.onOpen(ctx)
 				case <-s.quit.ClickedCh:
 					slog.Debug("User Quit")
 					systray.Quit()
