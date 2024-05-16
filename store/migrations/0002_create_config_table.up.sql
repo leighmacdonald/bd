@@ -1,5 +1,4 @@
-create table if not exists config
-(
+create table if not exists config (
     steam_id                  bigint  not null default 0 CHECK ( steam_id == 0 OR steam_id > 76561197960265753 ),
     steam_dir                 text    not null default '',
     tf2_dir                   text    not null default '',
@@ -24,9 +23,11 @@ create table if not exists config
     log_level                 text    not null default 'error' CHECK ( log_level IN ('error', 'debug', 'warning', 'info') ),
     rcon_address              text    not null default '127.0.0.1',
     rcon_port                 int     not null default 51944 CHECK ( rcon_port > 0 AND rcon_port < 65535 ),
-    rcon_password             text    not null default lower(hex(randomblob(8)))
+    rcon_password             text    not null default (lower(hex(randomblob(8))))
 );
 
+-- Create default row
+insert into config (steam_id) values (0);
 
 create table if not exists links
 (
@@ -40,7 +41,7 @@ create table if not exists links
 );
 
 insert into links (name, url, id_format, enabled)
-VALUES ('RGL', 'https://rgl.gg/Public/PlayerProfile.aspx?p=%di', 'steam64', true),
+VALUES ('RGL', 'https://rgl.gg/Public/PlayerProfile.aspx?p=%d', 'steam64', true),
        ('Steam', 'https://steamcommunity.com/profiles/%d', 'steam64', true),
        ('OzFortress', 'https://ozfortress.com/users/steam_id/%d', 'steam64', true),
        ('ESEA', 'https://play.esea.net/index.php?s=search&query=%s', 'steam3', true),
@@ -51,12 +52,12 @@ VALUES ('RGL', 'https://rgl.gg/Public/PlayerProfile.aspx?p=%di', 'steam64', true
        ('logs.tf', 'https://logs.tf/profile/%d', 'steam64', true);
 
 alter table lists
-    add column name text not null;
+    add column name text not null default '';
 
 insert into lists (list_type, name, url, enabled)
 VALUES ('tf2bd_playerlist', '@trusted', 'https://trusted.roto.lol/v1/steamids', false),
        ('tf2bd_playerlist', 'Pazer',
         'https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json',
         false),
-       ('tf2bd_playerlist', 'Uncletopia', 'https://uncletopia.com/export/bans/tf2bd', false),
+       ('tf2bd_playerlist', 'Uncletopia', 'https://uncletopia.com/export/bans/tf2bd', false)
 ;
