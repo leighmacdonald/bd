@@ -114,7 +114,7 @@ func getUserLaunchArgs(steamRoot string, steamID steamid.SteamID) ([]string, err
 	return launchOpts, nil
 }
 
-func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SteamID, udpEnabled bool, udpAddr string) ([]string, error) {
+func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID steamid.SteamID) ([]string, error) {
 	userArgs, errUserArgs := getUserLaunchArgs(steamRoot, steamID)
 	if errUserArgs != nil {
 		return nil, errors.Join(errUserArgs, errSteamLaunchArgs)
@@ -135,10 +135,6 @@ func getLaunchArgs(rconPass string, rconPort uint16, steamRoot string, steamID s
 		"+con_timestamp", "1",
 		"-rpt", // Same as having -condebug, -conclearlog, and -console enabled
 		"-g15",
-	}
-
-	if udpEnabled {
-		bdArgs = append(bdArgs, "+logaddress_add", udpAddr)
 	}
 
 	var full []string //nolint:prealloc

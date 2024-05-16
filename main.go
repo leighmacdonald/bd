@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
 
 	"fyne.io/systray"
+	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
 	"github.com/leighmacdonald/bd/store"
@@ -28,13 +30,13 @@ var (
 	date    = "n/a"    //nolint:gochecknoglobals
 )
 
-func createRulesEngine(sm *settingsManager) *rules.Engine {
+func createRulesEngine(settings userSettings) *rules.Engine {
 	rulesEngine := rules.New()
 
-	if sm.Settings().RunMode != ModeTest { //nolint:nestif
+	if settings.RunMode != ModeTest { //nolint:nestif
 		// Try and load our existing custom players
-		if platform.Exists(sm.LocalPlayerListPath()) {
-			input, errInput := os.Open(sm.LocalPlayerListPath())
+		if platform.Exists(settings.LocalPlayerListPath()) {
+			input, errInput := os.Open(settings.LocalPlayerListPath())
 			if errInput != nil {
 				slog.Error("Failed to open local player list", errAttr(errInput))
 			} else {
@@ -55,8 +57,8 @@ func createRulesEngine(sm *settingsManager) *rules.Engine {
 		}
 
 		// Try and load our existing custom rules
-		if platform.Exists(sm.LocalRulesListPath()) {
-			input, errInput := os.Open(sm.LocalRulesListPath())
+		if platform.Exists(settings.LocalRulesListPath()) {
+			input, errInput := os.Open(settings.LocalRulesListPath())
 			if errInput != nil {
 				slog.Error("Failed to open local rules list", errAttr(errInput))
 			} else {
@@ -118,6 +120,18 @@ func isErrorAddressAlreadyInUse(err error) bool {
 	return false
 }
 
+var errConfigRootCreate = errors.New("failed to create config root")
+
+func ensureConfigPath() (string, error) {
+	configPath := configdir.LocalConfig("bd")
+
+	if errMakePath := os.MkdirAll(configPath, 0o700); errMakePath != nil {
+		return "", errors.Join(errMakePath, errConfigRootCreate)
+	}
+
+	return configPath, nil
+}
+
 func run() int {
 	versionInfo := Version{Version: version, Commit: commit, Date: date}
 
@@ -125,34 +139,33 @@ func run() int {
 	defer stop()
 
 	plat := platform.New()
-	settingsMgr := newSettingsManager(plat)
-
-	if errSetup := settingsMgr.setup(); errSetup != nil {
-		slog.Error("Failed to create settings directories", errAttr(errSetup))
-
-		return 1
-	}
-
-	if errSettings := settingsMgr.validateAndLoad(); errSettings != nil {
-		slog.Error("Failed to load settings", errAttr(errSettings))
-
-		return 1
-	}
-
-	settings := settingsMgr.Settings()
-
-	logCloser := MustCreateLogger(settingsMgr)
-	defer logCloser()
 
 	slog.Info("Starting", slog.String("ver", versionInfo.Version),
 		slog.String("date", versionInfo.Date), slog.String("commit", versionInfo.Commit))
 
-	db, dbCloser, errDB := store.CreateDB(settingsMgr.DBPath())
+	configRoot, errConfigPath := ensureConfigPath()
+	if errConfigPath != nil {
+		slog.Error("Failed to setup config root", errAttr(errConfigPath))
+		return 1
+	}
+
+	db, dbCloser, errDB := store.CreateDB(path.Join(configRoot, "bd.sqlite?cache=shared"))
 	if errDB != nil {
 		slog.Error("failed to create database", errAttr(errDB))
 		return 1
 	}
 	defer dbCloser()
+
+	settingsMgr := newSettingsManager(configRoot, db, plat)
+
+	settings, errSettings := settingsMgr.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to read settings from database", errAttr(errSettings))
+		return 1
+	}
+
+	logCloser := MustCreateLogger(settings, configRoot)
+	defer logCloser()
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
 	state := newGameState(db, settingsMgr, newPlayerStates(), rcon, db)
@@ -160,24 +173,16 @@ func run() int {
 	broadcaster := newEventBroadcaster()
 
 	var logSrc backgroundService
-	if settings.UDPListenerEnabled {
-		ingest, errListener := newUDPListener(settings.UDPListenerAddr, parser, broadcaster)
-		if errListener != nil {
-			slog.Error("failed to start udp log listener", errAttr(errListener))
-			return 1
-		}
-		logSrc = ingest
-	} else {
-		ingest, errLogReader := newLogIngest(filepath.Join(settings.TF2Dir, "console.log"), parser, true, broadcaster)
-		if errLogReader != nil {
-			slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
-			return 1
-		}
 
-		go testLogFeeder(ctx, ingest)
-
-		logSrc = ingest
+	ingest, errLogReader := newLogIngest(filepath.Join(settings.Tf2Dir, "console.log"), parser, true, broadcaster)
+	if errLogReader != nil {
+		slog.Error("Failed to create log startEventEmitter", errAttr(errLogReader))
+		return 1
 	}
+
+	go testLogFeeder(ctx, ingest)
+
+	logSrc = ingest
 
 	chat := newChatRecorder(db, broadcaster)
 
@@ -189,9 +194,9 @@ func run() int {
 		return 1
 	}
 
-	re := createRulesEngine(settingsMgr)
+	re := createRulesEngine(settings)
 
-	cache, cacheErr := NewCache(settingsMgr.ConfigRoot(), DurationCacheTimeout)
+	cache, cacheErr := NewCache(configRoot, DurationCacheTimeout)
 	if cacheErr != nil {
 		slog.Error("Failed to set up cache", errAttr(cacheErr))
 		return 1
@@ -204,25 +209,31 @@ func run() int {
 	statusHandler := newStatusUpdater(rcon, processHandler, state, time.Second*2)
 	bigBrotherHandler := newOverwatch(settingsMgr, rcon, state)
 
-	mux, errRoutes := createHandlers(db, state, processHandler, settingsMgr, re, rcon)
+	mux, errRoutes := createHandlers(ctx, db, state, processHandler, settingsMgr, re, rcon)
 	if errRoutes != nil {
 		slog.Error("failed to create http handlers", errAttr(errRoutes))
 
 		return 1
 	}
 
-	httpServer := newHTTPServer(ctx, settings.HTTPListenAddr, mux)
+	httpServer := newHTTPServer(ctx, settings.HttpListenAddr, mux)
 
 	// Start all the background workers
-	for _, svc := range []backgroundService{discordPresence, chat, logSrc, updater, statusHandler, &bigBrotherHandler, processHandler, state, lm} {
+	for _, svc := range []backgroundService{discordPresence, chat, logSrc, updater, statusHandler, &bigBrotherHandler, processHandler, state} {
 		go svc.start(ctx)
 	}
+
+	go func() {
+		if err := lm.start(ctx); err != nil {
+			slog.Error("Failed to start list manager", errAttr(err))
+		}
+	}()
 
 	go func() {
 		time.Sleep(time.Second * 3)
 
 		if settings.AutoLaunchGame {
-			go processHandler.launchGame(settingsMgr)
+			go processHandler.launchGame(settings)
 		}
 
 		if settings.RunMode == ModeRelease {

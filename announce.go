@@ -26,11 +26,11 @@ type kickRequest struct {
 type overwatch struct {
 	state    *gameState
 	rcon     rconConnection
-	settings *settingsManager
+	settings configManager
 	queued   []kickRequest
 }
 
-func newOverwatch(settings *settingsManager, rcon rconConnection, state *gameState) overwatch {
+func newOverwatch(settings configManager, rcon rconConnection, state *gameState) overwatch {
 	return overwatch{settings: settings, rcon: rcon, state: state}
 }
 
@@ -85,7 +85,11 @@ func (bb *overwatch) nextKickTarget() (PlayerState, bool) {
 
 // announceMatch handles announcing after a match is triggered against a player.
 func (bb *overwatch) announceMatch(ctx context.Context, player PlayerState, matches []rules.MatchResult) {
-	settings := bb.settings.Settings()
+	settings, errSettings := bb.settings.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to load settings", errAttr(errSettings))
+		return
+	}
 
 	if len(matches) == 0 {
 		return
@@ -114,7 +118,7 @@ func (bb *overwatch) announceMatch(ctx context.Context, player PlayerState, matc
 		return
 	}
 
-	if settings.PartyWarningsEnabled && time.Since(player.AnnouncedPartyLast) >= DurationAnnounceMatchTimeout {
+	if settings.ChatWarningsEnabled && time.Since(player.AnnouncedPartyLast) >= DurationAnnounceMatchTimeout {
 		// Don't spam friends, but eventually remind them if they manage to forget long enough
 		for _, match := range matches {
 			if errLog := bb.sendChat(ctx, ChatDestParty, "(%d) [%s] [%s] %s ", player.UserID, match.Origin, strings.Join(match.Attributes, ","), player.Personaname); errLog != nil {

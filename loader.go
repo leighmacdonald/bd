@@ -35,11 +35,11 @@ type playerDataLoader struct {
 	datasource         DataSource
 	playerDataChan     chan playerDataUpdate
 	db                 store.Querier
-	settings           *settingsManager
+	settings           configManager
 	re                 *rules.Engine
 }
 
-func newPlayerDataLoader(db store.Querier, ds DataSource, settings *settingsManager, re *rules.Engine,
+func newPlayerDataLoader(db store.Querier, ds DataSource, settings configManager, re *rules.Engine,
 	profileUpdateQueue chan steamid.SteamID, playerDataChan chan playerDataUpdate,
 ) *playerDataLoader {
 	return &playerDataLoader{

@@ -100,8 +100,8 @@ func onGetState(state *gameState, process *processState) http.HandlerFunc {
 	}
 }
 
-func onGGetLaunchGame(process *processState, settingsMgr *settingsManager) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+func onGGetLaunchGame(process *processState, settingsMgr configManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if process.gameProcessActive.Load() {
 			responseErr(w, http.StatusConflict, "Game process active")
 			slog.Warn("Failed to launch game, process active already")
@@ -109,7 +109,13 @@ func onGGetLaunchGame(process *processState, settingsMgr *settingsManager) http.
 			return
 		}
 
-		go process.launchGame(settingsMgr)
+		settings, errSettings := settingsMgr.settings(r.Context())
+		if errSettings != nil {
+			responseErr(w, http.StatusOK, errSettings)
+			return
+		}
+
+		go process.launchGame(settings)
 
 		responseOK(w, http.StatusOK, map[string]string{})
 	}
@@ -120,10 +126,16 @@ type WebUserSettings struct {
 	UniqueTags []string `json:"unique_tags"`
 }
 
-func onGetSettings(settings *settingsManager, rules *rules.Engine) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+func onGetSettings(cfgMgr configManager, rules *rules.Engine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		settings, errSettings := cfgMgr.settings(r.Context())
+		if errSettings != nil {
+			responseErr(w, http.StatusOK, errSettings)
+			return
+		}
+
 		wus := WebUserSettings{
-			userSettings: settings.Settings(),
+			userSettings: settings,
 			UniqueTags:   rules.UniqueTags(),
 		}
 
@@ -131,24 +143,24 @@ func onGetSettings(settings *settingsManager, rules *rules.Engine) http.HandlerF
 	}
 }
 
-func onPutSettings(settings *settingsManager) http.HandlerFunc {
+func onPutSettings(settings configManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var wus WebUserSettings
 		if !bind(w, r, &wus) {
 			return
 		}
 
-		if errValidate := wus.userSettings.Validate(); errValidate != nil {
+		if errValidate := validateSettings(wus.userSettings); errValidate != nil {
 			responseErr(w, http.StatusBadRequest, errValidate)
 			return
 		}
 
-		if errSave := settings.replace(wus.userSettings); errSave != nil {
+		if errSave := settings.save(r.Context(), wus.userSettings); errSave != nil {
 			responseErr(w, http.StatusInternalServerError, errSave)
 			return
 		}
 
-		responseOK(w, http.StatusOK, settings.Settings())
+		responseOK(w, http.StatusOK, wus.userSettings)
 	}
 }
 
@@ -264,7 +276,7 @@ func onDeleteMarkedPlayer(db store.Querier, state *gameState, re *rules.Engine) 
 	}
 }
 
-func onMarkPlayerPost(sm *settingsManager, db store.Querier, state *gameState, re *rules.Engine) http.HandlerFunc {
+func onMarkPlayerPost(sm configManager, db store.Querier, state *gameState, re *rules.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sid, sidOk := steamIDParam(w, r)
 		if !sidOk {
@@ -283,7 +295,15 @@ func onMarkPlayerPost(sm *settingsManager, db store.Querier, state *gameState, r
 			return
 		}
 
-		if errCreateMark := mark(r.Context(), sm, db, state, re, sid, opts.Attrs); errCreateMark != nil {
+		settings, errSettings := sm.settings(r.Context())
+		if errSettings != nil {
+			responseErr(w, http.StatusBadRequest, nil)
+			slog.Error("Received no mark attributes")
+
+			return
+		}
+
+		if errCreateMark := mark(r.Context(), settings, db, state, re, sid, opts.Attrs); errCreateMark != nil {
 			if errors.Is(errCreateMark, rules.ErrDuplicateSteamID) {
 				responseErr(w, http.StatusConflict, nil)
 				slog.Warn("Tried to mark duplicate steam id", slog.String("steam_id", sid.String()))

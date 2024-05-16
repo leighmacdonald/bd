@@ -137,10 +137,10 @@ func discordAssetNameMap(mapName string) string {
 type discordState struct {
 	client   *client.Client
 	state    *gameState
-	settings *settingsManager
+	settings configManager
 }
 
-func newDiscordState(state *gameState, settings *settingsManager) *discordState {
+func newDiscordState(state *gameState, settings configManager) *discordState {
 	return &discordState{
 		settings: settings,
 		state:    state,
@@ -159,7 +159,11 @@ func (d discordState) start(ctx context.Context) {
 	for {
 		select {
 		case <-timer.C:
-			settings := d.settings.Settings()
+			settings, errSettings := d.settings.settings(ctx)
+			if errSettings != nil {
+				slog.Error("Failed to load settings", errAttr(errSettings))
+				continue
+			}
 
 			if !settings.DiscordPresenceEnabled {
 				if isRunning {

@@ -1,28 +1,21 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/url"
-	"os"
 	"path/filepath"
-	"strings"
-	"sync"
+	"regexp"
+	"time"
 
 	"github.com/kirsle/configdir"
 	"github.com/leighmacdonald/bd/platform"
 	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 	"github.com/leighmacdonald/steamid/v4/steamid"
-	"github.com/leighmacdonald/steamweb/v2"
-	"gopkg.in/yaml.v3"
-)
-
-const (
-	defaultConfigFileName = "bd.yaml"
 )
 
 var (
@@ -30,11 +23,11 @@ var (
 	errConfigNotFound = errors.New("config path does not exist")
 )
 
-type ListType string
+type ListType int
 
 const (
-	ListTypeTF2BDPlayerList ListType = "tf2bd_playerlist"
-	ListTypeTF2BDRules      ListType = "tf2bd_rules"
+	ListTypeTF2BDPlayerList ListType = 1
+	ListTypeTF2BDRules      ListType = 2
 )
 
 type ListConfig struct {
@@ -92,428 +85,165 @@ const (
 	ModeDebug   = "debug"
 )
 
-type settingsManager struct {
+type configManager struct {
 	// Path to config used when reading userSettings
-	configPath string
 	configRoot string
-	settingsMu sync.RWMutex
-	settings   userSettings
 	platform   platform.Platform
+	queries    *store.Queries
 }
 
-func newSettingsManager(plat platform.Platform) *settingsManager {
-	sm := settingsManager{
-		platform:   plat,
-		configRoot: "bd",
+func newSettingsManager(configRoot string, queries *store.Queries, plat platform.Platform) configManager {
+	return configManager{platform: plat, configRoot: configRoot, queries: queries}
+}
+
+func (sm configManager) DBPath() string {
+	return filepath.Join(sm.configRoot, "bd.sqlite?cache=shared")
+}
+
+var (
+	reDuration         = regexp.MustCompile(`^(\d+)([smhdwMy])$`)
+	errInvalidDuration = errors.New("invalid duration")
+	errDecodeDuration  = errors.New("invalid duration, cannot decode")
+	errQueryConfig     = errors.New("failed to query config")
+	errQueryLists      = errors.New("failed to query lists")
+)
+
+func (sm configManager) settings(ctx context.Context) (userSettings, error) {
+	config, errConfig := sm.queries.Config(ctx)
+	if errConfig != nil {
+		return userSettings{}, errors.Join(errConfig, errQueryConfig)
 	}
 
-	return &sm
-}
-
-func (sm *settingsManager) setup() error {
-	if !platform.Exists(sm.ListRoot()) {
-		if err := os.MkdirAll(sm.ListRoot(), 0o755); err != nil {
-			return errors.Join(err, errSettingDirectoryCreate)
-		}
-	}
-
-	return nil
-}
-
-func (sm *settingsManager) ConfigRoot() string {
-	configPath := configdir.LocalConfig(sm.configRoot)
-	if err := configdir.MakePath(configPath); err != nil {
-		return ""
-	}
-
-	return configPath
-}
-
-func (sm *settingsManager) ListRoot() string {
-	return filepath.Join(sm.ConfigRoot(), "lists")
-}
-
-func (sm *settingsManager) DBPath() string {
-	return filepath.Join(sm.ConfigRoot(), "bd.sqlite?cache=shared")
-}
-
-func (sm *settingsManager) LocalPlayerListPath() string {
-	return filepath.Join(sm.ListRoot(), fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
-}
-
-func (sm *settingsManager) LocalRulesListPath() string {
-	return filepath.Join(sm.ListRoot(), fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
-}
-
-func (sm *settingsManager) LogFilePath() string {
-	return filepath.Join(configdir.LocalConfig(sm.configRoot), "bd.log")
-}
-
-func (sm *settingsManager) readDefaultOrCreate() (userSettings, error) {
-	var settings userSettings
-	configPath := configdir.LocalConfig(sm.configRoot)
-	if err := configdir.MakePath(configPath); err != nil {
-		return settings, errors.Join(err, errSettingDirectoryCreate)
-	}
-
-	settingsFilePath := filepath.Join(configPath, defaultConfigFileName)
-
-	errRead := sm.readFilePath(settingsFilePath, &settings)
-	if errRead != nil {
-		if errors.Is(errRead, errConfigNotFound) {
-			slog.Info("Creating default config")
-			sm.settings = newSettings(sm.platform)
-			sm.configPath = settingsFilePath
-
-			if errSave := sm.save(); errSave != nil {
-				return settings, errSave
-			}
-
-			return sm.settings, nil
-		}
-
-		return userSettings{}, errRead
-	}
-
-	// Make sure we have defaults defined if not configured
-	if settings.SteamDir == "" {
-		settings.SteamDir = sm.locateSteamDir()
-	}
-
-	if settings.TF2Dir == "" {
-		settings.TF2Dir = sm.locateTF2Dir()
+	settings := userSettings{
+		Config:           config,
+		Rcon:             newRconConfig(config.RconStatic),
+		SteamID:          steamid.New(config.SteamID),
+		configRoot:       sm.configRoot,
+		defaultSteamRoot: sm.platform.DefaultSteamRoot(),
 	}
 
 	return settings, nil
 }
 
-func (sm *settingsManager) Settings() userSettings {
-	sm.settingsMu.RLock()
-	defer sm.settingsMu.RUnlock()
-
-	return sm.settings
-}
-
-func (sm *settingsManager) validateAndLoad() error {
-	settings, errReadSettings := sm.readDefaultOrCreate()
-	if errReadSettings != nil {
-		return errReadSettings
+func (sm configManager) lists(ctx context.Context) ([]store.ListsRow, error) {
+	lists, err := sm.queries.Lists(ctx)
+	if err != nil {
+		return nil, errors.Join(err, errQueryLists)
 	}
 
-	if errValidate := settings.Validate(); errValidate != nil {
-		return errValidate
+	return lists, nil
+}
+
+var errInsertList = errors.New("failed to insert list")
+
+func (sm configManager) AddList(ctx context.Context, list store.List) (store.List, error) {
+	now := time.Now()
+
+	newList, errList := sm.queries.ListsInsert(ctx, store.ListsInsertParams{
+		ListType:  list.ListType,
+		Url:       list.Url,
+		Enabled:   list.Enabled,
+		UpdatedOn: now,
+		CreatedOn: now,
+	})
+	if errList != nil {
+		return store.List{}, errors.Join(errList, errInsertList)
 	}
 
-	if settings.APIKey != "" {
-		if errSetSteamKey := steamweb.SetKey(settings.APIKey); errSetSteamKey != nil {
-			slog.Error("Failed to set steam api key", errAttr(errSetSteamKey))
-		}
-	}
-
-	sm.settingsMu.Lock()
-	sm.settings = settings
-	sm.settingsMu.Unlock()
-
-	sm.reload()
-
-	return nil
+	return newList, nil
 }
 
-func (sm *settingsManager) readFilePath(filePath string, settings *userSettings) error {
-	if !platform.Exists(filePath) {
-		return errConfigNotFound
-	}
+const apiKeyLen = 32
 
-	settingsFile, errOpen := os.Open(filePath)
-	if errOpen != nil {
-		return errors.Join(errOpen, errSettingsOpen)
-	}
-
-	defer IgnoreClose(settingsFile)
-
-	if errRead := sm.read(settingsFile, settings); errRead != nil {
-		return errRead
-	}
-
-	return nil
-}
-
-func (sm *settingsManager) read(inputFile io.Reader, settings *userSettings) error {
-	if errDecode := yaml.NewDecoder(inputFile).Decode(&settings); errDecode != nil {
-		return errors.Join(errDecode, errSettingsDecode)
-	}
-
-	settings.Rcon = newRconConfig(settings.RCONStatic)
-
-	return nil
-}
-
-func (sm *settingsManager) save() error {
-	sm.settingsMu.RLock()
-
-	if errValidate := sm.settings.Validate(); errValidate != nil {
-		sm.settingsMu.RUnlock()
-		return errValidate
-	}
-
-	sm.settingsMu.RUnlock()
-
-	return sm.writeFilePath(sm.configPath)
-}
-
-func (sm *settingsManager) reload() {
-	sm.settingsMu.Lock()
-	defer sm.settingsMu.Unlock()
-
-	sm.settings.Rcon = newRconConfig(sm.settings.RCONStatic)
-}
-
-func (sm *settingsManager) writeFilePath(filePath string) error {
-	settingsFile, errOpen := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755)
-	if errOpen != nil {
-		return errors.Join(errOpen, errSettingsOpenOutput)
-	}
-
-	defer IgnoreClose(settingsFile)
-
-	return sm.write(settingsFile)
-}
-
-func (sm *settingsManager) write(outputFile io.Writer) error {
-	sm.settingsMu.RLock()
-	defer sm.settingsMu.RUnlock()
-
-	if errEncode := yaml.NewEncoder(outputFile).Encode(sm.settings); errEncode != nil {
-		return errors.Join(errEncode, errSettingsEncode)
-	}
-
-	return nil
-}
-
-func (sm *settingsManager) replace(newSettings userSettings) error {
-	sm.settingsMu.Lock()
-	sm.settings = newSettings
-	sm.settingsMu.Unlock()
-
-	return sm.writeFilePath(sm.configPath)
-}
-
-func (sm *settingsManager) locateSteamDir() string {
-	sm.settingsMu.RLock()
-	defer sm.settingsMu.RUnlock()
-
-	if sm.settings.SteamDir != "" {
-		return sm.settings.SteamDir
-	}
-
-	return sm.platform.DefaultSteamRoot()
-}
-
-func (sm *settingsManager) locateTF2Dir() string {
-	sm.settingsMu.RLock()
-	defer sm.settingsMu.RUnlock()
-
-	if sm.settings.TF2Dir != "" {
-		return sm.settings.TF2Dir
-	}
-
-	return sm.platform.DefaultTF2Root()
-}
-
-type userSettings struct {
-	SteamID steamid.SteamID `yaml:"steam_id" json:"steam_id"`
-	// Path to directory with steam.dll (C:\Program Files (x86)\Steam)
-	// eg: -> ~/.local/share/Steam/userdata/123456789/config/localconfig.vdf
-	SteamDir string `yaml:"steam_dir" json:"steam_dir"`
-	// Path to tf2 mod eg: (C:\Program Files (x86)\Steam\steamapps\common\Team Fortress 2\tf)
-	TF2Dir                  string               `yaml:"tf2_dir" json:"tf2_dir"`
-	AutoLaunchGame          bool                 `yaml:"auto_launch_game" json:"auto_launch_game"`
-	AutoCloseOnGameExit     bool                 `yaml:"auto_close_on_game_exit" json:"auto_close_on_game_exit"`
-	BdAPIEnabled            bool                 `yaml:"bd_api_enabled" json:"bd_api_enabled"`
-	BdAPIAddress            string               `yaml:"bd_api_address" json:"bd_api_address"`
-	APIKey                  string               `yaml:"api_key" json:"api_key"`
-	DisconnectedTimeout     string               `yaml:"disconnected_timeout" json:"disconnected_timeout"`
-	DiscordPresenceEnabled  bool                 `yaml:"discord_presence_enabled" json:"discord_presence_enabled"`
-	KickerEnabled           bool                 `yaml:"kicker_enabled" json:"kicker_enabled"`
-	ChatWarningsEnabled     bool                 `yaml:"chat_warnings_enabled" json:"chat_warnings_enabled"`
-	PartyWarningsEnabled    bool                 `yaml:"party_warnings_enabled" json:"party_warnings_enabled"`
-	KickTags                []string             `yaml:"kick_tags" json:"kick_tags"`
-	VoiceBansEnabled        bool                 `yaml:"voice_bans_enabled" json:"voice_bans_enabled"`
-	DebugLogEnabled         bool                 `yaml:"debug_log_enabled" json:"debug_log_enabled"`
-	Lists                   ListConfigCollection `yaml:"lists" json:"lists"`
-	Links                   []*LinkConfig        `yaml:"links" json:"links"`
-	RCONStatic              bool                 `yaml:"rcon_static" json:"rcon_static"`
-	HTTPEnabled             bool                 `yaml:"http_enabled" json:"http_enabled"`
-	HTTPListenAddr          string               `yaml:"http_listen_addr" json:"http_listen_addr"`
-	PlayerExpiredTimeout    int                  `yaml:"player_expired_timeout" json:"player_expired_timeout"`
-	PlayerDisconnectTimeout int                  `yaml:"player_disconnect_timeout" json:"player_disconnect_timeout"`
-	RunMode                 RunModes             `yaml:"run_mode" json:"run_mode"`
-	LogLevel                string               `yaml:"log_level" json:"log_level"`
-	SystrayEnabled          bool                 `yaml:"systray_enabled" json:"systray_enabled"`
-	UDPListenerEnabled      bool                 `yaml:"udp_listener_enabled" json:"udp_listener_enabled"`
-	UDPListenerAddr         string               `yaml:"udp_listener_addr" json:"udp_listener_addr"`
-	Rcon                    RCONConfig           `yaml:"rcon" json:"rcon"`
-}
-
-func newSettings(plat platform.Platform) userSettings {
-	settings := userSettings{
-		SteamID:                 steamid.New(""),
-		SteamDir:                plat.DefaultSteamRoot(),
-		TF2Dir:                  plat.DefaultTF2Root(),
-		AutoLaunchGame:          false,
-		AutoCloseOnGameExit:     false,
-		APIKey:                  "",
-		BdAPIEnabled:            true,
-		BdAPIAddress:            "https://bd-api.roto.lol/",
-		DisconnectedTimeout:     "60s",
-		DiscordPresenceEnabled:  true,
-		KickerEnabled:           false,
-		ChatWarningsEnabled:     false,
-		PartyWarningsEnabled:    true,
-		KickTags:                []string{"cheater", "bot", "trigger_name", "trigger_msg"},
-		VoiceBansEnabled:        false,
-		DebugLogEnabled:         false,
-		RunMode:                 ModeRelease,
-		LogLevel:                "info",
-		SystrayEnabled:          true,
-		PlayerExpiredTimeout:    6,
-		PlayerDisconnectTimeout: 20,
-		UDPListenerAddr:         "0.0.0.0:27777",
-		UDPListenerEnabled:      false,
-		Lists: []*ListConfig{
-			{
-				Name:     "Uncletopia",
-				ListType: "tf2bd_playerlist",
-				Enabled:  false,
-				URL:      "https://uncletopia.com/export/bans/tf2bd",
-			},
-			{
-				Name:     "@trusted",
-				ListType: "tf2bd_playerlist",
-				Enabled:  true,
-				URL:      "https://trusted.roto.lol/v1/steamids",
-			},
-			{
-				Name:     "TF2BD Players",
-				ListType: "tf2bd_playerlist",
-				Enabled:  true,
-				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json",
-			},
-			{
-				Name:     "TF2BD Rules",
-				ListType: "tf2bd_rules",
-				Enabled:  true,
-				URL:      "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/rules.official.json",
-			},
-		},
-		Links: []*LinkConfig{
-			{
-				Enabled:  true,
-				Name:     "RGL",
-				URL:      "https://rgl.gg/Public/PlayerProfile.aspx?p=%d",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "Steam",
-				URL:      "https://steamcommunity.com/profiles/%d",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "OzFortress",
-				URL:      "https://ozfortress.com/users/steam_id/%d",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "ESEA",
-				URL:      "https://play.esea.net/index.php?s=search&query=%s",
-				IDFormat: "steam3",
-			},
-			{
-				Enabled:  true,
-				Name:     "UGC",
-				URL:      "https://www.ugcleague.com/players_page.cfm?player_id=%d",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "ETF2L",
-				URL:      "https://etf2l.org/search/%d/",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "trends.tf",
-				URL:      "https://trends.tf/player/%d/",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "demos.tf",
-				URL:      "https://demos.tf/profiles/%d",
-				IDFormat: "steam64",
-			},
-			{
-				Enabled:  true,
-				Name:     "logs.tf",
-				URL:      "https://logs.tf/profile/%d",
-				IDFormat: "steam64",
-			},
-		},
-		RCONStatic:     false,
-		HTTPEnabled:    true,
-		HTTPListenAddr: "localhost:8900",
-		Rcon:           newRconConfig(false),
-	}
-
-	return settings
-}
-
-func (s *userSettings) AppURL() string {
-	return fmt.Sprintf("http://%s/", s.HTTPListenAddr)
-}
-
-func (s *userSettings) AddList(config *ListConfig) error {
-	for _, known := range s.Lists {
-		if config.ListType == known.ListType &&
-			strings.EqualFold(config.URL, known.URL) {
-			return errDuplicateList
-		}
-	}
-
-	s.Lists = append(s.Lists, config)
-
-	return nil
-}
-
-func (s *userSettings) Validate() error {
-	const apiKeyLen = 32
-
+func validateSettings(settings userSettings) error {
 	var err error
-	if s.SteamID.AccountID > 1 && !s.SteamID.Valid() {
-		err = errors.Join(err, steamid.ErrInvalidSID)
-	}
-
-	if s.BdAPIEnabled {
-		if s.BdAPIAddress == "" {
+	if settings.BdApiEnabled {
+		if settings.BdApiAddress == "" {
 			err = errors.Join(errSettingsBDAPIAddr)
 		} else {
-			_, errParse := url.Parse(s.BdAPIAddress)
+			_, errParse := url.Parse(settings.BdApiAddress)
 			if errParse != nil {
 				err = errors.Join(errParse, errSettingAddress)
 			}
 		}
 	} else {
-		if s.APIKey == "" {
+		if settings.ApiKey == "" {
 			err = errors.Join(errSettingsAPIKeyMissing)
-		} else if len(s.APIKey) != apiKeyLen {
+		} else if len(settings.ApiKey) != apiKeyLen {
 			err = errors.Join(errSettingAPIKeyInvalid)
 		}
 	}
 
 	return err
+}
+
+var errConfigSave = errors.New("failed to save config")
+
+func (sm configManager) save(ctx context.Context, settings userSettings) error {
+	if errValidate := validateSettings(settings); errValidate != nil {
+		return errValidate
+	}
+
+	if err := sm.queries.ConfigUpdate(ctx, store.ConfigUpdateParams{
+		SteamID:                 settings.SteamID.Int64(),
+		SteamDir:                settings.SteamDir,
+		Tf2Dir:                  settings.Tf2Dir,
+		AutoLaunchGame:          settings.AutoLaunchGame,
+		AutoCloseOnGameExit:     settings.AutoCloseOnGameExit,
+		BdApiEnabled:            settings.BdApiEnabled,
+		BdApiAddress:            settings.BdApiAddress,
+		ApiKey:                  settings.ApiKey,
+		SystrayEnabled:          settings.SystrayEnabled,
+		VoiceBansEnabled:        settings.VoiceBansEnabled,
+		RconStatic:              settings.RconStatic,
+		HttpEnabled:             settings.HttpEnabled,
+		HttpListenAddr:          settings.HttpListenAddr,
+		PlayerExpiredTimeout:    settings.PlayerExpiredTimeout,
+		PlayerDisconnectTimeout: settings.DisconnectedTimeout,
+		RunMode:                 settings.RunMode,
+		LogLevel:                settings.LogLevel,
+		RconAddress:             settings.RconAddress,
+		RconPort:                settings.RconPort,
+		RconPassword:            settings.RconPassword,
+	}); err != nil {
+		return errors.Join(err, errConfigSave)
+	}
+
+	return nil
+}
+
+type userSettings struct {
+	store.Config
+	configRoot       string
+	defaultSteamRoot string
+	Rcon             RCONConfig      `mapstructure:"rcon" json:"rcon"`
+	SteamID          steamid.SteamID `json:"steam_id"`
+	Lists            []store.List    `json:"lists"`
+	Links            []store.Link    `json:"links"`
+}
+
+func (settings userSettings) LocalPlayerListPath() string {
+	return filepath.Join(settings.configRoot, fmt.Sprintf("playerlist.%s.json", rules.LocalRuleName))
+}
+
+func (settings userSettings) LocalRulesListPath() string {
+	return filepath.Join(settings.configRoot, fmt.Sprintf("rules.%s.json", rules.LocalRuleName))
+}
+
+func (settings userSettings) LogFilePath() string {
+	return filepath.Join(configdir.LocalConfig(settings.configRoot), "bd.log")
+}
+
+func (settings userSettings) AppURL() string {
+	return fmt.Sprintf("http://%s/", settings.HttpListenAddr)
+}
+
+func (settings userSettings) locateSteamDir() string {
+	if settings.SteamDir != "" {
+		return settings.SteamDir
+	}
+
+	return settings.defaultSteamRoot
 }
 
 const (

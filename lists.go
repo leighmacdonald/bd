@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leighmacdonald/bd/rules"
+	"github.com/leighmacdonald/bd/store"
 )
 
 // fixSteamIDFormat converts raw unquoted steamids to quoted ones
@@ -25,11 +26,11 @@ func fixSteamIDFormat(body []byte) []byte {
 
 type listManager struct {
 	re          *rules.Engine
-	settingsMgr *settingsManager
+	settingsMgr configManager
 	cache       Cache
 }
 
-func newListManager(cache Cache, re *rules.Engine, settingsMgr *settingsManager) listManager {
+func newListManager(cache Cache, re *rules.Engine, settingsMgr configManager) listManager {
 	return listManager{
 		cache:       cache,
 		re:          re,
@@ -37,7 +38,7 @@ func newListManager(cache Cache, re *rules.Engine, settingsMgr *settingsManager)
 	}
 }
 
-func (lm listManager) downloadLists(ctx context.Context, lists ListConfigCollection) ([]rules.PlayerListSchema, []rules.RuleSchema) {
+func (lm listManager) downloadLists(ctx context.Context, lists []store.List) ([]rules.PlayerListSchema, []rules.RuleSchema) {
 	fetchURL := func(ctx context.Context, client http.Client, url string) ([]byte, error) {
 		timeout, cancel := context.WithTimeout(ctx, DurationWebRequestTimeout)
 		defer cancel()
@@ -71,18 +72,18 @@ func (lm listManager) downloadLists(ctx context.Context, lists ListConfigCollect
 		client      = http.Client{}
 	)
 
-	downloadFn := func(listConfig *ListConfig) error {
+	downloadFn := func(listConfig store.List) error {
 		start := time.Now()
 
-		body, errFetch := fetchURL(ctx, client, listConfig.URL)
+		body, errFetch := fetchURL(ctx, client, listConfig.Url)
 		if errFetch != nil {
-			return fmt.Errorf("%w: %s", errFetchPlayerList, listConfig.URL)
+			return fmt.Errorf("%w: %s", errFetchPlayerList, listConfig.Url)
 		}
 
 		body = fixSteamIDFormat(body)
 		dur := time.Since(start)
 
-		switch listConfig.ListType {
+		switch ListType(listConfig.ListType) {
 		case ListTypeTF2BDPlayerList:
 			var result rules.PlayerListSchema
 			if errParse := json.Unmarshal(body, &result); errParse != nil {
@@ -119,7 +120,7 @@ func (lm listManager) downloadLists(ctx context.Context, lists ListConfigCollect
 
 		waitGroup.Add(1)
 
-		go func(lc *ListConfig) {
+		go func(lc store.List) {
 			defer waitGroup.Done()
 
 			if errDL := downloadFn(lc); errDL != nil {
@@ -134,8 +135,12 @@ func (lm listManager) downloadLists(ctx context.Context, lists ListConfigCollect
 }
 
 // refreshLists updates the 3rd party player lists using their update url.
-func (lm listManager) start(ctx context.Context) {
-	settings := lm.settingsMgr.Settings()
+func (lm listManager) start(ctx context.Context) error {
+	settings, errSettings := lm.settingsMgr.settings(ctx)
+	if errSettings != nil {
+		return errSettings
+	}
+
 	playerLists, ruleLists := lm.downloadLists(ctx, settings.Lists)
 	for _, list := range playerLists {
 		boundList := list
@@ -158,4 +163,6 @@ func (lm listManager) start(ctx context.Context) {
 			slog.Info("Imported rules list", slog.String("name", boundList.FileInfo.Title), slog.Int("count", count))
 		}
 	}
+
+	return nil
 }
