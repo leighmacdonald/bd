@@ -47,36 +47,6 @@ const (
 	Steam   SteamIDFormat = "steam"
 )
 
-type LinkConfig struct {
-	Enabled  bool   `yaml:"enabled" json:"enabled"`
-	Name     string `yaml:"name" json:"name"`
-	URL      string `yaml:"url" json:"url"`
-	IDFormat string `yaml:"id_format" json:"id_format"`
-	Deleted  bool   `yaml:"-" json:"deleted"`
-}
-
-type LinkConfigCollection []*LinkConfig
-
-func (list LinkConfigCollection) AsAny() []any {
-	bl := make([]any, len(list))
-	for i, r := range list {
-		bl[i] = r
-	}
-
-	return bl
-}
-
-type ListConfigCollection []*ListConfig
-
-func (list ListConfigCollection) AsAny() []any {
-	bl := make([]any, len(list))
-	for i, r := range list {
-		bl[i] = r
-	}
-
-	return bl
-}
-
 type RunModes string
 
 const (
@@ -106,6 +76,7 @@ var (
 	errDecodeDuration  = errors.New("invalid duration, cannot decode")
 	errQueryConfig     = errors.New("failed to query config")
 	errQueryLists      = errors.New("failed to query lists")
+	errQueryLinks      = errors.New("failed to query links")
 )
 
 func (sm configManager) settings(ctx context.Context) (userSettings, error) {
@@ -117,9 +88,42 @@ func (sm configManager) settings(ctx context.Context) (userSettings, error) {
 	settings := userSettings{
 		Config:           config,
 		Rcon:             newRconConfig(config.RconStatic),
-		SteamID:          steamid.New(config.SteamID),
 		configRoot:       sm.configRoot,
 		defaultSteamRoot: sm.platform.DefaultSteamRoot(),
+	}
+
+	lists, errLists := sm.queries.Lists(ctx)
+	if errLists != nil {
+		return settings, errors.Join(errLists, errQueryLists)
+	}
+
+	for _, list := range lists {
+		settings.Lists = append(settings.Lists, store.List{
+			ListID:    list.ListID,
+			ListType:  list.ListType,
+			Url:       list.Url,
+			Enabled:   list.Enabled,
+			UpdatedOn: list.UpdatedOn,
+			CreatedOn: list.CreatedOn,
+			Name:      list.Name,
+		})
+	}
+
+	links, errLinks := sm.queries.Links(ctx)
+	if errLinks != nil {
+		return settings, errors.Join(errLinks, errQueryLinks)
+	}
+
+	for _, link := range links {
+		settings.Links = append(settings.Links, store.Link{
+			LinkID:    link.LinkID,
+			Name:      link.Name,
+			Url:       link.Url,
+			IDFormat:  link.IDFormat,
+			Enabled:   link.Enabled,
+			CreatedOn: link.CreatedOn,
+			UpdatedOn: link.UpdatedOn,
+		})
 	}
 
 	return settings, nil
@@ -185,7 +189,7 @@ func (sm configManager) save(ctx context.Context, settings userSettings) error {
 	}
 
 	if err := sm.queries.ConfigUpdate(ctx, store.ConfigUpdateParams{
-		SteamID:                 settings.SteamID.Int64(),
+		SteamID:                 settings.SteamID,
 		SteamDir:                settings.SteamDir,
 		Tf2Dir:                  settings.Tf2Dir,
 		AutoLaunchGame:          settings.AutoLaunchGame,
@@ -216,10 +220,14 @@ type userSettings struct {
 	store.Config
 	configRoot       string
 	defaultSteamRoot string
-	Rcon             RCONConfig      `mapstructure:"rcon" json:"rcon"`
-	SteamID          steamid.SteamID `json:"steam_id"`
-	Lists            []store.List    `json:"lists"`
-	Links            []store.Link    `json:"links"`
+	Rcon             RCONConfig   `mapstructure:"rcon" json:"rcon"`
+	Lists            []store.List `json:"lists"`
+	Links            []store.Link `json:"links"`
+	KickTags         []string     `json:"kick_tags"`
+}
+
+func (settings userSettings) GetSteamID() steamid.SteamID {
+	return steamid.New(settings.Config.SteamID)
 }
 
 func (settings userSettings) LocalPlayerListPath() string {

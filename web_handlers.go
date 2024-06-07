@@ -139,6 +139,18 @@ func onGetSettings(cfgMgr configManager, rules *rules.Engine) http.HandlerFunc {
 			UniqueTags:   rules.UniqueTags(),
 		}
 
+		if wus.userSettings.Links == nil {
+			wus.userSettings.Links = make([]store.Link, 0)
+		}
+
+		if wus.userSettings.Lists == nil {
+			wus.userSettings.Lists = make([]store.List, 0)
+		}
+
+		if wus.KickTags == nil {
+			wus.userSettings.KickTags = make([]string, 0)
+		}
+
 		responseOK(w, http.StatusOK, wus)
 	}
 }

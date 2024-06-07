@@ -12,7 +12,8 @@ import (
 )
 
 const config = `-- name: Config :one
-SELECT steam_id, steam_dir, tf2_dir, auto_launch_game, auto_close_on_game_exit, bd_api_enabled, bd_api_address, api_key, systray_enabled, disconnected_timeout, discord_presence_enabled, kicker_enabled, chat_warnings_enabled, voice_bans_enabled, debug_log_enabled, rcon_static, http_enabled, http_listen_addr, player_expired_timeout, player_disconnect_timeout, run_mode, log_level, rcon_address, rcon_port, rcon_password FROM config
+SELECT steam_id, steam_dir, tf2_dir, auto_launch_game, auto_close_on_game_exit, bd_api_enabled, bd_api_address, api_key, systray_enabled, disconnected_timeout, discord_presence_enabled, kicker_enabled, chat_warnings_enabled, voice_bans_enabled, debug_log_enabled, rcon_static, http_enabled, http_listen_addr, player_expired_timeout, player_disconnect_timeout, run_mode, log_level, rcon_address, rcon_port, rcon_password
+FROM config
 `
 
 func (q *Queries) Config(ctx context.Context) (Config, error) {
@@ -50,36 +51,35 @@ func (q *Queries) Config(ctx context.Context) (Config, error) {
 
 const configUpdate = `-- name: ConfigUpdate :exec
 UPDATE config
-SET
-    steam_id = ?1,
-    steam_dir = ?2,
-    tf2_dir = ?3,
-    auto_launch_game = ?4,
-    auto_close_on_game_exit = ?5,
-    bd_api_enabled = ?6,
-    bd_api_address = ?7,
-    api_key = ?8,
-    systray_enabled = ?9,
-    disconnected_timeout = ?6,
-    discord_presence_enabled = ?6,
-    kicker_enabled = ?6,
-    chat_warnings_enabled = ?6,
-    voice_bans_enabled = ?10,
-    debug_log_enabled = ?6,
-    rcon_static = ?11,
-    http_enabled = ?12,
-    http_listen_addr = ?13,
-    player_expired_timeout = ?14,
-    player_disconnect_timeout = ?15,
-    run_mode = ?16,
-    log_level = ?17,
-    rcon_address = ?18,
-    rcon_port = ?19,
-    rcon_password = ?20
+SET steam_id                  = ?1,
+    steam_dir                 = ?2,
+    tf2_dir                   = ?3,
+    auto_launch_game          = ?4,
+    auto_close_on_game_exit   = ?5,
+    bd_api_enabled            = ?6,
+    bd_api_address            = ?7,
+    api_key                   = ?8,
+    systray_enabled           = ?9,
+    disconnected_timeout      = ?10,
+    discord_presence_enabled  = ?11,
+    kicker_enabled            = ?12,
+    chat_warnings_enabled     = ?13,
+    voice_bans_enabled        = ?14,
+    debug_log_enabled         = ?15,
+    rcon_static               = ?16,
+    http_enabled              = ?17,
+    http_listen_addr          = ?18,
+    player_expired_timeout    = ?19,
+    player_disconnect_timeout = ?20,
+    run_mode                  = ?21,
+    log_level                 = ?22,
+    rcon_address              = ?23,
+    rcon_port                 = ?24,
+    rcon_password             = ?25
 `
 
 type ConfigUpdateParams struct {
-	SteamID                 int64  `json:"steam_id"`
+	SteamID                 string `json:"steam_id"`
 	SteamDir                string `json:"steam_dir"`
 	Tf2Dir                  string `json:"tf2_dir"`
 	AutoLaunchGame          bool   `json:"auto_launch_game"`
@@ -88,7 +88,12 @@ type ConfigUpdateParams struct {
 	BdApiAddress            string `json:"bd_api_address"`
 	ApiKey                  string `json:"api_key"`
 	SystrayEnabled          bool   `json:"systray_enabled"`
+	DisconnectedTimeout     int64  `json:"disconnected_timeout"`
+	DiscordPresenceEnabled  bool   `json:"discord_presence_enabled"`
+	KickerEnabled           bool   `json:"kicker_enabled"`
+	ChatWarningsEnabled     bool   `json:"chat_warnings_enabled"`
 	VoiceBansEnabled        bool   `json:"voice_bans_enabled"`
+	DebugLogEnabled         bool   `json:"debug_log_enabled"`
 	RconStatic              bool   `json:"rcon_static"`
 	HttpEnabled             bool   `json:"http_enabled"`
 	HttpListenAddr          string `json:"http_listen_addr"`
@@ -112,7 +117,12 @@ func (q *Queries) ConfigUpdate(ctx context.Context, arg ConfigUpdateParams) erro
 		arg.BdApiAddress,
 		arg.ApiKey,
 		arg.SystrayEnabled,
+		arg.DisconnectedTimeout,
+		arg.DiscordPresenceEnabled,
+		arg.KickerEnabled,
+		arg.ChatWarningsEnabled,
 		arg.VoiceBansEnabled,
+		arg.DebugLogEnabled,
 		arg.RconStatic,
 		arg.HttpEnabled,
 		arg.HttpListenAddr,
@@ -194,8 +204,145 @@ func (q *Queries) FriendsInsert(ctx context.Context, arg FriendsInsertParams) er
 	return err
 }
 
+const links = `-- name: Links :many
+SELECT link_id,
+       name,
+       url,
+       id_format,
+       url,
+       enabled,
+       updated_on,
+       created_on
+FROM links
+`
+
+type LinksRow struct {
+	LinkID    int64     `json:"link_id"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	IDFormat  string    `json:"id_format"`
+	Url_2     string    `json:"url_2"`
+	Enabled   bool      `json:"enabled"`
+	UpdatedOn time.Time `json:"updated_on"`
+	CreatedOn time.Time `json:"created_on"`
+}
+
+func (q *Queries) Links(ctx context.Context) ([]LinksRow, error) {
+	rows, err := q.query(ctx, q.linksStmt, links)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LinksRow
+	for rows.Next() {
+		var i LinksRow
+		if err := rows.Scan(
+			&i.LinkID,
+			&i.Name,
+			&i.Url,
+			&i.IDFormat,
+			&i.Url_2,
+			&i.Enabled,
+			&i.UpdatedOn,
+			&i.CreatedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const linksDelete = `-- name: LinksDelete :exec
+DELETE
+FROM links
+WHERE link_id = ?1
+`
+
+func (q *Queries) LinksDelete(ctx context.Context, linkID int64) error {
+	_, err := q.exec(ctx, q.linksDeleteStmt, linksDelete, linkID)
+	return err
+}
+
+const linksInsert = `-- name: LinksInsert :one
+INSERT INTO links (link_id, name, url, id_format, enabled, created_on, updated_on)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING link_id, name, url, id_format, enabled, created_on, updated_on
+`
+
+type LinksInsertParams struct {
+	LinkID    int64     `json:"link_id"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	IDFormat  string    `json:"id_format"`
+	Enabled   bool      `json:"enabled"`
+	CreatedOn time.Time `json:"created_on"`
+	UpdatedOn time.Time `json:"updated_on"`
+}
+
+func (q *Queries) LinksInsert(ctx context.Context, arg LinksInsertParams) (Link, error) {
+	row := q.queryRow(ctx, q.linksInsertStmt, linksInsert,
+		arg.LinkID,
+		arg.Name,
+		arg.Url,
+		arg.IDFormat,
+		arg.Enabled,
+		arg.CreatedOn,
+		arg.UpdatedOn,
+	)
+	var i Link
+	err := row.Scan(
+		&i.LinkID,
+		&i.Name,
+		&i.Url,
+		&i.IDFormat,
+		&i.Enabled,
+		&i.CreatedOn,
+		&i.UpdatedOn,
+	)
+	return i, err
+}
+
+const linksUpdate = `-- name: LinksUpdate :exec
+UPDATE links
+SET link_id    = ?1,
+    name       = ?2,
+    url        = ?3,
+    id_format  = ?4,
+    enabled    = ?5,
+    updated_on = ?6
+WHERE link_id = ?1
+`
+
+type LinksUpdateParams struct {
+	LinkID    int64     `json:"link_id"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	IDFormat  string    `json:"id_format"`
+	Enabled   bool      `json:"enabled"`
+	UpdatedOn time.Time `json:"updated_on"`
+}
+
+func (q *Queries) LinksUpdate(ctx context.Context, arg LinksUpdateParams) error {
+	_, err := q.exec(ctx, q.linksUpdateStmt, linksUpdate,
+		arg.LinkID,
+		arg.Name,
+		arg.Url,
+		arg.IDFormat,
+		arg.Enabled,
+		arg.UpdatedOn,
+	)
+	return err
+}
+
 const lists = `-- name: Lists :many
-SELECT list_id, list_type, url, enabled, updated_on, created_on
+SELECT list_id, list_type, url, enabled, name, updated_on, created_on
 FROM lists
 `
 
@@ -204,6 +351,7 @@ type ListsRow struct {
 	ListType  int64     `json:"list_type"`
 	Url       string    `json:"url"`
 	Enabled   bool      `json:"enabled"`
+	Name      string    `json:"name"`
 	UpdatedOn time.Time `json:"updated_on"`
 	CreatedOn time.Time `json:"created_on"`
 }
@@ -222,6 +370,7 @@ func (q *Queries) Lists(ctx context.Context) ([]ListsRow, error) {
 			&i.ListType,
 			&i.Url,
 			&i.Enabled,
+			&i.Name,
 			&i.UpdatedOn,
 			&i.CreatedOn,
 		); err != nil {

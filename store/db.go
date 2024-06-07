@@ -39,6 +39,18 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.friendsInsertStmt, err = db.PrepareContext(ctx, friendsInsert); err != nil {
 		return nil, fmt.Errorf("error preparing query FriendsInsert: %w", err)
 	}
+	if q.linksStmt, err = db.PrepareContext(ctx, links); err != nil {
+		return nil, fmt.Errorf("error preparing query Links: %w", err)
+	}
+	if q.linksDeleteStmt, err = db.PrepareContext(ctx, linksDelete); err != nil {
+		return nil, fmt.Errorf("error preparing query LinksDelete: %w", err)
+	}
+	if q.linksInsertStmt, err = db.PrepareContext(ctx, linksInsert); err != nil {
+		return nil, fmt.Errorf("error preparing query LinksInsert: %w", err)
+	}
+	if q.linksUpdateStmt, err = db.PrepareContext(ctx, linksUpdate); err != nil {
+		return nil, fmt.Errorf("error preparing query LinksUpdate: %w", err)
+	}
 	if q.listsStmt, err = db.PrepareContext(ctx, lists); err != nil {
 		return nil, fmt.Errorf("error preparing query Lists: %w", err)
 	}
@@ -112,6 +124,26 @@ func (q *Queries) Close() error {
 	if q.friendsInsertStmt != nil {
 		if cerr := q.friendsInsertStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing friendsInsertStmt: %w", cerr)
+		}
+	}
+	if q.linksStmt != nil {
+		if cerr := q.linksStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing linksStmt: %w", cerr)
+		}
+	}
+	if q.linksDeleteStmt != nil {
+		if cerr := q.linksDeleteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing linksDeleteStmt: %w", cerr)
+		}
+	}
+	if q.linksInsertStmt != nil {
+		if cerr := q.linksInsertStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing linksInsertStmt: %w", cerr)
+		}
+	}
+	if q.linksUpdateStmt != nil {
+		if cerr := q.linksUpdateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing linksUpdateStmt: %w", cerr)
 		}
 	}
 	if q.listsStmt != nil {
@@ -233,6 +265,10 @@ type Queries struct {
 	friendsStmt          *sql.Stmt
 	friendsDeleteStmt    *sql.Stmt
 	friendsInsertStmt    *sql.Stmt
+	linksStmt            *sql.Stmt
+	linksDeleteStmt      *sql.Stmt
+	linksInsertStmt      *sql.Stmt
+	linksUpdateStmt      *sql.Stmt
 	listsStmt            *sql.Stmt
 	listsDeleteStmt      *sql.Stmt
 	listsInsertStmt      *sql.Stmt
@@ -259,6 +295,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		friendsStmt:          q.friendsStmt,
 		friendsDeleteStmt:    q.friendsDeleteStmt,
 		friendsInsertStmt:    q.friendsInsertStmt,
+		linksStmt:            q.linksStmt,
+		linksDeleteStmt:      q.linksDeleteStmt,
+		linksInsertStmt:      q.linksInsertStmt,
+		linksUpdateStmt:      q.linksUpdateStmt,
 		listsStmt:            q.listsStmt,
 		listsDeleteStmt:      q.listsDeleteStmt,
 		listsInsertStmt:      q.listsInsertStmt,
