@@ -164,7 +164,7 @@ func run() int {
 		return 1
 	}
 
-	logCloser := MustCreateLogger(settings, configRoot)
+	logCloser := MustCreateLogger(settings)
 	defer logCloser()
 
 	rcon := newRconConnection(settings.Rcon.String(), settings.Rcon.Password)
