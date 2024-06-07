@@ -5,13 +5,15 @@ import { ErrorBoundary } from '../component/ErrorBoundary.tsx';
 
 export const Route = createRootRoute({
     component: () => {
-        return <>
-            <CssBaseline />
-            <Container maxWidth={'lg'} disableGutters>
-                <ErrorBoundary>
-                    <Outlet />
-                </ErrorBoundary>
-            </Container>
-        </>;
+        return (
+            <>
+                <CssBaseline />
+                <Container maxWidth={'lg'} disableGutters>
+                    <ErrorBoundary>
+                        <Outlet />
+                    </ErrorBoundary>
+                </Container>
+            </>
+        );
     }
 });

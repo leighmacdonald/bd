@@ -5,7 +5,10 @@ import { routeTree } from './routeTree.gen.ts';
 import { StrictMode, useMemo, useState } from 'react';
 import { createThemeByMode } from './theme.ts';
 import { UserSettings } from './api.ts';
-import { SettingsContext, defaultUserSettings } from './context/SettingsContext.ts';
+import {
+    SettingsContext,
+    defaultUserSettings
+} from './context/SettingsContext.ts';
 import { ThemeProvider } from '@mui/material';
 import NiceModal from '@ebay/nice-modal-react';
 
@@ -41,7 +44,10 @@ export const App = (): JSX.Element => {
                         <SettingsContext.Provider
                             value={{ settings, setSettings }}
                         >
-                            <RouterProvider defaultPreload={'intent'} router={router} />
+                            <RouterProvider
+                                defaultPreload={'intent'}
+                                router={router}
+                            />
                         </SettingsContext.Provider>
                     </QueryClientProvider>
                 </NiceModal.Provider>
