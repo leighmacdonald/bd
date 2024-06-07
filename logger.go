@@ -90,7 +90,7 @@ func (t tailLogAdapter) Println(v ...interface{}) {
 	slog.Info(fmt.Sprintf("%v\n", v))
 }
 
-func MustCreateLogger(sm *settingsManager) func() {
+func MustCreateLogger(settings userSettings) func() {
 	var level slog.Level
 
 	switch settings.LogLevel {
@@ -106,13 +106,11 @@ func MustCreateLogger(sm *settingsManager) func() {
 
 	closer := func() {}
 
-	settings := sm.Settings()
-
 	var handlers []slog.Handler
 
 	// Write debug logs to bd.log
 	if settings.DebugLogEnabled {
-		logFile, errLogFile := os.Create(path.Join(configRoot, "bd.log"))
+		logFile, errLogFile := os.Create(path.Join(settings.configRoot, "bd.log"))
 		if errLogFile != nil {
 			panic(fmt.Sprintf("Failed to open logfile: %v", errLogFile))
 		}
