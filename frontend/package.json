@@ -50,9 +50,11 @@
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@fontsource/roboto": "^5.0.13",
-    "@loadable/component": "^5.16.4",
     "@mui/icons-material": "^5.15.19",
     "@mui/material": "^5.15.19",
+    "@tanstack/react-query": "^5.40.1",
+    "@tanstack/react-router": "^1.35.3",
+    "@tanstack/router-vite-plugin": "^1.34.8",
     "@types/jest": "^29.5.12",
     "@types/loadable__component": "^5.13.9",
     "@types/lodash": "^4.17.4",
@@ -82,7 +84,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^14.1.2",
-    "react-router-dom": "^6.23.1",
     "steamid": "^2.0.0",
     "ts-jest": "^29.1.4",
     "ts-loader": "^9.5.1",
@@ -93,5 +94,5 @@
     "vite-plugin-html": "^3.2.2",
     "vite-tsconfig-paths": "^4.3.2"
   },
-  "packageManager": "pnpm@9.0.5+sha256.61bd66913b52012107ec25a6ee4d6a161021ab99e04f6acee3aa50d0e34b4af9"
+  "packageManager": "pnpm@9.1.4+sha512.9df9cf27c91715646c7d675d1c9c8e41f6fce88246f1318c1aa6a1ed1aeb3c4f032fcdf4ba63cc69c4fe6d634279176b5358727d8f2cc1e65b65f43ce2f8bfb0"
 }

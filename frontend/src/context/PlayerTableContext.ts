@@ -1,6 +1,5 @@
 import { createContext, Dispatch, SetStateAction } from 'react';
 import { Order, validColumns } from '../component/PlayerTable';
-import { Player } from '../api';
 import { noop } from '../util';
 
 export const defaultPlayerTableConfig: PlayerTableConfigProps = {
@@ -18,8 +17,8 @@ export const defaultPlayerTableConfig: PlayerTableConfigProps = {
 interface PlayerTableConfigProps {
     order: Order;
     setOrder: Dispatch<SetStateAction<Order>>;
-    orderBy: keyof Player;
-    setOrderBy: Dispatch<SetStateAction<keyof Player>>;
+    orderBy: validColumns;
+    setOrderBy: Dispatch<SetStateAction<validColumns>>;
     matchesOnly: boolean;
     setMatchesOnly: Dispatch<SetStateAction<boolean>>;
     enabledColumns: validColumns[];
