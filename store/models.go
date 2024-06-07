@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	SteamID                 int64  `json:"steam_id"`
+	SteamID                 string `json:"steam_id"`
 	SteamDir                string `json:"steam_dir"`
 	Tf2Dir                  string `json:"tf2_dir"`
 	AutoLaunchGame          bool   `json:"auto_launch_game"`

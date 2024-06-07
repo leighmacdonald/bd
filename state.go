@@ -324,8 +324,9 @@ func (s *gameState) applyRemoteData(ctx context.Context, data playerDataUpdate, 
 
 	// Friends
 	player.Friends = data.friends
+	ourSteamID := settings.GetSteamID()
 	for _, friend := range data.friends {
-		if friend.SteamID == settings.SteamID {
+		if friend.SteamID == ourSteamID {
 			player.OurFriend = true
 			break
 		}
@@ -366,11 +367,13 @@ func (s *gameState) onKill(evt killEvent, settings userSettings) {
 	src.Kills++
 	target.Deaths++
 
-	if target.SteamID == settings.SteamID {
+	ourSteamID := settings.GetSteamID()
+
+	if target.SteamID == ourSteamID {
 		src.DeathsBy++
 	}
 
-	if src.SteamID == settings.SteamID {
+	if src.SteamID == ourSteamID {
 		target.KillsOn++
 	}
 

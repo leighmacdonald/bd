@@ -14,6 +14,10 @@ type Querier interface {
 	Friends(ctx context.Context, steamID int64) ([]PlayerFriend, error)
 	FriendsDelete(ctx context.Context, steamID int64) error
 	FriendsInsert(ctx context.Context, arg FriendsInsertParams) error
+	Links(ctx context.Context) ([]LinksRow, error)
+	LinksDelete(ctx context.Context, linkID int64) error
+	LinksInsert(ctx context.Context, arg LinksInsertParams) (Link, error)
+	LinksUpdate(ctx context.Context, arg LinksUpdateParams) error
 	Lists(ctx context.Context) ([]ListsRow, error)
 	ListsDelete(ctx context.Context, listID int64) error
 	ListsInsert(ctx context.Context, arg ListsInsertParams) (List, error)

@@ -1,5 +1,5 @@
 create table if not exists config (
-    steam_id                  bigint  not null default 0 CHECK ( steam_id == 0 OR steam_id > 76561197960265753 ),
+    steam_id                  text    not null default '',
     steam_dir                 text    not null default '',
     tf2_dir                   text    not null default '',
     auto_launch_game          boolean not null default false,
@@ -27,11 +27,12 @@ create table if not exists config (
 );
 
 -- Create default row
-insert into config (steam_id) values (0);
+insert into config (steam_id)
+values (0);
 
 create table if not exists links
 (
-    link_id    int primary key,
+    link_id    integer primary key,
     name       text unique not null,
     url        text unique not null,
     id_format  text        not null default 'steam64' CHECK ( id_format IN ('steam64', 'steam3', 'steam') ),
@@ -55,9 +56,9 @@ alter table lists
     add column name text not null default '';
 
 insert into lists (list_type, name, url, enabled)
-VALUES ('tf2bd_playerlist', '@trusted', 'https://trusted.roto.lol/v1/steamids', false),
-       ('tf2bd_playerlist', 'Pazer',
+VALUES (1, '@trusted', 'https://trusted.roto.lol/v1/steamids', false),
+       (1, 'Pazer',
         'https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/staging/cfg/playerlist.official.json',
         false),
-       ('tf2bd_playerlist', 'Uncletopia', 'https://uncletopia.com/export/bans/tf2bd', false)
+       (1, 'Uncletopia', 'https://uncletopia.com/export/bans/tf2bd', false)
 ;
