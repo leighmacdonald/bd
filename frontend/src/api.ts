@@ -1,6 +1,3 @@
-import { useEffect, useState } from 'react';
-import { logError } from './util';
-
 const baseUrl = `${location.protocol}//${location.host}`;
 const headers: Record<string, string> = {
     'Content-Type': 'application/json; charset=UTF-8'
@@ -73,7 +70,7 @@ export interface Server {
     last_update: string;
 }
 
-export interface State {
+export interface GameState {
     game_running: boolean;
     server: Server;
     players: Player[];
@@ -195,67 +192,139 @@ export interface UserNote {
 
 export type kickReasons = 'idle' | 'scamming' | 'cheating' | 'other';
 
-export const callVote = async (
-    steamID: string,
-    reason: kickReasons = 'cheating'
-) => {
+const callVote = async (steamID: string, reason: kickReasons = 'cheating') => {
     await call('POST', `/api/callvote/${steamID}/${reason}`);
 };
 
-export const addWhitelist = async (steamId: string) =>
+export const callVoteMutation = (steam_id: string) => {
+    return {
+        mutationKey: ['callVote', { steam_id }],
+        mutationFn: async (vars: { reason: kickReasons }) => {
+            return await callVote(steam_id, vars.reason);
+        }
+    };
+};
+
+const addWhitelist = async (steamId: string) =>
     await call('POST', `/api/whitelist/${steamId}`);
 
-export const deleteWhitelist = async (steamId: string) =>
+export const addWhitelistMutation = () => {
+    return {
+        mutationKey: ['addWhitelist'],
+        mutationFn: async (variables: { steamId: string }) => {
+            return await addWhitelist(variables.steamId);
+        }
+    };
+};
+
+const deleteWhitelist = async (steamId: string) =>
     await call('DELETE', `/api/whitelist/${steamId}`);
 
-export const saveUserNote = async (steamId: string, notes: string) =>
+export const deleteWhitelistMutation = () => {
+    return {
+        mutationKey: ['deleteWhitelist'],
+        mutationFn: async (variables: { steamId: string }) => {
+            return await deleteWhitelist(variables.steamId);
+        }
+    };
+};
+
+const saveUserNote = async (steamId: string, notes: string) =>
     await call<UserNote>('POST', `/api/notes/${steamId}`, { note: notes });
 
-export const deleteUserNote = async (steamId: string) =>
+export const saveUserNoteMutation = (steamId: string) => {
+    return {
+        mutationKey: ['saveUserNote', { steamId }],
+        mutationFn: async (variables: { notes: string }) => {
+            return await saveUserNote(steamId, variables.notes);
+        }
+    };
+};
+
+const deleteUserNote = async (steamId: string) =>
     await call<UserNote>('DELETE', `/api/notes/${steamId}`);
 
-export const markUser = async (steamId: string, attrs: string[]) =>
+export const deleteUserNoteMutation = (steamId: string) => {
+    return {
+        mutationKey: ['deleteUserNote', { steamId }],
+        mutationFn: async () => {
+            return await deleteUserNote(steamId);
+        }
+    };
+};
+
+const markUser = async (steamId: string, attrs: string[]) =>
     await call('POST', `/api/mark/${steamId}`, { attrs });
 
-export const unmarkUser = async (steamId: string) =>
+export const markUserMutation = (steamId: string) => {
+    return {
+        mutationKey: ['markUser', { steamId }],
+        mutationFn: async (vars: { attrs: string[] }) => {
+            return await markUser(steamId, vars.attrs);
+        }
+    };
+};
+
+const unmarkUser = async (steamId: string) =>
     await call('DELETE', `/api/mark/${steamId}`);
 
-const getState = async () => await callJson<State>('GET', '/api/state');
+export const unmarkUserMutation = (steamId: string) => {
+    return {
+        mutationKey: ['unmarkUser', { steamId }],
+        mutationFn: async () => {
+            return await unmarkUser(steamId);
+        }
+    };
+};
 
-export const getLaunch = async () => await callJson('GET', '/api/launch');
-export const getQuit = async () => await callJson('GET', '/api/quit');
+const getState = async () => await callJson<GameState>('GET', '/api/state');
 
-export const getUserSettings = async () =>
+export const getStateOptions = () => {
+    return {
+        queryKey: ['state'],
+        queryFn: getState,
+        refetchInterval: 1000
+    };
+};
+
+const getLaunch = async () => await callJson('GET', '/api/launch');
+
+export const getLaunchOptions = () => {
+    return {
+        queryKey: ['launch'],
+        queryFn: getLaunch
+    };
+};
+
+const getQuit = async () => await callJson('GET', '/api/quit');
+
+export const getQuitOptions = () => {
+    return {
+        queryKey: ['quit'],
+        queryFn: getQuit
+    };
+};
+
+const getUserSettings = async () =>
     await callJson<UserSettings>('GET', '/api/settings');
 
-export const saveUserSettings = async (settings: UserSettings) =>
+export const getUserSettingsQuery = () => {
+    return {
+        queryKey: ['userSettings'],
+        queryFn: async () => {
+            return await getUserSettings();
+        }
+    };
+};
+
+const saveUserSettings = async (settings: UserSettings) =>
     await call('PUT', '/api/settings', settings);
 
-export const useCurrentState = () => {
-    const [state, setState] = useState<State>({
-        game_running: false,
-        server: {
-            server_name: '',
-            current_map: '',
-            tags: [],
-            last_update: ''
-        },
-        players: []
-    });
-
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const newState = await getState();
-                setState(newState);
-            } catch (e) {
-                logError(e);
-            }
-        }, 1000);
-        return () => {
-            clearInterval(interval);
-        };
-    }, []);
-
-    return state;
+export const saveUserSettingsMutation = () => {
+    return {
+        mutationKey: ['userSettings'],
+        mutationFn: async (variables: UserSettings) => {
+            return await saveUserSettings(variables);
+        }
+    };
 };

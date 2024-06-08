@@ -1,39 +1,35 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { addWhitelist } from '../../api';
+import { addWhitelistMutation } from '../../api';
 import { IconMenuItem } from 'mui-nested-menu';
 import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';
 import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
+import { useMutation } from '@tanstack/react-query';
 
 export const WhitelistMenu = ({
-    steam_id,
+    steamId,
     onClose
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
-    const onAddWhitelist = useCallback(
-        async (steamId: string) => {
-            try {
-                await addWhitelist(steamId);
-            } catch (e) {
-                logError(e);
-            } finally {
-                onClose();
-            }
+    const mutation = useMutation({
+        ...addWhitelistMutation(),
+        onSuccess: () => {
+            onClose();
         },
-        [onClose]
-    );
+        onError: (err: Error) => {
+            logError(err);
+            onClose();
+        }
+    });
 
     return (
         <IconMenuItem
             leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
             label={t('player_table.menu.whitelist_label')}
             onClick={async () => {
-                await onAddWhitelist(steam_id);
+                mutation.mutate({ steamId });
             }}
         />
     );
 };
-
-export default WhitelistMenu;

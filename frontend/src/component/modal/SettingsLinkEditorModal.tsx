@@ -164,5 +164,3 @@ export const SettingsLinkEditorModal = NiceModal.create<SettingsLinkProps>(
         );
     }
 );
-
-export default SettingsLinkEditorModal;

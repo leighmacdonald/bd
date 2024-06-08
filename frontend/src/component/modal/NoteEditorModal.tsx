@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     DialogActions,
@@ -8,12 +8,13 @@ import {
 } from '@mui/material';
 import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
-import { saveUserNote } from '../../api.ts';
+import { saveUserNoteMutation } from '../../api.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../../util.ts';
 import CancelButton from '../CancelButton.tsx';
 import SaveButton from '../SaveButton.tsx';
 import ClearButton from '../ClearButton.tsx';
+import { useMutation } from '@tanstack/react-query';
 
 interface NoteEditorProps {
     notes: string;
@@ -26,14 +27,20 @@ export const NoteEditorModal = NiceModal.create<NoteEditorProps>(
         const { t } = useTranslation();
         const modal = useModal();
 
-        const onSaveNotes = useCallback(async () => {
-            try {
-                await saveUserNote(steamId, newNotes);
+        const mutation = useMutation({
+            ...saveUserNoteMutation(steamId),
+            onSuccess: async () => {
                 await modal.hide();
-            } catch (e) {
-                logError(`Error updating note: ${e}`);
+                console.log(`Note updated: ${steamId}`);
+            },
+            onError: (error) => {
+                logError(`Error updating note: ${error}`);
             }
-        }, [newNotes, steamId, modal]);
+        });
+
+        const onSaveNotes = async () => {
+            mutation.mutate({ notes: newNotes });
+        };
 
         return (
             <Dialog fullWidth {...muiDialog(modal)}>
@@ -68,5 +75,3 @@ export const NoteEditorModal = NiceModal.create<NoteEditorProps>(
         );
     }
 );
-
-export default NoteEditorModal;

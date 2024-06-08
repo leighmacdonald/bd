@@ -10,7 +10,7 @@ import { SettingsContext } from '../../context/SettingsContext';
 
 export const LinksMenu = ({
     contextMenuPos,
-    steam_id,
+    steamId,
     onClose
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
@@ -40,10 +40,10 @@ export const LinksMenu = ({
                 .map((link) => (
                     <IconMenuItem
                         onClick={() => {
-                            onClickLink(steam_id, link);
+                            onClickLink(steamId, link);
                         }}
                         label={link.name}
-                        key={`link-${steam_id}-${link.name}`}
+                        key={`link-${steamId}-${link.name}`}
                     />
                 ))}
         </NestedMenuItem>

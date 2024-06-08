@@ -1,4 +1,4 @@
-import { useCallback, useContext } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
@@ -12,23 +12,20 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { logError } from '../util';
-import {
-    getLaunch,
-    getQuit,
-    Team,
-    useCurrentState,
-    UserSettings
-} from '../api';
+import { getLaunchOptions, getQuitOptions, Team, UserSettings } from '../api';
 import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { ModalSettings } from './modal';
 import { SettingsContext } from '../context/SettingsContext.ts';
+import { useGameState } from '../context/GameStateContext.ts';
+import { useQueryClient } from '@tanstack/react-query';
 
 export const Toolbar = () => {
-    const state = useCurrentState();
+    const { state } = useGameState();
     const { t } = useTranslation();
     const { setMatchesOnly } = useContext(PlayerTableContext);
     const { settings, setSettings } = useContext(SettingsContext);
+    const queryClient = useQueryClient();
 
     const onSetMatches = useCallback(() => {
         setMatchesOnly((prevState) => {
@@ -36,6 +33,14 @@ export const Toolbar = () => {
             return !prevState;
         });
     }, [setMatchesOnly]);
+
+    const gameRunningQuery = useMemo(() => {
+        if (!state.game_running) {
+            return getLaunchOptions();
+        } else {
+            return getQuitOptions();
+        }
+    }, [state.game_running]);
 
     return (
         <Stack direction={'row'}>
@@ -85,7 +90,9 @@ export const Toolbar = () => {
                     <Box>
                         <IconButton
                             color={!state.game_running ? 'success' : 'error'}
-                            onClick={!state.game_running ? getLaunch : getQuit}
+                            onClick={async () => {
+                                await queryClient.fetchQuery(gameRunningQuery);
+                            }}
                         >
                             {!state.game_running ? (
                                 <PlayArrowIcon />

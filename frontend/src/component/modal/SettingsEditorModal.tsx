@@ -9,7 +9,12 @@ import {
     useTheme
 } from '@mui/material';
 import Dialog from '@mui/material/Dialog';
-import { Link, List, saveUserSettings, UserSettings } from '../../api.ts';
+import {
+    Link,
+    List,
+    saveUserSettingsMutation,
+    UserSettings
+} from '../../api.ts';
 import Grid from '@mui/material/Unstable_Grid2';
 import Stack from '@mui/material/Stack';
 import IconButton from '@mui/material/IconButton';
@@ -36,8 +41,9 @@ import SettingsTextBox from '../SettingsTextBox.tsx';
 import CancelButton from '../CancelButton.tsx';
 import SaveButton from '../SaveButton.tsx';
 import ResetButton from '../ResetButton.tsx';
+import { useMutation } from '@tanstack/react-query';
 
-const SettingsEditorModal = NiceModal.create(
+export const SettingsEditorModal = NiceModal.create(
     ({ settings }: { settings: UserSettings }) => {
         const settingsModal = useModal(ModalSettings);
         const { t } = useTranslation();
@@ -93,15 +99,21 @@ const SettingsEditorModal = NiceModal.create(
             handleReset();
         }, [handleReset]);
 
-        const onSubmit = useCallback(async () => {
-            try {
-                await saveUserSettings(newSettings);
+        const options = saveUserSettingsMutation();
+
+        const settingsMutation = useMutation({
+            ...options,
+            onSuccess: async () => {
                 modal.resolve(newSettings);
                 await modal.hide();
-            } catch (reason) {
-                modal.reject(reason);
-                logError(reason);
+            },
+            onError: (error) => {
+                modal.reject(error);
             }
+        });
+
+        const onSubmit = useCallback(async () => {
+            settingsMutation.mutate(newSettings);
         }, [newSettings, settingsModal]);
 
         const toggleList = useCallback(
@@ -774,5 +786,3 @@ const SettingsEditorModal = NiceModal.create(
         );
     }
 );
-
-export default SettingsEditorModal;
