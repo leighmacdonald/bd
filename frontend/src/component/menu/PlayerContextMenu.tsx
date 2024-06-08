@@ -47,27 +47,27 @@ export const PlayerContextMenu = ({
             </MenuItem>
             <MarkMenu
                 contextMenuPos={contextMenuPos}
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 onClose={onClose}
             />
             <UnmarkMenu
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 contextMenuPos={contextMenuPos}
                 onClose={onClose}
             />
             <CallVoteMenu
                 contextMenuPos={contextMenuPos}
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 onClose={onClose}
             />
             <LinksMenu
                 contextMenuPos={contextMenuPos}
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 onClose={onClose}
             />
             <SteamIDMenu
                 onClose={onClose}
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 contextMenuPos={contextMenuPos}
             />
             {/*<IconMenuItem*/}
@@ -81,19 +81,19 @@ export const PlayerContextMenu = ({
             {player.whitelist ? (
                 <RemoveWhitelistMenu
                     contextMenuPos={contextMenuPos}
-                    steam_id={player.steam_id}
+                    steamId={player.steam_id}
                     onClose={onClose}
                 />
             ) : (
                 <WhitelistMenu
-                    steam_id={player.steam_id}
+                    steamId={player.steam_id}
                     contextMenuPos={contextMenuPos}
                     onClose={onClose}
                 />
             )}
             <NotesMenu
                 notes={player.notes}
-                steam_id={player.steam_id}
+                steamId={player.steam_id}
                 onClose={onClose}
             />
         </Menu>

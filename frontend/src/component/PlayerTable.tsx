@@ -14,49 +14,15 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
-import { addWhitelist, useCurrentState } from '../api';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { Trans } from 'react-i18next';
-import { logError } from '../util';
 import { PlayerTableRow } from './PlayerTableRow';
 import { PlayerTableContext } from '../context/PlayerTableContext';
-
-const descendingComparator = <T,>(a: T, b: T, orderBy: keyof T) => {
-    if (b[orderBy] < a[orderBy]) {
-        return -1;
-    }
-    if (b[orderBy] > a[orderBy]) {
-        return 1;
-    }
-    return 0;
-};
+import { useGameState } from '../context/GameStateContext.ts';
+import { useMutation } from '@tanstack/react-query';
+import { addWhitelistMutation } from '../api.ts';
 
 export type Order = 'asc' | 'desc';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getComparator = <Key extends keyof any>(
-    order: Order,
-    orderBy: Key
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): ((a: { [key in Key]: any }, b: { [key in Key]: any }) => number) =>
-    order === 'asc'
-        ? (a, b) => descendingComparator(a, b, orderBy)
-        : (a, b) => -descendingComparator(a, b, orderBy);
-
-const stableSort = <T,>(
-    array: readonly T[],
-    comparator: (a: T, b: T) => number
-) => {
-    const stabilizedThis = array.map((el, index) => [el, index] as [T, number]);
-    stabilizedThis.sort((a, b) => {
-        const order = comparator(a[0], b[0]);
-        if (order !== 0) {
-            return order;
-        }
-        return a[1] - b[1];
-    });
-    return stabilizedThis.map((el) => el[0]);
-};
 
 interface HeadCell {
     disablePadding: boolean;
@@ -274,32 +240,26 @@ const PlayerTableHead = () => {
 };
 
 export const PlayerTable = () => {
-    const state = useCurrentState();
-    const { orderBy, order, matchesOnly } = useContext(PlayerTableContext);
-    const onWhitelist = useCallback(async (steamId: string) => {
-        try {
-            await addWhitelist(steamId);
-        } catch (e) {
-            logError(`Error adding whitelist: ${e}`);
-        }
-    }, []);
+    const { state } = useGameState();
 
-    const visibleRows = useMemo(() => {
-        const filteredPlayers = state.players.filter(
-            (p) => !matchesOnly || (!p.whitelist && p.matches?.length)
-        );
-        return stableSort(filteredPlayers, getComparator(order, orderBy));
-    }, [order, orderBy, state.players, matchesOnly]);
+    const whitelist = useMutation(addWhitelistMutation());
+
+    const onWhitelist = useCallback(
+        async (steamId: string) => {
+            whitelist.mutate({ steamId });
+        },
+        [whitelist.mutate]
+    );
 
     const playerRows = useMemo(() => {
-        return visibleRows.map((player, i) => (
+        return state.players.map((player, i) => (
             <PlayerTableRow
                 onWhitelist={onWhitelist}
                 player={player}
                 key={`player-row-${i}-${player.steam_id}`}
             />
         ));
-    }, [onWhitelist, visibleRows]);
+    }, [onWhitelist]);
 
     return (
         <TableContainer sx={{ overflow: 'hidden' }}>

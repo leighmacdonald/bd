@@ -8,11 +8,11 @@ import SteamID from 'steamid';
 
 export const SteamIDMenu = ({
     contextMenuPos,
-    steam_id,
+    steamId,
     onClose
 }: SubMenuProps & SteamIDProps) => {
     const { t } = useTranslation();
-    const id = new SteamID(steam_id);
+    const id = new SteamID(steamId);
     return (
         <NestedMenuItem
             rightIcon={<ArrowRightOutlinedIcon />}

@@ -1,4 +1,4 @@
-import { createContext, Dispatch, SetStateAction } from 'react';
+import { createContext, Dispatch, SetStateAction, useContext } from 'react';
 import { UserSettings } from '../api';
 import { noop } from '../util.ts';
 
@@ -47,3 +47,5 @@ export const SettingsContext = createContext<SettingsContextProps>({
     settings: defaultUserSettings,
     setSettings: noop
 });
+
+export const useSettingsState = () => useContext(SettingsContext);

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
 import {
     DialogActions,
@@ -9,70 +9,48 @@ import {
 import Stack from '@mui/material/Stack';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { logError } from '../../util';
 import { CancelButton } from '../CancelButton.tsx';
-import { SettingsContext } from '../../context/SettingsContext';
 import SaveButton from '../SaveButton.tsx';
 
-interface MarkNewTagEditorProps {
-    steam_id: string;
-    onMarkAs: (steamId: string, attrs: string[]) => Promise<void>;
-}
+export const MarkNewTagEditorModal = NiceModal.create(() => {
+    const [tag, setTag] = useState<string>('');
+    const { t } = useTranslation();
+    const modal = useModal();
 
-export const MarkNewTagEditorModal = NiceModal.create<MarkNewTagEditorProps>(
-    ({ steam_id, onMarkAs }) => {
-        const [tag, setTag] = useState<string>('');
-        const { t } = useTranslation();
-        const modal = useModal();
-        const { settings, setSettings } = useContext(SettingsContext);
+    const onSaveMarkWithNewTag = () => {
+        modal.resolve({ tag });
+    };
 
-        const onSaveMarkWithNewTag = useCallback(async () => {
-            try {
-                await onMarkAs(steam_id, [tag]);
-                setSettings({
-                    ...settings,
-                    unique_tags: [tag, ...settings.unique_tags]
-                });
-            } catch (e) {
-                logError(`Error updating note: ${e}`);
-            } finally {
-                await modal.hide();
-            }
-        }, [onMarkAs, steam_id, tag, setSettings, settings, modal]);
+    const validTag = useMemo(() => {
+        return tag.length > 0 && !tag.match(/\s/);
+    }, [tag]);
 
-        const validTag = useMemo(() => {
-            return tag.length > 0 && !tag.match(/\s/);
-        }, [tag]);
-
-        return (
-            <Dialog fullWidth {...muiDialog(modal)}>
-                <DialogTitle>
-                    <Trans i18nKey={'mark_new_tag.title'} />
-                </DialogTitle>
-                <DialogContent>
-                    <Stack spacing={1} padding={0}>
-                        <TextField
-                            error={tag.length > 0 && !validTag}
-                            id="new-tag-editor-field"
-                            label={t('mark_new_tag.tag')}
-                            fullWidth
-                            value={tag}
-                            onChange={(evt) => {
-                                setTag(evt.target.value);
-                            }}
-                        />
-                    </Stack>
-                </DialogContent>
-                <DialogActions>
-                    <CancelButton onClick={modal.hide} />
-                    <SaveButton
-                        onClick={onSaveMarkWithNewTag}
-                        disabled={!validTag}
+    return (
+        <Dialog fullWidth {...muiDialog(modal)}>
+            <DialogTitle>
+                <Trans i18nKey={'mark_new_tag.title'} />
+            </DialogTitle>
+            <DialogContent>
+                <Stack spacing={1} padding={0}>
+                    <TextField
+                        error={tag.length > 0 && !validTag}
+                        id="new-tag-editor-field"
+                        label={t('mark_new_tag.tag')}
+                        fullWidth
+                        value={tag}
+                        onChange={(evt) => {
+                            setTag(evt.target.value);
+                        }}
                     />
-                </DialogActions>
-            </Dialog>
-        );
-    }
-);
-
-export default MarkNewTagEditorModal;
+                </Stack>
+            </DialogContent>
+            <DialogActions>
+                <CancelButton onClick={modal.hide} />
+                <SaveButton
+                    onClick={onSaveMarkWithNewTag}
+                    disabled={!validTag}
+                />
+            </DialogActions>
+        </Dialog>
+    );
+});

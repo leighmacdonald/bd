@@ -114,4 +114,3 @@ export const SettingsListEditorModal = NiceModal.create<SettingsListProps>(
         );
     }
 );
-export default SettingsListEditorModal;

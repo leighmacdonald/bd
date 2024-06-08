@@ -1,27 +1,24 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback } from 'react';
-import { deleteWhitelist } from '../../api';
 import { IconMenuItem } from 'mui-nested-menu';
 import NotificationsPausedOutlinedIcon from '@mui/icons-material/NotificationsPausedOutlined';
 import { SteamIDProps, SubMenuProps } from './common';
-import { logError } from '../../util';
+import { useMutation } from '@tanstack/react-query';
+import { deleteWhitelistMutation } from '../../api.ts';
 
 export const RemoveWhitelistMenu = ({
-    steam_id,
+    steamId,
     onClose
 }: SteamIDProps & SubMenuProps) => {
     const { t } = useTranslation();
 
+    const mutation = useMutation(deleteWhitelistMutation());
+
     const onDeleteWhitelist = useCallback(
-        async (steam_id: string) => {
-            try {
-                await deleteWhitelist(steam_id);
-            } catch (e) {
-                logError(e);
-            } finally {
-                onClose();
-            }
+        async (steamId: string) => {
+            mutation.mutate({ steamId });
         },
+
         [onClose]
     );
 
@@ -30,7 +27,7 @@ export const RemoveWhitelistMenu = ({
             leftIcon={<NotificationsPausedOutlinedIcon color={'primary'} />}
             label={t('player_table.menu.remove_whitelist_label')}
             onClick={async () => {
-                await onDeleteWhitelist(steam_id);
+                await onDeleteWhitelist(steamId);
             }}
         />
     );

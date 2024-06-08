@@ -13,7 +13,7 @@ interface NotesMenuProps {
 export const NotesMenu = ({
     notes,
     onClose,
-    steam_id
+    steamId
 }: NotesMenuProps & SteamIDProps) => {
     return (
         <IconMenuItem
@@ -21,7 +21,7 @@ export const NotesMenu = ({
             label={'Edit Notes'}
             onClick={() => {
                 NiceModal.show(ModalNotes, {
-                    steamId: steam_id,
+                    steamId: steamId,
                     notes: notes
                 }).then((value) => {
                     logError(value);

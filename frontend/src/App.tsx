@@ -4,13 +4,14 @@ import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen.ts';
 import { StrictMode, useMemo, useState } from 'react';
 import { createThemeByMode } from './theme.ts';
-import { UserSettings } from './api.ts';
+import { GameState, UserSettings } from './api.ts';
 import {
     SettingsContext,
     defaultUserSettings
 } from './context/SettingsContext.ts';
 import { ThemeProvider } from '@mui/material';
 import NiceModal from '@ebay/nice-modal-react';
+import { GameStateContext } from './context/GameStateContext.ts';
 
 const queryClient = new QueryClient();
 
@@ -35,22 +36,33 @@ declare module '@tanstack/react-router' {
 export const App = (): JSX.Element => {
     const theme = useMemo(() => createThemeByMode(), []);
     const [settings, setSettings] = useState<UserSettings>(defaultUserSettings);
+    const [state, setState] = useState<GameState>({
+        game_running: false,
+        server: {
+            server_name: '',
+            current_map: '',
+            tags: [],
+            last_update: ''
+        },
+        players: []
+    });
 
     return (
         <ThemeProvider theme={theme}>
             <StrictMode>
-                <NiceModal.Provider>
-                    <QueryClientProvider client={queryClient}>
-                        <SettingsContext.Provider
-                            value={{ settings, setSettings }}
-                        >
-                            <RouterProvider
-                                defaultPreload={'intent'}
-                                router={router}
-                            />
-                        </SettingsContext.Provider>
-                    </QueryClientProvider>
-                </NiceModal.Provider>
+                <QueryClientProvider client={queryClient}>
+                    <SettingsContext.Provider value={{ settings, setSettings }}>
+                        <GameStateContext.Provider value={{ setState, state }}>
+                            <NiceModal.Provider>
+                                <RouterProvider
+                                    defaultPreload={'intent'}
+                                    router={router}
+                                    context={{}}
+                                />
+                            </NiceModal.Provider>
+                        </GameStateContext.Provider>
+                    </SettingsContext.Provider>
+                </QueryClientProvider>
             </StrictMode>
         </ThemeProvider>
     );

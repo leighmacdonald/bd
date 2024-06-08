@@ -1,31 +1,33 @@
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconMenuItem, NestedMenuItem } from 'mui-nested-menu';
 import ArrowRightOutlinedIcon from '@mui/icons-material/ArrowRightOutlined';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
-import { callVote, kickReasons } from '../../api';
+import { callVoteMutation, kickReasons } from '../../api';
 import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
+import { useMutation } from '@tanstack/react-query';
 
 export const CallVoteMenu = ({
     contextMenuPos,
-    steam_id,
+    steamId,
     onClose
 }: SubMenuProps & SteamIDProps) => {
     const { t } = useTranslation();
 
-    const onCallVote = useCallback(
-        async (reason: kickReasons) => {
-            try {
-                await callVote(steam_id, reason);
-            } catch (e) {
-                logError(e);
-            } finally {
-                onClose();
-            }
+    const mutation = useMutation({
+        ...callVoteMutation(steamId),
+        onSuccess: () => {
+            onClose();
+            console.log('Called vote');
         },
-        [onClose, steam_id]
-    );
+        onError: (error: Error) => {
+            logError(error);
+        }
+    });
+
+    const onCallVote = async (reason: kickReasons) => {
+        mutation.mutate({ reason });
+    };
 
     return (
         <NestedMenuItem
@@ -48,5 +50,3 @@ export const CallVoteMenu = ({
         </NestedMenuItem>
     );
 };
-
-export default CallVoteMenu;

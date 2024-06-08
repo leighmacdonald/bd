@@ -4,7 +4,7 @@ export interface SubMenuProps {
 }
 
 export interface SteamIDProps {
-    steam_id: string;
+    steamId: string;
 }
 
 export type NullablePosition = {

@@ -1,18 +1,10 @@
-import loadable from '@loadable/component';
 import NiceModal from '@ebay/nice-modal-react';
-
-const NoteEditorModal = loadable(() => import('./NoteEditorModal'));
-const SettingsEditorModal = loadable(() => import('./SettingsEditorModal'));
-const SettingsKickTagsModal = loadable(
-    () => import('./SettingsKickTagEditorModal')
-);
-const SettingsLinkEditorModal = loadable(
-    () => import('./SettingsLinkEditorModal')
-);
-const SettingsListEditorModal = loadable(
-    () => import('./SettingsListEditorModal')
-);
-const MarkNewTagEditorModal = loadable(() => import('./MarkNewTagEditorModal'));
+import { NoteEditorModal } from './NoteEditorModal.tsx';
+import { MarkNewTagEditorModal } from './MarkNewTagEditorModal.tsx';
+import { SettingsKickTagEditorModal } from './SettingsKickTagEditorModal.tsx';
+import { SettingsLinkEditorModal } from './SettingsLinkEditorModal.tsx';
+import { SettingsListEditorModal } from './SettingsListEditorModal.tsx';
+import { SettingsEditorModal } from './SettingsEditorModal.tsx';
 
 export const ModalNotes = 'modal-notes';
 export const ModalMarkNewTag = 'modal-mark-new-tag';
@@ -24,7 +16,7 @@ export const ModalSettingsList = 'modal-settings-list';
 [
     [ModalNotes, NoteEditorModal],
     [ModalMarkNewTag, MarkNewTagEditorModal],
-    [ModalSettingsAddKickTag, SettingsKickTagsModal],
+    [ModalSettingsAddKickTag, SettingsKickTagEditorModal],
     [ModalSettingsLinks, SettingsLinkEditorModal],
     [ModalSettingsList, SettingsListEditorModal],
     [ModalSettings, SettingsEditorModal]

@@ -77,5 +77,3 @@ export const SettingsKickTagEditorModal = NiceModal.create<KickTagEditorProps>(
         );
     }
 );
-
-export default SettingsKickTagEditorModal;

@@ -1,33 +1,33 @@
-import { useCallback } from 'react';
-import { unmarkUser } from '../../api';
 import { IconMenuItem } from 'mui-nested-menu';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { SteamIDProps, SubMenuProps } from './common';
 import { logError } from '../../util';
+import { useMutation } from '@tanstack/react-query';
+import { unmarkUserMutation } from '../../api.ts';
 
 export const UnmarkMenu = ({
-    steam_id,
+    steamId,
     onClose
 }: SteamIDProps & SubMenuProps) => {
-    const onUnmark = useCallback(
-        async (steamId: string) => {
-            try {
-                await unmarkUser(steamId);
-            } catch (e) {
-                logError(e);
-            } finally {
-                onClose();
-            }
+    const mutation = useMutation({
+        ...unmarkUserMutation(steamId),
+
+        onSuccess: () => {
+            console.log('Unmaked user');
+            onClose();
         },
-        [onClose]
-    );
+        onError: (err: Error) => {
+            logError(err);
+            onClose();
+        }
+    });
 
     return (
         <IconMenuItem
             leftIcon={<DeleteOutlinedIcon color={'primary'} />}
             label={'Unmark'}
             onClick={async () => {
-                await onUnmark(steam_id);
+                mutation.mutate();
             }}
         />
     );
