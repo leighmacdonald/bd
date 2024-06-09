@@ -55,6 +55,7 @@
     "@tanstack/react-form": "^0.20.3",
     "@tanstack/react-query": "^5.40.1",
     "@tanstack/react-router": "^1.35.3",
+    "@tanstack/react-table": "^8.17.3",
     "@tanstack/router-vite-plugin": "^1.34.8",
     "@tanstack/zod-form-adapter": "^0.20.3",
     "@types/jest": "^29.5.12",

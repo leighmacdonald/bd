@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState, MouseEvent } from 'react';
+import { useContext, useMemo, useState, MouseEvent } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
@@ -13,14 +13,23 @@ import TableRow from '@mui/material/TableRow';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import Tooltip from '@mui/material/Tooltip';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import { Trans } from 'react-i18next';
-import { PlayerTableRow } from './PlayerTableRow';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { useGameState } from '../context/GameStateContext.ts';
-import { useMutation } from '@tanstack/react-query';
-import { addWhitelistMutation } from '../api.ts';
+import { Player } from '../api.ts';
+import {
+    ColumnFiltersState,
+    createColumnHelper,
+    flexRender,
+    getCoreRowModel,
+    getFilteredRowModel,
+    getSortedRowModel,
+    SortingState,
+    useReactTable
+} from '@tanstack/react-table';
+import { TableHeading } from './TableHeading.tsx';
+import { Table as TSTable } from '@tanstack/react-table';
 
 export type Order = 'asc' | 'desc';
 
@@ -185,88 +194,139 @@ export const ColumnConfigButton = () => {
     );
 };
 
-const PlayerTableHead = () => {
-    const { enabledColumns, orderBy, order, saveSortColumn } =
-        useContext(PlayerTableContext);
-    const createSortHandler = (property: validColumns) => () => {
-        saveSortColumn(property);
-    };
-
+const PlayerTableHead = <T,>({ table }: { table: TSTable<T> }) => {
+    const order = table.getState().sorting[0];
     return (
         <TableHead>
-            <TableRow>
-                {headCells
-                    .filter(
-                        (c) => enabledColumns.includes(c.id) || !enabledColumns
-                    )
-                    .map((headCell) => (
-                        <Tooltip title={headCell.tooltip} key={headCell.id}>
-                            <TableCell
-                                align={headCell.numeric ? 'right' : 'left'}
-                                padding={
-                                    headCell.disablePadding ? 'none' : 'normal'
-                                }
-                                sortDirection={
-                                    orderBy === headCell.id ? order : false
-                                }
+            {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                        <TableCell key={header.id}>
+                            <TableSortLabel
+                                active={order.id === header.id}
+                                direction={order.desc ? 'desc' : 'asc'}
                             >
-                                <TableSortLabel
-                                    active={orderBy === headCell.id}
-                                    direction={
-                                        orderBy === headCell.id ? order : 'asc'
-                                    }
-                                    onClick={createSortHandler(headCell.id)}
-                                >
-                                    <Trans
-                                        i18nKey={`player_table.column.${headCell.id}`}
-                                    />
-                                    {orderBy === headCell.id ? (
-                                        <Box
-                                            component="span"
-                                            sx={{ display: 'none' }}
-                                        >
-                                            {order === 'desc'
-                                                ? 'sorted descending'
-                                                : 'sorted ascending'}
-                                        </Box>
-                                    ) : null}
-                                </TableSortLabel>
-                            </TableCell>
-                        </Tooltip>
+                                <Trans
+                                    i18nKey={`player_table.column.${header.id}`}
+                                />
+                                {order.id === header.id ? (
+                                    <Box
+                                        component="span"
+                                        sx={{ display: 'none' }}
+                                    >
+                                        {order.desc
+                                            ? 'sorted descending'
+                                            : 'sorted ascending'}
+                                    </Box>
+                                ) : null}
+                            </TableSortLabel>
+                        </TableCell>
                     ))}
-            </TableRow>
+                </TableRow>
+            ))}
         </TableHead>
     );
 };
 
 export const PlayerTable = () => {
+    const [sorting, setSorting] = useState<SortingState>([
+        { id: 'kills', desc: true }
+    ]);
+    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const { state } = useGameState();
 
-    const whitelist = useMutation(addWhitelistMutation());
+    // const whitelist = useMutation(addWhitelistMutation());
+    //
+    // const onWhitelist = useCallback(
+    //     async (steamId: string) => {
+    //         whitelist.mutate({ steamId });
+    //     },
+    //     [whitelist.mutate]
+    // );
 
-    const onWhitelist = useCallback(
-        async (steamId: string) => {
-            whitelist.mutate({ steamId });
-        },
-        [whitelist.mutate]
-    );
+    const columns = useMemo(makeColumns, []);
 
-    const playerRows = useMemo(() => {
-        return state.players.map((player, i) => (
-            <PlayerTableRow
-                onWhitelist={onWhitelist}
-                player={player}
-                key={`player-row-${i}-${player.steam_id}`}
-            />
-        ));
-    }, [onWhitelist]);
+    const table = useReactTable<Player>({
+        data: state.players,
+        columns: columns,
+        autoResetPageIndex: true,
+        getCoreRowModel: getCoreRowModel(),
+        getFilteredRowModel: columnFilters ? getFilteredRowModel() : undefined,
+        getSortedRowModel: sorting ? getSortedRowModel() : undefined,
+        onColumnFiltersChange: setColumnFilters,
+        onSortingChange: setSorting,
+        state: {
+            sorting,
+            columnFilters
+        }
+    });
 
     return (
         <TableContainer sx={{ overflow: 'hidden' }}>
             <Table aria-label="Player table" size="small" padding={'none'}>
-                <PlayerTableHead />
-                <TableBody>{playerRows}</TableBody>
+                <PlayerTableHead table={table} />
+                <TableBody>
+                    {table.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id} hover>
+                            {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id}>
+                                    {flexRender(
+                                        cell.column.columnDef.cell,
+                                        cell.getContext()
+                                    )}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    ))}
+                </TableBody>
             </Table>
         </TableContainer>
     );
+};
+
+const columnHelper = createColumnHelper<Player>();
+
+const makeColumns = () => {
+    return [
+        columnHelper.accessor('user_id', {
+            header: () => <TableHeading>ID</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('personaname', {
+            header: () => <TableHeading>Name</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('score', {
+            header: () => <TableHeading>Score</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('kills', {
+            header: () => <TableHeading>K</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('deaths', {
+            header: () => <TableHeading>D</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('kpm', {
+            header: () => <TableHeading>KPM</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('health', {
+            header: () => <TableHeading>HP</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('connected', {
+            header: () => <TableHeading>Conn.</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('map_time', {
+            header: () => <TableHeading>Map Time</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        }),
+        columnHelper.accessor('ping', {
+            header: () => <TableHeading>Ping</TableHeading>,
+            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+        })
+    ];
 };

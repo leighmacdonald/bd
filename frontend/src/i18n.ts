@@ -26,7 +26,7 @@ const resources = {
             player_table: {
                 column: {
                     user_id: 'uid',
-                    name: 'name',
+                    personaname: 'name',
                     score: 'score',
                     kills: 'kills',
                     deaths: 'deaths',
@@ -203,7 +203,7 @@ const resources = {
             player_table: {
                 column: {
                     user_id: 'uid',
-                    name: 'имя',
+                    personaname: 'имя',
                     score: 'счёт',
                     kills: 'убийства',
                     deaths: 'смерти',
