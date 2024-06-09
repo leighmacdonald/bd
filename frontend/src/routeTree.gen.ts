@@ -10,46 +10,46 @@
 
 // Import Routes
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as SettingsImport } from './routes/settings'
-import { Route as IndexImport } from './routes/index'
+import { Route as rootRoute } from './routes/__root';
+import { Route as SettingsImport } from './routes/settings';
+import { Route as IndexImport } from './routes/index';
 
 // Create/Update Routes
 
 const SettingsRoute = SettingsImport.update({
-  path: '/settings',
-  getParentRoute: () => rootRoute,
-} as any)
+    path: '/settings',
+    getParentRoute: () => rootRoute
+} as any);
 
 const IndexRoute = IndexImport.update({
-  path: '/',
-  getParentRoute: () => rootRoute,
-} as any)
+    path: '/',
+    getParentRoute: () => rootRoute
+} as any);
 
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
+    interface FileRoutesByPath {
+        '/': {
+            id: '/';
+            path: '/';
+            fullPath: '/';
+            preLoaderRoute: typeof IndexImport;
+            parentRoute: typeof rootRoute;
+        };
+        '/settings': {
+            id: '/settings';
+            path: '/settings';
+            fullPath: '/settings';
+            preLoaderRoute: typeof SettingsImport;
+            parentRoute: typeof rootRoute;
+        };
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsImport
-      parentRoute: typeof rootRoute
-    }
-  }
 }
 
 // Create and export the route tree
 
-export const routeTree = rootRoute.addChildren({ IndexRoute, SettingsRoute })
+export const routeTree = rootRoute.addChildren({ IndexRoute, SettingsRoute });
 
 /* prettier-ignore-end */
 
