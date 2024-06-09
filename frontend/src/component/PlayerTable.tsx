@@ -290,43 +290,43 @@ const makeColumns = () => {
     return [
         columnHelper.accessor('user_id', {
             header: () => <TableHeading>ID</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('personaname', {
             header: () => <TableHeading>Name</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('score', {
             header: () => <TableHeading>Score</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('kills', {
             header: () => <TableHeading>K</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('deaths', {
             header: () => <TableHeading>D</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('kpm', {
             header: () => <TableHeading>KPM</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('health', {
             header: () => <TableHeading>HP</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('connected', {
             header: () => <TableHeading>Conn.</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('map_time', {
             header: () => <TableHeading>Map Time</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         }),
         columnHelper.accessor('ping', {
             header: () => <TableHeading>Ping</TableHeading>,
-            cell: (info) => <TableCell>{`#${info.getValue()}`}</TableCell>
+            cell: (info) => <TableCell>{`${info.getValue()}`}</TableCell>
         })
     ];
 };
