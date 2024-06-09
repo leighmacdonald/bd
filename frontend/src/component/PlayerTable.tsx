@@ -200,7 +200,7 @@ const PlayerTableHead = <T,>({ table }: { table: TSTable<T> }) => {
         <TableHead>
             {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
+                    {table.getVisibleLeafColumns().map((header) => (
                         <TableCell key={header.id}>
                             <TableSortLabel
                                 active={order.id === header.id}
@@ -233,6 +233,7 @@ export const PlayerTable = () => {
         { id: 'kills', desc: true }
     ]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+    const [columnVisibility, setColumnVisibility] = useState({});
     const { state } = useGameState();
 
     // const whitelist = useMutation(addWhitelistMutation());
@@ -255,8 +256,10 @@ export const PlayerTable = () => {
         getSortedRowModel: sorting ? getSortedRowModel() : undefined,
         onColumnFiltersChange: setColumnFilters,
         onSortingChange: setSorting,
+        onColumnVisibilityChange: setColumnVisibility,
         state: {
             sorting,
+            columnVisibility,
             columnFilters
         }
     });
