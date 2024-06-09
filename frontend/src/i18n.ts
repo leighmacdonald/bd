@@ -84,6 +84,7 @@ const resources = {
                         'Show only players with some sort of negative status',
                     shown_columns: 'Configure which columns are shown',
                     open_settings: 'Open the settings dialogue',
+                    open_home: 'Go Home',
                     game_state_running: 'Game is currently running',
                     game_state_stopped: 'Launch TF2!'
                 }

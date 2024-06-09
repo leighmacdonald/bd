@@ -143,8 +143,13 @@ export const formatSeconds = (seconds: number): string => {
         .join(':');
 };
 
+export const enum ListType {
+    TF2BDPlayerList = 1,
+    TF2BDRules = 2
+}
+
 export interface List {
-    list_type: string;
+    list_type: ListType;
     name: string;
     enabled: boolean;
     url: string;

@@ -1,56 +1,83 @@
-import { useMemo, useState } from 'react';
 import Dialog from '@mui/material/Dialog';
-import {
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    TextField
-} from '@mui/material';
-import Stack from '@mui/material/Stack';
+import { DialogActions, DialogContent, DialogTitle } from '@mui/material';
 import { Trans, useTranslation } from 'react-i18next';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
-import { CancelButton } from '../CancelButton.tsx';
-import SaveButton from '../SaveButton.tsx';
+import { Buttons } from '../fields/Buttons.tsx';
+import { useForm } from '@tanstack/react-form';
+import { zodValidator } from '@tanstack/zod-form-adapter';
+import { z } from 'zod';
+import { TextFieldSimple } from '../fields/TextFieldSimple.tsx';
+import Grid from '@mui/material/Unstable_Grid2';
 
 export const MarkNewTagEditorModal = NiceModal.create(() => {
-    const [tag, setTag] = useState<string>('');
     const { t } = useTranslation();
     const modal = useModal();
 
-    const onSaveMarkWithNewTag = () => {
-        modal.resolve({ tag });
-    };
-
-    const validTag = useMemo(() => {
-        return tag.length > 0 && !tag.match(/\s/);
-    }, [tag]);
+    const { Field, Subscribe, handleSubmit, reset } = useForm({
+        onSubmit: async ({ value }) => {
+            modal.resolve(value.tag);
+            await modal.hide();
+        },
+        validatorAdapter: zodValidator,
+        defaultValues: {
+            tag: ''
+        }
+    });
 
     return (
         <Dialog fullWidth {...muiDialog(modal)}>
-            <DialogTitle>
-                <Trans i18nKey={'mark_new_tag.title'} />
-            </DialogTitle>
-            <DialogContent>
-                <Stack spacing={1} padding={0}>
-                    <TextField
-                        error={tag.length > 0 && !validTag}
-                        id="new-tag-editor-field"
-                        label={t('mark_new_tag.tag')}
-                        fullWidth
-                        value={tag}
-                        onChange={(evt) => {
-                            setTag(evt.target.value);
+            <form
+                onSubmit={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await handleSubmit();
+                }}
+            >
+                <DialogTitle>
+                    <Trans i18nKey={'mark_new_tag.title'} />
+                </DialogTitle>
+                <DialogContent>
+                    <Grid container>
+                        <Grid xs={12}>
+                            <Field
+                                name={'tag'}
+                                validators={{
+                                    onChange: z.string().min(1).regex(/\S/)
+                                }}
+                                children={(props) => {
+                                    return (
+                                        <TextFieldSimple
+                                            {...props}
+                                            label={t('mark_new_tag.tag')}
+                                        />
+                                    );
+                                }}
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions>
+                    <Subscribe
+                        selector={(state) => [
+                            state.canSubmit,
+                            state.isSubmitting
+                        ]}
+                        children={([canSubmit, isSubmitting]) => {
+                            return (
+                                <Buttons
+                                    reset={reset}
+                                    isSubmitting={isSubmitting}
+                                    canSubmit={canSubmit}
+                                    showReset={true}
+                                    onClose={async () => {
+                                        await modal.hide();
+                                    }}
+                                />
+                            );
                         }}
                     />
-                </Stack>
-            </DialogContent>
-            <DialogActions>
-                <CancelButton onClick={modal.hide} />
-                <SaveButton
-                    onClick={onSaveMarkWithNewTag}
-                    disabled={!validTag}
-                />
-            </DialogActions>
+                </DialogActions>
+            </form>
         </Dialog>
     );
 });

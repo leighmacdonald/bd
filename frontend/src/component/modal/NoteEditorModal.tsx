@@ -1,20 +1,16 @@
-import { useState } from 'react';
 import Dialog from '@mui/material/Dialog';
-import {
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    TextField
-} from '@mui/material';
-import Stack from '@mui/material/Stack';
+import { DialogActions, DialogContent, DialogTitle } from '@mui/material';
 import { Trans, useTranslation } from 'react-i18next';
 import { saveUserNoteMutation } from '../../api.ts';
 import NiceModal, { muiDialog, useModal } from '@ebay/nice-modal-react';
 import { logError } from '../../util.ts';
-import CancelButton from '../CancelButton.tsx';
-import SaveButton from '../SaveButton.tsx';
-import ClearButton from '../ClearButton.tsx';
 import { useMutation } from '@tanstack/react-query';
+import { Buttons } from '../fields/Buttons.tsx';
+import Grid from '@mui/material/Unstable_Grid2';
+import { z } from 'zod';
+import { TextFieldSimple } from '../fields/TextFieldSimple.tsx';
+import { useForm } from '@tanstack/react-form';
+import { zodValidator } from '@tanstack/zod-form-adapter';
 
 interface NoteEditorProps {
     notes: string;
@@ -23,54 +19,87 @@ interface NoteEditorProps {
 
 export const NoteEditorModal = NiceModal.create<NoteEditorProps>(
     ({ steamId, notes }) => {
-        const [newNotes, setNewNotes] = useState<string>(notes);
         const { t } = useTranslation();
         const modal = useModal();
 
         const mutation = useMutation({
             ...saveUserNoteMutation(steamId),
             onSuccess: async () => {
-                await modal.hide();
                 console.log(`Note updated: ${steamId}`);
+                await modal.hide();
             },
             onError: (error) => {
                 logError(`Error updating note: ${error}`);
             }
         });
 
-        const onSaveNotes = async () => {
-            mutation.mutate({ notes: newNotes });
-        };
+        const { Field, Subscribe, handleSubmit, reset } = useForm({
+            onSubmit: async ({ value }) => {
+                mutation.mutate(value);
+            },
+            validatorAdapter: zodValidator,
+            defaultValues: {
+                notes: notes ?? ''
+            }
+        });
 
         return (
             <Dialog fullWidth {...muiDialog(modal)}>
-                <DialogTitle>
-                    <Trans i18nKey={'player_table.notes.title'} />
-                </DialogTitle>
-                <DialogContent>
-                    <Stack spacing={1} padding={0}>
-                        <TextField
-                            id="notes-editor-field"
-                            label={t('player_table.notes.note_label')}
-                            fullWidth
-                            minRows={10}
-                            value={newNotes}
-                            onChange={(evt) => {
-                                setNewNotes(evt.target.value);
+                <form
+                    onSubmit={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await handleSubmit();
+                    }}
+                >
+                    <DialogTitle>
+                        <Trans i18nKey={'player_table.notes.title'} />
+                    </DialogTitle>
+                    <DialogContent>
+                        <Grid container>
+                            <Grid xs={12}>
+                                <Field
+                                    name={'notes'}
+                                    validators={{
+                                        onChange: z.string().min(2)
+                                    }}
+                                    children={(props) => {
+                                        return (
+                                            <TextFieldSimple
+                                                {...props}
+                                                rows={10}
+                                                label={t(
+                                                    'player_table.notes.note_label'
+                                                )}
+                                            />
+                                        );
+                                    }}
+                                />
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                    <DialogActions>
+                        <Subscribe
+                            selector={(state) => [
+                                state.canSubmit,
+                                state.isSubmitting
+                            ]}
+                            children={([canSubmit, isSubmitting]) => {
+                                return (
+                                    <Buttons
+                                        reset={reset}
+                                        isSubmitting={isSubmitting}
+                                        canSubmit={canSubmit}
+                                        showReset={true}
+                                        onClose={async () => {
+                                            await modal.hide();
+                                        }}
+                                    />
+                                );
                             }}
-                            multiline
                         />
-                    </Stack>
-                </DialogContent>
-                <DialogActions>
-                    <ClearButton
-                        onClick={() => {
-                            setNewNotes('');
-                        }}
-                    />
-                    <CancelButton onClick={modal.hide} />
-                    <SaveButton onClick={onSaveNotes} />
-                </DialogActions>
+                    </DialogActions>
+                </form>
             </Dialog>
         );
     }
