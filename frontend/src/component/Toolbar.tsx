@@ -127,19 +127,18 @@ export const Toolbar = () => {
                     }
                 </Typography>
             </Box>
-            ;
+
             <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
                 <Typography variant={'h1'}>
                     {state.server.server_name}
                 </Typography>
             </Box>
-            ;
+
             <Box sx={{ display: 'flex', alignItems: 'center' }} paddingLeft={2}>
                 <Typography variant={'subtitle1'} paddingRight={1}>
                     {state.server.current_map}
                 </Typography>
             </Box>
-            ;
         </Stack>
     );
 };
