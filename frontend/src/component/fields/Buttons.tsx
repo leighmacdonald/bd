@@ -6,7 +6,7 @@ import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import { t } from 'i18next';
 
-type ButtonProps = {
+interface ButtonProps {
     canSubmit: boolean;
     isSubmitting: boolean;
     reset: () => void;
@@ -19,7 +19,7 @@ type ButtonProps = {
     onClear?: () => Promise<void>;
     onClose?: () => Promise<void>;
     fullWidth?: boolean;
-};
+}
 
 export const Buttons = ({
     canSubmit,

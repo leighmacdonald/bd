@@ -1,6 +1,6 @@
 import { FieldState, Updater } from '@tanstack/react-form';
 
-export type FieldProps<T = string> = {
+export interface FieldProps<T = string> {
     disabled?: boolean;
     readonly label?: string;
     state: FieldState<T>;
@@ -12,4 +12,4 @@ export type FieldProps<T = string> = {
     rows?: number;
     placeholder?: string;
     tooltip?: string;
-};
+}
