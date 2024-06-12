@@ -15,11 +15,11 @@ export const createThemeByMode = () => {
             MuiTableCell: {
                 styleOverrides: {
                     root: {
-                        borderLeft: '1px solid #000000',
+                        //borderLeft: '1px solid #000000',
                         borderBottom: 'none',
-                        borderRight: '1px solid #000000',
-                        paddingLeft: '6px',
-                        paddingRight: '6px'
+                        //borderRight: '1px solid #000000',
+                        paddingLeft: '3px',
+                        paddingRight: '3px'
                     }
                 }
             },

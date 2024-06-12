@@ -190,6 +190,13 @@ func (s *gameState) start(ctx context.Context) {
 			}
 			s.applyRemoteData(ctx, playerData, settings)
 		case evt := <-s.eventChan:
+			if evt.PlayerSID.Valid() {
+				if _, errCreate := s.getPlayerOrCreate(ctx, evt.PlayerSID); errCreate != nil {
+					slog.Error("Failed to get event player", errAttr(errCreate))
+
+					continue
+				}
+			}
 			slog.Debug("received event", slog.Int("type", int(evt.Type)))
 			switch evt.Type { //nolint:exhaustive
 			case EvtMap:
@@ -199,21 +206,7 @@ func (s *gameState) start(ctx context.Context) {
 			case EvtTags:
 				s.onTags(tagsEvent{tags: strings.Split(evt.MetaData, ",")})
 			case EvtAddress:
-				pcs := strings.Split(evt.MetaData, ":")
-
-				_, errPort := strconv.ParseUint(pcs[1], 10, 16)
-				if errPort != nil {
-					slog.Error("Failed to parse port: %v", errAttr(errPort), slog.String("port", pcs[1]))
-
-					continue
-				}
-
-				parsedIP := net.ParseIP(pcs[0])
-				if parsedIP == nil {
-					slog.Error("Failed to parse ip", slog.String("ip", pcs[0]))
-
-					continue
-				}
+				s.onEventAddress(evt)
 			case EvtStatusID:
 				s.onStatus(ctx, evt.PlayerSID, statusEvent{
 					ping:      evt.PlayerPing,
@@ -224,12 +217,7 @@ func (s *gameState) start(ctx context.Context) {
 			case EvtDisconnect:
 				s.onMapChange()
 			case EvtKill:
-				settings, errSettings := s.settings.settings(ctx)
-				if errSettings != nil {
-					slog.Error("Failed to read settings", errAttr(errSettings))
-					continue
-				}
-				s.onKill(killEvent{victimName: evt.Victim, sourceName: evt.Player}, settings)
+				s.onKill(ctx, evt)
 			case EvtMsg:
 			case EvtConnect:
 			case EvtLobby:
@@ -238,6 +226,24 @@ func (s *gameState) start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func (s *gameState) onEventAddress(evt LogEvent) {
+	pcs := strings.Split(evt.MetaData, ":")
+
+	_, errPort := strconv.ParseUint(pcs[1], 10, 16)
+	if errPort != nil {
+		slog.Error("Failed to parse port: %v", errAttr(errPort), slog.String("port", pcs[1]))
+
+		return
+	}
+
+	parsedIP := net.ParseIP(pcs[0])
+	if parsedIP == nil {
+		slog.Error("Failed to parse ip", slog.String("ip", pcs[0]))
+
+		return
 	}
 }
 
@@ -353,13 +359,21 @@ func (s *gameState) CurrentServerState() serverState {
 	return s.server
 }
 
-func (s *gameState) onKill(evt killEvent, settings userSettings) {
-	src, srcErr := s.players.byName(evt.sourceName)
+func (s *gameState) onKill(ctx context.Context, evt LogEvent) {
+	settings, errSettings := s.settings.settings(ctx)
+	if errSettings != nil {
+		slog.Error("Failed to read settings", errAttr(errSettings))
+
+		return
+	}
+
+	ke := killEvent{victimName: evt.Victim, sourceName: evt.Player}
+	src, srcErr := s.players.byName(ke.sourceName)
 	if srcErr != nil {
 		return
 	}
 
-	target, targetErr := s.players.byName(evt.sourceName)
+	target, targetErr := s.players.byName(ke.sourceName)
 	if targetErr != nil {
 		return
 	}

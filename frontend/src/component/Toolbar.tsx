@@ -11,7 +11,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import Typography from '@mui/material/Typography';
 import { getLaunchOptions, getQuitOptions, Team } from '../api';
-import { ColumnConfigButton } from './PlayerTable';
 import { PlayerTableContext } from '../context/PlayerTableContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGameState } from '../context/GameStateContext.ts';
@@ -52,11 +51,6 @@ export const Toolbar = () => {
                     </Box>
                 </Tooltip>
 
-                <Tooltip title={t('toolbar.button.shown_columns')}>
-                    <Box>
-                        <ColumnConfigButton />
-                    </Box>
-                </Tooltip>
                 {!isSettings ? (
                     <Tooltip title={t('toolbar.button.open_settings')}>
                         <Box>

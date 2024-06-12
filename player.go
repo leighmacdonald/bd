@@ -180,6 +180,9 @@ func loadPlayerOrCreate(ctx context.Context, db store.Querier, sid64 steamid.Ste
 		playerRow.AvatarHash = defaultAvatarHash
 		playerRow.CreatedOn = time.Now()
 		playerRow.UpdatedOn = playerRow.CreatedOn
+		if playerRow.Visibility == 0 {
+			playerRow.Visibility = int64(steamweb.VisibilityPublic)
+		}
 
 		if _, errInsert := db.PlayerInsert(ctx, store.PlayerInsertParams{
 			// Most values are not really required to be set as zero values are ok

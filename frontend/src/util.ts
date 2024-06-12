@@ -1,5 +1,7 @@
 import { Link } from './api';
 import SteamID from 'steamid';
+import { formatDuration } from 'date-fns/formatDuration';
+import { Duration } from 'date-fns';
 
 export const writeToClipboard = async (rawData: string) => {
     const data = [
@@ -48,3 +50,16 @@ export const noop = (): void => {};
 export const uniqCI = (values: string[]): string[] => [
     ...new Map(values.map((s) => [s.toLowerCase(), s])).values()
 ];
+
+const zeroPad = (num: number) => String(num).padStart(2, '0');
+
+export const humanDuration = (duration: Duration) => {
+    return formatDuration(duration, {
+        format: ['hours', 'minutes', 'seconds'],
+        zero: true,
+        delimiter: ':',
+        locale: {
+            formatDistance: (_token, count) => zeroPad(count)
+        }
+    });
+};
