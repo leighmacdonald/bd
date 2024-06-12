@@ -11,6 +11,7 @@ import { Buttons } from '../fields/Buttons.tsx';
 import { z } from 'zod';
 import { TextFieldSimple } from '../fields/TextFieldSimple.tsx';
 import { CheckboxSimple } from '../fields/CheckboxSimple.tsx';
+import { noop } from '../../util.ts';
 
 interface SettingsListProps {
     list: List;
@@ -111,7 +112,7 @@ export const SettingsListEditorModal = NiceModal.create<SettingsListProps>(
                             children={([canSubmit, isSubmitting]) => {
                                 return (
                                     <Buttons
-                                        reset={() => {}}
+                                        reset={noop}
                                         isSubmitting={isSubmitting}
                                         canSubmit={canSubmit}
                                         showReset={true}

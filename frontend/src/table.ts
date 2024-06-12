@@ -24,7 +24,7 @@ export const getDefaultColumns = (): validColumns[] => {
             return defaultCols;
         }
         return cols;
-    } catch (_) {
+    } catch {
         return defaultCols;
     }
 };

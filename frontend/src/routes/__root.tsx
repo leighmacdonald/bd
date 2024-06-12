@@ -9,10 +9,12 @@ import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import { Toolbar } from '../component/Toolbar.tsx';
+import { useEffect } from 'react';
+import { useGameState } from '../context/GameStateContext.ts';
 
-type RouterContext = {
+interface RouterContext {
     queryClient: QueryClient;
-};
+}
 
 export const Route = createRootRouteWithContext<RouterContext>()({
     loader: ({ context }) => {
@@ -21,10 +23,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     component: () => {
         const settings = Route.useLoaderData();
         const { setSettings } = useSettingsState();
+        const { setState } = useGameState();
 
-        setSettings(settings);
+        useEffect(() => {
+            setSettings(settings);
+        }, [settings]);
 
-        useQuery({ ...getStateOptions() });
+        const { data: state, isLoading } = useQuery({ ...getStateOptions() });
+
+        useEffect(() => {
+            if (!isLoading && state) {
+                setState(state);
+            }
+        }, [state]);
 
         return (
             <>

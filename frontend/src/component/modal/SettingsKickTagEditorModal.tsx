@@ -8,6 +8,7 @@ import { useForm } from '@tanstack/react-form';
 import { zodValidator } from '@tanstack/zod-form-adapter';
 import { TextFieldSimple } from '../fields/TextFieldSimple.tsx';
 import { z } from 'zod';
+import { noop } from '../../util.ts';
 
 interface KickTagEditorProps {
     originalTag?: string;
@@ -74,7 +75,7 @@ export const SettingsKickTagEditorModal = NiceModal.create<KickTagEditorProps>(
                             children={([canSubmit, isSubmitting]) => {
                                 return (
                                     <Buttons
-                                        reset={() => {}}
+                                        reset={noop}
                                         isSubmitting={isSubmitting}
                                         canSubmit={canSubmit}
                                         showReset={true}

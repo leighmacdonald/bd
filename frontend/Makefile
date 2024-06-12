@@ -5,7 +5,7 @@ deps:
 	pnpm install --frozen-lockfile
 
 check-eslint:
-	pnpm run eslint:check
+	pnpm run eslint:check --ignore-pattern dist/
 
 check-prettier:
 	pnpm prettier src/ --check
